@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.doc
 
-class MdxSnippetParserSpec extends AbstractParserSpec {
+class MdxSnippetParserSpec extends AbstractSnippetParserSpec {
 
     @Override
     SnippetParser parser(Map<String,String> defaultSubstitutions = [:]) {

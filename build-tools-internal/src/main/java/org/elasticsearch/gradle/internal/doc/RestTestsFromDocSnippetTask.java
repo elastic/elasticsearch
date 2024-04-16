@@ -431,7 +431,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         }
 
         private void body(Snippet snippet, boolean inSetup) {
-            ParsingUtils.parse(snippet.getLocation(), snippet.contents(), SYNTAX, (matcher, last) -> {
+            ParsingUtils.parse(snippet.contents(), SYNTAX, (matcher, last) -> {
                 if (matcher.group("comment") != null) {
                     // Comment
                     return;

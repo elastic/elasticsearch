@@ -33,10 +33,6 @@ public record Snippet(
     String name
 ) {
 
-    String getLocation() {
-        return path + "[" + start + ":" + end + "]";
-    }
-
     @Override
     public String toString() {
         String result = path + "[" + start + ":" + end + "]";

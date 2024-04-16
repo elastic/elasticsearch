@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.doc;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -43,11 +42,10 @@ public class AsciidocSnippetParser extends SnippetParser {
     private String currentName = null;
     private String lastLanguage = null;
 
-    protected void parseLine(List<Snippet> snippets, Path docPath, int lineNumber, String line) {
+    protected void parseLine(List<Snippet> snippets, int lineNumber, String line) {
         if (SNIPPET_PATTERN.matcher(line).matches()) {
             if (snippetBuilder == null) {
-                snippetBuilder = new SnippetBuilder().withPath(docPath)
-                    .withLineNumber(lineNumber + 1)
+                snippetBuilder = newSnippetBuilder().withLineNumber(lineNumber + 1)
                     .withName(currentName)
                     .withSubstitutions(defaultSubstitutions);
                 if (lastLanguageLine == lineNumber - 1) {
@@ -67,7 +65,7 @@ public class AsciidocSnippetParser extends SnippetParser {
             currentName = source.name;
             return;
         }
-        handleCommons(snippets, docPath.toFile(), lineNumber, line);
+        handleCommons(snippets, line);
     }
 
     protected String getTestSetupRegex() {

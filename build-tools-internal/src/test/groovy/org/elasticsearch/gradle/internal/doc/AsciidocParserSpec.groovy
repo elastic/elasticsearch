@@ -10,7 +10,7 @@ package org.elasticsearch.gradle.internal.doc
 
 import static org.elasticsearch.gradle.internal.doc.AsciidocSnippetParser.matchSource
 
-class AsciidocParserSpec extends AbstractParserSpec {
+class AsciidocParserSpec extends AbstractSnippetParserSpec {
 
     def testMatchSource() {
         expect:

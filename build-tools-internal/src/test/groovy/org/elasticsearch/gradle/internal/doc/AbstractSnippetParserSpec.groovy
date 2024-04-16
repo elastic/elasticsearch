@@ -14,7 +14,7 @@ import org.gradle.api.InvalidUserDataException
 
 import java.nio.file.Path
 
-abstract class AbstractParserSpec extends Specification {
+abstract class AbstractSnippetParserSpec extends Specification {
 
     abstract SnippetParser parser()
     abstract String docSnippetWithTestResponses()
@@ -42,8 +42,10 @@ abstract class AbstractParserSpec extends Specification {
         when:
         def snippets = parse(docSnippetWithMixedConsoleNotConsole())
         then:
-        def e = thrown(InvalidUserDataException)
-        e.message.matches("some\\-path\\.xyz\\:\\d\\: Can't be both CONSOLE and NOTCONSOLE")
+        def e = thrown(SnippetParserException)
+        e.message.matches("Error parsing snippet in acme.xyz at line \\d")
+        e.file.name == "acme.xyz"
+        e.lineNumber > 0
     }
 
     def "can parse snippet with test"() {
@@ -181,11 +183,8 @@ GET /_cat/snapshots/repo1?v=true&s=id
 
     List<Snippet> parse(String docSnippet) {
         List<Snippet> snippets = new ArrayList<>()
-        def snippetParser = parser()
-        docSnippet.eachLine { line, index ->
-            snippetParser.parseLine(snippets, Path.of("some-path.xyz"), index, line)
-        }
-        snippetParser.fileParsingFinished(snippets)
+        def lines = docSnippet.lines().toList()
+        parser().parseLines(new File("acme.xyz"), lines, snippets)
         return snippets
     }
 

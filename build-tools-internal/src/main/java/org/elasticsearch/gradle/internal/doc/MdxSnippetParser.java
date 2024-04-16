@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.doc;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -32,14 +31,13 @@ public class MdxSnippetParser extends SnippetParser {
     }
 
     @Override
-    protected void parseLine(List<Snippet> snippets, Path docPath, int lineNumber, String line) {
+    protected void parseLine(List<Snippet> snippets, int lineNumber, String line) {
         Matcher snippetStartMatcher = SNIPPET_PATTERN.matcher(line);
         if (snippetStartMatcher.matches()) {
             if (snippetBuilder == null) {
                 if (snippetStartMatcher.groupCount() == 1) {
                     String language = snippetStartMatcher.group(1);
-                    snippetBuilder = new SnippetBuilder().withPath(docPath)
-                        .withLineNumber(lineNumber + 1)
+                    snippetBuilder = newSnippetBuilder().withLineNumber(lineNumber + 1)
                         .withName(null)
                         .withSubstitutions(defaultSubstitutions)
                         .withLanguage(language);
@@ -49,7 +47,7 @@ public class MdxSnippetParser extends SnippetParser {
             }
             return;
         }
-        handleCommons(snippets, docPath.toFile(), lineNumber, line);
+        handleCommons(snippets, line);
     }
 
     @Override

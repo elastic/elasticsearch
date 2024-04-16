@@ -50,34 +50,47 @@ abstract class SnippetParser {
 
     protected SnippetBuilder snippetBuilder = null;
 
+    private Path currentPath;
+
     SnippetParser(Map<String, String> defaultSubstitutions) {
         this.defaultSubstitutions = defaultSubstitutions;
     }
 
     public List<Snippet> parseDoc(File rootDir, File docFile) {
         List<Snippet> snippets = new ArrayList<>();
-        Path path = rootDir.toPath().relativize(docFile.toPath());
+        this.currentPath = rootDir.toPath().relativize(docFile.toPath());
         try (Stream<String> lines = Files.lines(docFile.toPath(), StandardCharsets.UTF_8)) {
             List<String> linesList = lines.toList();
-            for (int lineNumber = 0; lineNumber < linesList.size(); lineNumber++) {
-                String line = linesList.get(lineNumber);
-                parseLine(snippets, path, lineNumber, line);
-            }
-            fileParsingFinished(snippets);
+            parseLines(docFile, linesList, snippets);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new SnippetParserException("Failed to parse file " + docFile, e);
+        } finally {
+            this.currentPath = null;
+            this.snippetBuilder = null;
         }
         return snippets;
     }
 
-    protected void handleCommons(List<Snippet> snippets, File docFile, int lineNumber, String line) {
-        if (consoleHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
+    void parseLines(File file, List<String> linesList, List<Snippet> snippets) {
+        for (int lineNumber = 0; lineNumber < linesList.size(); lineNumber++) {
+            String line = linesList.get(lineNumber);
+            try {
+                parseLine(snippets, lineNumber, line);
+            } catch (InvalidUserDataException e) {
+                throw new SnippetParserException(file, lineNumber, e);
+            }
+        }
+        fileParsingFinished(snippets);
+    }
+
+    protected void handleCommons(List<Snippet> snippets, String line) {
+        if (consoleHandled(line, snippetBuilder)) {
             return;
         }
-        if (testHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
+        if (testHandled(line, snippetBuilder)) {
             return;
         }
-        if (testResponseHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
+        if (testResponseHandled(line, snippetBuilder)) {
             return;
         }
         if (line.matches(getTestSetupRegex())) {
@@ -111,6 +124,11 @@ abstract class SnippetParser {
         snippetBuilder = null;
     }
 
+    protected SnippetBuilder newSnippetBuilder() {
+        snippetBuilder = new SnippetBuilder().withPath(currentPath);
+        return snippetBuilder;
+    }
+
     void fileParsingFinished(List<Snippet> snippets) {
         if (snippetBuilder != null) {
             snippets.add(snippetBuilder.build());
@@ -118,19 +136,17 @@ abstract class SnippetParser {
         }
     }
 
-    protected abstract void parseLine(List<Snippet> snippets, Path docPath, int lineNumber, String line);
+    protected abstract void parseLine(List<Snippet> snippets, int lineNumber, String line);
 
-    boolean testResponseHandled(String name, int lineNumber, String line, SnippetBuilder snippetBuilder) {
+    boolean testResponseHandled(String line, SnippetBuilder snippetBuilder) {
         Matcher matcher = testResponsePattern().matcher(line);
         if (matcher.matches()) {
             if (snippetBuilder == null) {
-                throw new InvalidUserDataException(name + ":" + lineNumber + ": TESTRESPONSE not paired with a snippet at ");
+                throw new InvalidUserDataException("TESTRESPONSE not paired with a snippet at ");
             }
             snippetBuilder.withTestResponse(true);
             if (matcher.group(2) != null) {
-                String loc = name + ":" + lineNumber;
                 ParsingUtils.parse(
-                    loc,
                     matcher.group(2),
                     "(?:" + SUBSTITUTION + "|" + NON_JSON + "|" + SKIP_REGEX + ") ?",
                     (Matcher m, Boolean last) -> {
@@ -155,16 +171,15 @@ abstract class SnippetParser {
         return false;
     }
 
-    protected boolean testHandled(String name, int lineNumber, String line, SnippetBuilder snippetBuilder) {
+    protected boolean testHandled(String line, SnippetBuilder snippetBuilder) {
         Matcher matcher = testPattern().matcher(line);
         if (matcher.matches()) {
             if (snippetBuilder == null) {
-                throw new InvalidUserDataException(name + ":" + lineNumber + ": TEST not paired with a snippet at ");
+                throw new InvalidUserDataException("TEST not paired with a snippet at ");
             }
             snippetBuilder.withTest(true);
             if (matcher.group(2) != null) {
-                String loc = name + ":" + lineNumber;
-                ParsingUtils.parse(loc, matcher.group(2), TEST_SYNTAX, (Matcher m, Boolean last) -> {
+                ParsingUtils.parse(matcher.group(2), TEST_SYNTAX, (Matcher m, Boolean last) -> {
                     if (m.group(1) != null) {
                         snippetBuilder.withCatchPart(m.group(1));
                         return;
@@ -205,22 +220,22 @@ abstract class SnippetParser {
         return false;
     }
 
-    protected boolean consoleHandled(String fileName, int lineNumber, String line, SnippetBuilder snippet) {
+    protected boolean consoleHandled(String line, SnippetBuilder snippet) {
         if (line.matches(getConsoleRegex())) {
             if (snippetBuilder == null) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": CONSOLE not paired with a snippet");
+                throw new InvalidUserDataException("CONSOLE not paired with a snippet");
             }
             if (snippetBuilder.consoleDefined()) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": Can't be both CONSOLE and NOTCONSOLE");
+                throw new InvalidUserDataException("Can't be both CONSOLE and NOTCONSOLE");
             }
             snippetBuilder.withConsole(Boolean.TRUE);
             return true;
         } else if (line.matches(getNotconsoleRegex())) {
             if (snippet == null) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": NOTCONSOLE not paired with a snippet");
+                throw new InvalidUserDataException("NOTCONSOLE not paired with a snippet");
             }
             if (snippetBuilder.consoleDefined()) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": Can't be both CONSOLE and NOTCONSOLE");
+                throw new InvalidUserDataException("Can't be both CONSOLE and NOTCONSOLE");
             }
             snippet.withConsole(Boolean.FALSE);
             return true;

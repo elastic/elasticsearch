@@ -1631,7 +1631,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 eventIngestedRange = IndexLongFieldRange.readFrom(in);
             } else {
-                eventIngestedRange = IndexLongFieldRange.UNKNOWN;
+                eventIngestedRange = IndexLongFieldRange.UNKNOWN; // MP TODO: is this the right choice?
             }
         }
 

@@ -2229,7 +2229,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Override
     public ShardLongFieldRange getEventIngestedRange() {
-        return determineShardLongFieldRange("event.ingested");  // MP TODO: make this string 'static final' somewhere
+        return determineShardLongFieldRange(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
     }
 
     private ShardLongFieldRange determineShardLongFieldRange(String fieldName) {

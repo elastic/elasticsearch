@@ -165,9 +165,9 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         if (timestampFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
             fieldToType.put(DataStream.TIMESTAMP_FIELD_NAME, dateFieldType);
         }
-        final MappedFieldType eventIngestedFieldType = mapperService.fieldType("event.ingested");
+        final MappedFieldType eventIngestedFieldType = mapperService.fieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
         if (eventIngestedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
-            fieldToType.put("event.ingested", dateFieldType);
+            fieldToType.put(IndexMetadata.EVENT_INGESTED_FIELD_NAME, dateFieldType);
         }
         if (fieldToType.isEmpty()) {
             return null;

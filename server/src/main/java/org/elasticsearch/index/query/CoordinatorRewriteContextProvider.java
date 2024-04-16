@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -66,7 +67,7 @@ public class CoordinatorRewriteContextProvider {
             }
         }
 
-        DateFieldMapper.DateFieldType eventIngestedFieldType = dateFieldMap.get("event.ingested");
+        DateFieldMapper.DateFieldType eventIngestedFieldType = dateFieldMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
         IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
 
         var atTimestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(timestampFieldType, timestampRange);

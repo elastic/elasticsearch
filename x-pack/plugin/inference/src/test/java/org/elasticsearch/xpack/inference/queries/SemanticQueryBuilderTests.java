@@ -21,7 +21,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -32,16 +32,20 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -66,48 +70,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
     private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 10;
-
-    private static final String SPARSE_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
-            {
-                "%s": {
-                    "inference": {
-                        "inference_id": "test_service",
-                        "model_settings": {
-                            "task_type": "SPARSE_EMBEDDING"
-                        },
-                        "chunks": [
-                            {
-                                "embeddings": {
-                                    "feature_0": 1.0
-                                },
-                                "text": "feature_0"
-                            }
-                        ]
-                    }
-                }
-            }
-        """, SEMANTIC_TEXT_FIELD);
-
-    private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
-            {
-                "%s": {
-                    "inference": {
-                        "inference_id": "test_service",
-                        "model_settings": {
-                            "task_type": "TEXT_EMBEDDING",
-                            "dimensions": %d,
-                            "similarity": "cosine"
-                        },
-                        "chunks": [
-                            {
-                                "embeddings": %s,
-                                "text": "feature_0"
-                            }
-                        ]
-                    }
-                }
-            }
-        """, SEMANTIC_TEXT_FIELD, TEXT_EMBEDDING_DIMENSION_COUNT, generateTextEmbeddingVector(TEXT_EMBEDDING_DIMENSION_COUNT));
+    private static final String INFERENCE_ID = "test_service";
 
     private static InferenceResultType inferenceResultType;
 
@@ -153,7 +116,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, "type=semantic_text,inference_id=test_service"))
+                Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, "type=semantic_text,inference_id=" + INFERENCE_ID))
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
@@ -161,17 +124,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         applyRandomInferenceResults(mapperService);
     }
 
-    private void applyRandomInferenceResults(MapperService mapperService) {
+    private void applyRandomInferenceResults(MapperService mapperService) throws IOException {
         // Parse random inference results (or no inference results) to set up the dynamic inference result mappings under the semantic text
         // field
-        String source = switch (inferenceResultType) {
-            case SPARSE_EMBEDDING -> SPARSE_EMBEDDING_INFERENCE_RESULTS;
-            case TEXT_EMBEDDING -> TEXT_EMBEDDING_INFERENCE_RESULTS;
-            default -> null;
-        };
-
-        if (source != null) {
-            SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
+        SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(inferenceResultType);
+        if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
             mapperService.merge(
                 "_doc",
@@ -334,6 +291,36 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 }
               }
             }""", queryBuilder);
+    }
+
+    private static SourceToParse buildSemanticTextFieldWithInferenceResults(InferenceResultType inferenceResultType) throws IOException {
+        SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
+            case NONE -> null;
+            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null);
+            case TEXT_EMBEDDING -> new SemanticTextField.ModelSettings(
+                TaskType.TEXT_EMBEDDING,
+                TEXT_EMBEDDING_DIMENSION_COUNT,
+                SimilarityMeasure.COSINE
+            );
+        };
+
+        SourceToParse sourceToParse = null;
+        if (modelSettings != null) {
+            SemanticTextField semanticTextField = new SemanticTextField(
+                SEMANTIC_TEXT_FIELD,
+                List.of(),
+                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, List.of()),
+                XContentType.JSON
+            );
+
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+            builder.field(semanticTextField.fieldName());
+            builder.value(semanticTextField);
+            builder.endObject();
+            sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
+        }
+
+        return sourceToParse;
     }
 
     private static List<Float> generateTextEmbeddingVector(int size) {

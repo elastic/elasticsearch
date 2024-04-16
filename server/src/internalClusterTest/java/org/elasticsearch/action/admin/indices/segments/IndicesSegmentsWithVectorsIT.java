@@ -16,14 +16,11 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.endsWith;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.is;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 @LuceneTestCase.SuppressCodecs("*")
@@ -57,7 +54,7 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
         ShardSegments shard = shardSegments.shards()[0];
         for (Segment segment : shard.getSegments()) {
             assertThat(segment.getAttributes().keySet(), hasItem(endsWith("VectorsFormat")));
-            assertThat(segment.getAttributes().values(), hasItem("["+vectorField+"]"));
+            assertThat(segment.getAttributes().values(), hasItem("[" + vectorField + "]"));
         }
     }
 }

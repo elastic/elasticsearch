@@ -90,7 +90,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             (n, c, o) -> SemanticTextField.parseModelSettingsFromMap(o),
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).modelSettings,
             XContentBuilder::field,
-            (m) -> m == null ? "null" : Strings.toString(m)
+            Objects::toString
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();

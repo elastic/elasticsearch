@@ -264,7 +264,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 );
                 assertThat(
                     exc.getMessage(),
-                    containsString("Cannot update parameter [model_settings] " + "from [{\"task_type\":\"sparse_embedding\"}] to [null]")
+                    containsString("Cannot update parameter [model_settings] " + "from [task_type=sparse_embedding] to [null]")
                 );
             }
             {
@@ -289,8 +289,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     exc.getMessage(),
                     containsString(
                         "Cannot update parameter [model_settings] "
-                            + "from [{\"task_type\":\"sparse_embedding\"}] "
-                            + "to [{\"task_type\":\"text_embedding\",\"dimensions\":10,\"similarity\":\"cosine\"}]"
+                            + "from [task_type=sparse_embedding] "
+                            + "to [task_type=text_embedding, dimensions=10, similarity=cosine]"
                     )
                 );
             }

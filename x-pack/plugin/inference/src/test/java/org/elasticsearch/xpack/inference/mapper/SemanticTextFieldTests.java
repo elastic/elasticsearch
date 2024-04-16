@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,7 +35,6 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTextField> {
@@ -141,6 +145,77 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             ),
             contentType
         );
+    }
+
+    /**
+     * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link SemanticTextField.Chunk}.
+     */
+    private static List<SemanticTextField.Chunk> toSemanticTextFieldChunks(
+        String field,
+        String inferenceId,
+        List<ChunkedInferenceServiceResults> results,
+        XContentType contentType
+    ) {
+        List<SemanticTextField.Chunk> chunks = new ArrayList<>();
+        for (var result : results) {
+            if (result instanceof ChunkedSparseEmbeddingResults textExpansionResults) {
+                for (var chunk : textExpansionResults.getChunkedResults()) {
+                    chunks.add(
+                        new SemanticTextField.Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.weightedTokens()))
+                    );
+                }
+            } else if (result instanceof ChunkedTextEmbeddingResults textEmbeddingResults) {
+                for (var chunk : textEmbeddingResults.getChunks()) {
+                    chunks.add(
+                        new SemanticTextField.Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.embedding()))
+                    );
+                }
+            } else {
+                throw new ElasticsearchStatusException(
+                    "Invalid inference results format for field [{}] with inference id [{}], got {}",
+                    RestStatus.BAD_REQUEST,
+                    field,
+                    inferenceId,
+                    result.getWriteableName()
+                );
+            }
+        }
+        return chunks;
+    }
+
+    /**
+     * Serialises the {@link TextExpansionResults.WeightedToken} list, according to the provided {@link XContent},
+     * into a {@link BytesReference}.
+     */
+    private static BytesReference toBytesReference(XContent xContent, List<TextExpansionResults.WeightedToken> tokens) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startObject();
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
+            }
+            b.endObject();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
+    }
+
+    /**
+     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
+     */
+    private static BytesReference toBytesReference(XContent xContent, double[] value) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startArray();
+            for (double v : value) {
+                b.value(v);
+            }
+            b.endArray();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
     }
 
     public static Model randomModel(TaskType taskType) {

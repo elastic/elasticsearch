@@ -495,7 +495,7 @@ public class OptimizerRulesTests extends ESTestCase {
     // a = 2 OR 3 < a < 4 OR a > 2 OR a!= 2 -> TRUE
     public void testPropagateEquals_VarEq2OrVarRangeGt3Lt4OrVarGt2OrVarNe2() {
         FieldAttribute fa = getFieldAttribute();
-        org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals eq = equalsOf(fa, TWO);
+        Equals eq = equalsOf(fa, TWO);
         Range range = rangeOf(fa, THREE, false, FOUR, false);
         GreaterThan gt = greaterThanOf(fa, TWO);
         NotEquals neq = notEqualsOf(fa, TWO);

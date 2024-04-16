@@ -276,7 +276,7 @@ public class FakeStatelessNode implements Closeable {
             objectStoreService.start();
             localCloseables.add(objectStoreService);
             electionStrategy = new StatelessElectionStrategy(objectStoreService::getClusterStateBlobContainer, threadPool);
-            var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy);
+            var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
             commitService = new StatelessCommitService(

@@ -418,7 +418,7 @@ public class Stateless extends Plugin
                 statelessElectionStrategy::getCurrentLeaseTerm
             )
         );
-        var consistencyService = new StatelessClusterConsistencyService(clusterService, statelessElectionStrategy);
+        var consistencyService = new StatelessClusterConsistencyService(clusterService, statelessElectionStrategy, threadPool, settings);
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
@@ -726,6 +726,7 @@ public class Stateless extends Plugin
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,
+            StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,
             IngestLoadSampler.SAMPLING_FREQUENCY_SETTING,

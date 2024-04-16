@@ -541,7 +541,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
-            consistencyService.ensureClusterStateConsistentWithRootBlob(listener, TimeValue.timeValueSeconds(30));
+            consistencyService.delayedEnsureClusterStateConsistentWithRootBlob(listener);
         }
 
         @Override

@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.junit.After;
 import org.junit.Before;
 
@@ -125,10 +124,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         public RequestObjectBuilder(XContentType type) throws IOException {
             builder = XContentBuilder.builder(type, emptySet(), emptySet());
             builder.startObject();
-            if ("false".equals(System.getProperty("tests.version_parameter_unsupported"))) {
-                EsqlVersion version = randomFrom(EsqlSpecTestCase.VERSIONS);
-                this.version = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
-            }
         }
 
         public RequestObjectBuilder query(String query) throws IOException {

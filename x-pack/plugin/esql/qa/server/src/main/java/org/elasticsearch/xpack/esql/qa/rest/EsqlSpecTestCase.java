@@ -151,8 +151,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+
+        String versionString = null;
+        if ("true".equals(System.getProperty("tests.version_parameter_unsupported")) == false) {
+            EsqlVersion version = randomFrom(EsqlSpecTestCase.VERSIONS);
+            versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+        }
+
         Map<String, Object> answer = runEsql(
-            builder.query(testCase.query),
+            builder.query(testCase.query).version(versionString),
             testCase.expectedWarnings(false),
             testCase.expectedWarningsRegex()
         );

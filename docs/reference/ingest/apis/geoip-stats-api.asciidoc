@@ -120,10 +120,6 @@ The amount of time in milliseconds spent fetching data from the cache and the ba
 The amount of time in milliseconds spent fetching data from the backing GeoIP2 database. This is a subset of the time accounted
 for in `misses_time_in_millis`.
 
-`puts_time_in_millis`::
-(Long)
-The amount of time in milliseconds spent putting data into the cache. This is a subset of the time accounted for in `misses_time_in_millis`.
-
 ======
 
 

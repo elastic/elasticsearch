@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -108,7 +109,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s");
+            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
+            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms");
     }
 
     public void testActiveTranslogFilesArePrunedAfterCommit() throws Exception {

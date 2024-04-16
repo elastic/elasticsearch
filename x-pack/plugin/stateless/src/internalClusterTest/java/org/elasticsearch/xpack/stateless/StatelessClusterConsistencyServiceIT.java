@@ -21,7 +21,9 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinValidationService;
@@ -192,4 +194,42 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
         assertThat(dataNodeState.nodes().getNodeLeftGeneration(), equalTo(masterNodeState.nodes().getNodeLeftGeneration()));
     }
 
+    public void testDelayedChecksCompleteSuccessfullyByImmediateCheck() {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode(
+            // Specifically set a very high value to make sure the background monitor doesn't interfere
+            Settings.builder().put("stateless.translog.delayed_cluster_consistency_check.interval", "1m").build()
+        );
+        ensureStableCluster(2);
+
+        var consistencyService = internalCluster().getInstance(StatelessClusterConsistencyService.class, indexNode);
+        int count = randomIntBetween(1, 8);
+        var delayedChecksCompleted = new CountDownLatch(count);
+        for (int i = 0; i < count; i++) {
+            consistencyService.delayedEnsureClusterStateConsistentWithRootBlob(ActionListener.running(delayedChecksCompleted::countDown));
+        }
+
+        var immediateCheckListener = new SubscribableListener<Void>();
+        consistencyService.ensureClusterStateConsistentWithRootBlob(immediateCheckListener, TimeValue.MAX_VALUE);
+
+        safeAwait(immediateCheckListener);
+        safeAwait(delayedChecksCompleted);
+    }
+
+    public void testDelayedChecksCompleteSuccessfullyByBackgroundMonitor() {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode(
+            Settings.builder().put("stateless.translog.delayed_cluster_consistency_check.interval", "100ms").build()
+        );
+        ensureStableCluster(2);
+
+        var consistencyService = internalCluster().getInstance(StatelessClusterConsistencyService.class, indexNode);
+        int count = randomIntBetween(1, 8);
+        var delayedChecksCompleted = new CountDownLatch(count);
+        for (int i = 0; i < count; i++) {
+            consistencyService.delayedEnsureClusterStateConsistentWithRootBlob(ActionListener.running(delayedChecksCompleted::countDown));
+        }
+
+        safeAwait(delayedChecksCompleted);
+    }
 }

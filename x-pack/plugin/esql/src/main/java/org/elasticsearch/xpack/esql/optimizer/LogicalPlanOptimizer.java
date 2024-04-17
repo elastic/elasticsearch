@@ -420,11 +420,20 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Agg with underlying Project (group by on sub-queries)
             if (plan instanceof Aggregate a) {
                 if (child instanceof Project p) {
+                    var groupings = a.groupings();
+                    List<Attribute> groupingAttrs = new ArrayList<>(a.groupings().size());
+                    for (Expression grouping : groupings) {
+                        if (grouping instanceof Attribute attribute) {
+                            groupingAttrs.add(attribute);
+                        } else {
+                            // After "Substitutions" batch, the groupings of an Aggregate can only be attributes
+                            throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
+                        }
+                    }
                     plan = new Aggregate(
                         a.source(),
                         p.child(),
-                        // After substitutions groupings can only contain attributes.
-                        combineUpperGroupingsAndLowerProjections((List<? extends Attribute>) (List<?>) a.groupings(), p.projections()),
+                        combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections()),
                         combineProjections(a.aggregates(), p.projections())
                     );
                 }

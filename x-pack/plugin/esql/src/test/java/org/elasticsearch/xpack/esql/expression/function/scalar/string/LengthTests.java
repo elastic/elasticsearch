@@ -12,11 +12,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
@@ -26,7 +25,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LengthTests extends AbstractScalarFunctionTestCase {
+public class LengthTests extends AbstractFunctionTestCase {
     public LengthTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -76,18 +75,8 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.INTEGER;
-    }
-
     private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         return equalTo(UnicodeUtil.codePointCount((BytesRef) typedData.get(0).data()));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()));
     }
 
     @Override

@@ -13,12 +13,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
@@ -30,7 +29,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SubstringTests extends AbstractScalarFunctionTestCase {
+public class SubstringTests extends AbstractFunctionTestCase {
     public SubstringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -93,11 +92,6 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
         ));
     }
 
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
-    }
-
     public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         int start = (Integer) typedData.get(1).data();
@@ -112,11 +106,6 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
             ).toString(),
             equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
         );
-    }
-
-    @Override
-    protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(DataTypes.INTEGER), optional(DataTypes.INTEGER));
     }
 
     @Override

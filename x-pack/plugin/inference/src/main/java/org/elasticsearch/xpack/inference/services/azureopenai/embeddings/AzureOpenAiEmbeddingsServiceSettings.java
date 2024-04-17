@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,7 +41,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
+public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, AzureOpenAiRateLimitServiceSettings {
 
     public static final String NAME = "azure_openai_embeddings_service_settings";
 
@@ -164,10 +165,12 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         );
     }
 
+    @Override
     public String resourceName() {
         return resourceName;
     }
 
+    @Override
     public String deploymentId() {
         return deploymentId;
     }

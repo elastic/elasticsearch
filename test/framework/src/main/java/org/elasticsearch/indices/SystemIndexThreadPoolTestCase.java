@@ -9,6 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.Phaser;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -31,7 +33,7 @@ import static org.hamcrest.Matchers.startsWith;
  * <p>When implementing this class, don't forget to override {@link ESIntegTestCase#nodePlugins()} if
  * the relevant system index is defined in a plugin.</p>
  */
-public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
+public abstract class SystemIndexThreadPoolTestCase extends ESIntegTestCase {
 
     private static final String USER_INDEX = "user_index";
 
@@ -67,7 +69,6 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106957")
     public void testUserThreadPoolsAreBlocked() {
         assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
 
@@ -88,9 +89,13 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
         assertThat(e2.getMessage(), startsWith("rejected execution of ActionRunnable"));
         var e3 = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(USER_INDEX).setQuery(QueryBuilders.matchAllQuery()).get()
+            () -> client().prepareSearch(USER_INDEX)
+                .setQuery(QueryBuilders.matchAllQuery())
+                // Request times out if max concurrent shard requests is set to 1
+                .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
+                .get()
         );
-        assertThat(e3.getMessage(), startsWith("all shards failed"));
+        assertThat(e3.getMessage(), containsString("all shards failed"));
     }
 
     private void fillThreadPoolQueues() {
@@ -101,7 +106,12 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
 
                 // fill up the queue
                 for (int i = 0; i < info.getQueueSize().singles(); i++) {
-                    threadPool.executor(threadPoolName).submit(() -> {});
+                    try {
+                        threadPool.executor(threadPoolName).submit(() -> {});
+                    } catch (EsRejectedExecutionException e) {
+                        // we can't be sure that some other task won't get queued in a test cluster
+                        // but we should put all the tasks in there anyway
+                    }
                 }
             }
         }

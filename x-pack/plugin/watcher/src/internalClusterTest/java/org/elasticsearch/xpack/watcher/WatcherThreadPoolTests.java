@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.SystemIndexThreadPoolTestCase;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -28,6 +31,7 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.noneInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.equalTo;
 
 public class WatcherThreadPoolTests extends SystemIndexThreadPoolTestCase {
 
@@ -60,13 +64,29 @@ public class WatcherThreadPoolTests extends SystemIndexThreadPoolTestCase {
 
     public void testWatcherThreadPools() {
         runWithBlockedThreadPools(() -> {
-            var response = new PutWatchRequestBuilder(client(), "test-watch").setSource(
-                watchBuilder().trigger(schedule(interval("3s")))
-                    .input(noneInput())
-                    .condition(InternalAlwaysCondition.INSTANCE)
-                    .addAction("indexer", indexAction("test-index"))
-            ).get();
-            assertTrue(response.isCreated());
+            {
+                // write
+                var response = new PutWatchRequestBuilder(client(), "test-watch").setSource(
+                    watchBuilder().trigger(schedule(interval("3m")))
+                        .input(noneInput())
+                        .condition(InternalAlwaysCondition.INSTANCE)
+                        .addAction("indexer", indexAction("test-index"))
+                ).get();
+                assertTrue(response.isCreated());
+            }
+
+            {
+                // get
+                var response = new GetWatchRequestBuilder(client()).setId("test-watch").get();
+                assertThat(response.getId(), equalTo("test-watch"));
+            }
+
+            {
+                // search
+                var request = new QueryWatchesAction.Request(null, null, new TermQueryBuilder("_id", "test-watch"), null, null);
+                var response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+                assertThat(response.getWatchTotalCount(), equalTo(1L));
+            }
         });
     }
 }

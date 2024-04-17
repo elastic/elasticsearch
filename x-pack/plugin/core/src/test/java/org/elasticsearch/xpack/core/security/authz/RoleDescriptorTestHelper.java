@@ -47,7 +47,6 @@ public final class RoleDescriptorTestHelper {
             .allowRestriction(randomBoolean())
             .allowDescription(randomBoolean())
             .build();
-        // return builder().allowReservedMetadata(true).allowDescription(true).allowRemoteIndices(false).allowRestriction(false).build();
     }
 
     public static Map<String, Object> randomRoleDescriptorMetadata(boolean allowReservedMetadata) {

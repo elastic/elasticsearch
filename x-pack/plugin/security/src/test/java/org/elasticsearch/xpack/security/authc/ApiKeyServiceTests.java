@@ -2397,7 +2397,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         final boolean changeExpiration = randomBoolean();
 
         final Set<RoleDescriptor> newUserRoles = changeUserRoles
-            ? randomValueOtherThan(oldUserRoles, () -> randomSet(0, 3, RoleDescriptorTestHelper::randomRoleDescriptor))
+            ? randomValueOtherThan(
+                oldUserRoles,
+                () -> randomSet(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build())
+            )
             : oldUserRoles;
         final List<RoleDescriptor> newKeyRoles;
         if (changeKeyRoles) {
@@ -2410,7 +2413,10 @@ public class ApiKeyServiceTests extends ESTestCase {
                     }
                 });
             } else {
-                newKeyRoles = randomValueOtherThan(oldKeyRoles, () -> randomList(0, 3, RoleDescriptorTestHelper::randomRoleDescriptor));
+                newKeyRoles = randomValueOtherThan(
+                    oldKeyRoles,
+                    () -> randomList(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build())
+                );
             }
         } else {
             newKeyRoles = randomBoolean() ? oldKeyRoles : null;
@@ -2598,7 +2604,6 @@ public class ApiKeyServiceTests extends ESTestCase {
                     .allowReservedMetadata(randomBoolean())
                     .allowRemoteIndices(randomBoolean())
                     .allowRestriction(randomBoolean())
-                    .allowDescription(randomBoolean())
                     .build()
             )
         );
@@ -2954,7 +2959,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private static RoleDescriptor randomRoleDescriptorWithWorkflowsRestriction() {
-        return RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowRemoteIndices(false).build();
+        return RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowRestriction(true).allowRemoteIndices(false).build();
     }
 
     public static String randomCrossClusterApiKeyAccessField() {

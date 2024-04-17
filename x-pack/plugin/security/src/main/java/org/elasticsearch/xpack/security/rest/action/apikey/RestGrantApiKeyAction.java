@@ -50,7 +50,10 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
         GrantApiKeyRequest translate(RestRequest request) throws IOException;
 
         class Default implements RequestTranslator {
-            private static final ObjectParser<GrantApiKeyRequest, Void> PARSER = createParser((n, p) -> RoleDescriptor.parse(n, p, false));
+            private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+                .allowRestriction(true)
+                .build();
+            private static final ObjectParser<GrantApiKeyRequest, Void> PARSER = createParser(ROLE_DESCRIPTOR_PARSER::parse);
 
             protected static ObjectParser<GrantApiKeyRequest, Void> createParser(
                 CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser

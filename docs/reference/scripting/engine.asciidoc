@@ -17,7 +17,7 @@ the document frequency of a provided term.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{plugins-examples-dir}/script-expert-scoring/src/main/java/org/elasticsearch/example/expertscript/ExpertScriptPlugin.java[expert_engine]
+include-tagged::{elasticsearch-root}/plugins/examples/script-expert-scoring/src/main/java/org/elasticsearch/example/expertscript/ExpertScriptPlugin.java[expert_engine]
 --------------------------------------------------
 
 You can execute the script by specifying its `lang` as `expert_scripts`, and the name

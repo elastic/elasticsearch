@@ -94,13 +94,14 @@ public class PathTrie<T> {
                 newNamedWildcard = newNamedWildcard.substring(regexIndex + 1);
             }
 
-            if (namedWildcard != null && newNamedWildcard.equals(namedWildcard) == false) {
-                throw new IllegalArgumentException(
-                    "Trying to use conflicting wildcard names for same path: " + namedWildcard + " and " + newNamedWildcard
-                );
+            if (newNamedWildcard.equals(namedWildcard) == false) {
+                if (namedWildcard != null) {
+                    throw new IllegalArgumentException(
+                        "Trying to use conflicting wildcard names for same path: " + namedWildcard + " and " + newNamedWildcard
+                    );
+                }
+                namedWildcard = newNamedWildcard;
             }
-            namedWildcard = newNamedWildcard;
-            wildcardMatch = newWildcardRegex;
         }
 
         private void addInnerChild(String key, TrieNode child) {

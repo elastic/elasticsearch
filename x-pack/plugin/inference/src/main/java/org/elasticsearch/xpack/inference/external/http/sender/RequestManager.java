@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.ratelimit.RateLimitable;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -19,7 +20,7 @@ import java.util.function.Supplier;
 /**
  * A contract for constructing a {@link Runnable} to handle sending an inference request to a 3rd party service.
  */
-public interface ExecutableRequestCreator {
+public interface RequestManager extends RateLimitable {
     Runnable create(
         @Nullable String query,
         List<String> input,
@@ -28,4 +29,6 @@ public interface ExecutableRequestCreator {
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     );
+
+    String inferenceEntityId();
 }

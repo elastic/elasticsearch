@@ -445,31 +445,39 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    public static Parser parser() {
-        return new Parser();
+    public static Parser.Builder parserBuilder() {
+        return new Parser.Builder();
     }
 
-    public static final class Parser {
+    public record Parser(boolean allow2xFormat, boolean allowRestriction, boolean allowDescription) {
 
-        private boolean allow2xFormat = false;
-        private boolean allowRestriction = false;
-        private boolean allowDescription = false;
+        public static final class Builder {
+            private boolean allow2xFormat = false;
+            private boolean allowRestriction = false;
 
-        private Parser() {}
+            private boolean allowDescription = false;
 
-        public Parser allow2xFormat(boolean allow2xFormat) {
-            this.allow2xFormat = allow2xFormat;
-            return this;
-        }
+            private Builder() {}
 
-        public Parser allowRestriction(boolean allowRestriction) {
-            this.allowRestriction = allowRestriction;
-            return this;
-        }
+            public Builder allow2xFormat(boolean allow2xFormat) {
+                this.allow2xFormat = allow2xFormat;
+                return this;
+            }
 
-        public Parser allowDescription(boolean allowDescription) {
-            this.allowDescription = allowDescription;
-            return this;
+            public Builder allowRestriction(boolean allowRestriction) {
+                this.allowRestriction = allowRestriction;
+                return this;
+            }
+
+            public Builder allowDescription(boolean allowDescription) {
+                this.allowDescription = allowDescription;
+                return this;
+            }
+
+            public Parser build() {
+                return new Parser(allow2xFormat, allowRestriction, allowDescription);
+            }
+
         }
 
         public RoleDescriptor parse(String name, BytesReference source, XContentType xContentType) throws IOException {

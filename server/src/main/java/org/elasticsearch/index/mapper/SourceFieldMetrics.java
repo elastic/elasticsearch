@@ -18,16 +18,16 @@ import java.util.function.LongSupplier;
  * Contains metrics for operations involving source field.
  */
 public class SourceFieldMetrics {
-    public static SourceFieldMetrics NOOP = new SourceFieldMetrics(MeterRegistry.NOOP, () -> 0);
+    public static final SourceFieldMetrics NOOP = new SourceFieldMetrics(MeterRegistry.NOOP, () -> 0);
 
     public static final String SYNTHETIC_SOURCE_LOAD_LATENCY = "es.mapper.synthetic_source.load.latency.histogram";
 
     private final LongSupplier relativeTimeSupplier;
 
-    private final LongHistogram synthethicSourceLoadLatency;
+    private final LongHistogram syntheticSourceLoadLatency;
 
     public SourceFieldMetrics(MeterRegistry meterRegistry, LongSupplier relativeTimeSupplier) {
-        this.synthethicSourceLoadLatency = meterRegistry.registerLongHistogram(
+        this.syntheticSourceLoadLatency = meterRegistry.registerLongHistogram(
             SYNTHETIC_SOURCE_LOAD_LATENCY,
             "Time it takes to load fields and construct synthetic source",
             "ms"
@@ -40,6 +40,6 @@ public class SourceFieldMetrics {
     }
 
     public void recordSyntheticSourceLoadLatency(TimeValue value) {
-        this.synthethicSourceLoadLatency.record(value.millis());
+        this.syntheticSourceLoadLatency.record(value.millis());
     }
 }

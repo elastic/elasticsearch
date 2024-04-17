@@ -277,12 +277,15 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("{testA}", "test1");
 
         // regex can be updated once as part of a path
-        trie.insert("{.*|testA}/x", "test2");
+        trie.insert("{a.*a|testA}/x", "test2");
+        trie.insert("{testA}/y", "test3");
         // but fails if updated again
-        expectThrows(IllegalArgumentException.class, () -> trie.insert("{.+|testA}/y", "test3"));
+        expectThrows(IllegalArgumentException.class, () -> trie.insert("{.+|testA}/z", "test4"));
 
-        assertThat(trie.retrieve("foo"), equalTo("test1"));
-        assertThat(trie.retrieve("foo/x"), equalTo("test2"));
-        assertThat(trie.retrieve("foo/y"), nullValue());
+        assertThat(trie.retrieve("aa"), equalTo("test1"));
+        assertThat(trie.retrieve("aa/x"), equalTo("test2"));
+        assertThat(trie.retrieve("aa/y"), equalTo("test3"));
+        assertThat(trie.retrieve("aa/z"), nullValue());
+        assertThat(trie.retrieve("a/y"), nullValue());
     }
 }

@@ -41,11 +41,11 @@ An RRF retriever is an optional object defined as part of a search request's
 <<request-body-retriever, retriever parameter>>. The RRF retriever object contains
 the following parameters:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
 
 An example request using RRF:
 

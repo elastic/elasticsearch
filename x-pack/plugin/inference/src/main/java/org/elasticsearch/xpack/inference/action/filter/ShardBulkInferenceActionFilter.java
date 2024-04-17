@@ -132,13 +132,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     /**
      * A field inference request on a single input.
-     * @param id The id of the request in the original bulk request.
+     * @param index The index of the request in the original bulk request.
      * @param field The target field.
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
      * @param isOriginalFieldInput Whether the input is part of the original values of the field.
      */
-    private record FieldInferenceRequest(int id, String field, String input, int inputOrder, boolean isOriginalFieldInput) {}
+    private record FieldInferenceRequest(int index, String field, String input, int inputOrder, boolean isOriginalFieldInput) {}
 
     /**
      * The field inference response.
@@ -245,7 +245,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             try (onFinish) {
                                 for (int i = 0; i < requests.size(); i++) {
                                     var request = requests.get(i);
-                                    inferenceResults.get(request.id).failures.add(
+                                    inferenceResults.get(request.index).failures.add(
                                         new ResourceNotFoundException(
                                             "Inference service [{}] not found for field [{}]",
                                             unparsedModel.service(),
@@ -262,7 +262,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         try (onFinish) {
                             for (int i = 0; i < requests.size(); i++) {
                                 var request = requests.get(i);
-                                inferenceResults.get(request.id).failures.add(
+                                inferenceResults.get(request.index).failures.add(
                                     new ResourceNotFoundException("Inference id [{}] not found for field [{}]", inferenceId, request.field)
                                 );
                             }
@@ -283,7 +283,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (int i = 0; i < results.size(); i++) {
                             var request = requests.get(i);
                             var result = results.get(i);
-                            var acc = inferenceResults.get(request.id);
+                            var acc = inferenceResults.get(request.index);
                             if (result instanceof ErrorChunkedInferenceResults error) {
                                 acc.addFailure(
                                     new ElasticsearchException(
@@ -317,7 +317,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (int i = 0; i < requests.size(); i++) {
                             var request = requests.get(i);
                             addInferenceResponseFailure(
-                                request.id,
+                                request.index,
                                 new ElasticsearchException(
                                     "Exception when running inference id [{}] on field [{}]",
                                     exc,
@@ -416,6 +416,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new LinkedHashMap<>();
+            int itemIndex = 0;
             for (var item : bulkShardRequest.items()) {
                 if (item.getPrimaryResponse() != null) {
                     // item was already aborted/processed by a filter in the chain upstream (e.g. security)
@@ -470,7 +471,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             }
                             continue;
                         }
-                        ensureResponseAccumulatorSlot(item.id());
+                        ensureResponseAccumulatorSlot(itemIndex);
                         final List<String> values;
                         try {
                             values = nodeStringValues(field, valueObj);
@@ -480,10 +481,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                         for (var v : values) {
-                            fieldRequests.add(new FieldInferenceRequest(item.id(), field, v, order++, isOriginalFieldInput));
+                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, v, order++, isOriginalFieldInput));
                         }
                     }
                 }
+                itemIndex++;
             }
             return fieldRequestsMap;
         }

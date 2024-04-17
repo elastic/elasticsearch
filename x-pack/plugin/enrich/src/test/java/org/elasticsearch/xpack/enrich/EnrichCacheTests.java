@@ -151,7 +151,7 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.getEvictions(), equalTo(4L));
     }
 
-    public void testPutIfAbsent() throws InterruptedException {
+    public void testComputeIfAbsent() throws InterruptedException {
         // Emulate cluster metadata:
         // (two enrich indices with corresponding alias entries)
         var metadata = Metadata.builder()
@@ -213,9 +213,7 @@ public class EnrichCacheTests extends ESTestCase {
             assertThat(cacheStats.misses(), equalTo(1L));
             assertThat(cacheStats.evictions(), equalTo(0L));
             assertThat(cacheStats.hitsTimeInMillis(), equalTo(0L));
-            assertThat(cacheStats.missesTimeInMillis(), equalTo(3L)); // cache query, enrich query, cache put
-            assertThat(cacheStats.storeQueryTimeInMillis(), equalTo(1L));
-            assertThat(cacheStats.cachePutsTimeInMillis(), equalTo(1L));
+            assertThat(cacheStats.missesTimeInMillis(), equalTo(2L)); // cache query and enrich query + cache put
         }
 
         {
@@ -240,9 +238,7 @@ public class EnrichCacheTests extends ESTestCase {
             assertThat(cacheStats.misses(), equalTo(1L));
             assertThat(cacheStats.evictions(), equalTo(0L));
             assertThat(cacheStats.hitsTimeInMillis(), equalTo(1L));
-            assertThat(cacheStats.missesTimeInMillis(), equalTo(3L));
-            assertThat(cacheStats.storeQueryTimeInMillis(), equalTo(1L));
-            assertThat(cacheStats.cachePutsTimeInMillis(), equalTo(1L));
+            assertThat(cacheStats.missesTimeInMillis(), equalTo(2L));
         }
     }
 

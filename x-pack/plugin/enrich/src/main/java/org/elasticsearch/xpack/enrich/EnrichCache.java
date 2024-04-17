@@ -89,13 +89,11 @@ public final class EnrichCache {
 
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
             searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
-                long databaseRequestTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
-                long cachePutStart = relativeNanoTimeProvider.getAsLong();
                 List<Map<?, ?>> value = toCacheValue(resp);
                 put(searchRequest, value);
                 List<Map<?, ?>> copy = deepCopy(value, false);
-                long cachePutTime = relativeNanoTimeProvider.getAsLong() - cachePutStart;
-                missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestTime + cachePutTime);
+                long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
+                missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
             }, listener::onFailure));
         }

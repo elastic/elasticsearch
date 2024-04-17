@@ -51,8 +51,6 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
                     randomNonNegativeLong()
                 )
             );

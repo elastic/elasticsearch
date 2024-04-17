@@ -35,12 +35,10 @@ import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;

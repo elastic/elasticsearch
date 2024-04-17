@@ -1349,3 +1349,20 @@ c:l | k1:i | languages:i
 21  | 5    | 5
 10  | null | null
 ;
+
+evalMultipleOverridingKeysWithAggregateExpr#[skip:-8.13.2,reason:supported in 8.13.3]
+FROM employees
+| EVAL k = languages, k1 = k
+| STATS c = 3*COUNT() BY languages, k, k1, languages
+| DROP k
+| SORT languages
+;
+
+c:l | k1:i | languages:i
+45  | 1    | 1
+57  | 2    | 2
+51  | 3    | 3
+54  | 4    | 4
+63  | 5    | 5
+30  | null | null
+;

@@ -179,3 +179,11 @@ enrich documents over _bulk via an alias:
       _source:
         baz: slow
         c: 3
+
+  - do:
+      ingest.delete_pipeline:
+        id: test_alias_pipeline
+
+  - do:
+      enrich.delete_policy:
+        name: test_alias_policy

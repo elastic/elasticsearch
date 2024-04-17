@@ -122,6 +122,7 @@ row wise and keep null:
         body:
           query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
           columnar: false
+          version: 2024.04.01
 
   - length: {columns: 8}
   - match: {columns.0.name: "always_null"}
@@ -153,6 +154,7 @@ row wise and drop null:
         body:
           query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
           columnar: false
+          version: 2024.04.01
 
   - length: {all_columns: 8}
   - match: {all_columns.0.name: "always_null"}
@@ -196,6 +198,7 @@ columnar and keep null:
         body:
           query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
           columnar: true
+          version: 2024.04.01
 
   - length: {columns: 8}
   - match: {columns.0.name: "always_null"}
@@ -227,6 +230,7 @@ columnar and drop null:
         body:
           query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
           columnar: true
+          version: 2024.04.01
 
   - length: {all_columns: 8}
   - match: {all_columns.0.name: "always_null"}

@@ -287,6 +287,8 @@ allprojects {
         tasks.register('checkPart4') { dependsOn 'check' }
       } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
         tasks.register('checkPart3') { dependsOn 'check' }
+      } else if (project.path.contains("multi-node")) {
+        tasks.register('checkPart5') { dependsOn 'check' }
       } else {
         tasks.register('checkPart2') { dependsOn 'check' }
       }

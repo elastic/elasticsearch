@@ -17,6 +17,8 @@ setup:
                 type: dense_vector
                 dims: 5
                 index: true
+                index_options:
+                  type: hnsw
                 similarity: l2_norm
 
   - do:

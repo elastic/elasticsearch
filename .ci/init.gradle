@@ -102,7 +102,7 @@ gradle.settingsEvaluated { settings ->
 final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
 final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
 
-if (buildCacheUrl) {
+if (buildCacheUrl && false) {
   final Map<String, String> buildCacheCredentials = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ? [:] : vault.logical()
     .read("${vaultPathPrefix}/gradle-build-cache")
     .getData()

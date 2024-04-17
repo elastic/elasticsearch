@@ -22,8 +22,8 @@ setup:
 ---
 fetch fields:
   - skip:
-      version: ' - 8.13.99'
-      reason: fetch fields and stored_fields using ValueFetcher
+      version: ' - 8.14.99'
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       search:
@@ -57,8 +57,8 @@ fetch fields:
 ---
 fetch source:
   - skip:
-      version: ' - 8.13.99'
-      reason: fetch fields and stored_fields using ValueFetcher
+      version: ' - 8.14.99'
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       search:
@@ -88,8 +88,8 @@ fetch source:
 ---
 fetch nested source:
   - skip:
-      version: ' - 8.13.99'
-      reason: fetch fields and stored_fields using ValueFetcher
+      version: ' - 8.14.99'
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       indices.create:

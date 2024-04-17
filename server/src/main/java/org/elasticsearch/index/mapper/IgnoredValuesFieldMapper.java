@@ -114,7 +114,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         private List<Object> values = List.of();
 
         // Maps the names of existing objects to lists of ignored fields they contain.
-        private Map<String, List<Values>> objectsWithIgnoredFields = null;
+        private Map<String, List<Values>> objectsWithIgnoredFields = Map.of();
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {

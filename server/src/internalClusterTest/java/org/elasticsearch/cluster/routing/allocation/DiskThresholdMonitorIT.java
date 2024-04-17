@@ -189,17 +189,17 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         nodeStats = clusterAdmin().prepareNodesStats().setAllocationStats(true).setFs(true).get();
         dataNode = nodeStats.getNodes().stream().filter(n -> dataNodeName.equals(n.getNode().getName())).findFirst().get();
         path = dataNode.getFs().iterator().next();
-        assertEquals(3000, path.getLowStageFreeBytes().getBytes()); // 3000/10000
-        assertEquals(2000, path.getHighStageFreeBytes().getBytes()); // 2000/10000
-        assertEquals(1000, path.getFloodStageFreeBytes().getBytes()); // 1000/10000
+        assertEquals(3000, path.getLowStageFreeBytes().getBytes());
+        assertEquals(2000, path.getHighStageFreeBytes().getBytes());
+        assertEquals(1000, path.getFloodStageFreeBytes().getBytes());
         assertNull(path.getFrozenFloodStageFreeBytes());
 
         frozenNode = nodeStats.getNodes().stream().filter(n -> frozenNodeName.equals(n.getNode().getName())).findFirst().get();
         path = frozenNode.getFs().iterator().next();
-        assertEquals(3000, path.getLowStageFreeBytes().getBytes()); // 3000/20000
-        assertEquals(2000, path.getHighStageFreeBytes().getBytes()); // 2000/20000
-        assertEquals(1000, path.getFloodStageFreeBytes().getBytes()); // 1000/20000
-        assertEquals(500, path.getFrozenFloodStageFreeBytes().getBytes()); // 500/20000
+        assertEquals(3000, path.getLowStageFreeBytes().getBytes());
+        assertEquals(2000, path.getHighStageFreeBytes().getBytes());
+        assertEquals(1000, path.getFloodStageFreeBytes().getBytes());
+        assertEquals(500, path.getFrozenFloodStageFreeBytes().getBytes());
 
         // effective threshold percent calculated based on headroom
         updateClusterSettings(
@@ -215,9 +215,9 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         nodeStats = clusterAdmin().prepareNodesStats().setAllocationStats(true).setFs(true).get();
         dataNode = nodeStats.getNodes().stream().filter(n -> dataNodeName.equals(n.getNode().getName())).findFirst().get();
         path = dataNode.getFs().iterator().next();
-        assertEquals(500, path.getLowStageFreeBytes().getBytes()); // 500/10000
-        assertEquals(300, path.getHighStageFreeBytes().getBytes()); // 300/10000
-        assertEquals(100, path.getFloodStageFreeBytes().getBytes()); // 100/10000
+        assertEquals(500, path.getLowStageFreeBytes().getBytes());
+        assertEquals(300, path.getHighStageFreeBytes().getBytes());
+        assertEquals(100, path.getFloodStageFreeBytes().getBytes());
     }
 
     // Retrieves the value of the given block on an index.

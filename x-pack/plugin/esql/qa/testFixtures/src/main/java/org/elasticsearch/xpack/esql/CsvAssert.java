@@ -19,6 +19,7 @@ import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -268,7 +269,8 @@ public final class CsvAssert {
             if (f.actual instanceof List<?> a) {
                 actualList = a;
             } else {
-                actualList = List.of(f.actual);
+                // Do not use List::of - actual can be null.
+                actualList = Collections.singletonList(f.actual);
             }
             expected.describeMismatch(actualList, description);
             String prefix = "row " + f.row + " column " + f.column + ":";

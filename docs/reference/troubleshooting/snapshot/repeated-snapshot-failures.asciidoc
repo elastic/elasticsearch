@@ -12,7 +12,7 @@ repeated failures before reporting a warning is controlled by the
 In the event that an automated {slm} policy execution is experiencing repeated failures, follow these steps to get more
 information about the problem:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/repeated-snapshot-failures-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/snapshot/repeated-snapshot-failures-widget.asciidoc[]
 
 
 

@@ -73,6 +73,7 @@ final class SystemJvmOptions {
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
+            "--add-opens=org.apache.lucene.core/org.apache.lucene.store=org.elasticsearch.vec",
             maybeEnableNativeAccess(),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
@@ -155,7 +156,7 @@ final class SystemJvmOptions {
         }
         String archname = sysprops.get("os.arch");
         String arch;
-        if (archname.equals("amd64")) {
+        if (archname.equals("amd64") || archname.equals("x86_64")) {
             arch = "x64";
         } else if (archname.equals("aarch64")) {
             arch = archname;

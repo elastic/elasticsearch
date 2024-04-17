@@ -21,7 +21,12 @@ public interface InferenceRequest {
     /**
      * Returns the creator that handles building an executable request based on the input provided.
      */
-    ExecutableRequestCreator getRequestCreator();
+    RequestManager getRequestCreator();
+
+    /**
+     * Returns the query associated with this request. Used for Rerank tasks.
+     */
+    String getQuery();
 
     /**
      * Returns the text input associated with this request.

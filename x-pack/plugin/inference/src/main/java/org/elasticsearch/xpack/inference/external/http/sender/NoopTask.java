@@ -16,7 +16,12 @@ import java.util.function.Supplier;
 class NoopTask implements RejectableTask {
 
     @Override
-    public ExecutableRequestCreator getRequestCreator() {
+    public RequestManager getRequestCreator() {
+        return null;
+    }
+
+    @Override
+    public String getQuery() {
         return null;
     }
 

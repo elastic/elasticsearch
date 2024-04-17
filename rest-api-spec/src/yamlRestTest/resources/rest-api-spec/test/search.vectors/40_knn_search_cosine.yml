@@ -13,26 +13,46 @@ setup:
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               normalized_vector:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               end_normalized:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               first_normalized:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               middle_normalized:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
 
 
   - do:

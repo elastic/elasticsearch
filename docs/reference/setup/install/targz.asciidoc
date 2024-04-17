@@ -1,6 +1,8 @@
 [[targz]]
 === Install {es} from archive on Linux or MacOS
 
+:include-xpack: true
+
 {es} is available as a `.tar.gz` archive for Linux and MacOS.
 
 include::license.asciidoc[]

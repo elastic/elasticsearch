@@ -38,9 +38,9 @@ POST /<follower_index>/_ccr/unfollow
 [[ccr-post-unfollow-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_follow_index` 
+* If the {es} {security-features} are enabled, you must have `manage_follow_index`
 index privileges for the follower index. For more information, see
-<<security-privileges>>.  
+<<security-privileges>>.
 
 [[ccr-post-unfollow-desc]]
 ==== {api-description-title}
@@ -59,6 +59,11 @@ irreversible operation.
 
 `<follower_index>`::
   (Required, string) The name of the follower index.
+
+[[ccr-post-unfollow-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-post-unfollow-examples]]
 ==== {api-examples-title}

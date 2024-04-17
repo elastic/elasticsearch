@@ -191,7 +191,7 @@ class DownsampleShardIndexer {
                 + task.getNumSent()
                 + "]";
             logger.info(error);
-            downsampleMetrics.recordLatencyShard(duration.millis(), DownsampleMetrics.ShardActionStatus.MISSING_DOCS);
+            downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.MISSING_DOCS);
             throw new DownsampleShardIndexerException(error, false);
         }
 
@@ -204,7 +204,7 @@ class DownsampleShardIndexer {
                 + task.getNumFailed()
                 + "]";
             logger.info(error);
-            downsampleMetrics.recordLatencyShard(duration.millis(), DownsampleMetrics.ShardActionStatus.FAILED);
+            downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.FAILED);
             throw new DownsampleShardIndexerException(error, false);
         }
 
@@ -214,7 +214,7 @@ class DownsampleShardIndexer {
             ActionListener.noop()
         );
         logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " completed");
-        downsampleMetrics.recordLatencyShard(duration.millis(), DownsampleMetrics.ShardActionStatus.SUCCESS);
+        downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.SUCCESS);
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
 
@@ -562,6 +562,15 @@ class DownsampleShardIndexer {
             // Serialize fields
             for (DownsampleFieldSerializer fieldProducer : groupedProducers) {
                 fieldProducer.write(builder);
+            }
+
+            if (dimensions.length == 0) {
+                logger.debug("extracting dimensions from legacy tsid");
+                Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
+                for (Map.Entry<?, ?> e : dimensions.entrySet()) {
+                    assert e.getValue() != null;
+                    builder.field((String) e.getKey(), e.getValue());
+                }
             }
 
             builder.endObject();

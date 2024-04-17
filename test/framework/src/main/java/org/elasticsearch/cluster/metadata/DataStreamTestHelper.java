@@ -130,21 +130,13 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
-        return new DataStream(
-            name,
-            indices,
-            generation,
-            metadata,
-            false,
-            replicated,
-            false,
-            false,
-            null,
-            lifecycle,
-            false,
-            List.of(),
-            autoShardingEvent
-        );
+        return DataStream.builder(name, indices)
+            .setGeneration(generation)
+            .setMetadata(metadata)
+            .setReplicated(replicated)
+            .setLifecycle(lifecycle)
+            .setAutoShardingEvent(autoShardingEvent)
+            .build();
     }
 
     public static DataStream newInstance(
@@ -156,21 +148,14 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
-        return new DataStream(
-            name,
-            indices,
-            generation,
-            metadata,
-            false,
-            replicated,
-            false,
-            false,
-            null,
-            lifecycle,
-            failureStores.size() > 0,
-            failureStores,
-            null
-        );
+        return DataStream.builder(name, indices)
+            .setGeneration(generation)
+            .setMetadata(metadata)
+            .setReplicated(replicated)
+            .setLifecycle(lifecycle)
+            .setFailureStoreEnabled(failureStores.isEmpty() == false)
+            .setFailureIndices(failureStores)
+            .build();
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -315,16 +300,24 @@ public final class DataStreamTestHelper {
         return randomInstance(System::currentTimeMillis);
     }
 
+    public static DataStream randomInstance(boolean failureStore) {
+        return randomInstance(System::currentTimeMillis, failureStore);
+    }
+
     public static DataStream randomInstance(String name) {
-        return randomInstance(name, System::currentTimeMillis);
+        return randomInstance(name, System::currentTimeMillis, randomBoolean());
     }
 
     public static DataStream randomInstance(LongSupplier timeProvider) {
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        return randomInstance(dataStreamName, timeProvider);
+        return randomInstance(timeProvider, randomBoolean());
     }
 
-    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider) {
+    public static DataStream randomInstance(LongSupplier timeProvider, boolean failureStore) {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        return randomInstance(dataStreamName, timeProvider, failureStore);
+    }
+
+    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore) {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
@@ -333,18 +326,25 @@ public final class DataStreamTestHelper {
             metadata = Map.of("key", "value");
         }
         List<Index> failureIndices = List.of();
-        boolean failureStore = randomBoolean();
+        generation = generation + ESTestCase.randomLongBetween(1, 128);
         if (failureStore) {
             failureIndices = randomNonEmptyIndexInstances();
+            failureIndices.add(
+                new Index(
+                    getDefaultFailureStoreName(dataStreamName, generation, System.currentTimeMillis()),
+                    UUIDs.randomBase64UUID(LuceneTestCase.random())
+                )
+            );
         }
 
+        boolean replicated = randomBoolean();
         return new DataStream(
             dataStreamName,
             indices,
             generation,
             metadata,
             randomBoolean(),
-            randomBoolean(),
+            replicated,
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
@@ -352,7 +352,7 @@ public final class DataStreamTestHelper {
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
             failureIndices,
-            randomBoolean(),
+            replicated == false && randomBoolean(),
             randomBoolean()
                 ? new DataStreamAutoShardingEvent(
                     indices.get(indices.size() - 1).getName(),
@@ -460,7 +460,11 @@ public final class DataStreamTestHelper {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
                 .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.isFailureStoreEnabled() && storeFailures)
+                    new ComposableIndexTemplate.DataStreamTemplate(
+                        false,
+                        false,
+                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
+                    )
                 )
                 .build()
         );
@@ -476,7 +480,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -544,18 +548,18 @@ public final class DataStreamTestHelper {
             backingIndices.add(im);
             generation++;
         }
-        DataStream ds = new DataStream(
+        var dataStreamBuilder = DataStream.builder(
             dataStreamName,
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
-            generation,
-            existing != null ? existing.getMetadata() : null,
-            existing != null && existing.isHidden(),
-            existing != null && existing.isReplicated(),
-            existing != null && existing.isSystem(),
-            existing != null && existing.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES
-        );
-        builder.put(ds);
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        ).setGeneration(generation).setIndexMode(IndexMode.TIME_SERIES);
+        if (existing != null) {
+            dataStreamBuilder.setMetadata(existing.getMetadata())
+                .setHidden(existing.isHidden())
+                .setReplicated(existing.isReplicated())
+                .setSystem(existing.isSystem())
+                .setAllowCustomRouting(existing.isAllowCustomRouting());
+        }
+        builder.put(dataStreamBuilder.build());
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
@@ -679,7 +683,8 @@ public final class DataStreamTestHelper {
             createIndexService,
             indexAliasesService,
             EmptySystemIndices.INSTANCE,
-            WriteLoadForecaster.DEFAULT
+            WriteLoadForecaster.DEFAULT,
+            clusterService
         );
     }
 
@@ -711,6 +716,7 @@ public final class DataStreamTestHelper {
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.mapping()).thenReturn(mapping);
+            when(documentMapper.mappers()).thenReturn(MappingLookup.EMPTY);
             when(documentMapper.mappingSource()).thenReturn(mapping.toCompressedXContent());
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);

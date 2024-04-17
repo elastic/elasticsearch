@@ -6,8 +6,8 @@ setup:
 
 ---
 enable:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -50,8 +50,8 @@ enable:
 
 ---
 no sort field:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -70,8 +70,8 @@ no sort field:
 
 ---
 no sort order:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -90,8 +90,8 @@ no sort order:
 
 ---
 no sort mode:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -110,8 +110,8 @@ no sort mode:
 
 ---
 no sort missing:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -130,8 +130,8 @@ no sort missing:
 
 ---
 no partitioning:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -151,8 +151,8 @@ no partitioning:
 
 ---
 routing_path required:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: the message was changed in 8.2.0
 
   - do:
@@ -170,8 +170,8 @@ routing_path required:
 
 ---
 routing_path is not allowed in standard mode:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -185,8 +185,8 @@ routing_path is not allowed in standard mode:
 
 ---
 routing required:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -207,8 +207,8 @@ routing required:
 
 ---
 empty routing_path:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: the message was changed in 8.2.0
 
   - do:
@@ -227,8 +227,8 @@ empty routing_path:
 
 ---
 empty start end times:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -247,8 +247,8 @@ empty start end times:
 
 ---
 set start_time and end_time:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -310,8 +310,8 @@ set start_time and end_time:
 
 ---
 set start_time and end_time without timeseries mode:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -336,8 +336,8 @@ set start_time and end_time without timeseries mode:
 
 ---
 set bad start_time and end_time:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -377,8 +377,8 @@ set bad start_time and end_time:
 
 ---
 check start_time and end_time with data_nano:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -437,8 +437,8 @@ check start_time and end_time with data_nano:
 
 ---
 check start_time boundary with data_nano:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -488,8 +488,8 @@ check start_time boundary with data_nano:
 
 ---
 check end_time boundary with data_nano:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -540,8 +540,8 @@ check end_time boundary with data_nano:
 
 ---
 check time_series default time bound value:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -573,8 +573,8 @@ check time_series default time bound value:
 
 ---
 check time_series empty time bound value:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:

@@ -7,15 +7,26 @@
 
 package org.elasticsearch.xpack.inference.external.cohere;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Objects;
 
-public record CohereAccount(@Nullable URI url, SecureString apiKey) {
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
+
+public record CohereAccount(URI uri, SecureString apiKey) {
+
+    public static CohereAccount of(CohereModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
+        var uri = buildUri(model.uri(), "Cohere", uriBuilder);
+
+        return new CohereAccount(uri, model.apiKey());
+    }
 
     public CohereAccount {
+        Objects.requireNonNull(uri);
         Objects.requireNonNull(apiKey);
     }
 }

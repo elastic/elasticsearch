@@ -80,9 +80,23 @@ final class DoubleBlockHash extends BlockHash {
     }
 
     private IntBlock add(DoubleBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hash(blockFactory, longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hashAdd(blockFactory, longHash);
         seenNull |= result.sawNull();
         return result.ords();
+    }
+
+    private IntVector lookup(DoubleVector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(Double.doubleToLongBits(vector.getDouble(i))))));
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup(DoubleBlock block) {
+        return new MultivalueDedupeDouble(block).hashLookup(blockFactory, longHash);
     }
 
     @Override

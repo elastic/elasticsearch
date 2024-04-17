@@ -696,7 +696,7 @@ public final class DocumentParser {
      */
     private static void parseCopyFields(DocumentParserContext context, List<String> copyToFields) throws IOException {
         for (String field : copyToFields) {
-            if (context.mappingLookup().getMapper(field) instanceof InferenceFieldMapper) {
+            if (context.mappingLookup().inferenceFields().get(field) != null) {
                 // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
                 continue;
             }

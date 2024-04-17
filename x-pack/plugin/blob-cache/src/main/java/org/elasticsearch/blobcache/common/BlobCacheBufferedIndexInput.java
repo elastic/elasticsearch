@@ -42,6 +42,8 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     // LUCENE-888 for details.
     public static final int MERGE_BUFFER_SIZE = 4096;
 
+    private final long length;
+
     private final int bufferSize;
 
     protected ByteBuffer buffer = EMPTY_BYTEBUFFER;
@@ -56,15 +58,22 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
         return buffer.get();
     }
 
-    public BlobCacheBufferedIndexInput(String resourceDesc, IOContext context) {
-        this(resourceDesc, bufferSize(context));
+    public BlobCacheBufferedIndexInput(String resourceDesc, IOContext context, long length) {
+        this(resourceDesc, bufferSize(context), length);
     }
 
     /** Inits BufferedIndexInput with a specific bufferSize */
-    public BlobCacheBufferedIndexInput(String resourceDesc, int bufferSize) {
+    public BlobCacheBufferedIndexInput(String resourceDesc, int bufferSize, long length) {
         super(resourceDesc);
-        checkBufferSize(bufferSize);
-        this.bufferSize = bufferSize;
+        int bufSize = Math.max(MIN_BUFFER_SIZE, (int) Math.min(bufferSize, length));
+        checkBufferSize(bufSize);
+        this.bufferSize = bufSize;
+        this.length = length;
+    }
+
+    @Override
+    public final long length() {
+        return length;
     }
 
     public int getBufferSize() {

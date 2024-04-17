@@ -13,6 +13,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +33,15 @@ public class PreloadedFieldLookupProviderTests extends ESTestCase {
     public void testFallback() throws IOException {
         PreloadedFieldLookupProvider lookup = new PreloadedFieldLookupProvider();
         lookup.setPreloadedStoredFields(Collections.singleton("foo"));
-        lookup.setStoredFields(Map.of("foo", List.of("bar")));
+        lookup.setStoredFields("id", Map.of("foo", List.of("bar")));
+
+        MappedFieldType idFieldType = mock(MappedFieldType.class);
+        when(idFieldType.name()).thenReturn(IdFieldMapper.NAME);
+        when(idFieldType.valueForDisplay(any())).then(invocation -> (invocation.getArguments()[0]));
+        FieldLookup idFieldLookup = new FieldLookup(idFieldType);
+        lookup.populateFieldLookup(idFieldLookup, 0);
+        assertEquals("id", idFieldLookup.getValue());
+        assertNull(lookup.getBackUpLoader());    // fallback didn't get used because 'foo' is in the list
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("foo");
@@ -58,5 +67,4 @@ public class PreloadedFieldLookupProviderTests extends ESTestCase {
         lookup.populateFieldLookup(unloadedFieldLookup, 0);
         assertEquals("VALUE", unloadedFieldLookup.getValue());
     }
-
 }

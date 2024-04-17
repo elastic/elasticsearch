@@ -168,7 +168,7 @@ public final class FetchPhase {
                     leafIdLoader
                 );
                 sourceProvider.source = hit.source();
-                fieldLookupProvider.setStoredFields(hit.loadedFields());
+                fieldLookupProvider.setStoredFields(hit.hit().getId(), hit.loadedFields());
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }

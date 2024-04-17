@@ -9,10 +9,12 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,12 +31,18 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
 
     private Set<String> preloadedStoredFields;
     private Map<String, List<Object>> storedFields;
+    private String id;
     private LeafFieldLookupProvider backUpLoader;
     private Supplier<LeafFieldLookupProvider> loaderSupplier;
 
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
         String field = fieldLookup.fieldType().name();
+
+        if (field.equals(IdFieldMapper.NAME)) {
+            fieldLookup.setValues(Collections.singletonList(id));
+            return;
+        }
         if (preloadedStoredFields.contains(field)) {
             fieldLookup.setValues(storedFields.get(field));
             return;
@@ -50,10 +58,11 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
         this.preloadedStoredFields = preloadedStoredFields;
     }
 
-    void setStoredFields(Map<String, List<Object>> storedFields) {
+    void setStoredFields(String id, Map<String, List<Object>> storedFields) {
         assert preloadedStoredFields.containsAll(storedFields.keySet())
             : "Provided stored field that was not expected to be preloaded? " + storedFields.keySet() + " - " + preloadedStoredFields;
         this.storedFields = storedFields;
+        this.id = id;
     }
 
     void setNextReader(LeafReaderContext ctx) {

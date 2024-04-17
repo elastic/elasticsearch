@@ -22,6 +22,12 @@
               "description":"A comma separated list of indices to open"
             }
           }
+        },
+        {
+          "path":"/_open",
+          "methods":[
+            "POST"
+          ]
         }
       ]
     },

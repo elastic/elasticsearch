@@ -294,9 +294,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public List<QuerySpec<?>> getQueries() {
         if (SemanticTextFeature.isEnabled()) {
-            return List.of(
-                new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent)
-            );
+            return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
         }
         return List.of();
     }

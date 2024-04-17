@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -533,13 +534,17 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         this.total = total();
     }
 
-    public FsInfo setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
-        if (masterThresholdSettings != null) {
-            for (Path path : paths) {
+    public static FsInfo setEffectiveWatermarks(
+        @Nullable final FsInfo fsInfo,
+        @Nullable final DiskThresholdSettings masterThresholdSettings,
+        boolean isDedicatedFrozenNode
+    ) {
+        if (fsInfo != null && masterThresholdSettings != null) {
+            for (Path path : fsInfo.paths) {
                 path.setEffectiveWatermarks(masterThresholdSettings, isDedicatedFrozenNode);
             }
         }
-        return this;
+        return fsInfo;
     }
 
     @Override

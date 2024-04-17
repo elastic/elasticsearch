@@ -184,7 +184,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             process,
             jvm,
             threadPool,
-            fs.setEffectiveWatermarks(masterThresholdSettings, getNode().isDedicatedFrozenNode()),
+            FsInfo.setEffectiveWatermarks(fs, masterThresholdSettings, getNode().isDedicatedFrozenNode()),
             transport,
             http,
             breaker,

@@ -132,7 +132,11 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             new RoleDescriptorsIntersection(
                 randomValueOtherThanMany(
                     rd -> false == rd.hasPrivilegesOtherThanIndex(),
-                    () -> RoleDescriptorTestHelper.randomRoleDescriptor()
+                    () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(randomBoolean())
+                        .allowRemoteIndices(randomBoolean())
+                        .allowRestriction(randomBoolean())
+                        .allowDescription(false)
+                        .build()
                 )
             )
         );

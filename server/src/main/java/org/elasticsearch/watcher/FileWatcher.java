@@ -234,7 +234,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 return child;
             } catch (AccessControlException e) {
                 // don't have permissions, use a placeholder
-                logger.debug("Don't have permissions to watch path [{}]", file);
+                logger.debug("Don't have permissions to watch path [{}]", file, e);
                 return new DeniedObserver(file);
             }
         }

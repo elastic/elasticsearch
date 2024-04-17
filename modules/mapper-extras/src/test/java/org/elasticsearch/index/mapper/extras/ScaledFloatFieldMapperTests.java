@@ -35,6 +35,7 @@ import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -596,7 +597,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
      * Tests the case when decoded value is infinite due to rounding.
      */
     public void testDecodeHandlingInfinity() {
-        Stream.of(1, -1).forEach(sign -> {
+        for (var sign : new long[] { 1, -1 }) {
             long encoded = 101;
             double encodedNoRounding = 100.5;
             assertEquals(encoded, Math.round(encodedNoRounding));
@@ -611,7 +612,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             double scalingFactor = (encodedNoRounding / signedMax);
 
             assertThat(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), equalTo(signedMax));
-        });
+        }
     }
 
     private double encodeDecode(double value, double scalingFactor) {

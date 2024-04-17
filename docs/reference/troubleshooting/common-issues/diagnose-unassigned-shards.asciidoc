@@ -6,7 +6,7 @@ allocation settings to lack of disk space.
 
 In order to diagnose the unassigned shards in your deployment use the following steps:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/diagnose-unassigned-shards-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/data/diagnose-unassigned-shards-widget.asciidoc[]
 
 
 

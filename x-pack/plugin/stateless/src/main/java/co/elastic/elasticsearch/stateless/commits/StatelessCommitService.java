@@ -1315,6 +1315,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         // TODO: merge this method with sendNewCommitNotification
         private void sendNewCommitNotification(StatelessCompoundCommit compoundCommit, long bccGeneration) {
+            assert statelessUploadDelayed;
             var shardRoutingTable = shardRoutingFinder.apply(shardId);
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
             final var request = new NewCommitNotificationRequest(
@@ -1327,12 +1328,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                 // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload notification
-                // TODO: enable the listener once search nodes know how to fetch data from indexing nodes
-                if (false) {
-                    var consumer = commitNotificationSuccessListeners.get(shardId);
-                    if (consumer != null) {
-                        consumer.accept(compoundCommit.generation());
-                    }
+                var consumer = commitNotificationSuccessListeners.get(shardId);
+                if (consumer != null) {
+                    consumer.accept(compoundCommit.generation());
                 }
             }, e -> logNotificationException(compoundCommit.generation(), bccGeneration, "create", e)));
         }
@@ -1367,10 +1365,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     nodesWithAssignedSearchShards,
                     response.getPrimaryTermAndGenerationsInUse()
                 );
-                // TODO: this should not be called on upload to avoid double notification
-                var consumer = commitNotificationSuccessListeners.get(shardId);
-                if (consumer != null) {
-                    consumer.accept(uploadedBcc.last().generation());
+                if (statelessUploadDelayed == false) {
+                    var consumer = commitNotificationSuccessListeners.get(shardId);
+                    if (consumer != null) {
+                        consumer.accept(uploadedBcc.last().generation());
+                    }
                 }
             },
                 e -> logNotificationException(
@@ -1441,8 +1440,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Register a listener that is invoked once a commit with the given generation has been uploaded to the object store. The listener
-         * is invoked only once.
+         * Register a listener that is invoked once a BCC containing CC with the given generation has been uploaded to the object store.
+         * The listener is invoked only once.
          *
          * @param generation the commit generation
          * @param listener the listener
@@ -1539,15 +1538,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void markRelocating(long minRelocatedGeneration, ActionListener<Void> listener) {
             long toWaitFor;
             synchronized (this) {
-                Optional<VirtualBatchedCompoundCommit> maxPending = getMaxPendingUploadBcc();
-
                 // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
                 // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already
                 // been uploaded which would make the listener be triggered immediately.
-                toWaitFor = minRelocatedGeneration;
-                if (maxPending.isPresent() && maxPending.get().getMaxGeneration() > minRelocatedGeneration) {
-                    toWaitFor = maxPending.get().getMaxGeneration();
-                }
+                ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
+                toWaitFor = getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration);
+                assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
+                assert assertGenerationIsUploadedOrPending(toWaitFor);
 
                 maxGenerationToUpload = toWaitFor;
                 assert state == State.RUNNING;
@@ -2022,6 +2019,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
+    /**
+     * Register a listener that is notified after receiving the response of new commit notification.
+     * New commit notification is sent for each commit creation when {@code STATELESS_UPLOAD_DELAYED} is enabled.
+     * In this case, the commit is not uploaded yet. Hence when the listener is called, the commit is _not_ guaranteed
+     * to be persisted.
+     */
     public void registerNewCommitSuccessListener(ShardId shardId, Consumer<Long> listener) {
         var previous = commitNotificationSuccessListeners.put(shardId, listener);
         // For now only the LiveVersionMapArchive uses this

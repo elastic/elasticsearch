@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiAccount;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
 
@@ -106,11 +105,8 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
             entraId,
             "id"
         );
-        var account = AzureOpenAiAccount.fromModel(embeddingsModel);
-
         return new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
-            account,
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel
         );

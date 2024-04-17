@@ -16,7 +16,7 @@ guide.
 To remedy the situation mark the repository as read-only or remove it from all the
 other deployments, and re-add (recreate) the repository in the current deployment:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/corrupt-repository-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/snapshot/corrupt-repository-widget.asciidoc[]
 
 
 [[diagnosing-unknown-repositories]]

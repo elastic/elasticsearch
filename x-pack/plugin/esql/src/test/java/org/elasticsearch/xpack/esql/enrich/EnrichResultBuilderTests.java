@@ -15,6 +15,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -30,10 +32,10 @@ public class EnrichResultBuilderTests extends ESTestCase {
 
     public void testBytesRef() {
         BlockFactory blockFactory = blockFactory();
-        Map<Integer, List<BytesRef>> expectedValues = new HashMap<>();
+        Map<Integer, List<BytesRef>> inputValues = new HashMap<>();
         int numPages = between(0, 10);
         int maxPosition = between(0, 100);
-        var resultBuilder = EnrichResultBuilder.enrichResultBuilder(ElementType.BYTES_REF, blockFactory, 0, maxPosition + 1);
+        var resultBuilder = EnrichResultBuilder.enrichResultBuilder(ElementType.BYTES_REF, blockFactory, 0);
         for (int i = 0; i < numPages; i++) {
             int numRows = between(1, 100);
             try (
@@ -52,7 +54,7 @@ public class EnrichResultBuilderTests extends ESTestCase {
                     }
                     for (int v = 0; v < numValues; v++) {
                         BytesRef val = new BytesRef(randomByteArrayOfLength(10));
-                        expectedValues.computeIfAbsent(position, k -> new ArrayList<>()).add(val);
+                        inputValues.computeIfAbsent(position, k -> new ArrayList<>()).add(val);
                         valuesBuilder.appendBytesRef(val);
                     }
                     if (numValues > 1) {
@@ -64,18 +66,60 @@ public class EnrichResultBuilderTests extends ESTestCase {
                 }
             }
         }
-        try (BytesRefBlock actualOutput = (BytesRefBlock) resultBuilder.build()) {
-            assertThat(actualOutput.getPositionCount(), equalTo(maxPosition + 1));
-            for (int i = 0; i < actualOutput.getPositionCount(); i++) {
-                List<BytesRef> values = expectedValues.get(i);
-                if (actualOutput.isNull(i)) {
-                    assertNull(values);
+        try (IntVector selected = IntVector.range(0, maxPosition + 1, blockFactory)) {
+            try (BytesRefBlock actualOutput = (BytesRefBlock) resultBuilder.build(selected.asBlock())) {
+                assertThat(actualOutput.getPositionCount(), equalTo(maxPosition + 1));
+                for (int i = 0; i < actualOutput.getPositionCount(); i++) {
+                    List<BytesRef> values = inputValues.get(i);
+                    if (actualOutput.isNull(i)) {
+                        assertNull(values);
+                    } else {
+                        int valueCount = actualOutput.getValueCount(i);
+                        int first = actualOutput.getFirstValueIndex(i);
+                        assertThat(valueCount, equalTo(values.size()));
+                        for (int v = 0; v < valueCount; v++) {
+                            assertThat(actualOutput.getBytesRef(first + v, new BytesRef()), equalTo(values.get(v)));
+                        }
+                    }
+                }
+            }
+        }
+        try (IntBlock.Builder selectedBuilder = blockFactory.newIntBlockBuilder(between(1, 10))) {
+            int selectedPositions = between(1, 100);
+            Map<Integer, List<BytesRef>> expectedValues = new HashMap<>();
+            for (int i = 0; i < selectedPositions; i++) {
+                int ps = randomIntBetween(0, 3);
+                List<BytesRef> values = new ArrayList<>();
+                if (ps == 0) {
+                    selectedBuilder.appendNull();
                 } else {
-                    int valueCount = actualOutput.getValueCount(i);
-                    int first = actualOutput.getFirstValueIndex(i);
-                    assertThat(valueCount, equalTo(values.size()));
-                    for (int v = 0; v < valueCount; v++) {
-                        assertThat(actualOutput.getBytesRef(first + v, new BytesRef()), equalTo(values.get(v)));
+                    selectedBuilder.beginPositionEntry();
+                    for (int p = 0; p < ps; p++) {
+                        int position = randomIntBetween(0, maxPosition);
+                        selectedBuilder.appendInt(position);
+                        values.addAll(inputValues.getOrDefault(position, List.of()));
+                    }
+                    selectedBuilder.endPositionEntry();
+                }
+                if (values.isEmpty()) {
+                    expectedValues.put(i, null);
+                } else {
+                    expectedValues.put(i, values);
+                }
+            }
+            try (var selected = selectedBuilder.build(); BytesRefBlock actualOutput = (BytesRefBlock) resultBuilder.build(selected)) {
+                assertThat(actualOutput.getPositionCount(), equalTo(selected.getPositionCount()));
+                for (int i = 0; i < actualOutput.getPositionCount(); i++) {
+                    List<BytesRef> values = expectedValues.get(i);
+                    if (actualOutput.isNull(i)) {
+                        assertNull(values);
+                    } else {
+                        int valueCount = actualOutput.getValueCount(i);
+                        int first = actualOutput.getFirstValueIndex(i);
+                        assertThat(valueCount, equalTo(values.size()));
+                        for (int v = 0; v < valueCount; v++) {
+                            assertThat(actualOutput.getBytesRef(first + v, new BytesRef()), equalTo(values.get(v)));
+                        }
                     }
                 }
             }
@@ -89,7 +133,7 @@ public class EnrichResultBuilderTests extends ESTestCase {
         Map<Integer, List<Long>> expectedValues = new HashMap<>();
         int numPages = between(0, 10);
         int maxPosition = between(0, 100);
-        var resultBuilder = EnrichResultBuilder.enrichResultBuilder(ElementType.LONG, blockFactory, 0, maxPosition + 1);
+        var resultBuilder = EnrichResultBuilder.enrichResultBuilder(ElementType.LONG, blockFactory, 0);
         for (int i = 0; i < numPages; i++) {
             int numRows = between(1, 100);
             try (
@@ -120,18 +164,20 @@ public class EnrichResultBuilderTests extends ESTestCase {
                 }
             }
         }
-        try (LongBlock actualOutput = (LongBlock) resultBuilder.build()) {
-            assertThat(actualOutput.getPositionCount(), equalTo(maxPosition + 1));
-            for (int i = 0; i < actualOutput.getPositionCount(); i++) {
-                List<Long> values = expectedValues.get(i);
-                if (actualOutput.isNull(i)) {
-                    assertNull(values);
-                } else {
-                    int valueCount = actualOutput.getValueCount(i);
-                    int first = actualOutput.getFirstValueIndex(i);
-                    assertThat(valueCount, equalTo(values.size()));
-                    for (int v = 0; v < valueCount; v++) {
-                        assertThat(actualOutput.getLong(first + v), equalTo(values.get(v)));
+        try (IntVector selected = IntVector.range(0, maxPosition + 1, blockFactory)) {
+            try (LongBlock actualOutput = (LongBlock) resultBuilder.build(selected.asBlock())) {
+                assertThat(actualOutput.getPositionCount(), equalTo(maxPosition + 1));
+                for (int i = 0; i < actualOutput.getPositionCount(); i++) {
+                    List<Long> values = expectedValues.get(i);
+                    if (actualOutput.isNull(i)) {
+                        assertNull(values);
+                    } else {
+                        int valueCount = actualOutput.getValueCount(i);
+                        int first = actualOutput.getFirstValueIndex(i);
+                        assertThat(valueCount, equalTo(values.size()));
+                        for (int v = 0; v < valueCount; v++) {
+                            assertThat(actualOutput.getLong(first + v), equalTo(values.get(v)));
+                        }
                     }
                 }
             }

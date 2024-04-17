@@ -84,7 +84,7 @@ public class GreaterThanTests extends AbstractFunctionTestCase {
                 "GreaterThanKeywordsEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Comparable<BytesRef>) l).compareTo((BytesRef) r) > 0,
+                (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.ipCases(),
                 TestCaseSupplier.ipCases(),
@@ -98,7 +98,7 @@ public class GreaterThanTests extends AbstractFunctionTestCase {
                 "GreaterThanKeywordsEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Comparable<BytesRef>) l).compareTo((BytesRef) r) > 0,
+                (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
                 TestCaseSupplier.versionCases(""),
@@ -124,7 +124,7 @@ public class GreaterThanTests extends AbstractFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.stringCases(
-                (l, r) -> ((Comparable<BytesRef>) l).compareTo((BytesRef) r) > 0,
+                (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) > 0,
                 (lhsType, rhsType) -> "GreaterThanKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
                 DataTypes.BOOLEAN

@@ -3,5 +3,4 @@ summary: "Allow regexes to be specified as part of rest paths, limiting when han
   \ are called"
 area: Infra/REST API
 type: enhancement
-issues:
- - 107425
+issues: []

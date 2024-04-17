@@ -132,7 +132,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
                 Rewriteable.rewriteAndFetch(randomFrom(serialized, searchBuilder), context, future);
                 KnnSearchBuilder rewritten = future.get();
-                assertThat(rewritten.getQueryVector(), equalTo(expected));
+                assertThat(rewritten.getQueryVector().asFloatVector(), equalTo(expected));
                 assertThat(rewritten.getQueryVectorBuilder(), nullValue());
             }
         }

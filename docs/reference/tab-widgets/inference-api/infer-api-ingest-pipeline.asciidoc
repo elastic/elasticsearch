@@ -1,0 +1,114 @@
+////
+
+[source,console]
+----
+DELETE _ingest/pipeline/*_embeddings
+----
+// TEST
+// TEARDOWN
+
+////
+
+// tag::cohere[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/cohere_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "cohere_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::cohere[]
+
+// tag::hugging-face[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/hugging_face_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "hugging_face_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::hugging-face[]
+
+// tag::openai[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/openai_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "openai_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::openai[]
+
+// tag::azure-openai[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/azure_openai_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "azure_openai_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::azure-openai[]

@@ -39,10 +39,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
@@ -59,6 +56,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.NetUtils;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
@@ -73,7 +71,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
@@ -89,56 +86,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MA
 
 public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
-
-    /*
-     * Size in bytes of an individual message received by io.netty.handler.codec.MessageAggregator which accumulates the content for an
-     * HTTP request. This number is used for estimating the maximum number of allowed buffers before the MessageAggregator's internal
-     * collection of buffers is resized.
-     *
-     * By default we assume the Ethernet MTU (1500 bytes) but users can override it with a system property.
-     */
-    private static final ByteSizeValue MTU = ByteSizeValue.ofBytes(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
-
-    private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
-
-    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
-        SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
-        (s) -> {
-            ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);
-            /*
-             * Netty accumulates buffers containing data from all incoming network packets that make up one HTTP request in an instance of
-             * io.netty.buffer.CompositeByteBuf (think of it as a buffer of buffers). Once its capacity is reached, the buffer will iterate
-             * over its individual entries and put them into larger buffers (see io.netty.buffer.CompositeByteBuf#consolidateIfNeeded()
-             * for implementation details). We want to to resize that buffer because this leads to additional garbage on the heap and also
-             * increases the application's native memory footprint (as direct byte buffers hold their contents off-heap).
-             *
-             * With this setting we control the CompositeByteBuf's capacity (which is by default 1024, see
-             * io.netty.handler.codec.MessageAggregator#DEFAULT_MAX_COMPOSITEBUFFER_COMPONENTS). To determine a proper default capacity for
-             * that buffer, we need to consider that the upper bound for the size of HTTP requests is determined by `maxContentLength`. The
-             * number of buffers that are needed depend on how often Netty reads network packets which depends on the network type (MTU).
-             * We assume here that Elasticsearch receives HTTP requests via an Ethernet connection which has a MTU of 1500 bytes.
-             *
-             * Note that we are *not* pre-allocating any memory based on this setting but rather determine the CompositeByteBuf's capacity.
-             * The tradeoff is between less (but larger) buffers that are contained in the CompositeByteBuf and more (but smaller) buffers.
-             * With the default max content length of 100MB and a MTU of 1500 bytes we would allow 69905 entries.
-             */
-            long maxBufferComponentsEstimate = Math.round((double) (maxContentLength.getBytes() / MTU.getBytes()));
-            // clamp value to the allowed range
-            long maxBufferComponents = Math.max(2, Math.min(maxBufferComponentsEstimate, Integer.MAX_VALUE));
-            return String.valueOf(maxBufferComponents);
-            // Netty's CompositeByteBuf implementation does not allow less than two components.
-        },
-        s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS),
-        Property.NodeScope
-    );
-
-    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
-
-    public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-        "http.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
-        Property.NodeScope
-    );
 
     private final int pipeliningMaxEvents;
 
@@ -186,11 +133,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
-        this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
+        this.maxCompositeBufferComponents = Netty4Plugin.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
 
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
-        ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
+        ByteSizeValue receivePredictor = Netty4Plugin.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
         logger.debug(

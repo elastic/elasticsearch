@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+
 import java.util.Arrays;
 
 /**
@@ -133,29 +135,29 @@ final class SpikeAndDipDetector {
         spikeTestKDE = new KDE(spikeKDEValues, 1.36);
     }
 
-    ChangeType at(double pValueThreshold) {
+    ChangeType at(double pValueThreshold, MlAggsHelper.DoubleBucketValues bucketValues) {
         if (dipIndex == -1 || spikeIndex == -1) {
             return new ChangeType.Indeterminable(
                 "not enough buckets to check for dip or spike. Requires at least [3]; found [" + numValues + "]"
             );
         }
 
-        KDE.ValueAndMagnitude dipLeftLeftTailTest = dipTestKDE.cdf(dipValue);
+        KDE.ValueAndMagnitude dipLeftTailTest = dipTestKDE.cdf(dipValue);
         KDE.ValueAndMagnitude spikeRightTailTest = spikeTestKDE.sf(spikeValue);
-        double dipPValue = dipLeftLeftTailTest.pValue(numValues);
+        double dipPValue = dipLeftTailTest.pValue(numValues);
         double spikePValue = spikeRightTailTest.pValue(numValues);
 
         if (dipPValue < pValueThreshold && spikePValue < pValueThreshold) {
-            if (dipLeftLeftTailTest.isMoreSignificant(spikeRightTailTest)) {
-                return new ChangeType.Dip(dipPValue, dipIndex);
+            if (dipLeftTailTest.isMoreSignificant(spikeRightTailTest)) {
+                return new ChangeType.Dip(dipPValue, bucketValues.getBucketIndex(dipIndex));
             }
-            return new ChangeType.Spike(spikePValue, spikeIndex);
+            return new ChangeType.Spike(spikePValue, bucketValues.getBucketIndex(spikeIndex));
         }
         if (dipPValue < pValueThreshold) {
-            return new ChangeType.Dip(dipPValue, dipIndex);
+            return new ChangeType.Dip(dipPValue, bucketValues.getBucketIndex(dipIndex));
         }
         if (spikePValue < pValueThreshold) {
-            return new ChangeType.Spike(spikePValue, spikeIndex);
+            return new ChangeType.Spike(spikePValue, bucketValues.getBucketIndex(spikeIndex));
         }
         return new ChangeType.Stationary();
     }

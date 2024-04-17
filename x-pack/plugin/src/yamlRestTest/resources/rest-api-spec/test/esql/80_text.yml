@@ -1,9 +1,10 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
+
   - do:
       indices.create:
         index: test
@@ -40,6 +41,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort emp_no'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -53,8 +55,8 @@ setup:
   - match: { columns.4.type: "text" }
 
   - length: { values: 2 }
-  - match: { values.0: [ 10, "IT Director", "IT Director", "Jenny", "foo bar"] }
-  - match: { values.1: [ 20, "Payroll Specialist", "Payroll Specialist", "John", "baz"] }
+  - match: { values.0: [ 10, "IT Director", "IT Director", "Jenny", "foo bar" ] }
+  - match: { values.1: [ 20, "Payroll Specialist", "Payroll Specialist", "John", "baz" ] }
 
 
 ---
@@ -65,6 +67,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag == "baz" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -76,7 +79,7 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 1 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
 
 ---
 "like by text":
@@ -86,6 +89,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag LIKE "*az" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -97,7 +101,7 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 1 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
 
 ---
 "rlike by text":
@@ -107,6 +111,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag RLIKE ".*az" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -118,7 +123,86 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 1 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"IN on text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "IN on text fixed in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", "baz") | keep emp_no, name, job, tag'
+          version: 2024.04.01
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"IN on text and itself":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "IN on text fixed in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", tag) | keep emp_no, name, job, tag | sort emp_no'
+          version: 2024.04.01
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
+  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"NOT IN on text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "IN on text fixed in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag NOT IN ("abc", "baz") | keep emp_no, name, job, tag'
+          version: 2024.04.01
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
 
 ---
 "eval and filter text":
@@ -128,6 +212,7 @@ setup:
       esql.query:
         body:
           query: 'from test | eval x = tag | where x == "baz" | keep emp_no, name, job, x'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -139,7 +224,7 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 1 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
 
 ---
 "filter on text multi-field":
@@ -149,6 +234,7 @@ setup:
       esql.query:
         body:
           query: 'from test |  where job == "IT Director" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -160,7 +246,7 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 1 }
-  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
 
 ---
 "like by multi-field text":
@@ -170,6 +256,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where job LIKE "*Specialist" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -181,7 +268,7 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 1 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
 
 ---
 "rlike by multi-field text":
@@ -191,6 +278,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where job RLIKE ".*Specialist" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -202,7 +290,7 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 1 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
 
 
 ---
@@ -213,6 +301,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort tag | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -224,8 +313,8 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 2 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
-  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar" ] }
 
 
 ---
@@ -236,6 +325,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort job | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -247,8 +337,8 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 2 }
-  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
-  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz"] }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
+  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz" ] }
 
 ---
 "sort by text multi-field desc":
@@ -258,6 +348,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort job desc | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -269,8 +360,8 @@ setup:
   - match: { columns.3.type: "text" }
 
   - length: { values: 2 }
-  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
-  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar"] }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar" ] }
 
 
 ---
@@ -281,13 +372,35 @@ setup:
       esql.query:
         body:
           query: 'from test | sort name | eval description = concat(name, " - ", job) | keep description'
+          version: 2024.04.01
 
   - match: { columns.0.name: "description" }
   - match: { columns.0.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "Jenny - IT Director"] }
-  - match: { values.1: [ "John - Payroll Specialist"] }
+  - match: { values.0: [ "Jenny - IT Director" ] }
+  - match: { values.1: [ "John - Payroll Specialist" ] }
+
+---
+"split text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "functions fixed for text in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort emp_no | eval split = split(tag, " ") | keep split'
+          version: 2024.04.01
+
+  - match: { columns.0.name: "split" }
+  - match: { columns.0.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ [ "foo", "bar" ] ] }
+  - match: { values.1: [ "baz" ] }
 
 
 ---
@@ -298,6 +411,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats jobs = count(job) | keep jobs'
+          version: 2024.04.01
 
   - match: { columns.0.name: "jobs" }
   - match: { columns.0.type: "long" }
@@ -314,6 +428,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats tags = count(tag) | keep tags'
+          version: 2024.04.01
 
   - match: { columns.0.name: "tags" }
   - match: { columns.0.type: "long" }
@@ -330,6 +445,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats names = count(name) by job | keep names'
+          version: 2024.04.01
 
   - match: { columns.0.name: "names" }
   - match: { columns.0.type: "long" }
@@ -347,6 +463,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats names = count(name) by tag | keep names'
+          version: 2024.04.01
 
   - match: { columns.0.name: "names" }
   - match: { columns.0.type: "long" }
@@ -391,6 +508,7 @@ setup:
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
+          version: 2024.04.01
 
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
@@ -424,7 +542,7 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "emp_no": 10, "name": "Jenny", "job": "IT Director"}
+          - { "emp_no": 10, "name": "Jenny", "job": "IT Director" }
           - { "index": { } }
           - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
 
@@ -434,6 +552,7 @@ setup:
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
+          version: 2024.04.01
 
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
@@ -441,3 +560,40 @@ setup:
   - length: { values: 2 }
   - match: { values.0.0: "IT Director" }
   - match: { values.1.0: "Payroll Specialist" }
+
+---
+values:
+  - requires:
+      cluster_features: esql.agg_values
+      reason: "values is available in 8.14+"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) | EVAL job = MV_SORT(job) | LIMIT 1'
+          version: 2024.04.01
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+  - length: { values: 1 }
+  - match: { values.0: [ [ "IT Director", "Payroll Specialist" ] ] }
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 30, "name": "Stuff", "job": "Other", "tag": "baz" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) BY tag | EVAL job = MV_SORT(job) | SORT tag | LIMIT 10'
+          version: 2024.04.01
+  - match: { columns.0.name: "tag" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "job" }
+  - match: { columns.1.type: "text" }
+  - length: { values: 2 }
+  - match: { values.0: [ "baz", [ "Other", "Payroll Specialist" ] ] }
+  - match: { values.1: [ "foo bar", "IT Director" ] }

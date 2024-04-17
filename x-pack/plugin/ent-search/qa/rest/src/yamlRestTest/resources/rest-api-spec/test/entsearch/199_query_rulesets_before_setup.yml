@@ -1,7 +1,7 @@
 setup:
-    - skip:
-          version: " - 8.9.99"
-          reason: Introduced in 8.10.0
+    - requires:
+        cluster_features: ["gte_v8.10.0"]
+        reason: Introduced in 8.10.0
 
 ---
 "Get query ruleset returns a 404 when no query rulesets exist":

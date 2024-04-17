@@ -1,0 +1,5 @@
+pr: 106094
+summary: "ESQL: Support partially folding CASE"
+area: ES|QL
+type: enhancement
+issues: []

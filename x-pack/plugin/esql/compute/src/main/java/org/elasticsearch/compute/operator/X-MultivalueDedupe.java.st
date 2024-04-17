@@ -77,11 +77,11 @@ $endif$
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
+$if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
+$else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+$endif$
                     default -> {
                         /*
                          * It's better to copyMissing when there are few unique values
@@ -105,7 +105,7 @@ $endif$
                             writeUniquedWork(builder);
                         } else {
                             copyAndSort(first, count);
-                            writeSortedWork(builder);
+                            deduplicatedSortedWork(builder);
                         }
                     }
                 }
@@ -131,14 +131,14 @@ $endif$
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
+$if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
+$else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+$endif$
                     default -> {
                         copyAndSort(first, count);
-                        writeSortedWork(builder);
+                        deduplicatedSortedWork(builder);
                     }
                 }
             }
@@ -165,14 +165,39 @@ $endif$
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
+$if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
+$else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+$endif$
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public $Type$Block sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+$if(BytesRef)$
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+$else$
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
+$endif$
+                    default -> {
+                        copyAndSort(first, count);
+                        writeSortedWork(builder, ascending);
                     }
                 }
             }
@@ -373,11 +398,7 @@ $endif$
     /**
      * Writes a sorted {@link #work} to a {@link $Type$Block.Builder}, skipping duplicates.
      */
-    private void writeSortedWork($Type$Block.Builder builder) {
-        if (w == 1) {
-            builder.append$Type$(work[0]);
-            return;
-        }
+    private void deduplicatedSortedWork($Type$Block.Builder builder) {
         builder.beginPositionEntry();
         $type$ prev = work[0];
         builder.append$Type$(prev);
@@ -389,6 +410,21 @@ $else$
 $endif$
                 prev = work[i];
                 builder.append$Type$(prev);
+            }
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a {@link #work} to a {@link $Type$Block.Builder}.
+     */
+    private void writeSortedWork($Type$Block.Builder builder, boolean ascending) {
+        builder.beginPositionEntry();
+        for (int i = 0; i < w; i++) {
+            if (ascending) {
+                builder.append$Type$(work[i]);
+            } else {
+                builder.append$Type$(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();

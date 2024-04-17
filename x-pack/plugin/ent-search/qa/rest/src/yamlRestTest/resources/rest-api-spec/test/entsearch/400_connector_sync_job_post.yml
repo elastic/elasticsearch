@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: Introduced in 8.12.0
   - do:
       connector.put:
@@ -11,11 +11,19 @@ setup:
           language: de
           is_native: false
           service_type: super-connector
+  - do:
+      connector.put:
+        connector_id: test-connector-detached-index
+        body:
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
 
 ---
 'Create connector sync job':
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -26,7 +34,7 @@ setup:
   - match: { id: $id }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { connector.id: test-connector }
@@ -122,7 +130,7 @@ setup:
   - match: { result: updated }
 
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -133,7 +141,7 @@ setup:
   - match: { id: $id }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { connector.filtering.rules.0.id: RULE-ACTIVE-SYNC-JOB-TEST }
@@ -183,7 +191,7 @@ setup:
   - match: { result: updated }
 
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -194,7 +202,7 @@ setup:
   - match: { id: $id }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { connector.id: test-connector }
@@ -205,7 +213,7 @@ setup:
 
 'Create connector sync job with missing job type - expect job type full as default':
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           trigger_method: on_demand
@@ -215,7 +223,7 @@ setup:
   - match: { id: $id }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { connector.id: test-connector }
@@ -233,7 +241,7 @@ setup:
 ---
 'Create connector sync job with missing trigger method - expect trigger method on_demand as default':
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -243,7 +251,7 @@ setup:
   - match: { id: $id }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { connector.id: test-connector }
@@ -261,7 +269,7 @@ setup:
 ---
 'Create connector sync job with non-existing connector id':
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: non-existing-id
           job_type: full
@@ -271,7 +279,7 @@ setup:
 ---
 'Create connector sync job with invalid job type':
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: invalid_job_type
@@ -281,13 +289,23 @@ setup:
 ---
 'Create connector sync job with invalid trigger method':
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
           trigger_method: invalid_trigger_method
       catch: bad_request
 
+
+---
+'Create connector sync job with no index attached':
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector-detached-index
+          job_type: full
+          trigger_method: full
+      catch: bad_request
 
 ---
 "Create connector sync job fails for unprivileged user":
@@ -297,7 +315,7 @@ setup:
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full

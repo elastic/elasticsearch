@@ -10,10 +10,12 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
@@ -144,6 +146,27 @@ public class BigArrays {
         }
 
         @Override
+        public BytesRefIterator iterator() {
+            return new BytesRefIterator() {
+                boolean visited = false;
+
+                @Override
+                public BytesRef next() {
+                    if (visited) {
+                        return null;
+                    }
+                    visited = true;
+                    return new BytesRef(array, 0, Math.toIntExact(size()));
+                }
+            };
+        }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            in.readBytes(array, 0, Math.toIntExact(size()));
+        }
+
+        @Override
         public boolean hasArray() {
             return true;
         }
@@ -213,6 +236,12 @@ public class BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput in) throws IOException {
+            final int numBytes = in.readVInt();
+            in.readBytes(array, 0, numBytes);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 2, array, (int) index << 2, len << 2);
@@ -275,6 +304,12 @@ public class BigArrays {
             out.writeVInt(size);
             out.write(array, 0, size);
         }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int len = in.readVInt();
+            in.readBytes(array, 0, len);
+        }
     }
 
     private static class ByteArrayAsDoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
@@ -319,6 +354,12 @@ public class BigArrays {
             assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
             BigDoubleArray.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int numBytes = in.readVInt();
+            in.readBytes(array, 0, numBytes);
         }
 
         @Override

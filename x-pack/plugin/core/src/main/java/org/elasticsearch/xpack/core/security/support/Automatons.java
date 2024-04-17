@@ -17,6 +17,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
@@ -312,6 +313,11 @@ public final class Automatons {
     }
 
     private static Predicate<String> predicate(Automaton automaton, final String toString) {
+        if (automaton == MATCH_ALL) {
+            return Predicates.always();
+        } else if (automaton == EMPTY) {
+            return Predicates.never();
+        }
         CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, maxDeterminizedStates);
         return new Predicate<String>() {
             @Override

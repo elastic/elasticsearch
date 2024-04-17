@@ -420,80 +420,112 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat, XContentType xContentType)
-        throws IOException {
-        return parse(name, source, allow2xFormat, xContentType, true);
+    public static Parser.Builder parserBuilder() {
+        return new Parser.Builder();
     }
 
-    public static RoleDescriptor parse(
-        String name,
-        BytesReference source,
-        boolean allow2xFormat,
-        XContentType xContentType,
-        boolean allowRestriction
-    ) throws IOException {
-        assert name != null;
-        try (XContentParser parser = createParser(source, xContentType)) {
-            return parse(name, parser, allow2xFormat, allowRestriction);
-        }
-    }
+    public record Parser(boolean allow2xFormat, boolean allowRestriction) {
 
-    public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat) throws IOException {
-        return parse(name, parser, allow2xFormat, true);
-    }
+        public static final class Builder {
+            private boolean allow2xFormat = false;
+            private boolean allowRestriction = false;
 
-    public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean allowRestriction)
-        throws IOException {
-        // validate name
-        Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
-        if (validationError != null) {
-            ValidationException ve = new ValidationException();
-            ve.addValidationError(validationError.toString());
-            throw ve;
+            private Builder() {}
+
+            public Builder allow2xFormat(boolean allow2xFormat) {
+                this.allow2xFormat = allow2xFormat;
+                return this;
+            }
+
+            public Builder allowRestriction(boolean allowRestriction) {
+                this.allowRestriction = allowRestriction;
+                return this;
+            }
+
+            public Parser build() {
+                return new Parser(allow2xFormat, allowRestriction);
+            }
+
         }
 
-        // advance to the START_OBJECT token if needed
-        XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("failed to parse role [{}]. expected an object but found [{}] instead", name, token);
+        public RoleDescriptor parse(String name, BytesReference source, XContentType xContentType) throws IOException {
+            assert name != null;
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    source,
+                    xContentType
+                )
+            ) {
+                return parse(name, parser);
+            }
         }
-        String currentFieldName = null;
-        IndicesPrivileges[] indicesPrivileges = null;
-        RemoteIndicesPrivileges[] remoteIndicesPrivileges = null;
-        String[] clusterPrivileges = null;
-        List<ConfigurableClusterPrivilege> configurableClusterPrivileges = Collections.emptyList();
-        ApplicationResourcePrivileges[] applicationPrivileges = null;
-        String[] runAsUsers = null;
-        Restriction restriction = null;
-        Map<String, Object> metadata = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())
-                || Fields.INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                    indicesPrivileges = parseIndices(name, parser, allow2xFormat);
-                } else if (Fields.RUN_AS.match(currentFieldName, parser.getDeprecationHandler())) {
-                    runAsUsers = readStringArray(name, parser, true);
-                } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    clusterPrivileges = readStringArray(name, parser, true);
-                } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
-                    || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
-                        applicationPrivileges = parseApplicationPrivileges(name, parser);
-                    } else if (Fields.GLOBAL.match(currentFieldName, parser.getDeprecationHandler())) {
-                        configurableClusterPrivileges = ConfigurableClusterPrivileges.parse(parser);
-                    } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (token != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchParseException(
-                                "expected field [{}] to be of type object, but found [{}] instead",
-                                currentFieldName,
-                                token
-                            );
-                        }
-                        metadata = parser.map();
-                    } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (token == XContentParser.Token.START_OBJECT) {
-                            // consume object but just drop
-                            parser.map();
+
+        public RoleDescriptor parse(String name, XContentParser parser) throws IOException {
+            // validate name
+            Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
+            if (validationError != null) {
+                ValidationException ve = new ValidationException();
+                ve.addValidationError(validationError.toString());
+                throw ve;
+            }
+
+            // advance to the START_OBJECT token if needed
+            XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new ElasticsearchParseException("failed to parse role [{}]. expected an object but found [{}] instead", name, token);
+            }
+            String currentFieldName = null;
+            IndicesPrivileges[] indicesPrivileges = null;
+            RemoteIndicesPrivileges[] remoteIndicesPrivileges = null;
+            String[] clusterPrivileges = null;
+            List<ConfigurableClusterPrivilege> configurableClusterPrivileges = Collections.emptyList();
+            ApplicationResourcePrivileges[] applicationPrivileges = null;
+            String[] runAsUsers = null;
+            Restriction restriction = null;
+            Map<String, Object> metadata = null;
+            String description = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())
+                    || Fields.INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
+                        indicesPrivileges = parseIndices(name, parser, allow2xFormat);
+                    } else if (Fields.RUN_AS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        runAsUsers = readStringArray(name, parser, true);
+                    } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
+                        clusterPrivileges = readStringArray(name, parser, true);
+                    } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
+                        || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
+                            applicationPrivileges = parseApplicationPrivileges(name, parser);
+                        } else if (Fields.GLOBAL.match(currentFieldName, parser.getDeprecationHandler())) {
+                            configurableClusterPrivileges = ConfigurableClusterPrivileges.parse(parser);
+                        } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
+                            if (token != XContentParser.Token.START_OBJECT) {
+                                throw new ElasticsearchParseException(
+                                    "expected field [{}] to be of type object, but found [{}] instead",
+                                    currentFieldName,
+                                    token
+                                );
+                            }
+                            metadata = parser.map();
+                        } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
+                            if (token == XContentParser.Token.START_OBJECT) {
+                                // consume object but just drop
+                                parser.map();
+                            } else {
+                                throw new ElasticsearchParseException(
+                                    "failed to parse role [{}]. unexpected field [{}]",
+                                    name,
+                                    currentFieldName
+                                );
+                            }
+                        } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
+                            remoteIndicesPrivileges = parseRemoteIndices(name, parser);
+                        } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
+                            restriction = Restriction.parse(name, parser);
+                        } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            // don't need it
                         } else {
                             throw new ElasticsearchParseException(
                                 "failed to parse role [{}]. unexpected field [{}]",
@@ -501,28 +533,22 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 currentFieldName
                             );
                         }
-                    } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                        remoteIndicesPrivileges = parseRemoteIndices(name, parser);
-                    } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
-                        restriction = Restriction.parse(name, parser);
-                    } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // don't need it
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
-                    }
+            }
+            return new RoleDescriptor(
+                name,
+                clusterPrivileges,
+                indicesPrivileges,
+                applicationPrivileges,
+                configurableClusterPrivileges.toArray(new ConfigurableClusterPrivilege[configurableClusterPrivileges.size()]),
+                runAsUsers,
+                metadata,
+                null,
+                remoteIndicesPrivileges,
+                restriction
+            );
+
         }
-        return new RoleDescriptor(
-            name,
-            clusterPrivileges,
-            indicesPrivileges,
-            applicationPrivileges,
-            configurableClusterPrivileges.toArray(new ConfigurableClusterPrivilege[configurableClusterPrivileges.size()]),
-            runAsUsers,
-            metadata,
-            null,
-            remoteIndicesPrivileges,
-            restriction
-        );
+
     }
 
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {
@@ -1623,7 +1649,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return sb.toString();
         }
 
-        static Restriction parse(String roleName, XContentParser parser) throws IOException {
+        public static Restriction parse(String roleName, XContentParser parser) throws IOException {
             // advance to the START_OBJECT token if needed
             XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
             if (token != XContentParser.Token.START_OBJECT) {

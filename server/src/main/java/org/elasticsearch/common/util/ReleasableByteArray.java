@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -86,6 +87,17 @@ public class ReleasableByteArray implements ByteArray {
         // The interface that this class implements should have something like an arrayOffset() method,
         // so that callers know from what array offset the first actual byte starts.
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public BytesRefIterator iterator() {
+        assert ref.hasReferences();
+        return ref.iterator();
+    }
+
+    @Override
+    public void fillWith(StreamInput in) {
+        throw new UnsupportedOperationException("read-only ByteArray");
     }
 
     @Override

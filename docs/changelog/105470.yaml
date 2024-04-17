@@ -1,0 +1,5 @@
+pr: 105470
+summary: Add retrievers using the parser-only approach
+area: Ranking
+type: enhancement
+issues: []

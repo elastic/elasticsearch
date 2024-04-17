@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -270,22 +273,25 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        SetOnce<Map<String, String>> deducedDestIndexMappings = new SetOnce<>();
+        if (context.getAuthState() != null && HealthStatus.RED.equals(context.getAuthState().getStatus())) {
+            // AuthorizationState status is RED which means there was permission check error during PUT or _update.
+            listener.onFailure(
+                new ElasticsearchSecurityException(
+                    TransformMessages.getMessage(TransformMessages.TRANSFORM_CANNOT_START_WITHOUT_PERMISSIONS, getConfig().getId())
+                )
+            );
+            return;
+        }
 
-        ActionListener<Void> finalListener = ActionListener.wrap(r -> {
-            try {
-                // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
-                if (context.getPageSize() == 0) {
-                    configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
-                }
-
-                runState = determineRunStateAtStart();
-                listener.onResponse(true);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
+        ActionListener<Void> finalListener = listener.delegateFailureAndWrap((l, r) -> {
+            // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
+            if (context.getPageSize() == 0) {
+                configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
             }
-        }, listener::onFailure);
+
+            runState = determineRunStateAtStart();
+            l.onResponse(true);
+        });
 
         // On each run, we need to get the total number of docs and reset the count of processed docs
         // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
@@ -333,6 +339,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
+        var deducedDestIndexMappings = new SetOnce<Map<String, String>>();
+        var shouldMaybeCreateDestIndexForUnattended = context.getCheckpoint() == 0
+            && TransformEffectiveSettings.isUnattended(transformConfig.getSettings());
+
         ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
             if (destIndexMappings.isEmpty() == false) {
                 // If we managed to fetch destination index mappings, we use them from now on ...
@@ -344,9 +354,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // Since the unattended transform could not have created the destination index yet, we do it here.
             // This is important to create the destination index explicitly before indexing first documents. Otherwise, the destination
             // index aliases may be missing.
-            if (destIndexMappings.isEmpty()
-                && context.getCheckpoint() == 0
-                && Boolean.TRUE.equals(transformConfig.getSettings().getUnattended())) {
+            if (destIndexMappings.isEmpty() && shouldMaybeCreateDestIndexForUnattended) {
                 doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener);
             } else {
                 configurationReadyListener.onResponse(null);
@@ -364,7 +372,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             deducedDestIndexMappings.set(validationResponse.getDestIndexMappings());
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
-                    if (transformConfig.equals(config) && fieldMappings != null) {
+                    if (transformConfig.equals(config) && fieldMappings != null && shouldMaybeCreateDestIndexForUnattended == false) {
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {
@@ -412,7 +420,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 hasSourceChanged = true;
                 listener.onFailure(failure);
             }));
-        } else if (context.getCheckpoint() == 0 && Boolean.TRUE.equals(transformConfig.getSettings().getUnattended())) {
+        } else if (context.getCheckpoint() == 0 && TransformEffectiveSettings.isUnattended(transformConfig.getSettings())) {
             // this transform runs in unattended mode and has never run, to go on
             validate(changedSourceListener);
         } else {

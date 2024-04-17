@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
@@ -53,10 +57,13 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -77,7 +84,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
+public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
 
@@ -269,6 +276,70 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
+    public void testCountPushdownForSvAndMvFields() throws IOException {
+        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-basic.json");
+        String mapping = "{\"mappings\": " + properties + "}";
+
+        String query = """
+            from test
+            | stats c = count(salary)
+            """;
+
+        PhysicalPlan plan;
+
+        List<List<String>> docsCasesWithoutPushdown = List.of(
+            // No pushdown yet in case of MVs
+            List.of("{ \"salary\" : [1,2] }"),
+            List.of("{ \"salary\" : [1,2] }", "{ \"salary\" : null}")
+        );
+        for (List<String> docs : docsCasesWithoutPushdown) {
+            plan = planWithMappingAndDocs(query, mapping, docs);
+            // No EsSatsQueryExec as leaf of the plan.
+            assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+        }
+
+        // Cases where we can push this down as a COUNT(*) since there are only SVs
+        List<List<String>> docsCasesWithPushdown = List.of(List.of(), List.of("{ \"salary\" : 1 }"), List.of("{ \"salary\": null }"));
+        for (List<String> docs : docsCasesWithPushdown) {
+            plan = planWithMappingAndDocs(query, mapping, docs);
+
+            Holder<EsStatsQueryExec> leaf = new Holder<>();
+            plan.forEachDown(p -> {
+                if (p instanceof EsStatsQueryExec s) {
+                    leaf.set(s);
+                }
+            });
+
+            String expectedStats = """
+                [Stat[name=salary, type=COUNT, query={
+                  "exists" : {
+                    "field" : "salary",
+                    "boost" : 1.0
+                  }
+                }]]""";
+            assertNotNull(leaf.get());
+            assertThat(leaf.get().stats().toString(), equalTo(expectedStats));
+        }
+    }
+
+    private PhysicalPlan planWithMappingAndDocs(String query, String mapping, List<String> docs) throws IOException {
+        MapperService mapperService = createMapperService(mapping);
+        List<ParsedDocument> parsedDocs = docs.stream().map(d -> mapperService.documentMapper().parse(source(d))).toList();
+
+        Holder<PhysicalPlan> plan = new Holder<>(null);
+        withLuceneIndex(mapperService, indexWriter -> {
+            for (ParsedDocument parsedDoc : parsedDocs) {
+                indexWriter.addDocument(parsedDoc.rootDoc());
+            }
+        }, directoryReader -> {
+            IndexSearcher searcher = newSearcher(directoryReader);
+            SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
+            plan.set(plan(query, new SearchStats(List.of(ctx))));
+        });
+
+        return plan.get();
+    }
+
     // optimized doesn't know yet how to break down different multi count
     public void testCountMultipleFieldsWithFilter() {
         var plan = plan("""
@@ -399,6 +470,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
+     *
      * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
@@ -418,6 +490,115 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.limit().fold(), is(1000));
         var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
         assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expects
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[COUNT(gender{f}#7) AS count(gender)],FINAL,null]
+     *   \_ExchangeExec[[count{r}#15, seen{r}#16],true]
+     *     \_AggregateExec[[],[COUNT(gender{f}#7) AS count(gender)],PARTIAL,8]
+     *       \_FieldExtractExec[gender{f}#7]
+     *         \_EsQueryExec[test], query[{"exists":{"field":"gender","boost":1.0}}][_doc{f}#17], limit[], sort[] estimatedRowSize[54]
+     */
+    public void testIsNotNull_TextField_Pushdown() {
+        String textField = randomFrom("gender", "job");
+        var plan = plan(String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField));
+
+        var limit = as(plan, LimitExec.class);
+        var finalAgg = as(limit.child(), AggregateExec.class);
+        var exchange = as(finalAgg.child(), ExchangeExec.class);
+        var partialAgg = as(exchange.child(), AggregateExec.class);
+        var fieldExtract = as(partialAgg.child(), FieldExtractExec.class);
+        var query = as(fieldExtract.child(), EsQueryExec.class);
+        var expected = QueryBuilders.existsQuery(textField);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expects
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     *     ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_EsQueryExec[test], query[{"bool":{"must_not":[{"exists":{"field":"gender","boost":1.0}}],"boost":1.0}}]
+     *         [_doc{f}#13], limit[1000], sort[] estimatedRowSize[324]
+     */
+    public void testIsNull_TextField_Pushdown() {
+        String textField = randomFrom("gender", "job");
+        var plan = plan(String.format(Locale.ROOT, "from test | where %s is null", textField, textField));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var query = as(fieldExtract.child(), EsQueryExec.class);
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(textField));
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * count(x) adds an implicit "exists(x)" filter in the pushed down query
+     * This test checks this "exists" doesn't clash with the "is null" pushdown on the text field.
+     * In this particular query, "exists(x)" and "x is null" cancel each other out.
+     *
+     * Expects
+     *
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT(job{f}#19) AS c],FINAL,8]
+     *   \_ExchangeExec[[count{r}#22, seen{r}#23],true]
+     *     \_LocalSourceExec[[count{r}#22, seen{r}#23],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]], BooleanVectorBlock
+     * [vector=ConstantBooleanVector[positions=1, value=true]]]]
+     */
+    public void testIsNull_TextField_Pushdown_WithCount() {
+        var plan = plan("""
+              from test
+              | eval filtered_job = job, count_job = job
+              | where filtered_job IS NULL
+              | stats c = COUNT(count_job)
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exg = as(agg.child(), ExchangeExec.class);
+        as(exg.child(), LocalSourceExec.class);
+    }
+
+    /**
+     * count(x) adds an implicit "exists(x)" filter in the pushed down query.
+     * This test checks this "exists" doesn't clash with the "is null" pushdown on the text field.
+     * In this particular query, "exists(x)" and "x is not null" go hand in hand and the query is pushed down to Lucene.
+     *
+     * Expects
+     *
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT(job{f}#19) AS c],FINAL,8]
+     *   \_ExchangeExec[[count{r}#22, seen{r}#23],true]
+     *     \_EsStatsQueryExec[test], stats[Stat[name=job, type=COUNT, query={
+     *   "exists" : {
+     *     "field" : "job",
+     *     "boost" : 1.0
+     *   }
+     * }]]], query[{"exists":{"field":"job","boost":1.0}}][count{r}#25, seen{r}#26], limit[],
+     */
+    public void testIsNotNull_TextField_Pushdown_WithCount() {
+        var plan = plan("""
+              from test
+              | eval filtered_job = job, count_job = job
+              | where filtered_job IS NOT NULL
+              | stats c = COUNT(count_job)
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exg = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.limit(), is(nullValue()));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        assertThat(stat.query(), is(QueryBuilders.existsQuery("job")));
     }
 
     /**
@@ -476,11 +657,9 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
-            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
+            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
             // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
-            new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
-            new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
         );
 
         final String LT = "<";
@@ -497,8 +676,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 GT + testCase.tooLow,
                 GTE + testCase.tooLow,
                 NEQ + testCase.tooHigh,
-                NEQ + testCase.tooLow,
-                NEQ + "0.0/0.0"
+                NEQ + testCase.tooLow
             );
             List<String> alwaysFalsePredicates = List.of(
                 LT + testCase.tooLow,
@@ -506,12 +684,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 GT + testCase.tooHigh,
                 GTE + testCase.tooHigh,
                 EQ + testCase.tooHigh,
-                EQ + testCase.tooLow,
-                LT + "0.0/0.0",
-                LTE + "0.0/0.0",
-                GT + "0.0/0.0",
-                GTE + "0.0/0.0",
-                EQ + "0.0/0.0"
+                EQ + testCase.tooLow
             );
 
             for (String truePredicate : trueForSingleValuesPredicates) {
@@ -519,6 +692,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
+                logger.info("Query: " + query);
                 EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));

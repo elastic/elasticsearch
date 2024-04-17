@@ -323,7 +323,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         throws IOException {
         final Map<String, RoleDescriptor> actual = responseAsParser(getRoleResponse).map(
             HashMap::new,
-            p -> RoleDescriptor.parse(expectedRoleDescriptor.getName(), p, false)
+            p -> RoleDescriptor.parserBuilder().build().parse(expectedRoleDescriptor.getName(), p)
         );
         assertThat(actual, equalTo(Map.of(expectedRoleDescriptor.getName(), expectedRoleDescriptor)));
     }

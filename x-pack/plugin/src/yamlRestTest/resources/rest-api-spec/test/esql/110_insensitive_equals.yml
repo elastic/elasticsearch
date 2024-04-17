@@ -47,6 +47,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where keyword =~ keywordUpper | keep id, keyword, keywordUpper'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -66,6 +67,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where text =~ textCamel | keep id, text, textCamel'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -86,6 +88,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where keyword =~ text | keep id, keyword, text'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -106,6 +109,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where keywordUpper =~ textCamel | keep id, keywordUpper, textCamel | sort id'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -127,6 +131,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where keywordUpper =~ "fo*" | keep id, keywordUpper'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -141,6 +146,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where wildcard =~ "foo*" | keep id, wildcard'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -156,6 +162,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where wildcard =~ "fOo*" | keep id, wildcard'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -172,6 +179,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where keywordUpper =~ "fo?" | keep id, keywordUpper'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -186,6 +194,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where wildcard =~ "bar?" | keep id, wildcard'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -201,6 +210,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where wildcard =~ "bAr?" | keep id, wildcard'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -219,6 +229,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where text =~ "Fo*" | keep id, text | sort id'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -233,6 +244,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where wildcardText =~ "fOo*" | keep id, wildcardText'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -248,6 +260,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where wildcardText =~ "bAr?" | keep id, wildcardText'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -266,6 +279,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where text =~ "fo\\*" | keep id, text'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -283,6 +297,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where wildcard =~ wildcardText | keep id, wildcard, wildcardText | sort id'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -302,6 +317,7 @@ setup:
       esql.query:
         body:
           query: 'FROM test | where NOT wildcard =~ wildcardText | keep id, wildcard, wildcardText | sort id'
+          version: 2024.04.01
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }

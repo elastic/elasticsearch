@@ -18,19 +18,29 @@ esplugin {
 // this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
 // as we (and tika) demand, and are not interested in, say, having the same version of commons-codec as elasticsearch itself
 def versions = [
-  'tika'  : '2.7.0',
-  'pdfbox': '2.0.27',
+  'tika'  : '2.9.1',
+  'pdfbox': '2.0.29',
   'poi'   : '5.2.3',
-  'mime4j': '0.8.9'
+  'mime4j': '0.8.10',
+  'commonsCodec': '1.16.0'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
-configurations.testRuntimeClasspath { exclude module: 'commons-logging' }
+configurations.testRuntimeClasspath {
+  exclude module: 'commons-logging'
+  // The version used by POI potentially conflicts with the one pulled in by :test:framework:
+  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+}
+
+configurations.testCompileClasspath {
+  // The version used by POI potentially conflicts with the one pulled in by :test:framework:
+  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+}
 
 dependencies {
   // take over logging for all dependencies
-  api "org.slf4j:slf4j-api:2.0.6"
-  api "org.slf4j:jcl-over-slf4j:2.0.6"
+  api "org.slf4j:slf4j-api:2.0.9"
+  api "org.slf4j:jcl-over-slf4j:2.0.9"
 
   // route slf4j over log4j
   // TODO blocked on https://github.com/elastic/elasticsearch/issues/93714
@@ -38,7 +48,7 @@ dependencies {
 
   // nop all slf4j logging
   // workaround for https://github.com/elastic/elasticsearch/issues/93714
-  api "org.slf4j:slf4j-nop:2.0.6"
+  api "org.slf4j:slf4j-nop:2.0.9"
 
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
@@ -54,7 +64,7 @@ dependencies {
   api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
   api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   api 'org.tukaani:xz:1.9'
-  api 'commons-io:commons-io:2.11.0'
+  api 'commons-io:commons-io:2.14.0'
 
   // character set detection
   api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
@@ -70,7 +80,7 @@ dependencies {
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  api "commons-codec:commons-codec:1.15"
+  api "commons-codec:commons-codec:${versions.commonsCodec}"
   api 'org.apache.xmlbeans:xmlbeans:5.1.1'
   api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
@@ -81,7 +91,7 @@ dependencies {
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  api "org.apache.commons:commons-lang3:3.12.0"
+  api "org.apache.commons:commons-lang3:3.13.0"
   // Microsoft Word files with visio diagrams
   api 'org.apache.commons:commons-math3:3.6.1'
   // POIs dependency

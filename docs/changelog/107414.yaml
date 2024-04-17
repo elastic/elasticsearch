@@ -1,5 +1,5 @@
 pr: 107414
 summary: "ESQL: median, count and `count_distinct` over constans"
 area: ES|QL
-type: enhancement
+type: "bug, enhancement"
 issues: []

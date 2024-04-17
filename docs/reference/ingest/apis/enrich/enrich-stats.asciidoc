@@ -170,7 +170,9 @@ The API returns the following response:
       "count": 0,
       "hits": 0,
       "misses": 0,
-      "evictions": 0
+      "evictions": 0,
+      "hits_time_in_millis": 0,
+      "misses_time_in_millis": 0
     }
   ]
 }
@@ -183,3 +185,5 @@ The API returns the following response:
 // TESTRESPONSE[s/"count": 0/"count" : $body.cache_stats.0.count/]
 // TESTRESPONSE[s/"misses": 0/"misses" : $body.cache_stats.0.misses/]
 // TESTRESPONSE[s/"evictions": 0/"evictions" : $body.cache_stats.0.evictions/]
+// TESTRESPONSE[s/"hits_time_in_millis": 0/"hits_time_in_millis" : $body.cache_stats.0.hits_time_in_millis/]
+// TESTRESPONSE[s/"misses_time_in_millis": 0/"misses_time_in_millis" : $body.cache_stats.0.misses_time_in_millis/]

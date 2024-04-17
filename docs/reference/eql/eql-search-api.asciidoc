@@ -99,7 +99,7 @@ ignored.
 Defaults to `true`.
 
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -206,7 +206,7 @@ returned.
 +
 A greater `fetch_size` value often increases search speed but uses more memory.
 
-include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=fields-param-def]
 
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)
@@ -280,7 +280,7 @@ command].
 NOTE: This parameter may change the set of returned hits. However, it does not
 change the sort order of hits in the response.
 
-include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
 [[eql-search-api-params-size]]
 `size`::

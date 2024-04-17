@@ -81,11 +81,14 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        if (clusterService.state().getMinTransportVersion().before(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
-            listener.onResponse(new Response(allocationStatsService.stats(), null));
-            return;
-        }
-        listener.onResponse(new Response(allocationStatsService.stats(), diskThresholdSettings));
+        listener.onResponse(
+            new Response(
+                allocationStatsService.stats(),
+                clusterService.state().getMinTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)
+                    ? diskThresholdSettings
+                    : null
+            )
+        );
     }
 
     @Override

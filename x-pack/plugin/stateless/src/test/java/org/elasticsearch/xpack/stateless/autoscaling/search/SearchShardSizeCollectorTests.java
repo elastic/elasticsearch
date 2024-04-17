@@ -40,21 +40,22 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasKey;
@@ -69,7 +70,8 @@ import static org.mockito.Mockito.verify;
 
 public class SearchShardSizeCollectorTests extends ESTestCase {
 
-    private TestThreadPool threadPool;
+    private final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+    private final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
     private ClusterSettings clusterSettings;
     private ShardSizeStatsClient statsClient;
     private ShardSizesPublisher publisher;
@@ -85,11 +87,9 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(SearchShardSizeCollectorTests.class.getName());
         clusterSettings = new ClusterSettings(
             Settings.builder()
-                .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
-                .put(SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
+                .put(SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofBytes(SIZE_THRESHOLD_BYTES))
                 .build(),
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
@@ -101,79 +101,82 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
 
         statsClient = mock(ShardSizeStatsClient.class);
         publisher = mock(ShardSizesPublisher.class);
+        doAnswer(invocation -> {
+            final ActionListener<Void> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(publisher).publishSearchShardDiskUsage(any(), any(), any());
 
         service = new SearchShardSizeCollector(clusterSettings, threadPool, statsClient, publisher);
         service.setNodeId("search_node_1");
+        service.start();
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        threadPool.shutdown();
+    public void drainQueue() {
+        service.close();
+        deterministicTaskQueue.runAllTasks();
+        service = null;
     }
 
-    public void testPushMetrics() throws Exception {
-
+    public void testPushMetrics() {
         var shardId = new ShardId("index-1", "_na_", 0);
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(largeSizeBytes(), anySizeBytes(), primaryTermGeneration);
 
         setUpShardSize(shardId, size);
         service.collectShardSize(shardId);
-        service.doStart();
 
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()));
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any());
     }
 
-    public void testGroupPublications() throws Exception {
-
+    public void testGroupPublications() {
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(largeSizeBytes(), anySizeBytes(), primaryTermGeneration);
 
         setUpShardSize(shardId1, size);
         setUpShardSize(shardId2, size);
+
         service.collectShardSize(shardId1);
         service.collectShardSize(shardId2);
-        service.doStart();
 
-        assertBusy(
-            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
-        );
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any());
     }
 
-    public void testPublishPeriodicallyEvenIfNoChanges() throws Exception {
-
+    public void testPublishPeriodicallyEvenIfNoChanges() {
         var shardId = new ShardId("index-1", "_na_", 0);
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(largeSizeBytes(), anySizeBytes(), primaryTermGeneration);
 
         setUpShardSize(shardId, size);
         service.collectShardSize(shardId);
-        service.doStart();
 
-        assertBusy(() -> {
-            verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any());
-            // second empty publication after interval passed
-            verify(publisher, atLeastOnce()).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of()), any());
-        });
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any());
+
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks();
+        // second empty publication after interval passed
+        verify(publisher, atLeastOnce()).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of()), any());
     }
 
-    public void testEmptyShardSizeIsPublished() throws Exception {
+    public void testEmptyShardSizeIsPublished() {
         var shardId = new ShardId("index-1", "_na_", 0);
         var size = ShardSize.EMPTY;
 
         setUpShardSize(shardId, size);
         service.collectShardSize(shardId);
-        service.doStart();
 
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()));
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any());
     }
 
-    public void testPublicationIsRetried() throws Exception {
-
+    public void testPublicationIsRetried() {
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(largeSizeBytes(), anySizeBytes(), primaryTermGeneration);
 
         // all initial publications of single shard should fail
         doAnswer(invocation -> {
@@ -181,68 +184,68 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
             return null;
         }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any());
 
-        service.doStart();
         setUpShardSize(shardId1, size);
         service.collectShardSize(shardId1);
-        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any()));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any());
 
         setUpShardSize(shardId2, size);
         service.collectShardSize(shardId2);
-        assertBusy(
-            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
-        );
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any());
     }
 
-    public void testPublishImmediatelyIfBigChangeIsDetected() throws Exception {
-
+    public void testPublishImmediatelyIfBigChangeIsDetected() {
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var smallSize = new ShardSize(1024, 1024, primaryTermGeneration);
-        var bigSize = new ShardSize(1024 * 1024, 1024, primaryTermGeneration);
+        var smallSize = new ShardSize(smallSizeBytes(), anySizeBytes(), primaryTermGeneration);
+        var bigSize = new ShardSize(largeSizeBytes(), anySizeBytes(), primaryTermGeneration);
 
-        // scheduling is disabled to test immediate sending
         setUpShardSize(shardId1, smallSize);
         setUpShardSize(shardId2, bigSize);
 
         service.collectShardSize(shardId1);
-        service.collectShardSize(shardId2);
 
-        assertBusy(() -> {
-            // not publishing immediately after small change in shardId1
-            verify(publisher, never()).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize)), any());
-            // publishing all once big change detected in shardId2
-            verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize, shardId2, bigSize)), any());
-        });
+        // not publishing immediately after small change in shardId1
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher, never()).publishSearchShardDiskUsage(any(), any(), any());
+
+        service.collectShardSize(shardId2);
+        deterministicTaskQueue.runAllRunnableTasks();
+        // publishing immediately all once big change detected in shardId2
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, smallSize, shardId2, bigSize)), any());
     }
 
-    public void testPublishAllDataIfMasterChanged() throws Exception {
-
+    public void testPublishAllDataIfMasterChanged() {
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(anySizeBytes(), anySizeBytes(), primaryTermGeneration);
 
-        // scheduling is disabled to test immediate sending
         setUpAllShardSizes(Map.of(shardId1, size, shardId2, size));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher, never()).publishSearchShardDiskUsage(any(), any(), any());
 
         var state1 = ClusterState.EMPTY_STATE;
         var state2 = createClusterStateWithNodes(2).build();
         service.clusterChanged(new ClusterChangedEvent("test", state2, state1));
 
-        assertBusy(
-            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
-        );
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any());
     }
 
-    public void testPublishAllDataIfInteractiveDataAgeSettingChanges() throws Exception {
-
+    public void testPublishAllDataIfInteractiveDataAgeSettingChanges() {
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(anySizeBytes(), anySizeBytes(), primaryTermGeneration);
 
-        // scheduling is disabled to test immediate sending
         setUpAllShardSizes(Map.of(shardId1, size, shardId2, size));
 
-        service.doStart();
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher, never()).publishSearchShardDiskUsage(any(), any(), any());
+
         clusterSettings.applySettings(
             Settings.builder()
                 .put(ServerlessSharedSettings.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14))
@@ -251,12 +254,11 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
                 .build()
         );
 
-        assertBusy(
-            () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
-        );
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any());
     }
 
-    public void testDeletedIndicesAreRemovedFromState() throws Exception {
+    public void testDeletedIndicesAreRemovedFromState() {
 
         var indexMetadata1 = createIndex(1, 2);
         var indexMetadata2 = createIndex(1, 2);
@@ -266,7 +268,7 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
         ).build();
         var state2 = ClusterState.builder(state1).metadata(Metadata.builder().put(indexMetadata1, false).build()).build();
 
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(anySizeBytes(), anySizeBytes(), primaryTermGeneration);
         setUpAllShardSizes(
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), size),
@@ -275,19 +277,11 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
                 Map.entry(new ShardId(indexMetadata2.getIndex(), 1), size)
             )
         );
-        var listenerWasCalled = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<Void>) invocation.getArgument(2, ActionListener.class);
-            listener.onResponse(null);
-            listenerWasCalled.countDown();
-            return null;
-        }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher, atLeastOnce()).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
-        safeAwait(listenerWasCalled);
-        verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
         assertThat(
             service.getPastPublications(),
             allOf(
@@ -313,7 +307,7 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
         );
     }
 
-    public void testMovedShardsAreRemovedFromState() throws Exception {
+    public void testMovedShardsAreRemovedFromState() {
 
         var indexMetadata1 = createIndex(1, 1);
         var indexMetadata2 = createIndex(1, 1);
@@ -338,20 +332,13 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
             )
             .build();
 
-        var size = new ShardSize(1024, 1024, primaryTermGeneration);
+        var size = new ShardSize(anySizeBytes(), anySizeBytes(), primaryTermGeneration);
         setUpAllShardSizes(Map.of(new ShardId(indexMetadata1.getIndex(), 0), size, new ShardId(indexMetadata2.getIndex(), 0), size));
-        var listenerWasCalled = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<Void>) invocation.getArgument(2, ActionListener.class);
-            listener.onResponse(null);
-            listenerWasCalled.countDown();
-            return null;
-        }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
         service.clusterChanged(new ClusterChangedEvent("test", state0, ClusterState.EMPTY_STATE));
+        deterministicTaskQueue.runAllRunnableTasks();
+        verify(publisher, atLeastOnce()).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
 
-        safeAwait(listenerWasCalled);
         assertThat(
             service.getPastPublications(),
             allOf(aMapWithSize(2), hasKey(new ShardId(indexMetadata1.getIndex(), 0)), hasKey(new ShardId(indexMetadata2.getIndex(), 0)))
@@ -414,5 +401,19 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
             listener.onResponse(sizes);
             return null;
         }).when(statsClient).getAllShardSizes(any(), any());
+    }
+
+    private static final long SIZE_THRESHOLD_BYTES = KB.toBytes(10);
+
+    private static long smallSizeBytes() {
+        return randomLongBetween(1, SIZE_THRESHOLD_BYTES - 1);
+    }
+
+    private static long largeSizeBytes() {
+        return randomLongBetween(SIZE_THRESHOLD_BYTES + 1, SIZE_THRESHOLD_BYTES * 2);
+    }
+
+    private static long anySizeBytes() {
+        return randomLongBetween(1, SIZE_THRESHOLD_BYTES * 2);
     }
 }

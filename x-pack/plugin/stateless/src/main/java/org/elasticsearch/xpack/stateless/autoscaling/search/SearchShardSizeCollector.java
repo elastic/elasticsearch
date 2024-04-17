@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -45,6 +46,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
@@ -82,7 +84,21 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
     private volatile TimeValue publishInterval;
     private volatile ByteSizeValue significantSizeChangeThreshold;
 
-    private volatile PublishTask publishTask;
+    // Effectively we have a queue of tasks, but all the tasks are copies of publishTask so in fact we just need to track the queue length.
+    // We use atomic operations on this field to ensure there's only ever at most one task running at once.
+    private final AtomicLong publishTaskQueueLength = new AtomicLong();
+    private final AbstractRunnable publishTask = new AbstractRunnable() {
+        @Override
+        protected void doRun() {
+            doPublishShardSizes();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("Failed to push shard sizes to elected master", e);
+            assert false : e;
+        }
+    };
 
     private final PendingPublication pendingPublication = new PendingPublication();
     private final ConcurrentMap<ShardId, ShardSize> pastPublications = new ConcurrentHashMap<>();
@@ -130,8 +146,8 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
 
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> {
             this.boostWindowInterval = value;
-            if (isStarted()) {
-                threadPool.generic().submit(this::publishAllNow);
+            if (lifecycle.started()) {
+                executor.execute(this::publishAllNow);
             }
         });
         clusterSettings.initializeAndWatch(PUSH_INTERVAL_SETTING, value -> this.publishInterval = value);
@@ -140,20 +156,14 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
 
     @Override
     protected void doStart() {
-        scheduleNextDiffPublication();
+        scheduleFutureDiffPublication();
     }
 
     @Override
-    protected void doStop() {
-        publishTask = null;
-    }
+    protected void doStop() {}
 
     @Override
     protected void doClose() {}
-
-    private boolean isStarted() {
-        return publishTask != null;
-    }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -162,7 +172,7 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
             setNodeId(event.state().nodes().getLocalNodeId());
         }
         if (event.nodesDelta().masterNodeChanged()) {
-            threadPool.generic().submit(this::publishAllNow);
+            executor.execute(this::publishAllNow);
         }
         if (event.metadataChanged()) {
             var metadata = event.state().metadata();
@@ -190,6 +200,7 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
     // Visible for testing
     void setNodeId(String nodeId) {
         this.nodeId = nodeId;
+        scheduleFutureDiffPublication();
     }
 
     @Override
@@ -234,7 +245,7 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
                         pendingPublication.retry(allShardSizes);
                     }
                 });
-                scheduleNextDiffPublication();
+                publishDiffNow();
             }
 
             @Override
@@ -244,59 +255,53 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent impleme
         });
     }
 
+    private void scheduleFutureDiffPublication() {
+        threadPool.scheduleUnlessShuttingDown(publishInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE, this::publishDiffNow);
+    }
+
     private void publishDiffNow() {
-        PublishTask newPublishTask = new PublishTask();
-        publishTask = newPublishTask;
-        threadPool.generic().submit(newPublishTask);
+        if (lifecycle.started() && publishTaskQueueLength.getAndIncrement() == 0L) {
+            executor.execute(publishTask);
+        }
     }
 
-    private void scheduleNextDiffPublication() {
-        PublishTask newPublishTask = new PublishTask();
-        publishTask = newPublishTask;
-        newPublishTask.scheduleNext();
+    /**
+     * Task to publish the shard sizes - publishTaskQueueLength ensures there's only ever at most one of these running at once.
+     */
+    private void doPublishShardSizes() {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+
+        // Get number of tasks to process before doing the publication - publishTask is idempotent, so we can process many items from
+        // the queue with a single invocation.
+        final var batchSize = publishTaskQueueLength.get();
+        assert batchSize > 0L;
+
+        if (nodeId == null) {
+            completeTasks(batchSize);
+            return;
+        }
+
+        var shards = pendingPublication.drain();
+        logger.debug("Publishing shard sizes diff {}", shards);
+        shardSizesPublisher.publishSearchShardDiskUsage(nodeId, shards, ActionListener.runAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                pastPublications.putAll(shards);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.log(getExceptionLogLevel(e), () -> "Unable to publish nodes shard sizes", e);
+                pendingPublication.retry(shards);
+            }
+        }, () -> completeTasks(batchSize)));
     }
 
-    class PublishTask extends AbstractRunnable {
-
-        @Override
-        protected void doRun() {
-            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-
-            if (publishTask != PublishTask.this) {
-                return;
-            }
-            if (nodeId == null) {
-                return;
-            }
-
-            var shards = pendingPublication.drain();
-            logger.debug("Publishing shard sizes diff {}", shards);
-            shardSizesPublisher.publishSearchShardDiskUsage(nodeId, shards, new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    pastPublications.putAll(shards);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.log(getExceptionLogLevel(e), () -> "Unable to publish nodes shard sizes", e);
-                    pendingPublication.retry(shards);
-                }
-            });
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.error("Failed to push shard sizes to elected master", e);
-        }
-
-        @Override
-        public void onAfter() {
-            scheduleNext();
-        }
-
-        private void scheduleNext() {
-            threadPool.scheduleUnlessShuttingDown(publishInterval, executor, PublishTask.this);
+    private void completeTasks(long batchSize) {
+        if (0L < publishTaskQueueLength.addAndGet(-batchSize)) {
+            executor.execute(publishTask);
+        } else {
+            scheduleFutureDiffPublication();
         }
     }
 

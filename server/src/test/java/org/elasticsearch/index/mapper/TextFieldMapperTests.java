@@ -75,7 +75,6 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -1178,120 +1177,12 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
-        boolean storeTextField = randomBoolean();
-        boolean storedKeywordField = storeTextField || randomBoolean();
-        boolean indexText = randomBoolean();
-        Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
-        KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
-            ignoreAbove,
-            storedKeywordField,
-            null,
-            false == storeTextField
-        );
-        return new SyntheticSourceSupport() {
-            @Override
-            public SyntheticSourceExample example(int maxValues) {
-                if (storeTextField) {
-                    SyntheticSourceExample delegate = keywordSupport.example(maxValues, true);
-                    return new SyntheticSourceExample(
-                        delegate.inputValue(),
-                        delegate.expectedForSyntheticSource(),
-                        delegate.expectedForBlockLoader(),
-                        b -> {
-                            b.field("type", "text");
-                            b.field("store", true);
-                            if (indexText == false) {
-                                b.field("index", false);
-                            }
-                        }
-                    );
-                }
-                // We'll load from _source if ignore_above is defined, otherwise we load from the keyword field.
-                boolean loadingFromSource = ignoreAbove != null;
-                SyntheticSourceExample delegate = keywordSupport.example(maxValues, loadingFromSource);
-                return new SyntheticSourceExample(
-                    delegate.inputValue(),
-                    delegate.expectedForSyntheticSource(),
-                    delegate.expectedForBlockLoader(),
-                    b -> {
-                        b.field("type", "text");
-                        if (indexText == false) {
-                            b.field("index", false);
-                        }
-                        b.startObject("fields");
-                        {
-                            b.startObject(randomAlphaOfLength(4));
-                            delegate.mapping().accept(b);
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }
-                );
-            }
-
-            @Override
-            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                Matcher<String> err = equalTo(
-                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
-                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
-                );
-                return List.of(
-                    new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("l");
-                            b.field("type", "long");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("normalizer", "lowercase");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("doc_values", "false");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    })
-                );
-            }
-        };
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("text", true);
     }
 
     @Override
     protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (nullLoaderExpected(blockReaderSupport.mapper(), blockReaderSupport.loaderFieldName())) {
-            return null;
-        }
-        return v -> ((BytesRef) v).utf8ToString();
-    }
-
-    private boolean nullLoaderExpected(MapperService mapper, String fieldName) {
-        MappedFieldType type = mapper.fieldType(fieldName);
-        if (type instanceof TextFieldType t) {
-            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {
-                return false;
-            }
-            String parentField = mapper.mappingLookup().parentField(fieldName);
-            return parentField == null || nullLoaderExpected(mapper, parentField);
-        }
-        return false;
+        return TextFieldFamilySyntheticSourceTestSetup.loadBlockExpected(blockReaderSupport, columnReader);
     }
 
     @Override
@@ -1300,9 +1191,8 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
-        throws IOException {
-        // Disabled because it currently fails
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
+        TextFieldFamilySyntheticSourceTestSetup.validateRoundTripReader(syntheticSource, reader, roundTripReader);
     }
 
     public void testUnknownAnalyzerOnLegacyIndex() throws IOException {
@@ -1433,21 +1323,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        String parentName = mapper.mappingLookup().parentField(ft.name());
-        if (parentName == null) {
-            TextFieldMapper.TextFieldType text = (TextFieldType) ft;
-            boolean supportsColumnAtATimeReader = text.syntheticSourceDelegate() != null
-                && text.syntheticSourceDelegate().hasDocValues()
-                && text.canUseSyntheticSourceDelegateForQuerying();
-            return new BlockReaderSupport(supportsColumnAtATimeReader, mapper, loaderFieldName);
-        }
-        MappedFieldType parent = mapper.fieldType(parentName);
-        if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
-            throw new UnsupportedOperationException();
-        }
-        KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
-        return new BlockReaderSupport(kwd.hasDocValues(), mapper, loaderFieldName);
+        return TextFieldFamilySyntheticSourceTestSetup.getSupportedReaders(mapper, loaderFieldName);
     }
 
     public void testBlockLoaderFromParentColumnReader() throws IOException {
@@ -1460,7 +1336,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
         boolean storeParent = randomBoolean();
-        KeywordFieldMapperTests.KeywordSyntheticSourceSupport kwdSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(
             null,
             storeParent,
             null,

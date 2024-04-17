@@ -1286,7 +1286,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * @param loaderFieldName the field name to use for loading the field
      */
     public record BlockReaderSupport(boolean columnAtATimeReader, boolean syntheticSource, MapperService mapper, String loaderFieldName) {
-        BlockReaderSupport(boolean columnAtATimeReader, MapperService mapper, String loaderFieldName) {
+        public BlockReaderSupport(boolean columnAtATimeReader, MapperService mapper, String loaderFieldName) {
             this(columnAtATimeReader, true, mapper, loaderFieldName);
         }
 

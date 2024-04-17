@@ -90,6 +90,8 @@ public class SymbolTests extends ESTestCase {
         String s2String = "VxsG";
         byte[] s2Bytes = s2String.getBytes(ISO_8859_1);
 
+        assumeFalse("Test cannot run repeatedly", Symbol.exists(s1String) || Symbol.exists(s2String));
+
         Symbol s1 = Symbol.ofConstant(s1String);
         assertThrows(IllegalArgumentException.class, () -> Symbol.lookupOrThrow(s2Bytes));
         assertThrows(IllegalArgumentException.class, () -> Symbol.lookupOrThrow(s2Bytes, 0, s2Bytes.length));

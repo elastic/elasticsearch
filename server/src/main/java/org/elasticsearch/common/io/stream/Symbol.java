@@ -52,6 +52,11 @@ public final class Symbol implements Writeable {
         return BY_NAME.computeIfAbsent(requireNonNull(constant), n -> create(constant));
     }
 
+    // visible for testing
+    static boolean exists(String name) {
+        return BY_NAME.containsKey(name);
+    }
+
     /**
      * Lookup the symbol of the given name throwing an {@link IllegalArgumentException} if not found.
      */

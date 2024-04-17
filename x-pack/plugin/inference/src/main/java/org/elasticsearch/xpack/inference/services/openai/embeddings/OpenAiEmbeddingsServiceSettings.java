@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -43,7 +44,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
+public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiRateLimitServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
@@ -184,10 +185,12 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         );
     }
 
+    @Override
     public URI uri() {
         return uri;
     }
 
+    @Override
     public String organizationId() {
         return organizationId;
     }
@@ -210,6 +213,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return maxInputTokens;
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }

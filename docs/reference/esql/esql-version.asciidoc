@@ -13,7 +13,7 @@
 
 [discrete]
 [[esql-versions-explanation]]
-=== How versions work
+==== How versions work
 
 {esql} language versions are independent of {es} versions.
 Versioning the language ensures that your queries will always
@@ -45,5 +45,5 @@ POST /_query?format=txt
 We won't make breaking changes to released {esql} versions and
 versions will remain supported until they are deprecated.
 New features, bug fixes, and performance improvements
-will be continue to be added to released {esql} versions,
+will continue to be added to released {esql} versions,
 provided they do not involve breaking changes.

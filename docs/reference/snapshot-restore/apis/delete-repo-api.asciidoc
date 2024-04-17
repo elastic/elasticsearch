@@ -51,7 +51,7 @@ supported.
 [[delete-snapshot-repo-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for

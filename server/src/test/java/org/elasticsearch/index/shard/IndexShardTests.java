@@ -4011,28 +4011,30 @@ public class IndexShardTests extends IndexShardTestCase {
         int numFlushes = randomIntBetween(2, 5);
         var flushesLatch = new CountDownLatch(numFlushes);
         var executor = Executors.newFixedThreadPool(numFlushes);
-        for (int i = 0; i < numFlushes; i++) {
-            executor.submit(() -> {
-                shard.flush(new FlushRequest().waitIfOngoing(true).force(true));
-                flushesLatch.countDown();
-            });
+        try {
+            for (int i = 0; i < numFlushes; i++) {
+                executor.submit(() -> {
+                    shard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+                    flushesLatch.countDown();
+                });
+            }
+            safeAwait(flushesLatch);
+
+            FlushStats flushStats = shard.flushStats();
+            assertThat(
+                "Flush time excluding waiting should be captured",
+                flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
+                greaterThan(0L)
+            );
+            assertThat(
+                "Flush time excluding waiting should less than flush time with waiting",
+                flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
+                lessThan(flushStats.getTotalTime().millis())
+            );
+        } finally {
+            closeShards(shard);
+            executor.shutdown();
         }
-        safeAwait(flushesLatch);
-
-        FlushStats flushStats = shard.flushStats();
-        assertThat(
-            "Flush time excluding waiting should be captured",
-            flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
-            greaterThan(0L)
-        );
-        assertThat(
-            "Flush time excluding waiting should less than flush time with waiting",
-            flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
-            lessThan(flushStats.getTotalTime().millis())
-        );
-
-        closeShards(shard);
-        executor.shutdown();
     }
 
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")

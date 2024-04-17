@@ -30,7 +30,7 @@ public class HumanReadableIndexSettingsTests extends ESTestCase {
 
         Settings humanSettings = IndexMetadata.addHumanReadableSettings(testSettings);
         assertThat(humanSettings.size(), equalTo(4));
-        assertEquals(versionCreated.toString(), humanSettings.get(IndexMetadata.SETTING_VERSION_CREATED_STRING, null));
+        assertEquals(versionCreated.toReleaseVersion(), humanSettings.get(IndexMetadata.SETTING_VERSION_CREATED_STRING, null));
         ZonedDateTime creationDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(created), ZoneOffset.UTC);
         assertEquals(creationDate.toString(), humanSettings.get(IndexMetadata.SETTING_CREATION_DATE_STRING, null));
     }

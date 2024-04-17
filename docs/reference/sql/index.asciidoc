@@ -2,7 +2,7 @@
 [[xpack-sql]]
 = SQL
 
-:sql-tests: {xes-repo-dir}/../../plugin/sql/qa/
+:sql-tests: {elasticsearch-root}/x-pack/docs/{lang}/../../plugin/sql/qa/
 :sql-specs: {sql-tests}server/src/main/resources/
 :jdbc-tests: {sql-tests}jdbc/src/main/java/org/elasticsearch/xpack/sql/qa/jdbc
 :security-tests: {sql-tests}server/security/src/test/java/org/elasticsearch/xpack/sql/qa/security

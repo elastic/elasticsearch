@@ -48,7 +48,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
                     .endObject()
             )
         ) {
-            GrantApiKeyRequest grantApiKeyRequest = RestGrantApiKeyAction.fromXContent(content);
+            GrantApiKeyRequest grantApiKeyRequest = RestGrantApiKeyAction.RequestTranslator.Default.fromXContent(content);
             assertThat(grantApiKeyRequest.getGrant().getType(), is(grantType));
             assertThat(grantApiKeyRequest.getGrant().getUsername(), is(username));
             assertThat(grantApiKeyRequest.getGrant().getPassword(), is(new SecureString(password.toCharArray())));

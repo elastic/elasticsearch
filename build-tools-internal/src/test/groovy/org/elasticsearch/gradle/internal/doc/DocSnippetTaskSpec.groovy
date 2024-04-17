@@ -10,11 +10,10 @@ package org.elasticsearch.gradle.internal.doc
 
 import spock.lang.Specification
 import spock.lang.TempDir
+import spock.lang.Unroll
 
-import org.gradle.api.InvalidUserDataException
 import org.gradle.testfixtures.ProjectBuilder
 
-import static DocTestUtils.SAMPLE_TEST_DOCS
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 class DocSnippetTaskSpec extends Specification {
@@ -22,142 +21,60 @@ class DocSnippetTaskSpec extends Specification {
     @TempDir
     File tempDir
 
-    def "handling test parsing multiple snippets per file"() {
-        given:
-        def project = ProjectBuilder.builder().build()
-        def task = project.tasks.register("docSnippetTask", DocSnippetTask).get()
+    @Unroll
+    def "handling test parsing multiple snippets per #fileType file"() {
         when:
-        def snippets = task.parseDocFile(
-            tempDir, docFile(
-            "mapping-charfilter.asciidoc",
-                DocTestUtils.SAMPLE_TEST_DOCS["mapping-charfilter.asciidoc"]
-            )
-        )
+        def snippets = parseFile("example-1.$fileType")
+
         then:
         snippets*.test == [false, false, false, false, false, false, false]
         snippets*.catchPart == [null, null, null, null, null, null, null]
-    }
+        snippets*.setup == [null, null, null, null, null, null, null]
+        snippets*.teardown == [null, null, null, null, null, null, null]
+        snippets*.testResponse == [false, false, false, false, false, false, false]
+        snippets*.skip == [null, null, null, null, null, null, null]
+        snippets*.continued == [false, false, false, false, false, false, false]
+        snippets*.language == ["console", "js", "js", "console", "console", "console", "console"]
+        snippets*.contents*.empty == [false, false, false, false, false, false, false]
+        snippets*.start == expectedSnippetStarts
+        snippets*.end == expectedSnippetEnds
 
-    def "test parsing snippet from doc"() {
-        def doc = docFile(
-            "mapping-charfilter.asciidoc",
-            """
-[source,console]
-----
-GET /_analyze
+        // test two snippet explicitly for content.
+        // More coverage on actual parsing is done in unit tests
+        normalizeString(snippets[0].contents) == """PUT my-index-000001
 {
-  "tokenizer": "keyword",
-  "char_filter": [
-    {
-      "type": "mapping",
-      "mappings": [
-        "e => 0",
-        "m => 1",
-        "p => 2",
-        "t => 3",
-        "y => 4"
-      ]
+  "mappings": {
+    "properties": {
+      "my_field": {
+        "type": "annotated_text"
+      }
     }
-  ],
-  "text": "My license plate is empty"
-}
-----
-"""
-        )
-        def snippets = task().parseDocFile(tempDir, doc)
-        expect:
-        snippets[0].start == 3
-        snippets[0].language == "console"
-        normalizeString(snippets[0].contents, tempDir) == """GET /_analyze
-{
-  "tokenizer": "keyword",
-  "char_filter": [
-    {
-      "type": "mapping",
-      "mappings": [
-        "e => 0",
-        "m => 1",
-        "p => 2",
-        "t => 3",
-        "y => 4"
-      ]
-    }
-  ],
-  "text": "My license plate is empty"
+  }
 }"""
+
+        normalizeString(snippets[1].contents) == """GET my-index-000001/_analyze
+{
+  "field": "my_field",
+  "text":"Investors in [Apple](Apple+Inc.) rejoiced."
+}"""
+
+        where:
+        fileType << ["asciidoc", "mdx"]
+        expectedSnippetStarts << [[10, 24, 36, 59, 86, 108, 135], [9, 22, 33, 55, 80, 101, 127]]
+        expectedSnippetEnds << [[21, 30, 55, 75, 105, 132, 158], [20, 28, 52, 71, 99, 125, 150]]
     }
 
-    def "produces same snippet from mdx and asciidoc"() {
-        def mdx = docFile(
-            "painless-field-context.mdx", SAMPLE_TEST_DOCS["painless-field-context.mdx"]
+    List<Snippet> parseFile(String fileName) {
+        def task = ProjectBuilder.builder().build().tasks.register("docSnippetTask", DocSnippetTask).get()
+        def docFileToParse = docFile(fileName, DocTestUtils.SAMPLE_TEST_DOCS[fileName])
+        return task.parseDocFile(
+            tempDir, docFileToParse
         )
-        def asciiDoc = docFile(
-            "painless-field-context.asciidoc", SAMPLE_TEST_DOCS["painless-field-context.asciidoc"]
-        )
-        def asciidocSnippets = task().parseDocFile(tempDir, asciiDoc)
-
-        expect:
-        asciidocSnippets.size() == 4
-        asciidocSnippets[0].start == 45
-        asciidocSnippets[0].language == "Painless"
-        normalizeString(asciidocSnippets[0].contents, tempDir) ==
-            "doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ROOT)"
-
-        when:
-        def mdxSnippets = task().parseDocFile(tempDir, mdx)
-        then:
-        mdxSnippets.size() == 4
-        mdxSnippets[0].start == 49
-        mdxSnippets[0].language == "Painless"
-        normalizeString(mdxSnippets[0].contents, tempDir) ==
-            "doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ROOT)"
-
-        assertSnippetsEqual(normalizeSnippets(asciidocSnippets), normalizeSnippets(mdxSnippets))
     }
 
     File docFile(String filename, String docContent) {
         def file = tempDir.toPath().resolve(filename).toFile()
         file.text = docContent
         return file
-    }
-
-
-    private DocSnippetTask task() {
-        ProjectBuilder.builder().build().tasks.register("docSnippetTask", DocSnippetTask).get()
-    }
-
-    boolean assertSnippetsEqual(List<Snippet> snippets1, List<Snippet> snippets2) {
-        assert snippets1.size() == snippets2.size()
-        assert snippets1 == snippets2
-        true
-    }
-
-    List<Snippet> normalizeSnippets(List<Snippet> snippets) {
-        return snippets.collect { Snippet s ->
-            def orgPath = s.path()
-            def fileName = orgPath.fileName.toString() - ".asciidoc" - ".mdx" + ".xdoc";
-            def normalizedPath = orgPath.parent == null ? new File(fileName).toPath() : orgPath.parent.resolve(fileName)
-            new Snippet(
-                normalizedPath,
-                0,
-                10,
-                s.contents,
-                s.console,
-                s.test,
-                s.testResponse,
-                s.testSetup,
-                s.testTearDown,
-                s.skip,
-                s.continued,
-                s.language,
-                s.catchPart,
-                s.setup,
-                s.teardown,
-                s.curl,
-                s.warnings,
-                s.skipShardsFailures,
-                s.name() ? s.name() - "asciidoc" : null
-            )
-        }
     }
 }

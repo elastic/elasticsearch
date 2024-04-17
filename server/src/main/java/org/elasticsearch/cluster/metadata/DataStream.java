@@ -971,9 +971,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Generates the name of the index that conforms to the default naming convention for backing indices
-     * on data streams given the specified data stream name, generation, and time.
+     * Generates the name of the index that conforms to the default naming convention for indices
+     * on data streams given the specified prefix, data stream name, generation, and time.
      *
+     * @param prefix the prefix that the index name should have
      * @param dataStreamName name of the data stream
      * @param generation generation of the data stream
      * @param epochMillis creation time for the backing index

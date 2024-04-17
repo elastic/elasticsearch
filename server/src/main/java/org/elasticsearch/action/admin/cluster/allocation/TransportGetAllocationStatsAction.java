@@ -122,7 +122,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         private final Map<String, NodeAllocationStats> nodeAllocationStats;
         @Nullable // for bwc
-        private DiskThresholdSettings diskThresholdSettings = null;
+        private final DiskThresholdSettings diskThresholdSettings;
 
         public Response(Map<String, NodeAllocationStats> nodeAllocationStats, DiskThresholdSettings diskThresholdSettings) {
             this.nodeAllocationStats = nodeAllocationStats;
@@ -134,6 +134,8 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             this.nodeAllocationStats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
             if (in.getTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
                 this.diskThresholdSettings = DiskThresholdSettings.readFrom(in);
+            } else {
+                this.diskThresholdSettings = null;
             }
         }
 

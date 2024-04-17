@@ -9,15 +9,13 @@ package org.elasticsearch.xpack.inference.common;
 
 import org.elasticsearch.core.TimeValue;
 
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.hamcrest.Matchers.is;
 
-public class RateLimiterAcquireTests extends BaseRateLimiterTests {
+public class RateLimiterReserveTests extends BaseRateLimiterTests {
 
     @Override
-    protected TimeValue tokenMethod(RateLimiter limiter, int tokens) throws InterruptedException {
-        limiter.acquire(tokens);
-        return null;
+    protected TimeValue tokenMethod(RateLimiter limiter, int tokens) {
+        return limiter.reserve(tokens);
     }
 
     @Override
@@ -26,7 +24,7 @@ public class RateLimiterAcquireTests extends BaseRateLimiterTests {
         RateLimiter.Sleeper mockSleeper,
         int numberOfClassToExpect,
         long expectedMicrosecondsToSleep
-    ) throws InterruptedException {
-        verify(mockSleeper, times(numberOfClassToExpect)).sleep(expectedMicrosecondsToSleep);
+    ) {
+        assertThat(result.getMicros(), is(expectedMicrosecondsToSleep));
     }
 }

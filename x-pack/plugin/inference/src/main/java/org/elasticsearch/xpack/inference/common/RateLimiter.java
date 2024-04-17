@@ -103,6 +103,12 @@ public class RateLimiter {
      * @return the amount of time to wait
      */
     public TimeValue timeToReserve(int tokens) {
+        var timeToReserveRes = timeToReserveInternal(tokens);
+
+        return new TimeValue((long) timeToReserveRes.microsToWait, TimeUnit.MICROSECONDS);
+    }
+
+    private TimeToReserve timeToReserveInternal(int tokens) {
         validateTokenRequest(tokens);
 
         double microsToWait;
@@ -111,8 +117,10 @@ public class RateLimiter {
         var additionalTokensRequired = tokens - accumulatedTokensToUse;
         microsToWait = additionalTokensRequired / tokensPerMicros;
 
-        return new TimeValue((long) microsToWait, TimeUnit.MICROSECONDS);
+        return new TimeToReserve(microsToWait, accumulatedTokensToUse);
     }
+
+    private record TimeToReserve(double microsToWait, double accumulatedTokensToUse) {}
 
     private static void validateTokenRequest(int tokens) {
         if (tokens <= 0) {
@@ -130,17 +138,11 @@ public class RateLimiter {
     }
 
     private synchronized long reserveInternal(int tokens) {
-        validateTokenRequest(tokens);
+        var timeToReserveRes = timeToReserveInternal(tokens);
+        accumulatedTokens -= timeToReserveRes.accumulatedTokensToUse;
+        nextTokenAvailability = nextTokenAvailability.plus((long) timeToReserveRes.microsToWait, ChronoUnit.MICROS);
 
-        double microsToWait;
-        accumulateTokens();
-        var accumulatedTokensToUse = Math.min(tokens, accumulatedTokens);
-        var additionalTokensRequired = tokens - accumulatedTokensToUse;
-        microsToWait = additionalTokensRequired / tokensPerMicros;
-        accumulatedTokens -= accumulatedTokensToUse;
-        nextTokenAvailability = nextTokenAvailability.plus((long) microsToWait, ChronoUnit.MICROS);
-
-        return (long) microsToWait;
+        return (long) timeToReserveRes.microsToWait;
     }
 
     private synchronized void accumulateTokens() {

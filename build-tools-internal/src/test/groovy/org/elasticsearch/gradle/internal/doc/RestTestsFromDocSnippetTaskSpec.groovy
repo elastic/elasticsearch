@@ -163,8 +163,7 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
         given:
         def build = ProjectBuilder.builder().build()
         def task = build.tasks.register("restTestFromSnippet", RestTestsFromDocSnippetTask).get()
-        task.expectedUnconvertedCandidates = []
-        task.migrationMode = true
+        task.getMigrationMode().set(true)
         task.docs = build.fileTree(new File(tempDir, "docs"))
         task.testRoot.convention(build.getLayout().buildDirectory.dir("rest-tests"));
         docFile('docs/example-2.asciidoc', SAMPLE_TEST_DOCS['example-2.asciidoc'])

@@ -12,14 +12,13 @@ import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.ConfigurableFileTree;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public abstract class DocSnippetTask extends DefaultTask {
 
@@ -35,7 +34,6 @@ public abstract class DocSnippetTask extends DefaultTask {
      * directory.
      */
     private ConfigurableFileTree docs;
-    private Map<String, String> defaultSubstitutions = new LinkedHashMap<>();
 
     @InputFiles
     public ConfigurableFileTree getDocs() {
@@ -50,9 +48,7 @@ public abstract class DocSnippetTask extends DefaultTask {
      * Substitutions done on every snippet's contents.
      */
     @Input
-    public Map<String, String> getDefaultSubstitutions() {
-        return defaultSubstitutions;
-    }
+    abstract MapProperty<String, String> getDefaultSubstitutions();
 
     @TaskAction
     void executeTask() {
@@ -71,15 +67,11 @@ public abstract class DocSnippetTask extends DefaultTask {
 
     private SnippetParser parserForFileType(File docFile) {
         if (docFile.getName().endsWith(".asciidoc")) {
-            return new AsciidocSnippetParser(defaultSubstitutions);
+            return new AsciidocSnippetParser(getDefaultSubstitutions().get());
         } else if (docFile.getName().endsWith(".mdx")) {
-            return new MdxSnippetParser(defaultSubstitutions);
+            return new MdxSnippetParser(getDefaultSubstitutions().get());
         }
         throw new InvalidUserDataException("Unsupported file type: " + docFile.getName());
-    }
-
-    public void setDefaultSubstitutions(Map<String, String> defaultSubstitutions) {
-        this.defaultSubstitutions = defaultSubstitutions;
     }
 
     public void setPerSnippet(Action<Snippet> perSnippet) {

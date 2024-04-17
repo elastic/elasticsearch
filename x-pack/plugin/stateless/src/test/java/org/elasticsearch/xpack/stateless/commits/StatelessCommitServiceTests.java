@@ -360,8 +360,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
 
+            assertThat(testHarness.commitService.getMaxGenerationToUploadForFlush(testHarness.shardId), equalTo(-1L));
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
             ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+            assertThat(testHarness.commitService.getMaxGenerationToUploadForFlush(testHarness.shardId), equalTo(1L));
 
             testHarness.commitService.onCommitCreation(thirdCommit);
             PlainActionFuture<Void> thirdCommitListener = new PlainActionFuture<>();

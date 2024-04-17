@@ -291,10 +291,14 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return nodeName;
     }
 
-    protected String startMasterAndIndexNode(StatelessMockRepositoryStrategy strategy) {
-        var nodeName = startMasterAndIndexNode(Settings.EMPTY);
+    protected String startMasterAndIndexNode(Settings extraSettings, StatelessMockRepositoryStrategy strategy) {
+        var nodeName = startMasterAndIndexNode(extraSettings);
         setNodeRepositoryStrategy(nodeName, strategy);
         return nodeName;
+    }
+
+    protected String startMasterAndIndexNode(StatelessMockRepositoryStrategy strategy) {
+        return startMasterAndIndexNode(Settings.EMPTY, strategy);
     }
 
     protected String startMasterOnlyNode(StatelessMockRepositoryStrategy strategy) {

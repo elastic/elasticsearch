@@ -187,17 +187,19 @@ class StatelessIndexEventListener implements IndexEventListener {
             if (batchedCompoundCommit != null) {
                 statelessCommitService.markRecoveredBcc(indexShard.shardId(), batchedCompoundCommit, unreferencedFiles);
             }
-            // TODO: indexDirectory.updateCommit must be called for all uploaded CCs once BCC is fully enabled. See also ES-8261
-            statelessCommitService.addConsumerForNewUploadedBcc(
-                indexShard.shardId(),
-                info -> indexDirectory.updateCommit(info.uploadedBcc().last(), info.filesToRetain())
-            );
+            statelessCommitService.addConsumerForNewUploadedBcc(indexShard.shardId(), info -> {
+                for (var compoundCommit : info.uploadedBcc().compoundCommits()) {
+                    // TODO: Avoid repeatedly update info.filesToRetain() for each CC. Or can we update only for the last CC?
+                    indexDirectory.updateCommit(compoundCommit, info.filesToRetain());
+                }
+            });
 
             final TranslogReplicator localTranslogReplicator = translogReplicator.get();
             statelessCommitService.addConsumerForNewUploadedBcc(
                 indexShard.shardId(),
                 info -> localTranslogReplicator.markShardCommitUploaded(
                     indexShard.shardId(),
+                    // Use the largest translog start file from all CCs to release translog files
                     info.uploadedBcc().last().translogRecoveryStartFile()
                 )
             );

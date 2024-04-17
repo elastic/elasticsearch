@@ -434,7 +434,7 @@ ROW a=["foo", "foo", "bar", "foo"]
 // end::mv_dedupe-result[]
 ;
 
-mvDedupeFromIndex
+mvDedupeFromIndex#[skip:-8.13.99, reason:Fixed in 8.14.0]
 from multivalues
 | eval b = mv_dedupe(boolean), k = mv_dedupe(keyword), i = mv_dedupe(integer), l = mv_dedupe(long), d = mv_dedupe(double)
 | keep b, k, i, l, d

@@ -443,7 +443,7 @@ public class SearchLoadSamplerTests extends ESTestCase {
     // A mocked sampler that returns random values
     private static class RandomAverageSearchLoadSampler extends AverageSearchLoadSampler {
         RandomAverageSearchLoadSampler(ThreadPool threadPool) {
-            super(threadPool, TimeValue.timeValueSeconds(1), DEFAULT_EWMA_ALPHA);
+            super(threadPool, TimeValue.timeValueSeconds(1), DEFAULT_EWMA_ALPHA, 4);
         }
 
         @Override
@@ -455,7 +455,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
                 randomDoubleBetween(0.0, 8.0, true),
                 randomDoubleBetween(100.0, 500.0, true),
                 randomIntBetween(0, 100),
-                between(1, 10)
+                between(5, 10),
+                between(1, 15)
             );
         }
     }

@@ -165,17 +165,17 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().setAllocationStats(true).setFs(true).get();
         NodeStats dataNode = nodeStats.getNodes().stream().filter(n -> dataNodeName.equals(n.getNode().getName())).findFirst().get();
         FsInfo.Path path = dataNode.getFs().iterator().next();
-        assertEquals(4000, path.getLowStageFreeBytes().getBytes());
-        assertEquals(3000, path.getHighStageFreeBytes().getBytes());
-        assertEquals(2000, path.getFloodStageFreeBytes().getBytes());
-        assertNull(path.getFrozenFloodStageFreeBytes());
+        assertEquals(4000, path.getLowWatermarkFreeSpace().getBytes());
+        assertEquals(3000, path.getHighWatermarkFreeSpace().getBytes());
+        assertEquals(2000, path.getFloodStageWatermarkFreeSpace().getBytes());
+        assertNull(path.getFrozenFloodStageWatermarkFreeSpace());
 
         NodeStats frozenNode = nodeStats.getNodes().stream().filter(n -> frozenNodeName.equals(n.getNode().getName())).findFirst().get();
         path = frozenNode.getFs().iterator().next();
-        assertEquals(8000, path.getLowStageFreeBytes().getBytes());
-        assertEquals(6000, path.getHighStageFreeBytes().getBytes());
-        assertEquals(4000, path.getFloodStageFreeBytes().getBytes());
-        assertEquals(2000, path.getFrozenFloodStageFreeBytes().getBytes());
+        assertEquals(8000, path.getLowWatermarkFreeSpace().getBytes());
+        assertEquals(6000, path.getHighWatermarkFreeSpace().getBytes());
+        assertEquals(4000, path.getFloodStageWatermarkFreeSpace().getBytes());
+        assertEquals(2000, path.getFrozenFloodStageWatermarkFreeSpace().getBytes());
 
         // update dynamic cluster settings, use absolute value, both data and master node have the same thresholds
         updateClusterSettings(
@@ -189,17 +189,17 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         nodeStats = clusterAdmin().prepareNodesStats().setAllocationStats(true).setFs(true).get();
         dataNode = nodeStats.getNodes().stream().filter(n -> dataNodeName.equals(n.getNode().getName())).findFirst().get();
         path = dataNode.getFs().iterator().next();
-        assertEquals(3000, path.getLowStageFreeBytes().getBytes());
-        assertEquals(2000, path.getHighStageFreeBytes().getBytes());
-        assertEquals(1000, path.getFloodStageFreeBytes().getBytes());
-        assertNull(path.getFrozenFloodStageFreeBytes());
+        assertEquals(3000, path.getLowWatermarkFreeSpace().getBytes());
+        assertEquals(2000, path.getHighWatermarkFreeSpace().getBytes());
+        assertEquals(1000, path.getFloodStageWatermarkFreeSpace().getBytes());
+        assertNull(path.getFrozenFloodStageWatermarkFreeSpace());
 
         frozenNode = nodeStats.getNodes().stream().filter(n -> frozenNodeName.equals(n.getNode().getName())).findFirst().get();
         path = frozenNode.getFs().iterator().next();
-        assertEquals(3000, path.getLowStageFreeBytes().getBytes());
-        assertEquals(2000, path.getHighStageFreeBytes().getBytes());
-        assertEquals(1000, path.getFloodStageFreeBytes().getBytes());
-        assertEquals(500, path.getFrozenFloodStageFreeBytes().getBytes());
+        assertEquals(3000, path.getLowWatermarkFreeSpace().getBytes());
+        assertEquals(2000, path.getHighWatermarkFreeSpace().getBytes());
+        assertEquals(1000, path.getFloodStageWatermarkFreeSpace().getBytes());
+        assertEquals(500, path.getFrozenFloodStageWatermarkFreeSpace().getBytes());
 
         // effective threshold percent calculated based on headroom
         updateClusterSettings(
@@ -215,9 +215,9 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         nodeStats = clusterAdmin().prepareNodesStats().setAllocationStats(true).setFs(true).get();
         dataNode = nodeStats.getNodes().stream().filter(n -> dataNodeName.equals(n.getNode().getName())).findFirst().get();
         path = dataNode.getFs().iterator().next();
-        assertEquals(500, path.getLowStageFreeBytes().getBytes());
-        assertEquals(300, path.getHighStageFreeBytes().getBytes());
-        assertEquals(100, path.getFloodStageFreeBytes().getBytes());
+        assertEquals(500, path.getLowWatermarkFreeSpace().getBytes());
+        assertEquals(300, path.getHighWatermarkFreeSpace().getBytes());
+        assertEquals(100, path.getFloodStageWatermarkFreeSpace().getBytes());
     }
 
     // Retrieves the value of the given block on an index.

@@ -38,10 +38,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long free = -1;
         long available = -1;
 
-        ByteSizeValue lowStageFreeBytes = null;
-        ByteSizeValue highStageFreeBytes = null;
-        ByteSizeValue floodStageFreeBytes = null;
-        ByteSizeValue frozenFloodStageFreeBytes = null;
+        ByteSizeValue lowWatermarkFreeSpace = null;
+        ByteSizeValue highWatermarkFreeSpace = null;
+        ByteSizeValue floodStageWatermarkFreeSpace = null;
+        ByteSizeValue frozenFloodStageWatermarkFreeSpace = null;
 
         public Path() {}
 
@@ -100,30 +100,32 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         public void setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
-            lowStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdLowStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
-            highStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdHighStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
-            floodStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdFloodStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            lowWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdLowStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            highWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdHighStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            floodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFloodStage(
+                new ByteSizeValue(total, ByteSizeUnit.BYTES)
+            );
             if (isDedicatedFrozenNode) {
-                frozenFloodStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdFrozenFloodStage(
+                frozenFloodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFrozenFloodStage(
                     new ByteSizeValue(total, ByteSizeUnit.BYTES)
                 );
             }
         }
 
-        public ByteSizeValue getLowStageFreeBytes() {
-            return lowStageFreeBytes;
+        public ByteSizeValue getLowWatermarkFreeSpace() {
+            return lowWatermarkFreeSpace;
         }
 
-        public ByteSizeValue getHighStageFreeBytes() {
-            return highStageFreeBytes;
+        public ByteSizeValue getHighWatermarkFreeSpace() {
+            return highWatermarkFreeSpace;
         }
 
-        public ByteSizeValue getFloodStageFreeBytes() {
-            return floodStageFreeBytes;
+        public ByteSizeValue getFloodStageWatermarkFreeSpace() {
+            return floodStageWatermarkFreeSpace;
         }
 
-        public ByteSizeValue getFrozenFloodStageFreeBytes() {
-            return frozenFloodStageFreeBytes;
+        public ByteSizeValue getFrozenFloodStageWatermarkFreeSpace() {
+            return frozenFloodStageWatermarkFreeSpace;
         }
 
         private static long addLong(long current, long other) {
@@ -188,28 +190,32 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
                 builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
             }
 
-            if (lowStageFreeBytes != null) {
+            if (lowWatermarkFreeSpace != null) {
                 builder.humanReadableField(
                     Fields.LOW_WATERMARK_FREE_SPACE_IN_BYTES,
                     Fields.LOW_WATERMARK_FREE_SPACE,
-                    getLowStageFreeBytes()
+                    getLowWatermarkFreeSpace()
                 );
             }
-            if (highStageFreeBytes != null) {
+            if (highWatermarkFreeSpace != null) {
                 builder.humanReadableField(
                     Fields.HIGH_WATERMARK_FREE_SPACE_IN_BYTES,
                     Fields.HIGH_WATERMARK_FREE_SPACE,
-                    getHighStageFreeBytes()
+                    getHighWatermarkFreeSpace()
                 );
             }
-            if (floodStageFreeBytes != null) {
-                builder.humanReadableField(Fields.FLOOD_STAGE_FREE_SPACE_IN_BYTES, Fields.FLOOD_STAGE_FREE_SPACE, getFloodStageFreeBytes());
+            if (floodStageWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FLOOD_STAGE_FREE_SPACE,
+                    getFloodStageWatermarkFreeSpace()
+                );
             }
-            if (frozenFloodStageFreeBytes != null) {
+            if (frozenFloodStageWatermarkFreeSpace != null) {
                 builder.humanReadableField(
                     Fields.FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES,
                     Fields.FROZEN_FLOOD_STAGE_FREE_SPACE,
-                    getFrozenFloodStageFreeBytes()
+                    getFrozenFloodStageWatermarkFreeSpace()
                 );
             }
 

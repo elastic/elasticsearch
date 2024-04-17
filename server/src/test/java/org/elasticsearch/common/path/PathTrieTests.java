@@ -233,4 +233,33 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("type"), equalTo("type"));
         assertThat(params.get("id"), equalTo("id"));
     }
+
+    public void testWildcardRegexes() {
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
+        trie.insert("x/{a.*a|test}", "test1");
+        trie.insert("{a.*a|test}/a", "test2");
+        trie.insert("/{a.*a|test}", "test3");
+        trie.insert("/{a.*a|test}/_endpoint", "test4");
+        trie.insert("/*/{a.*a|test}/_endpoint", "test5");
+
+        Map<String, String> params = new HashMap<>();
+        assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
+        assertThat(params.get("test"), equalTo("*"));
+
+        params = new HashMap<>();
+        assertThat(trie.retrieve("/aba/a", params), equalTo("test2"));
+        assertThat(params.get("test"), equalTo("aba"));
+
+        params = new HashMap<>();
+        assertThat(trie.retrieve("/*", params), equalTo("test3"));
+        assertThat(params.get("test"), equalTo("*"));
+
+        params = new HashMap<>();
+        assertThat(trie.retrieve("/*/_endpoint", params), equalTo("test4"));
+        assertThat(params.get("test"), equalTo("*"));
+
+        params = new HashMap<>();
+        assertThat(trie.retrieve("a/*/_endpoint", params), equalTo("test5"));
+        assertThat(params.get("test"), equalTo("*"));
+    }
 }

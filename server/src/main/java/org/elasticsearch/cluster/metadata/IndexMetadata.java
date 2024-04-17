@@ -536,6 +536,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
     static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
+    static final String KEY_EVENT_INGESTED_RANGE = "event_ingested_range";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String KEY_STATS = "stats";
 
@@ -2469,6 +2470,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             indexMetadata.timestampRange.toXContent(builder, params);
             builder.endObject();
 
+            builder.startObject(KEY_EVENT_INGESTED_RANGE);
+            indexMetadata.eventIngestedRange.toXContent(builder, params);
+            builder.endObject();
+
             if (indexMetadata.stats != null) {
                 builder.startObject(KEY_STATS);
                 indexMetadata.stats.toXContent(builder, params);
@@ -2564,7 +2569,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             break;
                         case KEY_TIMESTAMP_RANGE:
                             builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
-                            /// MP TODO: we need to add eventIngestedRange here and in toXContent
+                            break;
+                        case KEY_EVENT_INGESTED_RANGE:
+                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser));
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));

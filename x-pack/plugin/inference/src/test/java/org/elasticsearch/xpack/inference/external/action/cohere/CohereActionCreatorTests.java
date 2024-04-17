@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSenderWithSingleRequestManager;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +72,7 @@ public class CohereActionCreatorTests extends ESTestCase {
     public void testCreate_CohereEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """

@@ -111,7 +111,7 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
-    public RequestManager getRequestCreator() {
+    public RequestManager getRequestManager() {
         return requestCreator;
     }
 }

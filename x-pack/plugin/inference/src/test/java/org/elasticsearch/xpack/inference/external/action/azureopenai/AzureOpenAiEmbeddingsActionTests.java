@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSenderWithSingleRequestManager;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests.createModel;
@@ -81,7 +82,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """

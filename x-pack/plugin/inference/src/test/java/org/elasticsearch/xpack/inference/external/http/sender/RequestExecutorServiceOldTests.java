@@ -48,7 +48,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RequestExecutorServiceTests extends ESTestCase {
+public class RequestExecutorServiceOldTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private ThreadPool threadPool;
 
@@ -385,24 +385,25 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(1);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender);
+        var service = new RequestExecutorServiceOld("test_service", threadPool, null, settings, new SingleRequestManager(requestSender));
 
         service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        var requestManager = RequestManagerTests.createMock(requestSender, "id");
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is("Failed to execute task because the executor service [id] queue is full"));
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to execute task because the http executor service [test_service] queue is full")
+        );
 
         settings.setQueueCapacity(2);
 
         var waitToShutdown = new CountDownLatch(1);
         var waitToReturnFromSend = new CountDownLatch(1);
         // There is a request already queued, and its execution path will initiate shutting down the service
-        // TODO I think we need this to do the listener.onResponse?
         doAnswer(invocation -> {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
@@ -415,7 +416,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         assertTrue(service.isTerminated());
-        assertThat(service.remainingQueueCapacity(requestManager), is(2));
+        assertThat(service.remainingQueueCapacity(), is(2));
     }
 
     public void testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull() throws ExecutionException, InterruptedException,
@@ -423,14 +424,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(3);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender);
+        var service = new RequestExecutorServiceOld("test_service", threadPool, null, settings, new SingleRequestManager(requestSender));
 
         service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
         service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        var requestManager = RequestManagerTests.createMock(requestSender);
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, listener);
         assertThat(service.queueSize(), is(3));
 
         settings.setQueueCapacity(1);
@@ -450,7 +450,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         assertTrue(service.isTerminated());
-        assertThat(service.remainingQueueCapacity(requestManager), is(1));
+        assertThat(service.remainingQueueCapacity(), is(1));
         assertThat(service.queueSize(), is(0));
 
         var thrownException = expectThrows(
@@ -469,10 +469,9 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(1);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender);
-        var requestManager = RequestManagerTests.createMock(requestSender);
+        var service = new RequestExecutorServiceOld("test_service", threadPool, null, settings, new SingleRequestManager(requestSender));
 
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
+        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -501,13 +500,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         assertTrue(service.isTerminated());
-        assertThat(service.remainingQueueCapacity(requestManager), is(Integer.MAX_VALUE));
+        assertThat(service.remainingQueueCapacity(), is(Integer.MAX_VALUE));
     }
 
     private Future<?> submitShutdownRequest(
         CountDownLatch waitToShutdown,
         CountDownLatch waitToReturnFromSend,
-        RequestExecutorService service
+        RequestExecutorServiceOld service
     ) {
         return threadPool.generic().submit(() -> {
             try {
@@ -523,11 +522,20 @@ public class RequestExecutorServiceTests extends ESTestCase {
         });
     }
 
-    private RequestExecutorService createRequestExecutorServiceWithMocks() {
+    private RequestExecutorServiceOld createRequestExecutorServiceWithMocks() {
         return createRequestExecutorService(null, mock(RetryingHttpSender.class));
     }
 
-    private RequestExecutorService createRequestExecutorService(@Nullable CountDownLatch startupLatch, RetryingHttpSender requestSender) {
-        return new RequestExecutorService(threadPool, startupLatch, createRequestExecutorServiceSettingsEmpty(), requestSender);
+    private RequestExecutorServiceOld createRequestExecutorService(
+        @Nullable CountDownLatch startupLatch,
+        RetryingHttpSender requestSender
+    ) {
+        return new RequestExecutorServiceOld(
+            "test_service",
+            threadPool,
+            startupLatch,
+            createRequestExecutorServiceSettingsEmpty(),
+            new SingleRequestManager(requestSender)
+        );
     }
 }

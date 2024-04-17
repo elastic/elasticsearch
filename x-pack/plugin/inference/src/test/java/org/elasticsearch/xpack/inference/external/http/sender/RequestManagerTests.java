@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -21,34 +23,43 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ExecutableRequestCreatorTests {
+public class RequestManagerTests {
     public static RequestManager createMock() {
-        var mockCreator = mock(RequestManager.class);
-        when(mockCreator.create(any(), anyList(), any(), any(), any(), any())).thenReturn(() -> {});
-
-        return mockCreator;
+        return mock(RequestManager.class);
     }
 
     public static RequestManager createMock(RequestSender requestSender) {
-        return createMock(requestSender, "id");
+        return createMock(requestSender, "id", new RateLimitSettings(TimeValue.timeValueSeconds(1)));
     }
 
-    public static RequestManager createMock(RequestSender requestSender, String modelId) {
-        var mockCreator = mock(RequestManager.class);
+    public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId) {
+        return createMock(requestSender, inferenceEntityId, new RateLimitSettings(TimeValue.timeValueSeconds(1)));
+    }
+
+    public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId, RateLimitSettings settings) {
+        var mockManager = mock(RequestManager.class);
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[5];
-            return (Runnable) () -> requestSender.send(
+            requestSender.send(
                 mock(Logger.class),
-                RequestTests.mockRequest(modelId),
+                RequestTests.mockRequest(inferenceEntityId),
                 HttpClientContext.create(),
                 () -> false,
                 mock(ResponseHandler.class),
                 listener
             );
-        }).when(mockCreator).create(any(), anyList(), any(), any(), any(), any());
 
-        return mockCreator;
+            return Void.TYPE;
+        }).when(mockManager).execute(any(), anyList(), any(), any(), any());
+
+        // just return something consistent so the hashing works
+        when(mockManager.rateLimitGrouping()).thenReturn(inferenceEntityId);
+
+        when(mockManager.rateLimitSettings()).thenReturn(settings);
+        when(mockManager.inferenceEntityId()).thenReturn(inferenceEntityId);
+
+        return mockManager;
     }
 }

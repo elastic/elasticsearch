@@ -78,7 +78,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender()) {
             sender.start();
 
             String responseJson = """

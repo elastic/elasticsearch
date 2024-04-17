@@ -79,7 +79,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     public void testCreateSender_SendsRequestAndReceivesResponse() throws Exception {
         var senderFactory = createSenderFactory(clientManager, threadRef);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -135,11 +135,11 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender()) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
-                () -> sender.send(ExecutableRequestCreatorTests.createMock(), new DocumentsOnlyInput(List.of()), null, listener)
+                () -> sender.send(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, listener)
             );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
@@ -155,17 +155,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender()) {
             assertThat(sender, instanceOf(HttpRequestSender.class));
             sender.start();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(
-                ExecutableRequestCreatorTests.createMock(),
-                new DocumentsOnlyInput(List.of()),
-                TimeValue.timeValueNanos(1),
-                listener
-            );
+            sender.send(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -186,16 +181,11 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender()) {
             sender.start();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(
-                ExecutableRequestCreatorTests.createMock(),
-                new DocumentsOnlyInput(List.of()),
-                TimeValue.timeValueNanos(1),
-                listener
-            );
+            sender.send(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -248,7 +238,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
     }
 
-    public static Sender createSenderWithSingleRequestManager(HttpRequestSender.Factory factory, String serviceName) {
-        return factory.createSender(serviceName);
+    public static Sender createSenderWithSingleRequestManager(HttpRequestSender.Factory factory) {
+        return factory.createSender();
     }
 }

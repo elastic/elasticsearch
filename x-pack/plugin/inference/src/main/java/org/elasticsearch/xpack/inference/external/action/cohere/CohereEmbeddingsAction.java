@@ -36,6 +36,7 @@ public class CohereEmbeddingsAction implements ExecutableAction {
             model.getServiceSettings().getCommonSettings().uri(),
             "Cohere embeddings"
         );
+        // TODO - Batching pass the batching class on to the CohereEmbeddingsRequestManager
         requestCreator = CohereEmbeddingsRequestManager.of(model, threadPool);
     }
 

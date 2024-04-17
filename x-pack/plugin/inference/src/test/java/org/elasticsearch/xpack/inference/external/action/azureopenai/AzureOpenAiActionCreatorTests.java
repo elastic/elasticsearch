@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSenderWithSingleRequestManager;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests.createModel;
@@ -75,7 +76,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_AzureOpenAiEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -125,7 +126,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_AzureOpenAiEmbeddingsModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -181,7 +182,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -235,7 +236,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From413StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             // note - there is no complete documentation on Azure's error messages
@@ -311,7 +312,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From400StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             // note - there is no complete documentation on Azure's error messages
@@ -387,7 +388,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """

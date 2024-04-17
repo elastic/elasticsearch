@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,11 +30,20 @@ public class RequestExecutorServiceSettings {
         Setting.Property.Dynamic
     );
 
+    private static final TimeValue DEFAULT_TASK_POLL_FREQUENCY_TIME = TimeValue.timeValueMillis(50);
+    static final Setting<TimeValue> TASK_POLL_FREQUENCY_SETTING = Setting.timeSetting(
+        "xpack.inference.http.request_executor.task_poll_frequency",
+        DEFAULT_TASK_POLL_FREQUENCY_TIME,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> getSettingsDefinitions() {
-        return List.of(TASK_QUEUE_CAPACITY_SETTING);
+        return List.of(TASK_QUEUE_CAPACITY_SETTING, TASK_POLL_FREQUENCY_SETTING);
     }
 
     private volatile int queueCapacity;
+    private volatile TimeValue taskPollFrequency;
     private final List<Consumer<Integer>> queueCapacityCallbacks = new ArrayList<Consumer<Integer>>();
 
     public RequestExecutorServiceSettings(Settings settings, ClusterService clusterService) {
@@ -44,6 +54,7 @@ public class RequestExecutorServiceSettings {
 
     private void addSettingsUpdateConsumers(ClusterService clusterService) {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(TASK_QUEUE_CAPACITY_SETTING, this::setQueueCapacity);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TASK_POLL_FREQUENCY_SETTING, this::setTaskPollFrequency);
     }
 
     // default for testing
@@ -55,6 +66,10 @@ public class RequestExecutorServiceSettings {
         }
     }
 
+    private void setTaskPollFrequency(TimeValue taskPollFrequency) {
+        this.taskPollFrequency = taskPollFrequency;
+    }
+
     void registerQueueCapacityCallback(Consumer<Integer> onChangeCapacityCallback) {
         queueCapacityCallbacks.add(onChangeCapacityCallback);
     }
@@ -62,4 +77,9 @@ public class RequestExecutorServiceSettings {
     int getQueueCapacity() {
         return queueCapacity;
     }
+
+    TimeValue getTaskPollFrequency() {
+        return taskPollFrequency;
+    }
+
 }

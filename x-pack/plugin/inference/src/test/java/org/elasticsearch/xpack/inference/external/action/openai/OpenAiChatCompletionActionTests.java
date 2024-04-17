@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSenderWithSingleRequestManager;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
@@ -80,7 +81,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -234,7 +235,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
             sender.start();
 
             String responseJson = """

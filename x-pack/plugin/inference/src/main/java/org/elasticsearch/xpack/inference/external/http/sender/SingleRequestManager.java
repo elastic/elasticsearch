@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 
 import java.util.Objects;
 
+// TODO remove
 /**
  * Handles executing a single inference request at a time.
  */
@@ -28,20 +29,18 @@ public class SingleRequestManager {
             return;
         }
 
-        inferenceRequest.getRequestCreator()
-            .create(
+        inferenceRequest.getRequestManager()
+            .execute(
                 inferenceRequest.getQuery(),
                 inferenceRequest.getInput(),
                 requestSender,
                 inferenceRequest.getRequestCompletedFunction(),
-                context,
                 inferenceRequest.getListener()
-            )
-            .run();
+            );
     }
 
     private static boolean isNoopRequest(InferenceRequest inferenceRequest) {
-        return inferenceRequest.getRequestCreator() == null
+        return inferenceRequest.getRequestManager() == null
             || inferenceRequest.getInput() == null
             || inferenceRequest.getListener() == null;
     }

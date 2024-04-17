@@ -19,7 +19,7 @@ public class SingleRequestManagerTests extends ESTestCase {
     public void testExecute_DoesNotCallRequestCreatorCreate_WhenInputIsNull() {
         var requestCreator = mock(RequestManager.class);
         var request = mock(InferenceRequest.class);
-        when(request.getRequestCreator()).thenReturn(requestCreator);
+        when(request.getRequestManager()).thenReturn(requestCreator);
 
         new SingleRequestManager(mock(RetryingHttpSender.class)).execute(mock(InferenceRequest.class), HttpClientContext.create());
         verifyNoInteractions(requestCreator);

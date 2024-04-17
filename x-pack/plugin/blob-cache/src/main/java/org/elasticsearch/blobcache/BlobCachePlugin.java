@@ -18,6 +18,7 @@ public class BlobCachePlugin extends Plugin implements ExtensiblePlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
+            SharedBlobCacheService.SHARED_CACHE_TYPE,
             SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING,
             SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING,
             SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING,

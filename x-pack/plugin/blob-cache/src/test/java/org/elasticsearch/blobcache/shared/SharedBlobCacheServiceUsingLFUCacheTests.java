@@ -35,8 +35,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -54,7 +56,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SharedBlobCacheServiceTests extends ESTestCase {
+public class SharedBlobCacheServiceUsingLFUCacheTests extends ESTestCase {
 
     private static long size(long numPages) {
         return numPages * SharedBytes.PAGE_SIZE;
@@ -63,6 +65,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testBasicEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -141,6 +144,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testAutoEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -185,6 +189,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testForceEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -219,6 +224,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testForceEvictResponse() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -249,6 +255,176 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testDecay() throws IOException {
+        // we have 8 regions
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(400)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            assertEquals(4, cacheService.freeRegionCount());
+
+            final var cacheKey1 = generateCacheKey();
+            final var cacheKey2 = generateCacheKey();
+            final var cacheKey3 = generateCacheKey();
+            // add a region that we can evict when provoking first decay
+            cacheService.get("evictkey", size(250), 0);
+            assertEquals(3, cacheService.freeRegionCount());
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            assertEquals(2, cacheService.freeRegionCount());
+            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            assertEquals(1, cacheService.freeRegionCount());
+            final var region2 = cacheService.get(cacheKey3, size(250), 1);
+            assertEquals(0, cacheService.freeRegionCount());
+
+            assertEquals(1, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+            AtomicLong expectedEpoch = new AtomicLong();
+            Runnable triggerDecay = () -> {
+                assertThat(taskQueue.hasRunnableTasks(), is(false));
+                cacheService.get(expectedEpoch.toString(), size(250), 0);
+                assertThat(taskQueue.hasRunnableTasks(), is(true));
+                taskQueue.runAllRunnableTasks();
+                assertThat(cacheService.epoch(), equalTo(expectedEpoch.incrementAndGet()));
+            };
+
+            triggerDecay.run();
+
+            cacheService.get(cacheKey1, size(250), 0);
+            cacheService.get(cacheKey2, size(250), 1);
+            cacheService.get(cacheKey3, size(250), 1);
+
+            triggerDecay.run();
+
+            final var region0Again = cacheService.get(cacheKey1, size(250), 0);
+            assertSame(region0Again, region0);
+            assertEquals(3, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+
+            triggerDecay.run();
+
+            cacheService.get(cacheKey1, size(250), 0);
+            assertEquals(4, cacheService.getFreq(region0));
+            cacheService.get(cacheKey1, size(250), 0);
+            assertEquals(4, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(0, cacheService.getFreq(region2));
+
+            // ensure no freq=0 entries
+            cacheService.get(cacheKey2, size(250), 1);
+            cacheService.get(cacheKey3, size(250), 1);
+            assertEquals(2, cacheService.getFreq(region1));
+            assertEquals(2, cacheService.getFreq(region2));
+
+            triggerDecay.run();
+
+            assertEquals(3, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+
+            triggerDecay.run();
+            assertEquals(2, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(0, cacheService.getFreq(region2));
+
+            // ensure no freq=0 entries
+            cacheService.get(cacheKey2, size(250), 1);
+            cacheService.get(cacheKey3, size(250), 1);
+            assertEquals(2, cacheService.getFreq(region1));
+            assertEquals(2, cacheService.getFreq(region2));
+
+            triggerDecay.run();
+            assertEquals(1, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+
+            triggerDecay.run();
+            assertEquals(0, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(0, cacheService.getFreq(region2));
+        }
+    }
+
+    /**
+     * Test when many objects need to decay, in particular useful to measure how long the decay task takes.
+     * For 1M objects (with no assertions) it took 26ms locally.
+     */
+    public void testMassiveDecay() throws IOException {
+        int regions = 1024; // to measure decay time, increase to 1024*1024 and disable assertions.
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(regions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            Runnable decay = () -> {
+                assertThat(taskQueue.hasRunnableTasks(), is(true));
+                long before = System.currentTimeMillis();
+                taskQueue.runAllRunnableTasks();
+                long after = System.currentTimeMillis();
+                logger.debug("took {} ms", (after - before));
+            };
+            long fileLength = size(regions + 100);
+            Object cacheKey = new Object();
+            for (int i = 0; i < regions; ++i) {
+                cacheService.get(cacheKey, fileLength, i);
+                if (Integer.bitCount(i) == 1) {
+                    logger.debug("did {} gets", i);
+                }
+            }
+            assertThat(taskQueue.hasRunnableTasks(), is(false));
+            cacheService.get(cacheKey, fileLength, regions);
+            decay.run();
+            int maxRounds = 5;
+            for (int round = 2; round <= maxRounds; ++round) {
+                for (int i = round; i < regions + round; ++i) {
+                    cacheService.get(cacheKey, fileLength, i);
+                    if (Integer.bitCount(i) == 1) {
+                        logger.debug("did {} gets", i);
+                    }
+                }
+                decay.run();
+            }
+
+            Map<Integer, Integer> freqs = new HashMap<>();
+            for (int i = maxRounds; i < regions + maxRounds; ++i) {
+                int freq = cacheService.getFreq(cacheService.get(cacheKey, fileLength, i)) - 2;
+                freqs.compute(freq, (k, v) -> v == null ? 1 : v + 1);
+                if (Integer.bitCount(i) == 1) {
+                    logger.debug("did {} gets", i);
+                }
+            }
+            assertThat(freqs.get(4), equalTo(regions - maxRounds + 1));
+        }
+    }
+
     /**
      * Exercise SharedBlobCacheService#get in multiple threads to trigger any assertion errors.
      * @throws IOException
@@ -265,6 +441,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         logger.info("{} {} {}", threads, regionCount, allowAlreadyClosed);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(regionCount * 100L)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getKey(), randomFrom("0", "1ms", "10s"))
@@ -338,6 +515,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testFetchFullCacheEntry() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -406,6 +584,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testFetchFullCacheEntryConcurrently() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -471,6 +650,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             ? ByteSizeValue.ofBytes(size(500)).getStringRep()
             : (new RatioValue(between(1, 100))).formatNoTrailingZerosPercent();
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
@@ -495,6 +675,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     public void testMultipleDataPathsRejectedOnFrozenNodes() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .putList(Environment.PATH_DATA_SETTING.getKey(), List.of("a", "b"))
@@ -519,6 +700,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     public void testDedicateFrozenCacheSizeDefaults() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
 
@@ -531,6 +713,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     public void testNotDedicatedFrozenCacheSizeDefaults() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                 Sets.union(
@@ -563,6 +746,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     public void testSearchOrIndexNodeCacheSizeDefaults() {
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                 randomFrom(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE).roleName()
@@ -579,6 +763,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testMaxHeadroomRejectedForAbsoluteCacheSize() {
         String cacheSize = ByteSizeValue.ofBytes(size(500)).getStringRep();
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
@@ -608,6 +793,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         long largeSize = ByteSizeValue.ofTb(10).getBytes();
         assertThat(SharedBlobCacheService.calculateCacheSize(Settings.EMPTY, smallSize), equalTo(0L));
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
         assertThat(SharedBlobCacheService.calculateCacheSize(settings, smallSize), equalTo(9000L));
@@ -622,6 +808,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ByteSizeValue val1 = new ByteSizeValue(randomIntBetween(1, 5), ByteSizeUnit.MB);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), val1.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
@@ -659,16 +846,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testMaybeEvictRecentUsed() throws Exception {
-        final int numRegions = 20;
+    public void testMaybeEvictLeastUsed() throws Exception {
+        final int numRegions = 10;
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put("path.home", createTempDir())
             .build();
 
+        final AtomicLong relativeTimeInMillis = new AtomicLong(0L);
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -681,8 +870,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             )
         ) {
+            final Map<Object, SharedBlobCacheService<Object>.CacheFileRegion> cacheEntries = new HashMap<>();
+
             assertThat("All regions are free", cacheService.freeRegionCount(), equalTo(numRegions));
-            assertThat("Cache has no entries", cacheService.maybeEvictLeastRecent(), is(false));
+            assertThat("Cache has no entries", cacheService.maybeEvict(), is(false));
 
             // use all regions in cache
             for (int i = 0; i < numRegions; i++) {
@@ -694,15 +885,53 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     taskQueue.getThreadPool().generic(),
                     ActionListener.noop()
                 );
+                assertThat(cacheService.getFreq(entry), equalTo(1));
+                cacheEntries.put(cacheKey, entry);
             }
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Last entry has other references", cacheService.maybeEvictLeastRecent(), is(false));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvict(), is(false));
 
             taskQueue.runAllRunnableTasks();
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache should evict last entry", cacheService.maybeEvictLeastRecent(), is(true));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvict(), is(false));
+
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            cacheEntries.keySet().forEach(key -> cacheService.get(key, regionSize, 0));
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            // touch some random cache entries
+            var usedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
+            usedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
+
+            cacheEntries.forEach(
+                (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
+            );
+
+            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvict(), is(false));
+
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            cacheEntries.forEach(
+                (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(2) : equalTo(0))
+            );
+
+            var zeroFrequencyCacheEntries = cacheEntries.size() - usedCacheKeys.size();
+            for (int i = 0; i < zeroFrequencyCacheEntries; i++) {
+                assertThat(cacheService.freeRegionCount(), equalTo(i));
+                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvict(), is(true));
+                assertThat(cacheService.freeRegionCount(), equalTo(i + 1));
+            }
+
+            assertThat("No more cache entries old enough to be evicted", cacheService.maybeEvict(), is(false));
+            assertThat(cacheService.freeRegionCount(), equalTo(zeroFrequencyCacheEntries));
         }
     }
 
@@ -711,6 +940,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final long regionSize = size(100L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put("path.home", createTempDir())
@@ -793,6 +1023,25 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(1 + remainingFreeRegions, bulkTaskCount.get());
             }
             {
+                // cache fully used, no entry old enough to be evicted
+                assertEquals(0, cacheService.freeRegionCount());
+                final var cacheKey = generateCacheKey();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.maybeFetchRegion(
+                    cacheKey,
+                    randomIntBetween(0, 10),
+                    randomLongBetween(1L, regionSize),
+                    (channel, channelPos, relativePos, length, progressUpdater) -> {
+                        throw new AssertionError("should not be executed");
+                    },
+                    future
+                );
+                assertThat("Listener is immediately completed", future.isDone(), is(true));
+                assertThat("Region already exists in cache", future.get(), is(false));
+            }
+            {
+                cacheService.computeDecay();
+
                 // fetch one more region should evict an old cache entry
                 final var cacheKey = generateCacheKey();
                 assertEquals(0, cacheService.freeRegionCount());
@@ -818,6 +1067,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put("path.home", createTempDir())
@@ -884,6 +1134,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {
         final String value = randomFrom(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO).getStringRep();
         final Settings settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .put(setting.getKey(), value)
@@ -912,6 +1163,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_TYPE.getKey(), "lfu")
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
             .put("path.home", createTempDir())

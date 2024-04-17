@@ -534,11 +534,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     }
 
     public FsInfo setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
-        if (masterThresholdSettings == null) {
-            return this;
-        }
-        for (Path path : paths) {
-            path.setEffectiveWatermarks(masterThresholdSettings, isDedicatedFrozenNode);
+        if (masterThresholdSettings != null) {
+            for (Path path : paths) {
+                path.setEffectiveWatermarks(masterThresholdSettings, isDedicatedFrozenNode);
+            }
         }
         return this;
     }

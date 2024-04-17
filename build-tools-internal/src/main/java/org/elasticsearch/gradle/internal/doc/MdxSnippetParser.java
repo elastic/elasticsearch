@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal.doc;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -60,20 +58,22 @@ public class MdxSnippetParser extends SnippetParser {
         return TEARDOWN_REGEX;
     }
 
+    @Override
     protected String getNotconsoleRegex() {
         return NOTCONSOLE_REGEX;
     }
 
-    @NotNull
+    @Override
     protected String getConsoleRegex() {
         return CONSOLE_REGEX;
     }
 
+    @Override
     protected Pattern testResponsePattern() {
         return TEST_RESPONSE_PATTERN;
     }
 
-    @NotNull
+    @Override
     protected Pattern testPattern() {
         return TEST_PATTERN;
     }

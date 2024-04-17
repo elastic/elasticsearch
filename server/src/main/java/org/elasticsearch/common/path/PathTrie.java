@@ -65,32 +65,30 @@ public class PathTrie<T> {
     }
 
     private class TrieNode {
-        private String key;
         private T value;
         private String namedWildcard;
-
         private Map<String, TrieNode> children;
 
         private TrieNode(String key, T value) {
-            this.key = key;
             this.value = value;
             this.children = emptyMap();
             if (isNamedWildcard(key)) {
-                namedWildcard = key.substring(1, key.length() - 1);
+                updateNamedWildcard(key);
             } else {
                 namedWildcard = null;
             }
         }
 
-        private void updateKeyWithNamedWildcard(String key) {
-            this.key = key;
+        private void updateNamedWildcard(String key) {
             String newNamedWildcard = key.substring(1, key.length() - 1);
-            if (namedWildcard != null && newNamedWildcard.equals(namedWildcard) == false) {
-                throw new IllegalArgumentException(
-                    "Trying to use conflicting wildcard names for same path: " + namedWildcard + " and " + newNamedWildcard
-                );
+            if (newNamedWildcard.equals(namedWildcard) == false) {
+                if (namedWildcard != null) {
+                    throw new IllegalArgumentException(
+                        "Trying to use conflicting wildcard names for same path: " + namedWildcard + " and " + newNamedWildcard
+                    );
+                }
+                namedWildcard = newNamedWildcard;
             }
-            namedWildcard = newNamedWildcard;
         }
 
         private void addInnerChild(String key, TrieNode child) {
@@ -115,7 +113,7 @@ public class PathTrie<T> {
                 addInnerChild(key, node);
             } else {
                 if (isNamedWildcard(token)) {
-                    node.updateKeyWithNamedWildcard(token);
+                    node.updateNamedWildcard(token);
                 }
                 /*
                  * If the target node already exists, but is without a value,
@@ -151,7 +149,7 @@ public class PathTrie<T> {
                 addInnerChild(key, node);
             } else {
                 if (isNamedWildcard(token)) {
-                    node.updateKeyWithNamedWildcard(token);
+                    node.updateNamedWildcard(token);
                 }
                 /*
                  * If the target node already exists, but is without a value,
@@ -274,11 +272,6 @@ public class PathTrie<T> {
             } else {
                 return Iterators.concat(Iterators.single(value), childrenIterator);
             }
-        }
-
-        @Override
-        public String toString() {
-            return key;
         }
     }
 

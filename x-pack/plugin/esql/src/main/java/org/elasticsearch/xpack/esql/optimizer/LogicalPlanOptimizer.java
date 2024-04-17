@@ -426,7 +426,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         if (grouping instanceof Attribute attribute) {
                             groupingAttrs.add(attribute);
                         } else {
-                            // After "Substitutions" batch, the groupings of an Aggregate can only be attributes
+                            // After applying ReplaceStatsNestedExpressionWithEval, groupings can only contain attributes.
                             throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
                         }
                     }

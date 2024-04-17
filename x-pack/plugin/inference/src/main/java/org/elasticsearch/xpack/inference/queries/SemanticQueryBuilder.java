@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
-    public static final String NAME = "semantic_query";
+    public static final String NAME = "semantic";
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 

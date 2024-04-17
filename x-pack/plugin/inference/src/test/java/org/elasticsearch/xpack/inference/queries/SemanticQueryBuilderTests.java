@@ -273,11 +273,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     public void testIllegalValues() {
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SemanticQueryBuilder(null, "query"));
-            assertThat(e.getMessage(), equalTo("[semantic_query] requires a fieldName"));
+            assertThat(e.getMessage(), equalTo("[semantic] requires a fieldName"));
         }
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SemanticQueryBuilder("fieldName", null));
-            assertThat(e.getMessage(), equalTo("[semantic_query] requires a query value"));
+            assertThat(e.getMessage(), equalTo("[semantic] requires a query value"));
         }
     }
 
@@ -285,7 +285,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         QueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
         checkGeneratedJson("""
             {
-              "semantic_query": {
+              "semantic": {
                 "foo": {
                   "query": "bar"
                 }

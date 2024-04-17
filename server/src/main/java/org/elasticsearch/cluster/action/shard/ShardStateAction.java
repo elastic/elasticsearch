@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
@@ -596,7 +597,8 @@ public class ShardStateAction {
     }
 
     /**
-     * Holder of the pair of time ranges needed in cluster state - one for @timestamp, the other for event.ingested
+     * Holder of the pair of time ranges needed in cluster state - one for @timestamp, the other for 'event.ingested'.
+     * Since 'event.ingested' was added well after @timestamp, it can be UNKNOWN when @timestamp range is present.
      * @param timestampRange
      * @param eventIngestedRange
      */
@@ -712,13 +714,23 @@ public class ShardStateAction {
                                 indexMetadata.getNumberOfShards(),
                                 startedShardEntry.timestampRange
                             );
-                            final IndexLongFieldRange newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
-                                startedShardEntry.shardId.id(),
-                                indexMetadata.getNumberOfShards(),
-                                startedShardEntry.eventIngestedRange
-                            );
+                            /*
+                             * Only track 'event.ingested' range this if the cluster state min transport version is on/after the version
+                             * where we added 'event.ingested'. If we don't do that, we will have different cluster states on different
+                             * nodes because we can't send this data over the wire to older nodes.
+                             */
+                            IndexLongFieldRange newEventIngestedMillisRange = IndexLongFieldRange.UNKNOWN;
+                            TransportVersion minTransportVersion = batchExecutionContext.initialState().getMinTransportVersion();
+                            if (minTransportVersion.onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                                newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
+                                    startedShardEntry.shardId.id(),
+                                    indexMetadata.getNumberOfShards(),
+                                    startedShardEntry.eventIngestedRange
+                                );
+                            }
                             if (newTimestampMillisRange != currentTimestampMillisRange
-                                || newEventIngestedMillisRange != currentEventIngestedMillisRange) {
+                                || (newEventIngestedMillisRange != IndexLongFieldRange.UNKNOWN
+                                    && newEventIngestedMillisRange != currentEventIngestedMillisRange)) {
                                 updatedTimestampRanges.put(
                                     index,
                                     new ClusterStateTimeRanges(newTimestampMillisRange, newEventIngestedMillisRange)
@@ -809,7 +821,7 @@ public class ShardStateAction {
             if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 this.eventIngestedRange = ShardLongFieldRange.readFrom(in);
             } else {
-                this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;  // MP TODO: is this the right choice?
+                this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;
             }
         }
 

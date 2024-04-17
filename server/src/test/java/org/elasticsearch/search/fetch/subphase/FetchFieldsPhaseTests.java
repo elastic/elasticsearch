@@ -120,7 +120,11 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(sec.getFieldType(eq("_ignored"))).thenReturn(ignoredFt);
 
         // Ideally we would test that explicitly requested stored fields are included in stored fields spec, but isStored is final hence it
-        // can't be mocked
+        // can't be mocked. In reality, _metadata would be included but stored would not.
+        MappedFieldType storedFt = mock(MappedFieldType.class);
+        when(sec.getFieldType(eq("stored"))).thenReturn(storedFt);
+        MappedFieldType metadataFt = mock(MappedFieldType.class);
+        when(sec.getFieldType(eq("_metadata"))).thenReturn(metadataFt);
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.valueFetcher(any(), any())).thenReturn(

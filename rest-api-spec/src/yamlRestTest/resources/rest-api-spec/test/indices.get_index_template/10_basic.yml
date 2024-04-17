@@ -93,8 +93,8 @@ setup:
 ---
 "Add data stream lifecycle":
   - skip:
-      cluster_features: ["data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+      cluster_features: ["gte_v8.11.0"]
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -124,14 +124,12 @@ setup:
   - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: keyword}}}}
   - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
   - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.effective_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.retention_determined_by: "data_stream_configuration"}
 
 ---
 "Get data stream lifecycle with default rollover":
   - skip:
-      cluster_features: ["data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+      cluster_features: ["gte_v8.11.0"]
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -154,13 +152,11 @@ setup:
   - match: {index_templates.0.index_template.index_patterns: ["data-stream-with-lifecycle-*"]}
   - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
   - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.effective_retention: "30d"}
-  - match: {index_templates.0.index_template.template.lifecycle.retention_determined_by: "data_stream_configuration"}
   - is_true: index_templates.0.index_template.template.lifecycle.rollover
 
 ---
 "Reject data stream lifecycle without data stream configuration":
-  - skip:
+  - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
   - do:

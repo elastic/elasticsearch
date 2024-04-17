@@ -136,7 +136,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                         .allowReservedMetadata(randomBoolean())
                         .allowRemoteIndices(randomBoolean())
                         .allowRestriction(randomBoolean())
-                        .allowDescription(false)
+                        .allowDescription(randomBoolean())
                         .build()
                 )
             )

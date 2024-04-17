@@ -139,7 +139,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
         BulkItemRequest[] items = new BulkItemRequest[10];
         for (int i = 0; i < items.length; i++) {
-            items[i] = randomBulkItemRequest(i, Map.of(), inferenceFieldMap)[0];
+            items[i] = randomBulkItemRequest(Map.of(), inferenceFieldMap)[0];
         }
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
@@ -222,7 +222,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         BulkItemRequest[] originalRequests = new BulkItemRequest[numRequests];
         BulkItemRequest[] modifiedRequests = new BulkItemRequest[numRequests];
         for (int id = 0; id < numRequests; id++) {
-            BulkItemRequest[] res = randomBulkItemRequest(id, inferenceModelMap, inferenceFieldMap);
+            BulkItemRequest[] res = randomBulkItemRequest(inferenceModelMap, inferenceFieldMap);
             originalRequests[id] = res[0];
             modifiedRequests[id] = res[1];
         }
@@ -321,7 +321,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     private static BulkItemRequest[] randomBulkItemRequest(
-        int id,
         Map<String, StaticModel> modelMap,
         Map<String, InferenceFieldMetadata> fieldInferenceMap
     ) {
@@ -342,9 +341,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             model.putResult(text, toChunkedResult(result));
             expectedDocMap.put(field, result);
         }
+
+        int requestId = randomIntBetween(0, Integer.MAX_VALUE);
         return new BulkItemRequest[] {
-            new BulkItemRequest(id, new IndexRequest("index").source(docMap, requestContentType)),
-            new BulkItemRequest(id, new IndexRequest("index").source(expectedDocMap, requestContentType)) };
+            new BulkItemRequest(requestId, new IndexRequest("index").source(docMap, requestContentType)),
+            new BulkItemRequest(requestId, new IndexRequest("index").source(expectedDocMap, requestContentType)) };
     }
 
     private static StaticModel randomStaticModel() {

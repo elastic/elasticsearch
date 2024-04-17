@@ -183,7 +183,7 @@ public class EnrichCacheTests extends ESTestCase {
         {
             CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
             CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
-            enrichCache.putIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
+            enrichCache.computeIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
                 SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
                 searchResponseActionListener.onResponse(searchResponse);
                 searchResponse.decRef();
@@ -206,7 +206,7 @@ public class EnrichCacheTests extends ESTestCase {
 
         {
             CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
-            enrichCache.putIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
+            enrichCache.computeIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
                 fail("Expected no call to the database because item should have been in the cache");
             }, new ActionListener<>() {
                 @Override

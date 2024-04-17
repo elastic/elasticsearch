@@ -54,7 +54,14 @@ public final class EnrichCache {
         this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
     }
 
-    public void putIfAbsent(
+    /**
+     * This method notifies the given listener of the value in this cache for the given searchRequest. If there is no value in the cache
+     * for the searchRequest, then the new cache value is computed using searchResponseFetcher.
+     * @param searchRequest The key for the cache request
+     * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
+     * @param listener A listener to be notified of the value in the cache
+     */
+    public void computeIfAbsent(
         SearchRequest searchRequest,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchResponseFetcher,
         ActionListener<List<Map<?, ?>>> listener

@@ -131,7 +131,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (req, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-            enrichCache.putIfAbsent(
+            enrichCache.computeIfAbsent(
                 req,
                 (searchRequest, searchResponseActionListener) -> originClient.execute(
                     EnrichCoordinatorProxyAction.INSTANCE,

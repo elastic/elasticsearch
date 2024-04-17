@@ -84,27 +84,27 @@ public class EnrichCacheTests extends ESTestCase {
         enrichCache.put(searchRequest2, searchResponse);
         enrichCache.put(searchRequest3, searchResponse);
         var cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(0L));
-        assertThat(cacheStats.getMisses(), equalTo(0L));
-        assertThat(cacheStats.getEvictions(), equalTo(0L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(0L));
+        assertThat(cacheStats.misses(), equalTo(0L));
+        assertThat(cacheStats.evictions(), equalTo(0L));
 
         assertThat(enrichCache.get(searchRequest1), notNullValue());
         assertThat(enrichCache.get(searchRequest2), notNullValue());
         assertThat(enrichCache.get(searchRequest3), notNullValue());
         assertThat(enrichCache.get(searchRequest4), nullValue());
         cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(1L));
-        assertThat(cacheStats.getEvictions(), equalTo(0L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(3L));
+        assertThat(cacheStats.misses(), equalTo(1L));
+        assertThat(cacheStats.evictions(), equalTo(0L));
 
         enrichCache.put(searchRequest4, searchResponse);
         cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(1L));
-        assertThat(cacheStats.getEvictions(), equalTo(1L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(3L));
+        assertThat(cacheStats.misses(), equalTo(1L));
+        assertThat(cacheStats.evictions(), equalTo(1L));
 
         // Simulate enrich policy execution, which should make current cache entries unused.
         metadata = Metadata.builder()
@@ -142,10 +142,10 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(enrichCache.get(searchRequest3), notNullValue());
         assertThat(enrichCache.get(searchRequest4), nullValue());
         cacheStats = enrichCache.getStats("_id");
-        assertThat(cacheStats.getCount(), equalTo(3L));
-        assertThat(cacheStats.getHits(), equalTo(6L));
-        assertThat(cacheStats.getMisses(), equalTo(6L));
-        assertThat(cacheStats.getEvictions(), equalTo(4L));
+        assertThat(cacheStats.count(), equalTo(3L));
+        assertThat(cacheStats.hits(), equalTo(6L));
+        assertThat(cacheStats.misses(), equalTo(6L));
+        assertThat(cacheStats.evictions(), equalTo(4L));
     }
 
     public void testPutIfAbsent() throws InterruptedException {

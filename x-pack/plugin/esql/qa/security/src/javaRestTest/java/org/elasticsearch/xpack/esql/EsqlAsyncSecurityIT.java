@@ -90,6 +90,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         }
         XContentBuilder json = JsonXContent.contentBuilder();
         json.startObject();
+        json.field("version", ESQL_VERSION);
         json.field("query", command);
         addRandomPragmas(json);
         json.field("wait_for_completion_timeout", timeValueNanos(randomIntBetween(1, 1000)));

@@ -43,7 +43,6 @@ plugins {
   id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
-  id 'elasticsearch.muted-tests'
 }
 
 /**

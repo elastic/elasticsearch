@@ -10,7 +10,6 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -21,27 +20,29 @@ import static org.hamcrest.Matchers.is;
 public class RelativeByteSizeValueTests extends ESTestCase {
 
     public void testDeserialization() throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
-        RelativeByteSizeValue origin1 = new RelativeByteSizeValue(new ByteSizeValue(1024, ByteSizeUnit.BYTES));
-        RelativeByteSizeValue origin2 = new RelativeByteSizeValue(new RatioValue(80.0));
-        origin1.writeTo(out);
-        origin2.writeTo(out);
-        StreamInput in = out.bytes().streamInput();
-        RelativeByteSizeValue target1 = RelativeByteSizeValue.readFrom(in);
-        RelativeByteSizeValue target2 = RelativeByteSizeValue.readFrom(in);
+        final var origin1 = new RelativeByteSizeValue(new ByteSizeValue(between(0, 2048), randomFrom(ByteSizeUnit.values())));
+        final var origin2 = new RelativeByteSizeValue(new RatioValue(randomDoubleBetween(0.0, 100.0, true)));
+        final RelativeByteSizeValue target1, target2;
+
+        try (var out = new BytesStreamOutput()) {
+            origin1.writeTo(out);
+            origin2.writeTo(out);
+            try (var in = out.bytes().streamInput()) {
+                target1 = RelativeByteSizeValue.readFrom(in);
+                target2 = RelativeByteSizeValue.readFrom(in);
+            }
+        }
 
         assertTrue(origin1.isAbsolute());
         assertTrue(target1.isAbsolute());
         assertNull(origin1.getRatio());
         assertNull(target1.getRatio());
         assertEquals(origin1.getAbsolute(), target1.getAbsolute());
+        assertEquals(origin1.getAbsolute().getUnit(), target1.getAbsolute().getUnit());
 
         assertFalse(origin2.isAbsolute());
         assertFalse(target2.isAbsolute());
-        assertEquals(origin2.getRatio().getAsPercent(), target2.getRatio().getAsPercent(), 0.001);
-
-        out.close();
-        in.close();
+        assertEquals(origin2.getRatio().getAsPercent(), target2.getRatio().getAsPercent(), 0.0);
     }
 
     public void testPercentage() {

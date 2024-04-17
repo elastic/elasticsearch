@@ -104,6 +104,7 @@ public abstract class DocumentParserContext {
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
+    private final List<IgnoredValuesFieldMapper.Values> ignoredFieldValues;
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -122,6 +123,7 @@ public abstract class DocumentParserContext {
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
+        List<IgnoredValuesFieldMapper.Values> ignoredFieldValues,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -139,6 +141,7 @@ public abstract class DocumentParserContext {
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
+        this.ignoredFieldValues = ignoredFieldValues;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -159,6 +162,7 @@ public abstract class DocumentParserContext {
             in.mappingParserContext,
             in.sourceToParse,
             in.ignoredFields,
+            in.ignoredFieldValues,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -186,6 +190,7 @@ public abstract class DocumentParserContext {
             mappingParserContext,
             source,
             new HashSet<>(),
+            new ArrayList<>(),
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -249,6 +254,20 @@ public abstract class DocumentParserContext {
      */
     public final Collection<String> getIgnoredFields() {
         return Collections.unmodifiableCollection(ignoredFields);
+    }
+
+    /**
+     * Add the given ignored values to the corresponding list.
+     */
+    public final void addIgnoredValues(IgnoredValuesFieldMapper.Values values) {
+        ignoredFieldValues.add(values);
+    }
+
+    /**
+     * Return the collection of values for fields that have been ignored so far.
+     */
+    public final Collection<IgnoredValuesFieldMapper.Values> getIgnoredFieldValues() {
+        return Collections.unmodifiableCollection(ignoredFieldValues);
     }
 
     /**
@@ -345,6 +364,17 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
+                    if (indexSettings().getMode().isSyntheticSourceEnabled() || SourceFieldMapper.isSynthetic(mappingLookup)) {
+                        try {
+                            int parentOffset = parent() instanceof RootObjectMapper ? 0 : parent().fullPath().length() + 1;
+                            addIgnoredValues(
+                                new IgnoredValuesFieldMapper.Values(mapper.name(), parentOffset, FieldDataParseHelper.encodeToken(parser()))
+                            );
+                        } catch (IOException e) {
+                            // A parsing failure for ignored field values should be *very* rare.
+                            // It is not considered important enough to drop the document, ignore it silently for now.
+                        }
+                    }
                     addIgnoredField(mapper.name());
                     return false;
                 }

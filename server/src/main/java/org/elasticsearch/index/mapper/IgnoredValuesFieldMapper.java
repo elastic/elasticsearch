@@ -1,0 +1,169 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+/**
+ * Mapper for the {@code _ignored_values} field.
+ *
+ * A field mapper that records fields that have been ignored, along with their values. It's intended for use
+ * in indexes with synthetic source to reconstruct the latter, taking into account fields that got ignored during
+ * indexing.
+ *
+ * This overlaps with {@link IgnoredFieldMapper} that tracks just the ignored field names. It's worth evaluating
+ * if we can replace it for all use cases to avoid duplication, assuming that the storage tradeoff is favorable.
+ */
+public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
+
+    private static final int OFFSET_IN_NAME = 100_000;
+
+    public static final String NAME = "_ignored_values";
+
+    public static final IgnoredValuesFieldMapper INSTANCE = new IgnoredValuesFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(context -> INSTANCE);
+
+    public record Values(String name, int parentOffset, BytesRef value) {}
+
+    static final class IgnoredValuesFieldMapperType extends StringFieldType {
+
+        private static final IgnoredValuesFieldMapperType INSTANCE = new IgnoredValuesFieldMapperType();
+
+        private IgnoredValuesFieldMapperType() {
+            super(NAME, false, true, false, TextSearchInfo.NONE, Collections.emptyMap());
+        }
+
+        @Override
+        public String typeName() {
+            return NAME;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new StoredValueFetcher(context.lookup(), NAME);
+        }
+    }
+
+    private IgnoredValuesFieldMapper() {
+        super(IgnoredValuesFieldMapperType.INSTANCE);
+    }
+
+    @Override
+    protected String contentType() {
+        return NAME;
+    }
+
+    @Override
+    public void postParse(DocumentParserContext context) {
+        for (Values values : context.getIgnoredFieldValues()) {
+            context.doc().add(new StringField(NAME, encode(values), Field.Store.YES));
+        }
+    }
+
+    static String encode(Values values) {
+        assert values.parentOffset < OFFSET_IN_NAME;
+        assert values.parentOffset * (long) OFFSET_IN_NAME < Integer.MAX_VALUE;
+
+        byte[] nameBytes = values.name.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = new byte[4 + nameBytes.length + values.value.length];
+        ByteUtils.writeIntLE(values.name.length() + OFFSET_IN_NAME * values.parentOffset, bytes, 0);
+        System.arraycopy(nameBytes, 0, bytes, 4, nameBytes.length);
+        System.arraycopy(values.value.bytes, values.value.offset, bytes, 4 + nameBytes.length, values.value.length);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    static Values decode(Object field) {
+        byte[] bytes = Base64.getUrlDecoder().decode((String) field);
+        int encodedSize = ByteUtils.readIntLE(bytes, 0);
+        int nameSize = encodedSize % OFFSET_IN_NAME;
+        int parentOffset = encodedSize / OFFSET_IN_NAME;
+        String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
+        return new Values(name, parentOffset, value);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return new SyntheticLoader();
+    }
+
+    public static class SyntheticLoader implements SourceLoader.SyntheticFieldLoader {
+        private List<Object> values = List.of();
+
+        // Maps the names of existing objects to lists of ignored fields they contain.
+        private Map<String, List<Values>> objectsWithIgnoredFields = null;
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of(Map.entry(NAME, values -> this.values = values));
+        }
+
+        @Override
+        public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
+            throws IOException {
+            return null;
+        }
+
+        @Override
+        public boolean hasValue() {
+            return false;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {}
+
+        public void trackObjectsWithIgnoredFields() {
+            if (values == null || values.isEmpty()) {
+                values = null;
+                return;
+            }
+            objectsWithIgnoredFields = new HashMap<>();
+            for (Object value : values) {
+                Values parsedValues = decode(value);
+                objectsWithIgnoredFields.computeIfAbsent(
+                    // _doc corresponds to the root object
+                    (parsedValues.parentOffset == 0) ? "_doc" : parsedValues.name.substring(0, parsedValues.parentOffset - 1),
+                    k -> new ArrayList<>()
+                ).add(parsedValues);
+            }
+            values = null;
+        }
+
+        public void write(XContentBuilder b, String prefix) throws IOException {
+            var matches = objectsWithIgnoredFields.get(prefix);
+            if (matches != null) {
+                for (var values : matches) {
+                    b.field(values.parentOffset > 0 ? values.name.substring(values.parentOffset) : values.name);
+                    FieldDataParseHelper.decodeAndWrite(b, values.value);
+                }
+            }
+        }
+
+        public boolean containsIgnoredFields(String prefix) {
+            return objectsWithIgnoredFields.containsKey(prefix);
+        }
+    };
+}

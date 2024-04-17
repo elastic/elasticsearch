@@ -784,14 +784,31 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            IgnoredValuesFieldMapper.SyntheticLoader ignoredFieldLoader = null;
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                if (field instanceof IgnoredValuesFieldMapper.SyntheticLoader loader) {
+                    ignoredFieldLoader = loader;
+                    loader.trackObjectsWithIgnoredFields();
+                    break;
+                }
+            }
+            write(b, ignoredFieldLoader);
+        }
+
+        public void write(XContentBuilder b, IgnoredValuesFieldMapper.SyntheticLoader ignoredFieldLoader) throws IOException {
+            if (hasValue == false && ignoredFieldLoader.containsIgnoredFields(name()) == false) {
                 return;
             }
             startSyntheticField(b);
             for (SourceLoader.SyntheticFieldLoader field : fields) {
-                if (field.hasValue()) {
+                if (field instanceof ObjectMapper.SyntheticSourceFieldLoader objectLoader) {
+                    objectLoader.write(b, ignoredFieldLoader);
+                } else if (field.hasValue()) {
                     field.write(b);
                 }
+            }
+            if (ignoredFieldLoader != null) {
+                ignoredFieldLoader.write(b, name());
             }
             b.endObject();
             hasValue = false;

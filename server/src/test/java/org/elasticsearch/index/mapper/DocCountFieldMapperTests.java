@@ -97,7 +97,6 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             }
         }, reader -> {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader();
-            assertTrue(loader.requiredStoredFields().isEmpty());
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
@@ -129,7 +128,6 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             }
         }, reader -> {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader();
-            assertTrue(loader.requiredStoredFields().isEmpty());
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);

@@ -8,6 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +20,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +28,7 @@ import java.util.Map;
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
  */
-public class DiskThresholdSettings {
+public class DiskThresholdSettings implements Writeable {
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.threshold_enabled",
         true,
@@ -197,6 +201,61 @@ public class DiskThresholdSettings {
         );
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+    }
+
+    public DiskThresholdSettings(
+        RelativeByteSizeValue lowStageWatermark,
+        ByteSizeValue lowStageMaxHeadroom,
+        RelativeByteSizeValue highStageWatermark,
+        ByteSizeValue highStageMaxHeadroom,
+        RelativeByteSizeValue floodStageWatermark,
+        ByteSizeValue floodStageMaxHeadroom,
+        RelativeByteSizeValue frozenFloodStageWatermark,
+        ByteSizeValue frozenFloodStageMaxHeadroom
+    ) {
+        this.lowStageWatermark = lowStageWatermark;
+        this.lowStageMaxHeadroom = lowStageMaxHeadroom;
+        this.highStageWatermark = highStageWatermark;
+        this.highStageMaxHeadroom = highStageMaxHeadroom;
+        this.floodStageWatermark = floodStageWatermark;
+        this.floodStageMaxHeadroom = floodStageMaxHeadroom;
+        this.frozenFloodStageWatermark = frozenFloodStageWatermark;
+        this.frozenFloodStageMaxHeadroom = frozenFloodStageMaxHeadroom;
+    }
+
+    public static DiskThresholdSettings readFrom(StreamInput in) throws IOException {
+        RelativeByteSizeValue lowStageWatermark = RelativeByteSizeValue.readFrom(in);
+        ByteSizeValue lowStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        RelativeByteSizeValue highStageWatermark = RelativeByteSizeValue.readFrom(in);
+        ByteSizeValue highStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        RelativeByteSizeValue floodStageWatermark = RelativeByteSizeValue.readFrom(in);
+        ByteSizeValue floodStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        RelativeByteSizeValue frozenFloodStageWatermark = RelativeByteSizeValue.readFrom(in);
+        ByteSizeValue frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
+
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(
+            lowStageWatermark,
+            lowStageMaxHeadroom,
+            highStageWatermark,
+            highStageMaxHeadroom,
+            floodStageWatermark,
+            floodStageMaxHeadroom,
+            frozenFloodStageWatermark,
+            frozenFloodStageMaxHeadroom
+        );
+        return diskThresholdSettings;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        lowStageWatermark.writeTo(out);
+        lowStageMaxHeadroom.writeTo(out);
+        highStageWatermark.writeTo(out);
+        highStageMaxHeadroom.writeTo(out);
+        floodStageWatermark.writeTo(out);
+        floodStageMaxHeadroom.writeTo(out);
+        frozenFloodStageWatermark.writeTo(out);
+        frozenFloodStageMaxHeadroom.writeTo(out);
     }
 
     /**

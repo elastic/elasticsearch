@@ -8,10 +8,12 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -35,6 +37,11 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long total = -1;
         long free = -1;
         long available = -1;
+
+        ByteSizeValue lowStageFreeBytes = null;
+        ByteSizeValue highStageFreeBytes = null;
+        ByteSizeValue floodStageFreeBytes = null;
+        ByteSizeValue frozenFloodStageFreeBytes = null;
 
         public Path() {}
 
@@ -92,6 +99,33 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return ByteSizeValue.ofBytes(available);
         }
 
+        public void setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
+            lowStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdLowStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            highStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdHighStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            floodStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdFloodStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            if (isDedicatedFrozenNode) {
+                frozenFloodStageFreeBytes = masterThresholdSettings.getFreeBytesThresholdFrozenFloodStage(
+                    new ByteSizeValue(total, ByteSizeUnit.BYTES)
+                );
+            }
+        }
+
+        public ByteSizeValue getLowStageFreeBytes() {
+            return lowStageFreeBytes;
+        }
+
+        public ByteSizeValue getHighStageFreeBytes() {
+            return highStageFreeBytes;
+        }
+
+        public ByteSizeValue getFloodStageFreeBytes() {
+            return floodStageFreeBytes;
+        }
+
+        public ByteSizeValue getFrozenFloodStageFreeBytes() {
+            return frozenFloodStageFreeBytes;
+        }
+
         private static long addLong(long current, long other) {
             if (current == -1 && other == -1) {
                 return 0;
@@ -121,6 +155,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             static final String FREE_IN_BYTES = "free_in_bytes";
             static final String AVAILABLE = "available";
             static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+            static final String LOW_WATERMARK_FREE_SPACE = "low_watermark_free_space";
+            static final String LOW_WATERMARK_FREE_SPACE_IN_BYTES = "low_watermark_free_space_in_bytes";
+            static final String HIGH_WATERMARK_FREE_SPACE = "high_watermark_free_space";
+            static final String HIGH_WATERMARK_FREE_SPACE_IN_BYTES = "high_watermark_free_space_in_bytes";
+            static final String FLOOD_STAGE_FREE_SPACE = "flood_stage_free_space";
+            static final String FLOOD_STAGE_FREE_SPACE_IN_BYTES = "flood_stage_free_space_in_bytes";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE = "frozen_flood_stage_free_space";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES = "frozen_flood_stage_free_space_in_bytes";
         }
 
         @Override
@@ -144,6 +186,31 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             }
             if (available != -1) {
                 builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
+            }
+
+            if (lowStageFreeBytes != null) {
+                builder.humanReadableField(
+                    Fields.LOW_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.LOW_WATERMARK_FREE_SPACE,
+                    getLowStageFreeBytes()
+                );
+            }
+            if (highStageFreeBytes != null) {
+                builder.humanReadableField(
+                    Fields.HIGH_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.HIGH_WATERMARK_FREE_SPACE,
+                    getHighStageFreeBytes()
+                );
+            }
+            if (floodStageFreeBytes != null) {
+                builder.humanReadableField(Fields.FLOOD_STAGE_FREE_SPACE_IN_BYTES, Fields.FLOOD_STAGE_FREE_SPACE, getFloodStageFreeBytes());
+            }
+            if (frozenFloodStageFreeBytes != null) {
+                builder.humanReadableField(
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE,
+                    getFrozenFloodStageFreeBytes()
+                );
             }
 
             builder.endObject();
@@ -458,6 +525,16 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             paths[i] = new Path(in);
         }
         this.total = total();
+    }
+
+    public FsInfo setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
+        if (masterThresholdSettings == null) {
+            return this;
+        }
+        for (Path path : paths) {
+            path.setEffectiveWatermarks(masterThresholdSettings, isDedicatedFrozenNode);
+        }
+        return this;
     }
 
     @Override

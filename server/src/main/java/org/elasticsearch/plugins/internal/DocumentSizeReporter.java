@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.mapper.LuceneDocument;
+
 /**
  * An interface to allow performing an action when parsing has been completed and successful
  */
@@ -15,11 +17,23 @@ public interface DocumentSizeReporter {
     /**
      * a default noop implementation
      */
-    DocumentSizeReporter EMPTY_INSTANCE = (indexName, normalizedBytesParsed) -> {};
+    DocumentSizeReporter EMPTY_INSTANCE = new DocumentSizeReporter() {
+        @Override
+        public void onIndexingCompleted(String indexName, long normalizedBytesParsed) {
+
+        }
+
+        @Override
+        public void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed) {
+
+        }
+    };
 
     /**
      * An action to be performed upon finished parsing.
      */
-    void onCompleted(String indexName, long normalizedBytesParsed);
+    void onIndexingCompleted(String indexName, long normalizedBytesParsed);
+
+    void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed);
 
 }

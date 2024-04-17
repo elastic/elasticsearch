@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -29,6 +30,7 @@ public class SourceToParse {
 
     private final Map<String, String> dynamicTemplates;
     private final DocumentSizeObserver documentSizeObserver;
+    private final DocumentSizeReporter documentSizeReporter;
 
     public SourceToParse(
         @Nullable String id,
@@ -36,7 +38,8 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        DocumentSizeObserver documentSizeObserver
+        DocumentSizeObserver documentSizeObserver,
+        DocumentSizeReporter documentSizeReporter
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -46,14 +49,15 @@ public class SourceToParse {
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
         this.documentSizeObserver = documentSizeObserver;
+        this.documentSizeReporter = documentSizeReporter;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+        this(id, source, xContentType, null, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE, DocumentSizeReporter.EMPTY_INSTANCE);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+        this(id, source, xContentType, routing, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE, DocumentSizeReporter.EMPTY_INSTANCE);
     }
 
     public BytesReference source() {
@@ -92,5 +96,9 @@ public class SourceToParse {
 
     public DocumentSizeObserver getDocumentSizeObserver() {
         return documentSizeObserver;
+    }
+
+    public DocumentSizeReporter getDocumentSizeReporter() {
+        return documentSizeReporter;
     }
 }

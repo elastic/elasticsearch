@@ -708,5 +708,4 @@ public abstract class DocumentParserContext implements AutoCloseable {
         }
     }
 
-
 }

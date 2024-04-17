@@ -58,12 +58,9 @@ import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLife
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDataStreamLifecycleStatsAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
@@ -290,9 +287,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamLifecycleAction());
         handlers.add(new RestExplainDataStreamLifecycleAction());
         handlers.add(new RestDataStreamLifecycleStatsAction());
-        handlers.add(new RestPutDataStreamGlobalRetentionAction());
-        handlers.add(new RestGetDataStreamGlobalRetentionAction());
-        handlers.add(new RestDeleteDataStreamGlobalRetentionAction());
         return handlers;
     }
 

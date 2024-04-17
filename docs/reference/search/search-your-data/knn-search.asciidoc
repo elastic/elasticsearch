@@ -1041,7 +1041,7 @@ PUT image-index
 option is not supported.
 
 * {blank}
-include::{es-repo-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
+include::{es-ref-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
 
 NOTE: Approximate kNN search always uses the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type in order to gather

@@ -1360,9 +1360,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(uploadedBcc.primaryTermAndGeneration().generation());
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewUploadedCommitNotificationResponse(
+                    nodesWithAssignedSearchShards,
                     uploadedBcc.primaryTermAndGeneration().generation(),
                     notificationCommitBCCDependencies,
-                    nodesWithAssignedSearchShards,
                     response.getPrimaryTermAndGenerationsInUse()
                 );
                 if (statelessUploadDelayed == false) {
@@ -1602,14 +1602,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * Updates the internal state with the latest information on what commits are still in use by search nodes.
          *
-         * @param notificationGeneration
          * @param searchNodes combined set of all the search nodes with shard replicas.
+         * @param notificationGeneration the commit generation used for the new commit notification
+         * @param notificationCommitBCCDependencies the set of BCC dependencies for the commit sent in the new commit notification
          * @param primaryTermAndGenerationsInUse combined set of all the PrimaryTermAndGeneration commits in use by all search shards.
          */
         void onNewUploadedCommitNotificationResponse(
+            Set<String> searchNodes,
             long notificationGeneration,
             Set<PrimaryTermAndGeneration> notificationCommitBCCDependencies,
-            Set<String> searchNodes,
             Set<PrimaryTermAndGeneration> primaryTermAndGenerationsInUse
         ) {
             if (state == State.CLOSED) {
@@ -1820,9 +1821,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
              * The blob reference may be removed and released if the decref releases the last refcount.
              */
             private void closedExternalReadersIfNoSearchNodesRemain(
+                Set<String> remainingSearchNodes,
                 long notificationGeneration,
-                Set<PrimaryTermAndGeneration> notificationGenerationBCCDependencies,
-                Set<String> remainingSearchNodes
+                Set<PrimaryTermAndGeneration> notificationGenerationBCCDependencies
             ) {
                 if (remainingSearchNodes != null && remainingSearchNodes.isEmpty()
                 // only mark it closed for readers if it is not the newest commit, since we want a new search shard to be able to use at
@@ -1878,9 +1879,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ) {
                 Set<String> remainingSearchNodes = updateSearchNodes(searchNodes, Sets::difference);
                 closedExternalReadersIfNoSearchNodesRemain(
+                    remainingSearchNodes,
                     notificationGeneration,
-                    notificationGenerationDependencies,
-                    remainingSearchNodes
+                    notificationGenerationDependencies
                 );
             }
 
@@ -1894,9 +1895,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ) {
                 Set<String> remainingSearchNodes = updateSearchNodes(searchNodes, Sets::intersection);
                 closedExternalReadersIfNoSearchNodesRemain(
+                    remainingSearchNodes,
                     notificationGeneration,
-                    notificationGenerationBCCDependencies,
-                    remainingSearchNodes
+                    notificationGenerationBCCDependencies
                 );
             }
 

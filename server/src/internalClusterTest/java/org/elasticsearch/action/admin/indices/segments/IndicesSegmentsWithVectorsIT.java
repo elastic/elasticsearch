@@ -21,29 +21,43 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 @LuceneTestCase.SuppressCodecs("*")
 public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
 
-    public void testIndicesSegmentsWithVectors() {
+    public void testIndicesSegmentsWithVectorsDefault() {
         String indexName = "test-vectors";
         createIndex(indexName);
         ensureGreen(indexName);
 
         String vectorField = "embedding";
-        PutMappingRequest request = new PutMappingRequest().indices(indexName)
-            .origin(randomFrom("1", "2"))
-            .source(vectorField, "type=dense_vector");
-        assertAcked(indicesAdmin().putMapping(request).actionGet());
+        addMapping(indexName, vectorField);
+        addVectors(indexName, vectorField);
 
-        int docs = between(10, 100);
-        int dims = randomInt(100);
-        for (int i = 0; i < docs; i++) {
-            List<Float> floats = randomList(dims, dims, ESTestCase::randomFloat);
-            prepareIndex(indexName).setId("" + i).setSource(vectorField, floats).get();
+        IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).get();
+        assertNoFailures(response);
+
+        IndexSegments indexSegments = response.getIndices().get(indexName);
+        assertNotNull(indexSegments);
+        IndexShardSegments shardSegments = indexSegments.getShards().get(0);
+        assertNotNull(shardSegments);
+        ShardSegments shard = shardSegments.shards()[0];
+        for (Segment segment : shard.getSegments()) {
+            assertThat(segment.getAttributes().keySet(), not(hasItem(endsWith("VectorsFormat"))));
+            assertThat(segment.getAttributes().values(), not(hasItem("[" + vectorField + "]")));
         }
-        indicesAdmin().prepareFlush(indexName).get();
+    }
+
+    public void testIndicesSegmentsWithVectorsIncluded() {
+        String indexName = "test-vectors";
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        String vectorField = "embedding";
+        addMapping(indexName, vectorField);
+        addVectors(indexName, vectorField);
         IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).includeVectorFormatInfo(true).get();
         assertNoFailures(response);
 
@@ -56,5 +70,45 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
             assertThat(segment.getAttributes().keySet(), hasItem(endsWith("VectorsFormat")));
             assertThat(segment.getAttributes().values(), hasItem("[" + vectorField + "]"));
         }
+    }
+
+    public void testIndicesSegmentsWithVectorsNotIncluded() {
+        String indexName = "test-vectors";
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        String vectorField = "embedding";
+        addMapping(indexName, vectorField);
+        addVectors(indexName, vectorField);
+
+        IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).includeVectorFormatInfo(false).get();
+        assertNoFailures(response);
+
+        IndexSegments indexSegments = response.getIndices().get(indexName);
+        assertNotNull(indexSegments);
+        IndexShardSegments shardSegments = indexSegments.getShards().get(0);
+        assertNotNull(shardSegments);
+        ShardSegments shard = shardSegments.shards()[0];
+        for (Segment segment : shard.getSegments()) {
+            assertThat(segment.getAttributes().keySet(), not(hasItem(endsWith("VectorsFormat"))));
+            assertThat(segment.getAttributes().values(), not(hasItem("[" + vectorField + "]")));
+        }
+    }
+
+    private static void addMapping(String indexName, String vectorField) {
+        PutMappingRequest request = new PutMappingRequest().indices(indexName)
+            .origin(randomFrom("1", "2"))
+            .source(vectorField, "type=dense_vector");
+        assertAcked(indicesAdmin().putMapping(request).actionGet());
+    }
+
+    private static void addVectors(String indexName, String vectorField) {
+        int docs = between(10, 100);
+        int dims = randomInt(100);
+        for (int i = 0; i < docs; i++) {
+            List<Float> floats = randomList(dims, dims, ESTestCase::randomFloat);
+            prepareIndex(indexName).setId("" + i).setSource(vectorField, floats).get();
+        }
+        indicesAdmin().prepareFlush(indexName).get();
     }
 }

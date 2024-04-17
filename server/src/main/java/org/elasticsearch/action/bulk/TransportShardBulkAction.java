@@ -488,7 +488,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final BulkItemResponse executionResult = context.getExecutionResult();
         final boolean isFailed = executionResult.isFailed();
         if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
-            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter();
+            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter(docWriteRequest.index());
             DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
             documentSizeReporter.onIndexingCompleted(docWriteRequest.index(), documentSizeObserver.normalisedBytesParsed());
         }

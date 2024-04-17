@@ -322,8 +322,8 @@ setup:
 
 ---
 "Test overlapping":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: "Implemented in 7.2"
   - do:
       search:
@@ -345,8 +345,8 @@ setup:
 
 ---
 "Test before":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: "Implemented in 7.2"
   - do:
       search:
@@ -365,8 +365,8 @@ setup:
 
 ---
 "Test after":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: "Implemented in 7.2"
   - do:
       search:
@@ -386,8 +386,8 @@ setup:
 
 ---
 "Test prefix":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "Implemented in 7.3"
   - do:
       search:
@@ -406,8 +406,8 @@ setup:
 
 ---
 "Test wildcard":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "Implemented in 7.3"
   - do:
       search:
@@ -426,8 +426,8 @@ setup:
 
 ---
 "Test fuzzy match":
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason: "Implemented in 7.6"
   - do:
       search:

@@ -8,6 +8,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -60,6 +61,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    private final ResolvedIndices resolvedIndices;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -74,7 +76,8 @@ public class QueryRewriteContext {
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptCompiler scriptService
+        final ScriptCompiler scriptService,
+        final ResolvedIndices resolvedIndices
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -91,6 +94,7 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
+        this.resolvedIndices = resolvedIndices;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -107,7 +111,32 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final ResolvedIndices resolvedIndices
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resolvedIndices
         );
     }
 
@@ -356,5 +385,9 @@ public class QueryRewriteContext {
             : runtimeMappings.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
         // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
+    }
+
+    public ResolvedIndices getResolvedIndices() {
+        return resolvedIndices;
     }
 }

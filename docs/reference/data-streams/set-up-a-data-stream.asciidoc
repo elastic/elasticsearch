@@ -261,7 +261,7 @@ PUT _data_stream/my-data-stream
 [[secure-data-stream]]
 === Secure the data stream
 
-include::{es-repo-dir}/security/authorization/alias-privileges.asciidoc[tag=data-stream-security]
+include::{es-ref-dir}/security/authorization/alias-privileges.asciidoc[tag=data-stream-security]
 
 For an example, see <<data-stream-privileges>>.
 

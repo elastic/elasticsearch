@@ -14,6 +14,8 @@ import spock.lang.TempDir
 import org.gradle.api.InvalidUserDataException
 import org.gradle.testfixtures.ProjectBuilder
 
+import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
+
 class DocSnippetTaskSpec extends Specification {
 
     @TempDir
@@ -527,140 +529,41 @@ GET /_analyze
     {
       "type": "mapping",
       "mappings": [
-        "٠ => 0",
-        "١ => 1",
-        "٢ => 2"
+        "e => 0",
+        "m => 1",
+        "p => 2",
+        "t => 3",
+        "y => 4"
       ]
     }
   ],
-  "text": "My license plate is ٢٥٠١٥"
+  "text": "My license plate is empty"
 }
 ----
 """
         )
         def snippets = task().parseDocFile(tempDir, doc, [])
         expect:
-        snippets*.start == [3]
-        snippets*.language == ["console"]
-        snippets*.contents == ["""GET /_analyze
+        snippets[0].start == 3
+        snippets[0].language == "console"
+        normalizeString(snippets[0].contents, tempDir) == """GET /_analyze
 {
   "tokenizer": "keyword",
   "char_filter": [
     {
       "type": "mapping",
       "mappings": [
-        "٠ => 0",
-        "١ => 1",
-        "٢ => 2"
+        "e => 0",
+        "m => 1",
+        "p => 2",
+        "t => 3",
+        "y => 4"
       ]
     }
   ],
-  "text": "My license plate is ٢٥٠١٥"
-}
-"""]
+  "text": "My license plate is empty"
+}"""
     }
-
-    def "test parsing snippet from doc2"() {
-        given:
-        def doc = docFile(
-            """
-[role="xpack"]
-[[ml-update-snapshot]]
-= Update model snapshots API
-++++
-<titleabbrev>Update model snapshots</titleabbrev>
-++++
-
-Updates certain properties of a snapshot.
-
-[[ml-update-snapshot-request]]
-== {api-request-title}
-
-`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
-
-[[ml-update-snapshot-prereqs]]
-== {api-prereq-title}
-
-Requires the `manage_ml` cluster privilege. This privilege is included in the
-`machine_learning_admin` built-in role.
-
-[[ml-update-snapshot-path-parms]]
-== {api-path-parms-title}
-
-`<job_id>`::
-(Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
-
-`<snapshot_id>`::
-(Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
-
-[[ml-update-snapshot-request-body]]
-== {api-request-body-title}
-
-The following properties can be updated after the model snapshot is created:
-
-`description`::
-(Optional, string) A description of the model snapshot.
-
-`retain`::
-(Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
-
-
-[[ml-update-snapshot-example]]
-== {api-examples-title}
-
-[source,console]
---------------------------------------------------
-POST
-_ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
-{
-  "description": "Snapshot 1",
-  "retain": true
-}
---------------------------------------------------
-// TEST[skip:todo]
-
-When the snapshot is updated, you receive the following results:
-[source,js]
-----
-{
-  "acknowledged": true,
-  "model": {
-    "job_id": "it_ops_new_logs",
-    "timestamp": 1491852978000,
-    "description": "Snapshot 1",
-...
-    "retain": true
-  }
-}
-----
-"""
-        )
-        def snippets = task().parseDocFile(tempDir, doc, [])
-        expect:
-        snippets*.start == [50, 62]
-        snippets*.language == ["console", "js"]
-        snippets*.contents == ["""POST
-_ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
-{
-  "description": "Snapshot 1",
-  "retain": true
-}
-""", """{
-  "acknowledged": true,
-  "model": {
-    "job_id": "it_ops_new_logs",
-    "timestamp": 1491852978000,
-    "description": "Snapshot 1",
-...
-    "retain": true
-  }
-}
-"""]
-    }
-
 
     File docFile(String docContent) {
         def file = tempDir.toPath().resolve("mapping-charfilter.asciidoc").toFile()

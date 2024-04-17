@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "Introduction of META tracking in 8.14+"
 
   - do:
@@ -52,6 +52,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where data > 2 | sort count desc | limit 5 | stats m = max(data)'
+          version: 2024.04.01
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }

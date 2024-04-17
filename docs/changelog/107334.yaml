@@ -1,0 +1,5 @@
+pr: 107334
+summary: Adding `cache_stats` to geoip stats API
+area: Ingest Node
+type: enhancement
+issues: []

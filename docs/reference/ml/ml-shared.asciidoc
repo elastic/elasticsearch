@@ -234,15 +234,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 end::categorization-analyzer[]
 
@@ -448,7 +448,7 @@ it is not stored in {es}. Only the results for {anomaly-detect} are retained.
 
 `time_format`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-format]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
 

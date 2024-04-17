@@ -1,7 +1,7 @@
 ---
 "Explain backing index lifecycle":
   - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      cluster_features: ["data_stream.lifecycle.global_retention"]
       reason: "Data stream lifecycle with effective retention was released in 8.14"
       features: allowed_warnings
   - do:

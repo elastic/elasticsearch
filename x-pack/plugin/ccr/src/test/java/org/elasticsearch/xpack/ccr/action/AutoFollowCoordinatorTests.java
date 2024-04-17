@@ -97,7 +97,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollower() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
@@ -167,7 +167,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollower_dataStream() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         ClusterState remoteState = createRemoteClusterStateWithDataStream("logs-foobar");
 
@@ -237,7 +237,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerClusterStateApiFailure() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "logs-*");
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
@@ -286,7 +286,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerUpdateClusterStateFailure() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
         AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "logs-*");
@@ -649,7 +649,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerCreateAndFollowApiCallFailure() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
         AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "logs-*");
@@ -1090,7 +1090,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1133,7 +1133,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1176,7 +1176,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1262,7 +1262,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1305,7 +1305,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                createDataStream(index)
             );
 
             IllegalArgumentException e = expectThrows(
@@ -1321,6 +1321,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    private DataStream createDataStream(Index index) {
+        return DataStream.builder("logs-foo-bar", List.of(index))
+            .setMetadata(Map.of())
+            .setAllowCustomRouting(true)
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
     }
 
     public void testStats() {
@@ -1674,7 +1682,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testWaitForMetadataVersion() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "logs-*");
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
@@ -1738,7 +1746,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testWaitForTimeOut() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "logs-*");
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
@@ -1790,7 +1798,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerSoftDeletesDisabled() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101", false);
 
@@ -1856,7 +1864,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollowerFollowerIndexAlreadyExists() {
         Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
@@ -2023,7 +2031,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testClosedIndicesAreNotAutoFollowed() {
         final Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         final String pattern = "pattern1";
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
@@ -2118,7 +2126,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testExcludedPatternIndicesAreNotAutoFollowed() {
         final Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         final String pattern = "pattern1";
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
@@ -2419,7 +2427,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState finalRemoteState
     ) {
         final Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
+        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         final String pattern = "pattern1";
         final ClusterState localState = ClusterState.builder(new ClusterName("local"))
@@ -2606,17 +2614,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .numberOfReplicas(0)
             .system(system)
             .build();
-        DataStream dataStream = new DataStream(
-            dataStreamName,
-            List.of(indexMetadata.getIndex()),
-            1,
-            null,
-            false,
-            false,
-            system,
-            false,
-            null
-        );
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex())).setSystem(system).build();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));
 

@@ -39,3 +39,23 @@ build-tools-internal @elastic/es-delivery
 distribution/src @elastic/es-delivery
 distribution/packages/src @elastic/es-delivery
 distribution/docker/src @elastic/es-delivery
+
+# Core/Infra
+distribution/tools @elastic/es-core-infra
+libs/core @elastic/es-core-infra
+libs/logging @elastic/es-core-infra
+libs/native @elastic/es-core-infra
+libs/plugin-analysis-api @elastic/es-core-infra
+libs/plugin-api @elastic/es-core-infra
+libs/plugin-classloader @elastic/es-core-infra
+libs/plugin-scanner @elastic/es-core-infra
+libs/x-content @elastic/es-core-infra
+modules/lang-expression @elastic/es-core-infra
+modules/lang-mustache @elastic/es-core-infra
+modules/lang-painless @elastic/es-core-infra
+modules/rest-root @elastic/es-core-infra
+modules/systemd @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/bootstrap @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/node @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/plugins @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra

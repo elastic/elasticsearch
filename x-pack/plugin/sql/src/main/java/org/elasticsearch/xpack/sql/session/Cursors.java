@@ -123,18 +123,18 @@ public final class Cursors {
         return internalDecodeFromStringWithZone(base64, new NamedWriteableRegistry(List.of()) {
             @Override
             public <T> Map<Symbol, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
-                try {
+                if (writeableRegistry.hasReaders(categoryClass)) {
                     return writeableRegistry.getReaders(categoryClass);
-                } catch (IllegalArgumentException iae) {
+                } else {
                     return WRITEABLE_REGISTRY.getReaders(categoryClass);
                 }
             }
 
             @Override
             public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, Symbol name) {
-                try {
+                if (writeableRegistry.hasReaders(categoryClass)) {
                     return writeableRegistry.getReader(categoryClass, name);
-                } catch (IllegalArgumentException iae) {
+                } else {
                     return WRITEABLE_REGISTRY.getReader(categoryClass, name);
                 }
             }

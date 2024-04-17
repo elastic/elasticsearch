@@ -53,6 +53,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
     final SparseFixedBitSet failedSlots;
     final List<BulkItemResponse> itemResponses;
     final AtomicIntegerArray originalSlots;
+    final FailureStoreDocumentConverter failureStoreDocumentConverter;
 
     volatile int currentSlot = -1;
 
@@ -61,6 +62,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         this.failedSlots = new SparseFixedBitSet(bulkRequest.requests().size());
         this.itemResponses = new ArrayList<>(bulkRequest.requests().size());
         this.originalSlots = new AtomicIntegerArray(bulkRequest.requests().size()); // oversize, but that's ok
+        this.failureStoreDocumentConverter = new FailureStoreDocumentConverter();
     }
 
     @Override
@@ -213,7 +215,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * @param e the failure encountered.
      */
     public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
-        if (DataStream.isFailureStoreEnabled() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             // Assert false for development, but if we somehow find ourselves here, default to failure logic.
             assert false
                 : "Attempting to route a failed write request type to a failure store but the failure store is not enabled! "
@@ -243,7 +245,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                 );
             } else {
                 try {
-                    IndexRequest errorDocument = FailureStoreDocument.transformFailedRequest(indexRequest, e, targetIndexName);
+                    IndexRequest errorDocument = failureStoreDocumentConverter.transformFailedRequest(indexRequest, e, targetIndexName);
                     // This is a fresh index request! We need to do some preprocessing on it. If we do not, when this is returned to
                     // the bulk action, the action will see that it hasn't been processed by ingest yet and attempt to ingest it again.
                     errorDocument.isPipelineResolved(true);

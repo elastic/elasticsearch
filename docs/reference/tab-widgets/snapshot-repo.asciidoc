@@ -15,5 +15,5 @@ You can also use any of the following custom repository types with {search-snaps
 // end::cloud[]
 
 // tag::self-managed[]
-include::{es-repo-dir}/searchable-snapshots/index.asciidoc[tag=searchable-snapshot-repo-types]
+include::{es-ref-dir}/searchable-snapshots/index.asciidoc[tag=searchable-snapshot-repo-types]
 // end::self-managed[]

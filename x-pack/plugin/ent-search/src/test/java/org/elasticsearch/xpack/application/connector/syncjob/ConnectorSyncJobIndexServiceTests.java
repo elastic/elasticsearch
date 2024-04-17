@@ -20,6 +20,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -40,6 +43,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -71,18 +76,29 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     private String connectorOneId;
     private String connectorTwoId;
+    private String connectorThreeId;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        // Reindex plugin is required for testDeleteAllSyncJobsByConnectorId (supports delete_by_query)
+        plugins.add(ReindexPlugin.class);
+        return plugins;
+    }
 
     @Before
     public void setup() throws Exception {
 
-        connectorOneId = createConnector();
-        connectorTwoId = createConnector();
+        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
+
+        connectorOneId = createConnector(ConnectorTestUtils.getRandomConnector());
+        connectorTwoId = createConnector(ConnectorTestUtils.getRandomConnector());
+        connectorThreeId = createConnector(ConnectorTestUtils.getRandomConnectorWithDetachedIndex());
 
         this.connectorSyncJobIndexService = new ConnectorSyncJobIndexService(client());
     }
 
-    private String createConnector() throws IOException, InterruptedException, ExecutionException, TimeoutException {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+    private String createConnector(Connector connector) throws IOException, InterruptedException, ExecutionException, TimeoutException {
 
         final IndexRequest indexRequest = new IndexRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -151,6 +167,24 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testDeleteConnectorSyncJob_WithDetachedConnectorIndex_ExpectException() {
+        PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+            connectorThreeId,
+            ConnectorSyncJobType.FULL,
+            ConnectorSyncJobTriggerMethod.ON_DEMAND
+        );
+        expectThrows(ElasticsearchStatusException.class, () -> awaitPutConnectorSyncJob(syncJobRequest));
+    }
+
+    public void testDeleteConnectorSyncJob_WithNonExistentConnectorId_ExpectException() {
+        PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+            "non-existent-connector-id",
+            ConnectorSyncJobType.FULL,
+            ConnectorSyncJobTriggerMethod.ON_DEMAND
+        );
+        expectThrows(ResourceNotFoundException.class, () -> awaitPutConnectorSyncJob(syncJobRequest));
+    }
+
     public void testDeleteConnectorSyncJob() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId
@@ -167,6 +201,35 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testDeleteConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
+    }
+
+    public void testDeleteAllSyncJobsByConnectorId() throws Exception {
+
+        PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+            connectorOneId,
+            ConnectorSyncJobType.FULL,
+            ConnectorSyncJobTriggerMethod.ON_DEMAND
+        );
+
+        int numJobs = 5;
+        // Create 5 jobs associated with connector
+        for (int i = 0; i < numJobs; i++) {
+            awaitPutConnectorSyncJob(syncJobRequest);
+        }
+
+        BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
+        // 5 jobs should be deleted
+        assertEquals(numJobs, response.getDeleted());
+
+        response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
+        // No jobs should be deleted
+        assertEquals(0, response.getDeleted());
+    }
+
+    public void testDeleteAllSyncJobsByConnectorId_NonExistentConnector() throws Exception {
+        BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId("non-existent-connector");
+        // 0 jobs should be deleted
+        assertEquals(0, response.getDeleted());
     }
 
     public void testGetConnectorSyncJob() throws Exception {
@@ -473,7 +536,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(idOfReturnedSyncJob, equalTo(syncJobOneId));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testListConnectorSyncJobs_WithConnectorOneId_GivenTwoOverallOneFromConnectorOne_ExpectOne() throws Exception {
         PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId
@@ -1110,17 +1172,42 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private BulkByScrollResponse awaitDeleteAllSyncJobsByConnectorId(String connectorSyncJobId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<BulkByScrollResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorSyncJobIndexService.deleteAllSyncJobsByConnectorId(connectorSyncJobId, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse deleteResponse) {
+                resp.set(deleteResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for delete request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
+    }
+
     private PostConnectorSyncJobAction.Response awaitPutConnectorSyncJob(PostConnectorSyncJobAction.Request syncJobRequest)
         throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
 
-        final AtomicReference<PostConnectorSyncJobAction.Response> responseRef = new AtomicReference<>(null);
+        final AtomicReference<PostConnectorSyncJobAction.Response> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exception = new AtomicReference<>(null);
 
         connectorSyncJobIndexService.createConnectorSyncJob(syncJobRequest, new ActionListener<>() {
             @Override
             public void onResponse(PostConnectorSyncJobAction.Response putConnectorSyncJobResponse) {
-                responseRef.set(putConnectorSyncJobResponse);
+                resp.set(putConnectorSyncJobResponse);
                 latch.countDown();
             }
 
@@ -1130,18 +1217,13 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-
+        assertTrue("Timeout waiting for delete request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exception.get() != null) {
             throw exception.get();
         }
 
-        boolean requestTimedOut = latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        PostConnectorSyncJobAction.Response response = responseRef.get();
-
-        assertTrue("Timeout waiting for post request", requestTimedOut);
-        assertNotNull("Received null response from post request", response);
-
-        return response;
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
     }
 
     private String updateConnectorSyncJobStatusWithoutStateMachineGuard(String syncJobId, ConnectorSyncStatus syncStatus) throws Exception {

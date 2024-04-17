@@ -140,7 +140,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             ? timeSeriesIdBuilder.buildLegacyTsid().toBytesRef()
             : timeSeriesIdBuilder.buildTsidHash().toBytesRef();
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
-        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
+        TsidExtractingIdFieldMapper.createField(
+            context,
+            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+                ? timeSeriesIdBuilder.routingBuilder
+                : null,
+            timeSeriesId
+        );
     }
 
     private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {
@@ -407,6 +413,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                         Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
                         result.put(name, ul);
                     }
+                    case (byte) 'd' -> // parse a double
+                        result.put(name, in.readDouble());
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
             }

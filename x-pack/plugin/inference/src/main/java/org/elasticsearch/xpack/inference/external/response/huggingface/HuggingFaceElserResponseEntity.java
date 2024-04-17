@@ -83,13 +83,15 @@ public class HuggingFaceElserResponseEntity {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         List<SparseEmbeddingResults.WeightedToken> weightedTokens = new ArrayList<>();
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        token = parser.nextToken();
+        while (token != null && token != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             var floatToken = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, floatToken, parser);
 
             weightedTokens.add(new SparseEmbeddingResults.WeightedToken(parser.currentName(), parser.floatValue()));
+
+            token = parser.nextToken();
         }
 
         // prevent an out of bounds if for some reason the truncation list is smaller than the results

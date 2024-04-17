@@ -103,7 +103,7 @@ or `manage` <<privileges-list-indices,index privilege>> for the data stream.
 --
 (Required, string) Name of the index to create. 
 
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 
 [role="child_attributes"]

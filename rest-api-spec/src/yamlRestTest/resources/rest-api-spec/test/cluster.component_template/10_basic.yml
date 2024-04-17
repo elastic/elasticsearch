@@ -1,7 +1,7 @@
 ---
 "Basic CRUD":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index/component template v2 API unavailable before 7.8"
 
   - do:
@@ -48,8 +48,8 @@
 
 ---
 "Delete multiple templates":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "not yet backported"
 
   - do:
@@ -116,9 +116,9 @@
 
 ---
 "Add data stream lifecycle":
-  - skip:
-      version: " - 8.10.99"
-      reason: "Data stream lifecycle was available from 8.11"
+  - requires:
+      cluster_features: ["data_stream.lifecycle.global_retention"]
+      reason: "Data stream lifecycle with global retention was available from 8.14"
 
   - do:
       cluster.put_component_template:
@@ -141,12 +141,14 @@
   - match: {component_templates.0.component_template.version: 1}
   - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
   - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
+  - match: {component_templates.0.component_template.template.lifecycle.effective_retention: "10d"}
+  - match: {component_templates.0.component_template.template.lifecycle.retention_determined_by: "data_stream_configuration"}
 
 ---
 "Get data stream lifecycle with default rollover":
-  - skip:
-      version: " - 8.10.99"
-      reason: "Data stream lifecycle was available from 8.11"
+  - requires:
+      cluster_features: ["data_stream.lifecycle.global_retention"]
+      reason: "Data stream lifecycle with effective retention was available from 8.14"
 
   - do:
       cluster.put_component_template:
@@ -170,4 +172,6 @@
   - match: {component_templates.0.component_template.version: 1}
   - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
   - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
+  - match: {component_templates.0.component_template.template.lifecycle.effective_retention: "10d"}
+  - match: {component_templates.0.component_template.template.lifecycle.retention_determined_by: "data_stream_configuration"}
   - is_true: component_templates.0.component_template.template.lifecycle.rollover

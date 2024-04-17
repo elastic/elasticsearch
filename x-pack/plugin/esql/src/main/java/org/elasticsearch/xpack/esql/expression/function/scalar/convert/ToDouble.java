@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -27,7 +30,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToDouble extends AbstractConvertFunction {
 
@@ -45,7 +47,10 @@ public class ToDouble extends AbstractConvertFunction {
     @FunctionInfo(returnType = "double", description = "Converts an input value to a double value.")
     public ToDouble(
         Source source,
-        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+        ) Expression field
     ) {
         super(source, field);
     }
@@ -75,14 +80,14 @@ public class ToDouble extends AbstractConvertFunction {
         return bool ? 1d : 0d;
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { NumberFormatException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class })
     static double fromKeyword(BytesRef in) {
-        return Double.parseDouble(in.utf8ToString());
+        return stringToDouble(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")
     static double fromUnsignedLong(long l) {
-        return unsignedLongAsNumber(l).doubleValue();
+        return unsignedLongToDouble(l);
     }
 
     @ConvertEvaluator(extraName = "FromLong")

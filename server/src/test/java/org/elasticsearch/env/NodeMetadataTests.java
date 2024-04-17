@@ -33,7 +33,7 @@ public class NodeMetadataTests extends ESTestCase {
     // (Index)VersionUtils.randomVersion() only returns known versions, which are necessarily no later than (Index)Version.CURRENT;
     // however we want to also consider our behaviour with all versions, so occasionally pick up a truly random version.
     private Version randomVersion() {
-        return rarely() ? Version.fromId(randomInt()) : VersionUtils.randomVersion(random());
+        return rarely() ? Version.fromId(randomNonNegativeInt()) : VersionUtils.randomVersion(random());
     }
 
     private BuildVersion randomBuildVersion() {

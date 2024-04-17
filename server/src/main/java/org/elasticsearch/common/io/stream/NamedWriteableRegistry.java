@@ -22,10 +22,9 @@ import java.util.Objects;
  * to that category.
  */
 public class NamedWriteableRegistry {
+    static boolean ignoreDeserializationErrors; // disable assertions just to test production behaviour
 
-    /**
-     * An entry in the registry, made up of a category class and name, and a reader for that category class.
-     */
+    /** An entry in the registry, made up of a category class and name, and a reader for that category class. */
     public static class Entry {
 
         /**
@@ -149,11 +148,19 @@ public class NamedWriteableRegistry {
         return readers;
     }
 
+    public boolean hasReaders(Class<?> categoryClass) {
+        return registry.containsKey(categoryClass);
+    }
+
     private static <T> void throwOnUnknownWritable(Class<T> categoryClass, String name) {
-        throw new IllegalArgumentException("Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]");
+        final var message = "Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]";
+        assert ignoreDeserializationErrors : message;
+        throw new IllegalArgumentException(message);
     }
 
     private static <T> void throwOnUnknownCategory(Class<T> categoryClass) {
-        throw new IllegalArgumentException("Unknown NamedWriteable category [" + categoryClass.getName() + "]");
+        final var message = "Unknown NamedWriteable category [" + categoryClass.getName() + "]";
+        assert ignoreDeserializationErrors : message;
+        throw new IllegalArgumentException(message);
     }
 }

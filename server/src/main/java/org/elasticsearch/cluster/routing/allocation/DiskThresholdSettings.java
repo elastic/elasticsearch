@@ -224,16 +224,16 @@ public class DiskThresholdSettings implements Writeable {
     }
 
     public static DiskThresholdSettings readFrom(StreamInput in) throws IOException {
-        RelativeByteSizeValue lowStageWatermark = RelativeByteSizeValue.readFrom(in);
-        ByteSizeValue lowStageMaxHeadroom = ByteSizeValue.readFrom(in);
-        RelativeByteSizeValue highStageWatermark = RelativeByteSizeValue.readFrom(in);
-        ByteSizeValue highStageMaxHeadroom = ByteSizeValue.readFrom(in);
-        RelativeByteSizeValue floodStageWatermark = RelativeByteSizeValue.readFrom(in);
-        ByteSizeValue floodStageMaxHeadroom = ByteSizeValue.readFrom(in);
-        RelativeByteSizeValue frozenFloodStageWatermark = RelativeByteSizeValue.readFrom(in);
-        ByteSizeValue frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        final var lowStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var lowStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        final var highStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var highStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        final var floodStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var floodStageMaxHeadroom = ByteSizeValue.readFrom(in);
+        final var frozenFloodStageWatermark = RelativeByteSizeValue.readFrom(in);
+        final var frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
 
-        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(
+        return new DiskThresholdSettings(
             lowStageWatermark,
             lowStageMaxHeadroom,
             highStageWatermark,
@@ -243,7 +243,6 @@ public class DiskThresholdSettings implements Writeable {
             frozenFloodStageWatermark,
             frozenFloodStageMaxHeadroom
         );
-        return diskThresholdSettings;
     }
 
     @Override

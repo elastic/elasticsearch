@@ -34,7 +34,7 @@ public class DeprecationTestUtils {
         Response response;
         try {
             client.performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
-            String query = xOpaqueId != null ? "?q=" + X_OPAQUE_ID_FIELD_NAME + ":" + xOpaqueId : null;
+            String query = xOpaqueId == null ? "" : "?q=" + X_OPAQUE_ID_FIELD_NAME + ":" + xOpaqueId;
             response = client.performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search" + query));
         } catch (Exception e) {
             // It can take a moment for the index to be created. If it doesn't exist then the client

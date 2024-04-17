@@ -32,8 +32,8 @@ public class PreloadedFieldLookupProviderTests extends ESTestCase {
 
     public void testFallback() throws IOException {
         PreloadedFieldLookupProvider lookup = new PreloadedFieldLookupProvider();
-        lookup.setPreloadedStoredFields(Collections.singleton("foo"));
-        lookup.setStoredFields("id", Map.of("foo", List.of("bar")));
+        lookup.setPreloadedStoredFieldNames(Collections.singleton("foo"));
+        lookup.setPreloadedStoredFieldValues("id", Map.of("foo", List.of("bar")));
 
         MappedFieldType idFieldType = mock(MappedFieldType.class);
         when(idFieldType.name()).thenReturn(IdFieldMapper.NAME);

@@ -118,7 +118,7 @@ public final class FetchPhase {
         // the getProcessors call to before the setLookupProviders call, which causes weird issues in InnerHitsPhase.
         // setLookupProviders resets the SearchLookup used throughout the rest of the fetch phase, which StoredValueFetchers rely on
         // to retrieve stored fields, and InnerHitsPhase is the last sub-fetch phase and re-runs the entire fetch phase.
-        fieldLookupProvider.setPreloadedStoredFields(storedFieldsSpec.requiredStoredFields());
+        fieldLookupProvider.setPreloadedStoredFieldNames(storedFieldsSpec.requiredStoredFields());
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
@@ -168,7 +168,7 @@ public final class FetchPhase {
                     leafIdLoader
                 );
                 sourceProvider.source = hit.source();
-                fieldLookupProvider.setStoredFields(hit.hit().getId(), hit.loadedFields());
+                fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }

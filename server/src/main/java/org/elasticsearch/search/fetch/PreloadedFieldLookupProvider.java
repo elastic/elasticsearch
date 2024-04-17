@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
@@ -29,8 +30,8 @@ import java.util.function.Supplier;
  */
 class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
 
-    private Set<String> preloadedStoredFields;
-    private Map<String, List<Object>> storedFields;
+    private final SetOnce<Set<String>> preloadedStoredFieldNames = new SetOnce<>();
+    private Map<String, List<Object>> preloadedStoredFieldValues;
     private String id;
     private LeafFieldLookupProvider backUpLoader;
     private Supplier<LeafFieldLookupProvider> loaderSupplier;
@@ -43,8 +44,8 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
             fieldLookup.setValues(Collections.singletonList(id));
             return;
         }
-        if (preloadedStoredFields.contains(field)) {
-            fieldLookup.setValues(storedFields.get(field));
+        if (preloadedStoredFieldNames.get().contains(field)) {
+            fieldLookup.setValues(preloadedStoredFieldValues.get(field));
             return;
         }
         // stored field not preloaded, go and get it directly
@@ -54,14 +55,17 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
         backUpLoader.populateFieldLookup(fieldLookup, doc);
     }
 
-    void setPreloadedStoredFields(Set<String> preloadedStoredFields) {
-        this.preloadedStoredFields = preloadedStoredFields;
+    void setPreloadedStoredFieldNames(Set<String> preloadedStoredFieldNames) {
+        this.preloadedStoredFieldNames.set(preloadedStoredFieldNames);
     }
 
-    void setStoredFields(String id, Map<String, List<Object>> storedFields) {
-        assert preloadedStoredFields.containsAll(storedFields.keySet())
-            : "Provided stored field that was not expected to be preloaded? " + storedFields.keySet() + " - " + preloadedStoredFields;
-        this.storedFields = storedFields;
+    void setPreloadedStoredFieldValues(String id, Map<String, List<Object>> preloadedStoredFieldValues) {
+        assert preloadedStoredFieldNames.get().containsAll(preloadedStoredFieldValues.keySet())
+            : "Provided stored field that was not expected to be preloaded? "
+                + preloadedStoredFieldValues.keySet()
+                + " - "
+                + preloadedStoredFieldNames;
+        this.preloadedStoredFieldValues = preloadedStoredFieldValues;
         this.id = id;
     }
 

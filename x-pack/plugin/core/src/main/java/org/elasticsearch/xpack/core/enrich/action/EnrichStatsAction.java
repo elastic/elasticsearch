@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -264,24 +265,26 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
         }
 
-        public static class CacheStats implements Writeable, ToXContentFragment {
-
-            private final String nodeId;
-            private final long count;
-            private final long hits;
-            private final long misses;
-            private final long evictions;
-
-            public CacheStats(String nodeId, long count, long hits, long misses, long evictions) {
-                this.nodeId = nodeId;
-                this.count = count;
-                this.hits = hits;
-                this.misses = misses;
-                this.evictions = evictions;
-            }
+        public record CacheStats(
+            String nodeId,
+            long count,
+            long hits,
+            long misses,
+            long evictions,
+            long hitsTimeInMillis,
+            long missesTimeInMillis
+        ) implements Writeable, ToXContentFragment {
 
             public CacheStats(StreamInput in) throws IOException {
-                this(in.readString(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+                this(
+                    in.readString(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readVLong() : -1,
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readVLong() : -1
+                );
             }
 
             public String getNodeId() {
@@ -311,6 +314,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.field("hits", hits);
                 builder.field("misses", misses);
                 builder.field("evictions", evictions);
+                builder.field("hits_time_in_millis", hitsTimeInMillis);
+                builder.field("misses_time_in_millis", missesTimeInMillis);
                 return builder;
             }
 
@@ -321,23 +326,10 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 out.writeVLong(hits);
                 out.writeVLong(misses);
                 out.writeVLong(evictions);
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                CacheStats that = (CacheStats) o;
-                return count == that.count
-                    && hits == that.hits
-                    && misses == that.misses
-                    && evictions == that.evictions
-                    && nodeId.equals(that.nodeId);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(nodeId, count, hits, misses, evictions);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS)) {
+                    out.writeVLong(hitsTimeInMillis);
+                    out.writeVLong(missesTimeInMillis);
+                }
             }
         }
     }

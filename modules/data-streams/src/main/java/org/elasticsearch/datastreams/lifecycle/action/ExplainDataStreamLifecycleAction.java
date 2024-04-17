@@ -18,7 +18,6 @@ import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLife
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -216,11 +215,7 @@ public class ExplainDataStreamLifecycleAction {
                 return builder;
             }), Iterators.map(indices.iterator(), explainIndexDataLifecycle -> (builder, params) -> {
                 builder.field(explainIndexDataLifecycle.getIndex());
-                ToXContent.Params withEffectiveRetentionParams = new ToXContent.DelegatingMapParams(
-                    DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS,
-                    params
-                );
-                explainIndexDataLifecycle.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                explainIndexDataLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
                 return builder;
             }), Iterators.single((builder, params) -> {
                 builder.endObject();

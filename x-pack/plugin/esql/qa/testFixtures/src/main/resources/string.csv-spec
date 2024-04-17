@@ -434,6 +434,16 @@ ROW a=["foo", "foo", "bar", "foo"]
 // end::mv_dedupe-result[]
 ;
 
+mvDedupeFromIndex
+from multivalues
+| eval b = mv_dedupe(boolean), k = mv_dedupe(keyword), i = mv_dedupe(integer), l = mv_dedupe(long), d = mv_dedupe(double)
+| keep b, k, i, l, d
+;
+
+b:boolean     | k:keyword      | i:integer | l:long | d:double
+[false, true] | ["bar", "foo"] | [1, 2]    | [1, 2] | [1.1, 2.2]
+;
+
 mvJoin
 // tag::mv_concat[]
 ROW a=["foo", "zoo", "bar"]

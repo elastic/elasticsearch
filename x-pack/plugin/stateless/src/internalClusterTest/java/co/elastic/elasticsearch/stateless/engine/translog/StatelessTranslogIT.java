@@ -25,6 +25,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -37,6 +39,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -53,6 +56,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -255,7 +259,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     )
     public void testTranslogStressRecoveryTest() throws Exception {
         // TODO: Add Failures.REMOTE_FAIL once issues with remote failure have been resolved
-        runStressTest(4, Failures.RESTART, Failures.LOCAL_FAIL);
+        runStressTest(4, Failures.RESTART, Failures.REPLACE_FAILED_NODE, Failures.LOCAL_FAIL_SHARD);
     }
 
     @TestLogging(
@@ -266,6 +270,16 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     public void testTranslogRestartOnlyStressRecoveryTest() throws Exception {
         // Restarts take the longest so lower failure count
         runStressTest(2, Failures.RESTART);
+    }
+
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
+            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        reason = "to ensure we translog events on DEBUG level"
+    )
+    public void testTranslogReplaceOnlyStressRecoveryTest() throws Exception {
+        // Stop/Start take the longest so lower failure count
+        runStressTest(2, Failures.REPLACE_FAILED_NODE);
     }
 
     // TODO: Uncomment once issues with remote failure have been resolved
@@ -284,28 +298,38 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         reason = "to ensure we translog events on DEBUG level"
     )
     public void testTranslogLocalFailureOnlyStressRecoveryTest() throws Exception {
-        runStressTest(3, Failures.LOCAL_FAIL);
+        runStressTest(3, Failures.LOCAL_FAIL_SHARD);
+    }
+
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
+            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        reason = "to ensure we translog events on DEBUG level"
+    )
+    public void testTranslogMasterFailureOnlyStressRecoveryTest() throws Exception {
+        Settings heartbeatSettings = Settings.builder()
+            .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+            .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+            .build();
+        runStressTest(2, heartbeatSettings, Failures.MASTER_FAIL);
     }
 
     private void runStressTest(int failureCount, Failures... failureTypes) throws Exception {
+        runStressTest(failureCount, Settings.EMPTY, failureTypes);
+    }
+
+    private void runStressTest(int failureCount, Settings additionalSettings, Failures... failureTypes) throws Exception {
         TimeValue flushInterval = TimeValue.timeValueMillis(rarely() ? 200 : randomLongBetween(25, 100));
         logger.info("running test with translog flush interval {}", flushInterval);
+        Settings settings = Settings.builder()
+            .put(additionalSettings)
+            .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), flushInterval)
+            .build();
 
-        startMasterOnlyNode();
-        startSearchNode();
-
-        String indexNode1 = startMasterAndIndexNode(
-            Settings.builder()
-                .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), flushInterval)
-                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
-                .build()
-        );
-        String indexNode2 = startMasterAndIndexNode(
-            Settings.builder()
-                .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), flushInterval)
-                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
-                .build()
-        );
+        startIndexingAndMasterNode(settings);
+        startIndexingAndMasterNode(settings);
+        startIndexingAndMasterNode(settings);
+        startSearchNode(settings);
         ensureStableCluster(4);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -375,7 +399,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         try {
             for (CountDownLatch latch : failureLatches) {
                 safeAwait(latch);
-                induceFailures(indexNode1, indexNode2, indexName, failureTypes);
+                induceFailures(settings, indexName, failureTypes);
             }
 
             safeAwait(allReqLatch);
@@ -418,27 +442,36 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
 
     private enum Failures {
         RESTART,
-        LOCAL_FAIL,
-        REMOTE_FAIL
+        REPLACE_FAILED_NODE,
+        LOCAL_FAIL_SHARD,
+        REMOTE_FAIL_SHARD,
+        MASTER_FAIL
     }
 
-    private void induceFailures(String indexNode1, String indexNode2, String indexName, Failures... failureTypes) throws Exception {
+    private void induceFailures(Settings settings, String indexName, Failures... failureTypes) throws Exception {
         Failures failure = randomFrom(failureTypes);
         logger.info("inducing failure of type: {}", failure.name());
         switch (failure) {
             case RESTART -> {
-                internalCluster().restartNode(randomFrom(indexNode1, indexNode2));
+                String nodeToRestart = nonMasterIndexingNode();
+                internalCluster().restartNode(nodeToRestart);
                 ensureStableCluster(4);
             }
-            case LOCAL_FAIL -> {
+            case REPLACE_FAILED_NODE -> {
+                String nodeToRestart = nonMasterIndexingNode();
+                internalCluster().stopNode(nodeToRestart);
+                startIndexingAndMasterNode(settings);
+                ensureStableCluster(4);
+            }
+            case LOCAL_FAIL_SHARD -> {
                 IndexShard indexShard = findIndexShard(resolveIndex(indexName), randomFrom(0, 1, 2, 3));
                 indexShard.failShard("broken", new Exception("boom local"));
             }
-            case REMOTE_FAIL -> {
+            case REMOTE_FAIL_SHARD -> {
                 IndexShard indexShard = findIndexShard(resolveIndex(indexName), randomFrom(0, 1, 2, 3));
                 ShardStateAction shardStateAction = internalCluster().getInstance(
                     ShardStateAction.class,
-                    randomFrom(internalCluster().getMasterName(), indexNode1, indexNode2)
+                    internalCluster().getRandomNodeName()
                 );
                 ShardRouting shardRouting = indexShard.routingEntry();
                 PlainActionFuture<Void> listener = new PlainActionFuture<>();
@@ -453,8 +486,30 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                 );
                 listener.actionGet();
             }
+            case MASTER_FAIL -> {
+                internalCluster().stopCurrentMasterNode();
+                startIndexingAndMasterNode(settings);
+                ensureStableCluster(4);
+            }
         }
         ensureGreen(indexName);
+    }
+
+    private static String nonMasterIndexingNode() {
+        String masterName = internalCluster().getMasterName();
+        return Stream.generate(() -> internalCluster().getNodeNameThat(settings -> {
+            List<DiscoveryNodeRole> discoveryNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
+            return discoveryNodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE);
+        })).filter(n -> masterName.equals(n) == false).findFirst().get();
+    }
+
+    private void startIndexingAndMasterNode(Settings additionalSettings) {
+        startMasterAndIndexNode(
+            Settings.builder()
+                .put(additionalSettings)
+                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
+                .build()
+        );
     }
 
     private static void assertDirectoryConsistency(List<BlobMetadata> blobs, BlobContainer translogBlobContainer, ShardId shardId)

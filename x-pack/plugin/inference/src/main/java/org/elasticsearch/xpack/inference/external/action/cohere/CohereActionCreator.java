@@ -33,13 +33,13 @@ public class CohereActionCreator implements CohereActionVisitor {
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
         var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings, inputType);
 
-        return new CohereEmbeddingsAction(sender, overriddenModel);
+        return new CohereEmbeddingsAction(sender, overriddenModel, serviceComponents.threadPool());
     }
 
     @Override
     public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = CohereRerankModel.of(model, taskSettings);
 
-        return new CohereRerankAction(sender, overriddenModel);
+        return new CohereRerankAction(sender, overriddenModel, serviceComponents.threadPool());
     }
 }

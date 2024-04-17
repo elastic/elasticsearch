@@ -130,6 +130,15 @@ public class GeoIpStatsAction {
                 if (response.configDatabases.isEmpty() == false) {
                     builder.array("config_databases", response.configDatabases.toArray(String[]::new));
                 }
+                builder.startObject("cache_stats");
+                CacheStats cacheStats = response.cacheStats;
+                builder.field("count", cacheStats.count());
+                builder.field("hits", cacheStats.hits());
+                builder.field("misses", cacheStats.misses());
+                builder.field("evictions", cacheStats.evictions());
+                builder.field("hits_time_in_millis", cacheStats.hitsTimeInMillis());
+                builder.field("misses_time_in_millis", cacheStats.missesTimeInMillis());
+                builder.endObject();
                 builder.endObject();
             }
             builder.endObject();
@@ -154,6 +163,7 @@ public class GeoIpStatsAction {
     public static class NodeResponse extends BaseNodeResponse {
 
         private final GeoIpDownloaderStats downloaderStats;
+        private final CacheStats cacheStats;
         private final Set<String> databases;
         private final Set<String> filesInTemp;
         private final Set<String> configDatabases;
@@ -161,6 +171,11 @@ public class GeoIpStatsAction {
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
+                cacheStats = in.readBoolean() ? new CacheStats(in) : null;
+            } else {
+                cacheStats = null;
+            }
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
             configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
@@ -171,12 +186,14 @@ public class GeoIpStatsAction {
         protected NodeResponse(
             DiscoveryNode node,
             GeoIpDownloaderStats downloaderStats,
+            CacheStats cacheStats,
             Set<String> databases,
             Set<String> filesInTemp,
             Set<String> configDatabases
         ) {
             super(node);
             this.downloaderStats = downloaderStats;
+            this.cacheStats = cacheStats;
             this.databases = Set.copyOf(databases);
             this.filesInTemp = Set.copyOf(filesInTemp);
             this.configDatabases = Set.copyOf(configDatabases);
@@ -205,6 +222,12 @@ public class GeoIpStatsAction {
             if (downloaderStats != null) {
                 downloaderStats.writeTo(out);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.GEOIP_CACHE_STATS)) {
+                out.writeBoolean(cacheStats != null);
+                if (cacheStats != null) {
+                    cacheStats.writeTo(out);
+                }
+            }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
@@ -218,6 +241,7 @@ public class GeoIpStatsAction {
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
             return downloaderStats.equals(that.downloaderStats)
+                && Objects.equals(cacheStats, that.cacheStats)
                 && databases.equals(that.databases)
                 && filesInTemp.equals(that.filesInTemp)
                 && Objects.equals(configDatabases, that.configDatabases);
@@ -225,7 +249,7 @@ public class GeoIpStatsAction {
 
         @Override
         public int hashCode() {
-            return Objects.hash(downloaderStats, databases, filesInTemp, configDatabases);
+            return Objects.hash(downloaderStats, cacheStats, databases, filesInTemp, configDatabases);
         }
     }
 }

@@ -309,10 +309,10 @@
   - is_false: ds-first.aliases.my-alias
 ---
 "Action Results with multiple matching aliases":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "alias action results do not work until 8.14"
-      features: allowed_warnings
+      test_runner_features: ["allowed_warnings"]
   - do:
       allowed_warnings:
         - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
@@ -349,10 +349,10 @@
   - match: { action_results.1.error.type: aliases_not_found_exception }
 ---
 "Single action result per action":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
       reason: "alias action results do not work until 8.14"
-      features: allowed_warnings
+      test_runner_features: [ "allowed_warnings" ]
   - do:
       allowed_warnings:
         - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"

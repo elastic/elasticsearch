@@ -11,20 +11,18 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LessThanTests extends AbstractBinaryComparisonTestCase {
+public class LessThanTests extends AbstractFunctionTestCase {
     public LessThanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -47,17 +45,7 @@ public class LessThanTests extends AbstractBinaryComparisonTestCase {
     }
 
     @Override
-    protected <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs) {
-        return equalTo(lhs.compareTo(rhs) < 0);
-    }
-
-    @Override
-    protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
-        return new LessThan(source, lhs, rhs, ZoneOffset.UTC);
-    }
-
-    @Override
-    protected boolean isEquality() {
-        return false;
+    protected Expression build(Source source, List<Expression> args) {
+        return new LessThan(source, args.get(0), args.get(1), null);
     }
 }

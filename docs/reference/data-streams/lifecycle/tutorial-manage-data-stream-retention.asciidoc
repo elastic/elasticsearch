@@ -2,8 +2,6 @@
 [[tutorial-manage-data-stream-retention]]
 === Tutorial: Data stream retention
 
-preview::[]
-
 In this tutorial, we are going to go over the data stream lifecycle retention, define it, go over how it can be configured and how
 it can be applied. Keep in mind, the following options apply only to data streams that are managed by the data stream lifecycle.
 

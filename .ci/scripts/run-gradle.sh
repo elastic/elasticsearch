@@ -40,7 +40,7 @@ fi
 #   MAX_WORKERS=12
 # fi
 
-MAX_WORKERS=$(($MAX_WORKERS*3/4))
+# MAX_WORKERS=$(($MAX_WORKERS*3/4))
 
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

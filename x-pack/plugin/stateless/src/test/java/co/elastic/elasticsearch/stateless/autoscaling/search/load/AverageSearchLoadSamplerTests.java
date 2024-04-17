@@ -40,22 +40,20 @@ public class AverageSearchLoadSamplerTests extends ESTestCase {
     public void testAverageSearchLoadInitialValue() throws Exception {
         var threadpool = new TestThreadPool("test");
         try {
-            var searchLoadSampler = new AverageSearchLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA);
+            var searchLoadSampler = new AverageSearchLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA, 4);
             searchLoadSampler.sample();
-            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH).averageLoad(), equalTo(0.0));
-            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH_COORDINATION).averageLoad(), equalTo(0.0));
+            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH).threadsUsed(), equalTo(0.0));
             var randomThreadPool = randomValueOtherThanMany(
                 AverageSearchLoadSampler.SEARCH_EXECUTORS::contains,
                 () -> randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet())
             );
-            expectThrows(IllegalArgumentException.class, () -> searchLoadSampler.getSearchExecutorStats(randomThreadPool).averageLoad());
+            expectThrows(IllegalArgumentException.class, () -> searchLoadSampler.getSearchExecutorStats(randomThreadPool).threadsUsed());
 
             var searchExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.SEARCH);
             searchExecutor.execute(() -> safeSleep(randomLongBetween(50, 200)));
             assertBusy(() -> assertThat(searchExecutor.getCompletedTaskCount(), equalTo(1L)));
             searchLoadSampler.sample();
-            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH).averageLoad(), greaterThan(0.0));
-            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH_COORDINATION).averageLoad(), equalTo(0.0));
+            assertThat(searchLoadSampler.getSearchExecutorStats(ThreadPool.Names.SEARCH).threadsUsed(), greaterThan(0.0));
         } finally {
             terminate(threadpool);
         }

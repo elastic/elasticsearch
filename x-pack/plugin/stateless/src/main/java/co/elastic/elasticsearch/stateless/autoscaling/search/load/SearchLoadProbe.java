@@ -33,6 +33,8 @@ public class SearchLoadProbe {
      * queued work. In other words, the amount of work that is considered manageable using the current number of threads. For example,
      * MAX_TIME_TO_CLEAR_QUEUE = 30sec means, 30 seconds worth of tasks in the queue is considered manageable with the current number of
      * threads available.
+     * <p>
+     * Setting `MAX_TIME_TO_CLEAR_QUEUE = 0` disables using queuing in load calculations.
      */
     public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(1); // TODO Need to find a sensible default.
     public static final Setting<TimeValue> MAX_TIME_TO_CLEAR_QUEUE = Setting.timeSetting(
@@ -68,29 +70,30 @@ public class SearchLoadProbe {
     }
 
     /**
-     * Returns the current search load (number of SEARCH threads needed to cope with the current search workload).
+     * Returns the current search load (number of processors needed to cope with the current search workload).
      */
     public double getSearchLoad() {
         double totalSearchLoad = 0.0;
         for (String executorName : AverageSearchLoadSampler.SEARCH_EXECUTORS) {
             var searchExecutorStats = searchExecutorStatsProvider.apply(executorName);
             totalSearchLoad += calculateSearchLoadForExecutor(
-                searchExecutorStats.averageLoad(),
+                searchExecutorStats.threadsUsed(),
                 searchExecutorStats.averageTaskExecutionEWMA(),
                 searchExecutorStats.currentQueueSize(),
                 maxTimeToClearQueue,
-                maxQueueContributionFactor * searchExecutorStats.maxThreads()
+                maxQueueContributionFactor * searchExecutorStats.maxThreads(),
+                searchExecutorStats.numProcessors(),
+                searchExecutorStats.maxThreads()
             );
         }
         return totalSearchLoad;
     }
 
     /**
-     * Calculates the "Search Load", defined as the EWMA number of threads needed to cope with the work on this executor, both running and
-     * queued. This is calculated as: (number of threads needed to clear the queue within the MAX_TIME_TO_CLEAR_QUEUE setting) + (average
-     * number of threads running per executor)` for each search executor.
+     * Calculates the "Search Load", defined as the number of processors needed to cope with the work on this executor, both running
+     * and queued (within the timeframe set by the maxTimeToClearQueue, and bounded by maxThreadsToHandleQueue).
      *
-     * @param averageSearchLoad        The EWMA number of threads busy within the past 1 minute.
+     * @param threadsUsed              The EWMA number of threads busy within the past 1 minute.
      * @param averageTaskExecutionTime The EWMA time/thread reported by the executor.
      * @param currentQueueSize         The queue size sampled at the current instant.
      * @param maxTimeToClearQueue      A setting that indicates the acceptable max time to clear the queue.
@@ -98,19 +101,28 @@ public class SearchLoadProbe {
      * @return The number of threads needed to cope with the current search workload on this executor.
      */
     static double calculateSearchLoadForExecutor(
-        double averageSearchLoad,
+        double threadsUsed,
         double averageTaskExecutionTime,
         long currentQueueSize,
         TimeValue maxTimeToClearQueue,
-        double maxThreadsToHandleQueue
+        double maxThreadsToHandleQueue,
+        int numProcessors,
+        int threadPoolSize
     ) {
         assert maxThreadsToHandleQueue > 0.0;
+        assert threadPoolSize > 0;
 
         var maxTimeToClearQueueNanos = maxTimeToClearQueue.nanos();
 
+        double processorPerThread = (double) numProcessors / threadPoolSize;
+        double threadPoolLoad = threadsUsed * processorPerThread;
+
         // Protect from divide by zero errors.
         if (averageTaskExecutionTime == 0.0 || maxTimeToClearQueueNanos == 0L) {
-            return averageSearchLoad;
+            // As the averageTaskExecutionEWMA approaches zero, the effect of the queue approaches zero, so it is valid to
+            // simply report the threadPoolLoad without the queueLoad. A maxTimeToClearQueueNanos==0 disables the queuing contribution,
+            // so we simply report threadPoolLoad.
+            return threadPoolLoad;
         }
 
         // Determine the total threads needed to clear the queue in an acceptable timeframe,
@@ -118,8 +130,9 @@ public class SearchLoadProbe {
         double tasksManageablePerThreadWithinMaxTime = maxTimeToClearQueueNanos / averageTaskExecutionTime;
         double queueThreadsNeeded = Math.min(currentQueueSize / tasksManageablePerThreadWithinMaxTime, maxThreadsToHandleQueue);
         assert queueThreadsNeeded >= 0.0;
+        double queueLoad = queueThreadsNeeded * processorPerThread;
 
-        return averageSearchLoad + queueThreadsNeeded;
+        return threadPoolLoad + queueLoad;
     }
 
     public void setMaxTimeToClearQueue(TimeValue maxTimeToClearQueue) {

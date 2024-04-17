@@ -54,7 +54,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String ENT_SEARCH_GENERIC_PIPELINE_NAME = "ent-search-generic-ingestion";
     public static final String ENT_SEARCH_GENERIC_PIPELINE_FILE = "generic_ingestion_pipeline";
 
-
     public static final String SEARCH_DEFAULT_PIPELINE_NAME = "search-default-ingestion";
     public static final String SEARCH_DEFAULT_PIPELINE_FILE = "search_default_pipeline";
 

@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
-public class HuggingFaceServiceSettings implements ServiceSettings {
+public class HuggingFaceServiceSettings implements ServiceSettings, HuggingFaceRateLimitServiceSettings {
     public static final String NAME = "hugging_face_service_settings";
 
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {
@@ -141,6 +141,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         }
     }
 
+    @Override
     public URI uri() {
         return uri;
     }

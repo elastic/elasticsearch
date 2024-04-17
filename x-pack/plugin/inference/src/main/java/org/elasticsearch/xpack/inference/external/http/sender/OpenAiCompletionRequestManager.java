@@ -13,9 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
@@ -25,23 +25,21 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class OpenAiCompletionExecutableRequestCreator implements ExecutableRequestCreator {
+public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
 
-    private static final Logger logger = LogManager.getLogger(OpenAiCompletionExecutableRequestCreator.class);
+    private static final Logger logger = LogManager.getLogger(OpenAiCompletionRequestManager.class);
 
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
+    public static OpenAiCompletionRequestManager of(OpenAiChatCompletionModel model, ThreadPool threadPool) {
+        return new OpenAiCompletionRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
+    }
+
     private final OpenAiChatCompletionModel model;
 
-    private final OpenAiAccount account;
-
-    public OpenAiCompletionExecutableRequestCreator(OpenAiChatCompletionModel model) {
+    private OpenAiCompletionRequestManager(OpenAiChatCompletionModel model, ThreadPool threadPool) {
+        super(threadPool, model, OpenAiChatCompletionRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
-        this.account = new OpenAiAccount(
-            this.model.getServiceSettings().uri(),
-            this.model.getServiceSettings().organizationId(),
-            this.model.getSecretSettings().apiKey()
-        );
     }
 
     @Override
@@ -53,7 +51,7 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(account, input, model);
+        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }

@@ -12,14 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiAccount;
-import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiResponseHandler;
+import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.List;
 import java.util.Objects;
@@ -27,23 +27,30 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
-public class AzureOpenAiEmbeddingsExecutableRequestCreator implements ExecutableRequestCreator {
+public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
 
-    private static final Logger logger = LogManager.getLogger(AzureOpenAiEmbeddingsExecutableRequestCreator.class);
+    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsRequestManager.class);
 
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new AzureOpenAiResponseHandler("azure openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
+        return new OpenAiResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
+    }
+
+    public static OpenAiEmbeddingsRequestManager of(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+        return new OpenAiEmbeddingsRequestManager(
+            Objects.requireNonNull(model),
+            Objects.requireNonNull(truncator),
+            Objects.requireNonNull(threadPool)
+        );
     }
 
     private final Truncator truncator;
-    private final AzureOpenAiEmbeddingsModel model;
-    private final AzureOpenAiAccount account;
+    private final OpenAiEmbeddingsModel model;
 
-    public AzureOpenAiEmbeddingsExecutableRequestCreator(AzureOpenAiEmbeddingsModel model, Truncator truncator) {
+    private OpenAiEmbeddingsRequestManager(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+        super(threadPool, model, OpenAiEmbeddingsRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
-        this.account = AzureOpenAiAccount.fromModel(model);
         this.truncator = Objects.requireNonNull(truncator);
     }
 
@@ -57,7 +64,8 @@ public class AzureOpenAiEmbeddingsExecutableRequestCreator implements Executable
         ActionListener<InferenceServiceResults> listener
     ) {
         var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
-        AzureOpenAiEmbeddingsRequest request = new AzureOpenAiEmbeddingsRequest(truncator, account, truncatedInput, model);
+        OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, truncatedInput, model);
+
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

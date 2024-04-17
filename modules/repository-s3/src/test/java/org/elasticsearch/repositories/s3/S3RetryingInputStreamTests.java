@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
@@ -16,6 +17,8 @@ import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -23,7 +26,9 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -81,24 +86,61 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         assertThat(stream.isAborted(), is(true));
     }
 
+    public void testReadAfterBlobLengthThrowsRequestedRangeNotSatisfiedException() throws IOException {
+        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 512));
+        {
+            final int position = bytes.length + randomIntBetween(0, 100);
+            final int length = randomIntBetween(1, 100);
+            var exception = expectThrows(RequestedRangeNotSatisfiedException.class, () -> {
+                try (var ignored = createInputStream(bytes, position, length)) {
+                    fail();
+                }
+            });
+            assertThat(exception.getResource(), equalTo("_blob"));
+            assertThat(exception.getPosition(), equalTo((long) position));
+            assertThat(exception.getLength(), equalTo((long) length));
+            assertThat(
+                exception.getMessage(),
+                startsWith("Requested range [position=" + position + ", length=" + length + "] cannot be satisfied for [_blob]")
+            );
+        }
+        {
+            int position = randomIntBetween(0, Math.max(0, bytes.length - 1));
+            int maxLength = bytes.length - position;
+            int length = randomIntBetween(maxLength + 1, Integer.MAX_VALUE - 1);
+            try (var stream = createInputStream(bytes, position, length)) {
+                assertThat(Streams.consumeFully(stream), equalTo((long) maxLength));
+            }
+        }
+    }
+
     private S3RetryingInputStream createInputStream(final byte[] data, @Nullable final Integer position, @Nullable final Integer length)
         throws IOException {
-        final S3Object s3Object = new S3Object();
         final AmazonS3 client = mock(AmazonS3.class);
-        when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(clientReference.client()).thenReturn(client);
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
 
         if (position != null && length != null) {
+            if (data.length <= position) {
+                var amazonS3Exception = new AmazonS3Exception("test");
+                amazonS3Exception.setStatusCode(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus());
+                when(client.getObject(any(GetObjectRequest.class))).thenThrow(amazonS3Exception);
+                return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob", position, Math.addExact(position, length - 1));
+            }
+
+            final S3Object s3Object = new S3Object();
             s3Object.getObjectMetadata().setContentLength(length);
             s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data, position, length), new HttpGet()));
+            when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);
             return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob", position, Math.addExact(position, length - 1));
-        } else {
-            s3Object.getObjectMetadata().setContentLength(data.length);
-            s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data), new HttpGet()));
-            return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob");
         }
+
+        final S3Object s3Object = new S3Object();
+        s3Object.getObjectMetadata().setContentLength(data.length);
+        s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data), new HttpGet()));
+        when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);
+        return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob");
     }
 }

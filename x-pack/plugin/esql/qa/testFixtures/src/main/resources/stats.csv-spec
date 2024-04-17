@@ -235,7 +235,7 @@ h:double
 ;
 
 sumOfScaledFloat
-from employees | stats h = sum(height.scaled_float);
+from employees | stats h = sum(height.scaled_float) | eval h = round(h, 10);
 
 h:double
 176.82

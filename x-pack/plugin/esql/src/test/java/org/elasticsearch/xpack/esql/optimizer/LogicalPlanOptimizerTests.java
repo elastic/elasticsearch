@@ -2796,6 +2796,27 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[salary{f}#12],[salary{f}#12, salary{f}#12 AS x]]
+     *   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testEliminateDuplicateRenamedGroupings() {
+        var plan = plan("""
+            from test
+            | eval x = salary
+            | stats by salary, x
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var relation = as(agg.child(), EsRelation.class);
+
+        assertThat(Expressions.names(agg.groupings()), contains("salary"));
+        assertThat(Expressions.names(agg.aggregates()), contains("salary", "x"));
+    }
+
+    /**
      * Expected
      * Limit[2[INTEGER]]
      * \_Filter[a{r}#6 > 2[INTEGER]]
@@ -3312,9 +3333,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = plan("""
             from test
             | eval bucket_start = 1, bucket_end = 100000
-            | eval bucket(salary, 10, bucket_start, bucket_end)
+            | stats by bucket(salary, 10, bucket_start, bucket_end)
             """);
-        var ab = as(plan, Eval.class);
+        var ab = as(plan, Limit.class);
         assertTrue(ab.optimized());
     }
 
@@ -3322,12 +3343,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test
             | eval bucket_end = 100000
-            | eval bucket(salary, 10, emp_no, bucket_end)
+            | stats by bucket(salary, 10, emp_no, bucket_end)
             """));
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals(
-            "3:27: third argument of [bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
+            "3:31: third argument of [bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
             e.getMessage().substring(header.length())
         );
     }

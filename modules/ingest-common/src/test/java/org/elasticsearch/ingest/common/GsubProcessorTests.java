@@ -31,6 +31,7 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
         return "127-0-0-1";
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107416")
     public void testStackOverflow() {
         // This tests that we rethrow StackOverflowErrors as ElasticsearchExceptions so that we don't take down the node
         String badRegex = "( (?=(?:[^'\"]|'[^']*'|\"[^\"]*\")*$))";

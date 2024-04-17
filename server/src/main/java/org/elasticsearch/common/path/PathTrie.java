@@ -203,14 +203,6 @@ public class PathTrie<T> {
             return key.charAt(0) == '{' && key.charAt(key.length() - 1) == '}';
         }
 
-        private String namedWildcard() {
-            return namedWildcard;
-        }
-
-        private boolean isNamedWildcard() {
-            return namedWildcard != null;
-        }
-
         private TrieNode getWildcardNodeForToken(String token) {
             TrieNode wildcard = children.get(WILDCARD);
             // check the wildcard match predicate too, if the token itself is not a wildcard
@@ -304,8 +296,8 @@ public class PathTrie<T> {
         }
 
         private void recordWildcardParam(Map<String, String> params, TrieNode node, String value) {
-            if (params != null && node.isNamedWildcard()) {
-                params.put(node.namedWildcard(), decoder.apply(value));
+            if (params != null && node.namedWildcard != null) {
+                params.put(node.namedWildcard, decoder.apply(value));
             }
         }
 

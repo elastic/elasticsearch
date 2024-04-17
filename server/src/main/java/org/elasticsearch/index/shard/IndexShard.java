@@ -2588,6 +2588,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().segments();
     }
 
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        return getEngine().segments(includeVectorFormatsInfo);
+    }
+
     public String getHistoryUUID() {
         return getEngine().getHistoryUUID();
     }

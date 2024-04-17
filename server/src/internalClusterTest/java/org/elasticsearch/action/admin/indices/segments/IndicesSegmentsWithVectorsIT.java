@@ -44,7 +44,7 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
             prepareIndex(indexName).setId("" + i).setSource(vectorField, floats).get();
         }
         indicesAdmin().prepareFlush(indexName).get();
-        IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).get();
+        IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).includeVectorFormatInfo(true).get();
         assertNoFailures(response);
 
         IndexSegments indexSegments = response.getIndices().get(indexName);

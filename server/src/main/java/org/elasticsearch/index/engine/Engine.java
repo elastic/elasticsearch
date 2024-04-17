@@ -1019,12 +1019,16 @@ public abstract class Engine implements Closeable {
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
+        return getSegmentInfo(lastCommittedSegmentInfos, false);
+    }
+
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean includeVectorFormatsInfo) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo);
             }
         }
 
@@ -1032,7 +1036,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, false, segments);
+                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo);
                 }
             }
         }
@@ -1068,7 +1072,12 @@ public abstract class Engine implements Closeable {
         return segmentsArr;
     }
 
-    private void fillSegmentInfo(SegmentReader segmentReader, boolean search, Map<String, Segment> segments) {
+    private void fillSegmentInfo(
+        SegmentReader segmentReader,
+        boolean search,
+        Map<String, Segment> segments,
+        boolean includeVectorFormatsInfo
+    ) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
         Segment segment = new Segment(info.info.name);
@@ -1087,7 +1096,7 @@ public abstract class Engine implements Closeable {
         segment.attributes.putAll(info.info.getAttributes());
         Codec codec = info.info.getCodec();
         Map<String, List<String>> knnFormats = null;
-        if (codec instanceof PerFieldMapperCodec) {
+        if (includeVectorFormatsInfo && codec instanceof PerFieldMapperCodec) {
             try {
                 FieldInfos fieldInfos = segmentReader.getFieldInfos();
                 if (fieldInfos.hasVectorValues()) {
@@ -1125,6 +1134,8 @@ public abstract class Engine implements Closeable {
      * The list of segments in the engine.
      */
     public abstract List<Segment> segments();
+
+    public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
 
     public boolean refreshNeeded() {
         if (store.tryIncRef()) {

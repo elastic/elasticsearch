@@ -22,6 +22,8 @@ import java.util.Map;
 
 public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequest> {
 
+    private boolean includeVectorFormatsInfo;
+
     public IndicesSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
     }
@@ -31,10 +33,21 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readBoolean();   // old 'verbose' option, since removed
         }
+        this.includeVectorFormatsInfo = in.readBoolean();
     }
 
     public IndicesSegmentsRequest(String... indices) {
         super(indices);
+        this.includeVectorFormatsInfo = false;
+    }
+
+    public IndicesSegmentsRequest withVectorFormatsInfo(boolean includeVectorFormatsInfo) {
+        this.includeVectorFormatsInfo = includeVectorFormatsInfo;
+        return this;
+    }
+
+    public boolean isIncludeVectorFormatsInfo() {
+        return includeVectorFormatsInfo;
     }
 
     @Override
@@ -43,6 +56,7 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeBoolean(false);
         }
+        out.writeBoolean(includeVectorFormatsInfo);
     }
 
     @Override

@@ -64,6 +64,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -105,13 +106,15 @@ public class TransportRolloverActionTests extends ESTestCase {
     final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
     final Client mockClient = mock(Client.class);
     final AllocationService mockAllocationService = mock(AllocationService.class);
+    final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
     final MetadataRolloverService rolloverService = new MetadataRolloverService(
         mockThreadPool,
         mockCreateIndexService,
         mdIndexAliasesService,
         EmptySystemIndices.INSTANCE,
         WriteLoadForecaster.DEFAULT,
-        mockClusterService
+        mockClusterService,
+        telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
     );
 
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(

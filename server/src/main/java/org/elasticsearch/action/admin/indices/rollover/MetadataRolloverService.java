@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -46,6 +47,8 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
@@ -70,8 +73,9 @@ public class MetadataRolloverService {
     private static final Logger logger = LogManager.getLogger(MetadataRolloverService.class);
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
-
     public static final Settings HIDDEN_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
+    public static final String AUTO_SHARDING_INCREASE_METRIC = "es.auto_sharding.increase.total";
+    public static final String AUTO_SHARDING_DECREASE_METRIC = "es.auto_sharding.decrease.total";
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
@@ -79,6 +83,8 @@ public class MetadataRolloverService {
     private final SystemIndices systemIndices;
     private final WriteLoadForecaster writeLoadForecaster;
     private final ClusterService clusterService;
+    private final LongCounter increaseAutoShardCounter;
+    private final LongCounter decreaseAutoShardCounter;
 
     @Inject
     public MetadataRolloverService(
@@ -87,7 +93,8 @@ public class MetadataRolloverService {
         MetadataIndexAliasesService indexAliasesService,
         SystemIndices systemIndices,
         WriteLoadForecaster writeLoadForecaster,
-        ClusterService clusterService
+        ClusterService clusterService,
+        TelemetryProvider telemetryProvider
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
@@ -95,6 +102,10 @@ public class MetadataRolloverService {
         this.systemIndices = systemIndices;
         this.writeLoadForecaster = writeLoadForecaster;
         this.clusterService = clusterService;
+        this.increaseAutoShardCounter = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(AUTO_SHARDING_INCREASE_METRIC, "auto-sharding increase-shards counter", "unit");
+        this.decreaseAutoShardCounter = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(AUTO_SHARDING_DECREASE_METRIC, "auto-sharding decrease-shards counter", "unit");
     }
 
     public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
@@ -345,6 +356,12 @@ public class MetadataRolloverService {
                     }
                     case INCREASE_SHARDS, DECREASE_SHARDS -> {
                         logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
+
+                        LongCounter counter = autoShardingResult.type() == AutoShardingType.INCREASE_SHARDS
+                            ? increaseAutoShardCounter
+                            : decreaseAutoShardCounter;
+                        counter.incrementBy(1L, Map.of("data_stream", dataStream.getName()));
+
                         yield new DataStreamAutoShardingEvent(
                             dataStream.getWriteIndex().getName(),
                             autoShardingResult.targetNumberOfShards(),

@@ -283,7 +283,7 @@ public class RestControllerTests extends ESTestCase {
             () -> restController.registerHandler(new Route(secondMethod, path + "/{wildcard2}"), handler)
         );
 
-        assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
+        assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: [wildcard1] and [wildcard2]"));
     }
 
     public void testRestInterceptor() throws Exception {

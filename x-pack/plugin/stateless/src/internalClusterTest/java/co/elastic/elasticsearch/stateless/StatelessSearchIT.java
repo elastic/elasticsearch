@@ -577,7 +577,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         final ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
         final BlobContainer blobContainer = objectStoreService.getBlobContainer(shardId, indexShard.getOperationPrimaryTerm());
 
-        final AtomicLong currentGeneration = new AtomicLong(indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration());
+        final AtomicLong currentGeneration = new AtomicLong(indexEngine.getLastCommittedSegmentInfos().getGeneration());
         final AtomicBoolean shouldStop = new AtomicBoolean(false);
 
         // Run a separate thread that races for freeze and upload
@@ -601,7 +601,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         for (int i = 0; i < numberOfRuns; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
-            currentGeneration.set(indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration());
+            currentGeneration.set(indexEngine.getLastCommittedSegmentInfos().getGeneration());
             final String compoundCommitFileName = StatelessCompoundCommit.blobNameFromGeneration(currentGeneration.get());
             assertThat(
                 compoundCommitFileName + " not found",
@@ -609,11 +609,12 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 equalTo(true)
             );
         }
-        shouldStop.set(true);
-        thread.join();
         // All commits are uploaded
         assertThat(statelessCommitService.getCurrentVirtualBcc(shardId), nullValue());
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(currentGeneration.get()));
+        // The concurrent freeze thread ensures every generation for upload
+        assertBusy(() -> assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(currentGeneration.get())));
+        shouldStop.set(true);
+        thread.join();
     }
 
     public void testRefreshNoFastRefresh() throws Exception {

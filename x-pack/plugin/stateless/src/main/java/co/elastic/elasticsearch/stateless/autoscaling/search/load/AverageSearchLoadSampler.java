@@ -21,6 +21,7 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,11 @@ import java.util.Set;
 
 public class AverageSearchLoadSampler {
 
-    static final Set<String> SEARCH_EXECUTORS = Set.of(Names.SEARCH, Names.SEARCH_COORDINATION);
+    /**
+     * IMPORTANT: We should not add additional executors to this list without changing the formula for how loads are combined in the
+     * SearchLoadProbe.  Currently, the formula sums the thread pool loads which will result in over-scaling.
+     */
+    static final Set<String> SEARCH_EXECUTORS = Set.of(Names.SEARCH);
     static final double DEFAULT_EWMA_ALPHA = 0.2;
     public static final Setting<Double> SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.search.sampler.search_load_ewma_alpha",
@@ -46,6 +51,7 @@ public class AverageSearchLoadSampler {
 
     private final ThreadPool threadPool;
     private final Map<String, AverageLoad> averageLoadPerExecutor = new HashMap<>();
+    private final int numProcessors;
 
     public static AverageSearchLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         assert SEARCH_EXECUTORS.stream()
@@ -54,17 +60,19 @@ public class AverageSearchLoadSampler {
         var sampler = new AverageSearchLoadSampler(
             threadPool,
             SearchLoadSampler.SAMPLING_FREQUENCY_SETTING.get(settings),
-            clusterSettings.get(SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING)
+            clusterSettings.get(SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING),
+            EsExecutors.allocatedProcessors(settings)
         );
         clusterSettings.addSettingsUpdateConsumer(SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING, sampler::updateEWMAAlpha);
         return sampler;
     }
 
-    AverageSearchLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double ewmaAlpha) {
+    AverageSearchLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double ewmaAlpha, int numProcessors) {
         this.threadPool = threadPool;
         SEARCH_EXECUTORS.forEach(
             name -> averageLoadPerExecutor.put(name, new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, ewmaAlpha))
         );
+        this.numProcessors = numProcessors;
     }
 
     public void sample() {
@@ -85,7 +93,8 @@ public class AverageSearchLoadSampler {
             averageLoadPerExecutor.get(executorName).get(),
             executor.getTaskExecutionEWMA(),
             executor.getCurrentQueueSize(),
-            executor.getMaximumPoolSize()
+            executor.getMaximumPoolSize(),
+            numProcessors
         );
     }
 

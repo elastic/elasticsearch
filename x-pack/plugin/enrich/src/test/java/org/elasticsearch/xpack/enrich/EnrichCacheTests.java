@@ -6,21 +6,31 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,6 +146,114 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.getHits(), equalTo(6L));
         assertThat(cacheStats.getMisses(), equalTo(6L));
         assertThat(cacheStats.getEvictions(), equalTo(4L));
+    }
+
+    public void testPutIfAbsent() throws InterruptedException {
+        // Emulate cluster metadata:
+        // (two enrich indices with corresponding alias entries)
+        var metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
+            )
+            .put(
+                IndexMetadata.builder(EnrichPolicy.getBaseName("policy2") + "-1")
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy2")).build())
+            )
+            .build();
+
+        // Emulated search requests that an enrich processor could generate:
+        // (two unique searches for two enrich policies)
+        var searchRequest1 = new SearchRequest(EnrichPolicy.getBaseName("policy1")).source(
+            new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "1"))
+        );
+        final List<Map<String, ?>> searchResponseMap = List.of(
+            Map.of("key1", "value1", "key2", "value2"),
+            Map.of("key3", "value3", "key4", "value4")
+        );
+        EnrichCache enrichCache = new EnrichCache(3);
+        enrichCache.setMetadata(metadata);
+
+        {
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
+                SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
+                searchResponseActionListener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, new ActionListener<>() {
+                @Override
+                public void onResponse(List<Map<?, ?>> response) {
+                    assertThat(response, equalTo(searchResponseMap));
+                    notifiedOfResultLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+
+        {
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
+                fail("Expected no call to the database because item should have been in the cache");
+            }, new ActionListener<>() {
+                @Override
+                public void onResponse(List<Map<?, ?>> maps) {
+                    notifiedOfResultLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+    }
+
+    private SearchResponse convertToSearchResponse(List<Map<String, ?>> searchResponseList) {
+        SearchHit[] hitArray = searchResponseList.stream().map(map -> {
+            try {
+                return SearchHit.unpooled(0, "id").sourceRef(convertMapToJson(map));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).toArray(SearchHit[]::new);
+        SearchHits hits = SearchHits.unpooled(hitArray, null, 0);
+        return new SearchResponse(
+            hits,
+            null,
+            null,
+            false,
+            false,
+            null,
+            1,
+            null,
+            5,
+            4,
+            0,
+            randomLong(),
+            null,
+            SearchResponse.Clusters.EMPTY
+        );
+    }
+
+    private BytesReference convertMapToJson(Map<String, ?> simpleMap) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder().map(simpleMap)) {
+            return BytesReference.bytes(builder);
+        }
     }
 
     public void testDeepCopy() {

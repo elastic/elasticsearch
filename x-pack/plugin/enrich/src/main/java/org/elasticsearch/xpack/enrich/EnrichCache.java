@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -52,6 +54,32 @@ public final class EnrichCache {
         this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
     }
 
+    /**
+     * This method notifies the given listener of the value in this cache for the given searchRequest. If there is no value in the cache
+     * for the searchRequest, then the new cache value is computed using searchResponseFetcher.
+     * @param searchRequest The key for the cache request
+     * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
+     * @param listener A listener to be notified of the value in the cache
+     */
+    public void computeIfAbsent(
+        SearchRequest searchRequest,
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchResponseFetcher,
+        ActionListener<List<Map<?, ?>>> listener
+    ) {
+        // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
+        List<Map<?, ?>> response = get(searchRequest);
+        if (response != null) {
+            listener.onResponse(response);
+        } else {
+            searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
+                List<Map<?, ?>> value = toCacheValue(resp);
+                put(searchRequest, value);
+                listener.onResponse(deepCopy(value, false));
+            }, listener::onFailure));
+        }
+    }
+
+    // non-private for unit testing only
     List<Map<?, ?>> get(SearchRequest searchRequest) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
@@ -64,6 +92,7 @@ public final class EnrichCache {
         }
     }
 
+    // non-private for unit testing only
     void put(SearchRequest searchRequest, List<Map<?, ?>> response) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);

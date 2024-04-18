@@ -129,50 +129,16 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             return Objects.hash(executingPolicies, coordinatorStats, cacheStats);
         }
 
-        public static class CoordinatorStats implements Writeable, ToXContentFragment {
-
-            private final String nodeId;
-            private final int queueSize;
-            private final int remoteRequestsCurrent;
-            private final long remoteRequestsTotal;
-            private final long executedSearchesTotal;
-
-            public CoordinatorStats(
-                String nodeId,
-                int queueSize,
-                int remoteRequestsCurrent,
-                long remoteRequestsTotal,
-                long executedSearchesTotal
-            ) {
-                this.nodeId = nodeId;
-                this.queueSize = queueSize;
-                this.remoteRequestsCurrent = remoteRequestsCurrent;
-                this.remoteRequestsTotal = remoteRequestsTotal;
-                this.executedSearchesTotal = executedSearchesTotal;
-            }
+        public record CoordinatorStats(
+            String nodeId,
+            int queueSize,
+            int remoteRequestsCurrent,
+            long remoteRequestsTotal,
+            long executedSearchesTotal
+        ) implements Writeable, ToXContentFragment {
 
             public CoordinatorStats(StreamInput in) throws IOException {
                 this(in.readString(), in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong());
-            }
-
-            public String getNodeId() {
-                return nodeId;
-            }
-
-            public int getQueueSize() {
-                return queueSize;
-            }
-
-            public int getRemoteRequestsCurrent() {
-                return remoteRequestsCurrent;
-            }
-
-            public long getRemoteRequestsTotal() {
-                return remoteRequestsTotal;
-            }
-
-            public long getExecutedSearchesTotal() {
-                return executedSearchesTotal;
             }
 
             @Override
@@ -193,45 +159,12 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.field("executed_searches_total", executedSearchesTotal);
                 return builder;
             }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                CoordinatorStats stats = (CoordinatorStats) o;
-                return Objects.equals(nodeId, stats.nodeId)
-                    && queueSize == stats.queueSize
-                    && remoteRequestsCurrent == stats.remoteRequestsCurrent
-                    && remoteRequestsTotal == stats.remoteRequestsTotal
-                    && executedSearchesTotal == stats.executedSearchesTotal;
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(nodeId, queueSize, remoteRequestsCurrent, remoteRequestsTotal, executedSearchesTotal);
-            }
         }
 
-        public static class ExecutingPolicy implements Writeable, ToXContentFragment {
-
-            private final String name;
-            private final TaskInfo taskInfo;
-
-            public ExecutingPolicy(String name, TaskInfo taskInfo) {
-                this.name = name;
-                this.taskInfo = taskInfo;
-            }
+        public record ExecutingPolicy(String name, TaskInfo taskInfo) implements Writeable, ToXContentFragment {
 
             ExecutingPolicy(StreamInput in) throws IOException {
                 this(in.readString(), TaskInfo.from(in));
-            }
-
-            public String getName() {
-                return name;
-            }
-
-            public TaskInfo getTaskInfo() {
-                return taskInfo;
             }
 
             @Override
@@ -249,19 +182,6 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 }
                 builder.endObject();
                 return builder;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ExecutingPolicy that = (ExecutingPolicy) o;
-                return name.equals(that.name) && taskInfo.equals(that.taskInfo);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(name, taskInfo);
             }
         }
 
@@ -285,26 +205,6 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readVLong() : -1,
                     in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readVLong() : -1
                 );
-            }
-
-            public String getNodeId() {
-                return nodeId;
-            }
-
-            public long getCount() {
-                return count;
-            }
-
-            public long getHits() {
-                return hits;
-            }
-
-            public long getMisses() {
-                return misses;
-            }
-
-            public long getEvictions() {
-                return evictions;
             }
 
             @Override

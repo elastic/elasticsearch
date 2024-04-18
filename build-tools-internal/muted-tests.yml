@@ -1,0 +1,24 @@
+tests:
+# Examples:
+#
+#  Mute a single test case in a YAML test suite:
+#  - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+#    method: test {yaml=analysis-common/30_tokenizers/letter}
+#    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute several methods of a Java test:
+#  - class: org.elasticsearch.common.CharArraysTests
+#    methods:
+#      - testCharsBeginsWith
+#      - testCharsToBytes
+#      - testConstantTimeEquals
+#    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute an entire test class:
+#  - class: org.elasticsearch.common.unit.TimeValueTests
+#    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute a single method in a test class:
+#  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIPTests
+#    method: testCrankyEvaluateBlockWithoutNulls
+#    issue: https://github.com/elastic/elasticsearch/...

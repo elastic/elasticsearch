@@ -124,7 +124,7 @@ $endif$
     }
 
     private IntBlock add($Type$Block block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hash(blockFactory, hash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
     }

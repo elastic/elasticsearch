@@ -81,7 +81,7 @@ final class LongBlockHash extends BlockHash {
     }
 
     private IntBlock add(LongBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(blockFactory, hash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
     }

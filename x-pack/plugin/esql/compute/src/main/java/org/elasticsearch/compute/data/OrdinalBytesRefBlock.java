@@ -55,6 +55,14 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         return ordinals.getTotalValueCount() * 2 / 3 >= bytes.getPositionCount();
     }
 
+    public IntBlock getOrdinalsBlock() {
+        return ordinals;
+    }
+
+    public BytesRefVector getDictionaryVector() {
+        return bytes;
+    }
+
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return bytes.getBytesRef(ordinals.getInt(valueIndex), dest);

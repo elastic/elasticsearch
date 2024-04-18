@@ -203,8 +203,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     in.readVLong(),
                     in.readVLong(),
                     in.readVLong(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readVLong() : -1,
-                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readVLong() : -1
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readLong() : -1,
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readLong() : -1
                 );
             }
 
@@ -228,8 +228,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 out.writeVLong(misses);
                 out.writeVLong(evictions);
                 if (out.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS)) {
-                    out.writeVLong(hitsTimeInMillis);
-                    out.writeVLong(missesTimeInMillis);
+                    out.writeLong(hitsTimeInMillis);
+                    out.writeLong(missesTimeInMillis);
                 }
             }
         }

@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.datastreams.lifecycle.action;
+package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -38,9 +38,7 @@ import java.util.Objects;
  */
 public class GetDataStreamLifecycleAction {
 
-    public static final ActionType<GetDataStreamLifecycleAction.Response> INSTANCE = new ActionType<>(
-        "indices:admin/data_stream/lifecycle/get"
-    );
+    public static final ActionType<Response> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/get");
 
     private GetDataStreamLifecycleAction() {/* no instances */}
 
@@ -205,7 +203,7 @@ public class GetDataStreamLifecycleAction {
 
         public Response(StreamInput in) throws IOException {
             this(
-                in.readCollectionAsList(Response.DataStreamLifecycle::new),
+                in.readCollectionAsList(DataStreamLifecycle::new),
                 in.readOptionalWriteable(RolloverConfiguration::new),
                 in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
                     ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
@@ -237,17 +235,22 @@ public class GetDataStreamLifecycleAction {
                 builder.startObject();
                 builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
                 return builder;
-            }), Iterators.map(dataStreamLifecycles.iterator(), dataStreamLifecycle -> (builder, params) -> {
-                ToXContent.Params withEffectiveRetentionParams = new ToXContent.DelegatingMapParams(
-                    org.elasticsearch.cluster.metadata.DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS,
-                    params
-                );
-                return dataStreamLifecycle.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
-            }), Iterators.single((builder, params) -> {
-                builder.endArray();
-                builder.endObject();
-                return builder;
-            }));
+            }),
+                Iterators.map(
+                    dataStreamLifecycles.iterator(),
+                    dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(
+                        builder,
+                        params,
+                        rolloverConfiguration,
+                        globalRetention
+                    )
+                ),
+                Iterators.single((builder, params) -> {
+                    builder.endArray();
+                    builder.endObject();
+                    return builder;
+                })
+            );
         }
 
         @Override

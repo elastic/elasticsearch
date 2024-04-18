@@ -13,20 +13,16 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PathTrieTests extends ESTestCase {
 
-    public static final PathTrie.Decoder NO_DECODER = new PathTrie.Decoder() {
-        @Override
-        public String decode(String value) {
-            return value;
-        }
-    };
+    public static final UnaryOperator<String> NO_DECODER = UnaryOperator.identity();
 
     public void testPath() {
         PathTrie<String> trie = new PathTrie<>(NO_DECODER);
@@ -50,9 +46,7 @@ public class PathTrieTests extends ESTestCase {
 
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("index1/insert/12", params), equalTo("bingo"));
-        assertThat(params.size(), equalTo(2));
-        assertThat(params.get("index"), equalTo("index1"));
-        assertThat(params.get("docId"), equalTo("12"));
+        assertThat(params, equalTo(Map.of("index", "index1", "docId", "12")));
     }
 
     public void testEmptyPath() {
@@ -68,11 +62,11 @@ public class PathTrieTests extends ESTestCase {
 
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/test", params), equalTo("test1"));
-        assertThat(params.get("type"), equalTo("test"));
+        assertThat(params, equalTo(Map.of("type", "test")));
 
         params.clear();
         assertThat(trie.retrieve("/b/testX", params), equalTo("test2"));
-        assertThat(params.get("name"), equalTo("testX"));
+        assertThat(params, equalTo(Map.of("name", "testX")));
     }
 
     public void testSameNameOnDifferentPath() {
@@ -82,11 +76,11 @@ public class PathTrieTests extends ESTestCase {
 
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/c/test", params), equalTo("test1"));
-        assertThat(params.get("name"), equalTo("test"));
+        assertThat(params, equalTo(Map.of("name", "test")));
 
         params.clear();
         assertThat(trie.retrieve("/b/testX", params), equalTo("test2"));
-        assertThat(params.get("name"), equalTo("testX"));
+        assertThat(params, equalTo(Map.of("name", "testX")));
     }
 
     public void testPreferNonWildcardExecution() {
@@ -125,56 +119,31 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test1"));
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test1"));
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test1"));
-        Iterator<String> allPaths = trie.retrieveAll("/a", () -> params);
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo("test1"));
-        assertThat(allPaths.next(), equalTo("test1"));
-        assertThat(allPaths.next(), equalTo("test1"));
-        assertFalse(allPaths.hasNext());
+        assertThat(trie.retrieveAll("/a", () -> params).toList(), contains(null, "test1", "test1", "test1"));
 
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test4"));
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test3"));
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test3"));
-        allPaths = trie.retrieveAll("/a/b", () -> params);
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo("test4"));
-        assertThat(allPaths.next(), equalTo("test3"));
-        assertThat(allPaths.next(), equalTo("test3"));
-        assertFalse(allPaths.hasNext());
+        assertThat(trie.retrieveAll("/a/b", () -> params).toList(), contains(null, "test4", "test3", "test3"));
 
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test5"));
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test7"));
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test7"));
-        allPaths = trie.retrieveAll("/a/b/c", () -> params);
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo("test5"));
-        assertThat(allPaths.next(), equalTo("test7"));
-        assertThat(allPaths.next(), equalTo("test7"));
-        assertFalse(allPaths.hasNext());
+        assertThat(trie.retrieveAll("/a/b/c", () -> params).toList(), contains(null, "test5", "test7", "test7"));
 
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test9"));
-        allPaths = trie.retrieveAll("/x/y/z", () -> params);
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo("test9"));
-        assertFalse(allPaths.hasNext());
+        assertThat(trie.retrieveAll("/x/y/z", () -> params).toList(), contains(null, null, null, "test9"));
 
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test10"));
-        allPaths = trie.retrieveAll("/d/e/f", () -> params);
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo(null));
-        assertThat(allPaths.next(), equalTo("test10"));
-        assertFalse(allPaths.hasNext());
+        assertThat(trie.retrieveAll("/d/e/f", () -> params).toList(), contains(null, null, null, "test10"));
     }
 
     // https://github.com/elastic/elasticsearch/pull/17916
@@ -208,13 +177,11 @@ public class PathTrieTests extends ESTestCase {
 
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/b/c", params), equalTo("test1"));
-        assertThat(params.get("x"), equalTo("a"));
-        assertThat(params.get("y"), equalTo("b"));
-        assertThat(params.get("z"), equalTo("c"));
+        assertThat(params, equalTo(Map.of("x", "a", "y", "b", "z", "c")));
+
         params.clear();
         assertThat(trie.retrieve("/a/_y/c", params), equalTo("test2"));
-        assertThat(params.get("x"), equalTo("a"));
-        assertThat(params.get("k"), equalTo("c"));
+        assertThat(params, equalTo(Map.of("x", "a", "k", "c")));
     }
 
     public void testNamedWildcardAndLookupWithWildcard() {
@@ -227,23 +194,23 @@ public class PathTrieTests extends ESTestCase {
 
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
-        assertThat(params.get("test"), equalTo("*"));
+        assertThat(params, equalTo(Map.of("test", "*")));
 
-        params = new HashMap<>();
+        params.clear();
         assertThat(trie.retrieve("/b/a", params), equalTo("test2"));
-        assertThat(params.get("test"), equalTo("b"));
+        assertThat(params, equalTo(Map.of("test", "b")));
 
-        params = new HashMap<>();
+        params.clear();
         assertThat(trie.retrieve("/*", params), equalTo("test3"));
-        assertThat(params.get("test"), equalTo("*"));
+        assertThat(params, equalTo(Map.of("test", "*")));
 
-        params = new HashMap<>();
+        params.clear();
         assertThat(trie.retrieve("/*/_endpoint", params), equalTo("test4"));
-        assertThat(params.get("test"), equalTo("*"));
+        assertThat(params, equalTo(Map.of("test", "*")));
 
-        params = new HashMap<>();
+        params.clear();
         assertThat(trie.retrieve("a/*/_endpoint", params), equalTo("test5"));
-        assertThat(params.get("test"), equalTo("*"));
+        assertThat(params, equalTo(Map.of("test", "*")));
     }
 
     // https://github.com/elastic/elasticsearch/issues/14177
@@ -252,14 +219,12 @@ public class PathTrieTests extends ESTestCase {
         PathTrie<String> pathTrie = new PathTrie<>(RestUtils.REST_DECODER);
         pathTrie.insert("/{index}/{type}/{id}", "test");
         HashMap<String, String> params = new HashMap<>();
+
         assertThat(pathTrie.retrieve("/index/type/a%2Fe", params), equalTo("test"));
-        assertThat(params.get("index"), equalTo("index"));
-        assertThat(params.get("type"), equalTo("type"));
-        assertThat(params.get("id"), equalTo("a/e"));
+        assertThat(params, equalTo(Map.of("index", "index", "type", "type", "id", "a/e")));
+
         params.clear();
         assertThat(pathTrie.retrieve("/<logstash-{now%2Fd}>/type/id", params), equalTo("test"));
-        assertThat(params.get("index"), equalTo("<logstash-{now/d}>"));
-        assertThat(params.get("type"), equalTo("type"));
-        assertThat(params.get("id"), equalTo("id"));
+        assertThat(params, equalTo(Map.of("index", "<logstash-{now/d}>", "type", "type", "id", "id")));
     }
 }

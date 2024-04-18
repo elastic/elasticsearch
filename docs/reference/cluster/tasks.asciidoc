@@ -32,23 +32,23 @@ on one or more nodes in the cluster.
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=task-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=actions]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=actions]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=group-by]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=group-by]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=nodes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=nodes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request blocks until all found tasks are complete.

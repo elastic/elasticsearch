@@ -122,33 +122,30 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
         }
     }
 
-    @FunctionInfo(
-        returnType = "integer",
-        description = "Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`. "
-            + "If `startTimestamp` is later than the `endTimestamp`, negative values are returned.",
-        detailedDescription = "[cols=\"^,^\",role=\"styled\"]\n"
-            + "|===\n"
-            + "2+h|Datetime difference units\n"
-            + "\n"
-            + "s|unit\n"
-            + "s|abbreviations\n"
-            + "\n"
-            + "| year        | years, yy, yyyy\n"
-            + "| quarter     | quarters, qq, q\n"
-            + "| month       | months, mm, m\n"
-            + "| dayofyear   | dy, y\n"
-            + "| day         | days, dd, d\n"
-            + "| week        | weeks, wk, ww\n"
-            + "| weekday     | weekdays, dw\n"
-            + "| hour        | hours, hh\n"
-            + "| minute      | minutes, mi, n\n"
-            + "| second      | seconds, ss, s\n"
-            + "| millisecond | milliseconds, ms\n"
-            + "| microsecond | microseconds, mcs\n"
-            + "| nanosecond  | nanoseconds, ns\n"
-            + "|===",
-        examples = @Example(file = "date", tag = "docsDateDiff")
-    )
+    @FunctionInfo(returnType = "integer", description = """
+        Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
+        If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""", detailedDescription = """
+        [cols=\"^,^\",role=\"styled\"]
+        |===
+        2+h|Datetime difference units
+
+        s|unit
+        s|abbreviations
+
+        | year        | years, yy, yyyy
+        | quarter     | quarters, qq, q
+        | month       | months, mm, m
+        | dayofyear   | dy, y
+        | day         | days, dd, d
+        | week        | weeks, wk, ww
+        | weekday     | weekdays, dw
+        | hour        | hours, hh
+        | minute      | minutes, mi, n
+        | second      | seconds, ss, s
+        | millisecond | milliseconds, ms
+        | microsecond | microseconds, mcs
+        | nanosecond  | nanoseconds, ns
+        |===""", examples = @Example(file = "date", tag = "docsDateDiff"))
     public DateDiff(
         Source source,
         @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,

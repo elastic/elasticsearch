@@ -35,9 +35,10 @@ public class ToCartesianPoint extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "cartesian_point",
-        description = "Converts an input value to a `cartesian_point` value.\n"
-            + "A string will only be successfully converted if it respects the "
-            + "{wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.",
+        description = """
+            Converts an input value to a `cartesian_point` value.
+            A string will only be successfully converted if it respects the
+            {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.""",
         examples = @Example(file = "spatial", tag = "to_cartesianpoint-str")
     )
     public ToCartesianPoint(

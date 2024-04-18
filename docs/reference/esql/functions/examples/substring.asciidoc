@@ -11,8 +11,8 @@ include::{esql-specs}/docs.csv-spec[tag=substring]
 |===
 include::{esql-specs}/docs.csv-spec[tag=substring-result]
 |===
-A negative start position is interpreted as being relative to the end of the
-string. This example returns the last three characters of of every last name:
+A negative start position is interpreted as being relative to the end of the string.
+This example returns the last three characters of of every last name:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=substringEnd]
@@ -21,8 +21,8 @@ include::{esql-specs}/docs.csv-spec[tag=substringEnd]
 |===
 include::{esql-specs}/docs.csv-spec[tag=substringEnd-result]
 |===
-If length is omitted, substring returns the remainder of the string. This
-example returns all characters except for the first:
+If length is omitted, substring returns the remainder of the string.
+This example returns all characters except for the first:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=substringRemainder]

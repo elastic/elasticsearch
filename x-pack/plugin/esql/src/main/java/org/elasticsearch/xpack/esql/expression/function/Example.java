@@ -34,5 +34,8 @@ public @interface Example {
      */
     String tag();
 
-    String note() default "";
+    /**
+     * The explanation that will appear after the example.
+     */
+    String explanation() default "";
 }

@@ -37,9 +37,10 @@ public class ToGeoShape extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "geo_shape",
-        description = "Converts an input value to a `geo_shape` value.\n"
-            + "A string will only be successfully converted if it respects the\n"
-            + "{wikipedia}/Well-known_text_representation_of_geometry[WKT] format.",
+        description = """
+            Converts an input value to a `geo_shape` value.
+            A string will only be successfully converted if it respects the
+            {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.""",
         examples = @Example(file = "spatial_shapes", tag = "to_geoshape-str")
     )
     public ToGeoShape(

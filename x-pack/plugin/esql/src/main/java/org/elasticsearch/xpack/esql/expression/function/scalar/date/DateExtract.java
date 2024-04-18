@@ -47,8 +47,7 @@ public class DateExtract extends EsqlConfigurationFunction {
             @Example(
                 file = "date",
                 tag = "docsDateExtractBusinessHours",
-                description = "Find all events that occurred outside of business hours (before 9 AM or after 5\n"
-                    + "PM), on any given date:"
+                description = "Find all events that occurred outside of business hours (before 9 AM or after 5PM), on any given date:"
             ) }
     )
     public DateExtract(

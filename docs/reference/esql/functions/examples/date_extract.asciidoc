@@ -10,8 +10,7 @@ include::{esql-specs}/date.csv-spec[tag=dateExtract]
 |===
 include::{esql-specs}/date.csv-spec[tag=dateExtract-result]
 |===
-Find all events that occurred outside of business hours (before 9 AM or after 5
-PM), on any given date:
+Find all events that occurred outside of business hours (before 9 AM or after 5PM), on any given date:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/date.csv-spec[tag=docsDateExtractBusinessHours]

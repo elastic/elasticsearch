@@ -1,4 +1,4 @@
-metaFunctionsSynopsis#[skip:-8.13.99]
+metaFunctionsSynopsis#[skip:-8.14.99]
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -109,7 +109,7 @@ double tau()
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 ;
 
-metaFunctionsArgs#[skip:-8.13.99]
+metaFunctionsArgs#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -134,7 +134,7 @@ count         |field                               |"boolean|cartesian_point|dat
 count_distinct|[field, precision]                  |["boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version", integer]                                   |[Column or literal for which to count the number of distinct values., ]
 date_diff     |[unit, startTimestamp, endTimestamp]|["keyword|text", date, date]                                                                                                      |[Time difference unit, A string representing a start timestamp, A string representing an end timestamp]
 date_extract  |[datePart, date]                    |["keyword|text", date]                                                                                                            |[Part of the date to extract.  Can be: `aligned_day_of_week_in_month`\, `aligned_day_of_week_in_year`\, `aligned_week_of_month`\, `aligned_week_of_year`\, `ampm_of_day`\, `clock_hour_of_ampm`\, `clock_hour_of_day`\, `day_of_month`\, `day_of_week`\, `day_of_year`\, `epoch_day`\, `era`\, `hour_of_ampm`\, `hour_of_day`\, `instant_seconds`\, `micro_of_day`\, `micro_of_second`\, `milli_of_day`\, `milli_of_second`\, `minute_of_day`\, `minute_of_hour`\, `month_of_year`\, `nano_of_day`\, `nano_of_second`\, `offset_seconds`\, `proleptic_month`\, `second_of_day`\, `second_of_minute`\, `year`\, or `year_of_era`. Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField] for a description of these values.  If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
-date_format   |[dateFormat, date]                  |["keyword|text", date]                                                                                                            |[Date format (optional).  If no format is specified\, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.  If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
+date_format   |[dateFormat, date]                  |["keyword|text", date]                                                                                                            |[Date format (optional).  If no format is specified\, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
 date_parse    |[datePattern, dateString]           |["keyword|text", "keyword|text"]                                                                                                  |[The date format. Refer to the https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`\, the function returns `null`., Date expression as a string. If `null` or an empty string\, the function returns `null`.]
 date_trunc    |[interval, date]                    |["date_period|time_duration", date]                                                                                               |[Interval; expressed using the timespan literal syntax., Date expression]
 e             |null                                |null                                                                                                                              |null
@@ -222,7 +222,7 @@ trim          |string                              |"keyword|text"              
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 ;
 
-metaFunctionsDescription#[skip:-8.13.99]
+metaFunctionsDescription#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, description
@@ -336,7 +336,7 @@ trim          |Removes leading and trailing whitespaces from a string.
 values        |Collect values for a field.
 ;
 
-metaFunctionsRemaining#[skip:-8.13.99]
+metaFunctionsRemaining#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -451,7 +451,7 @@ trim          |"keyword|text"                                                   
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 ;
 
-metaFunctionsFiltered#[skip:-8.13.99]
+metaFunctionsFiltered#[skip:-8.14.99]
 META FUNCTIONS
 | WHERE STARTS_WITH(name, "sin")
 ;
@@ -463,7 +463,7 @@ sinh         |"double sinh(angle:double|integer|long|unsigned_long)"  |angle    
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.13.99, reason:BIN added]
+countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long

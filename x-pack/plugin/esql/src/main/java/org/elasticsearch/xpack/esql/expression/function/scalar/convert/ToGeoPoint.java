@@ -35,9 +35,10 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "geo_point",
-        description = "Converts an input value to a `geo_point` value.\n"
-            + "A string will only be successfully converted if it respects the\n"
-            + "{wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.",
+        description = """
+            Converts an input value to a `geo_point` value.
+            A string will only be successfully converted if it respects the
+            {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.""",
         examples = @Example(file = "spatial", tag = "to_geopoint-str")
     )
     public ToGeoPoint(

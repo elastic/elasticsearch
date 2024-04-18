@@ -86,42 +86,47 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @FunctionInfo(
         returnType = { "double", "date" },
-        description = "Creates groups of values - buckets - out of a datetime or numeric input. "
-            + "The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.",
+        description = """
+            Creates groups of values - buckets - out of a datetime or numeric input.
+            The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
         examples = {
             @Example(
-                description = "Using a target number of buckets, a start of a range, and an end of a range, "
-                    + "`BUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer. "
-                    + "For example, asking for at most 20 buckets over a year results in monthly buckets:",
+                description = """
+                    Using a target number of buckets, a start of a range, and an end of a range,
+                    `BUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer.
+                    For example, asking for at most 20 buckets over a year results in monthly buckets:""",
                 file = "bucket",
                 tag = "docsBucketMonth",
-                note = "The goal isn't to provide *exactly* the target number of buckets, "
-                    + "it's to pick a range that people are comfortable with that provides at most the target number of buckets."
+                explanation = """
+                    The goal isn't to provide *exactly* the target number of buckets,
+                    it's to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
                 description = "Combine `BUCKET` with <<esql-stats-by>> to create a histogram:",
                 file = "bucket",
                 tag = "docsBucketMonthlyHistogram",
-                note = "`BUCKET` does not create buckets that don't match any documents. "
-                    + "That's why this example is missing `1985-03-01` and other dates."
+                explanation = """
+                    NOTE: `BUCKET` does not create buckets that don't match any documents.
+                    + "That's why this example is missing `1985-03-01` and other dates."""
             ),
             @Example(
-                description = "Asking for more buckets can result in a smaller range. "
-                    + "For example, asking for at most 100 buckets in a year results in weekly buckets:",
+                description = """
+                    Asking for more buckets can result in a smaller range.
+                    For example, asking for at most 100 buckets in a year results in weekly buckets:""",
                 file = "bucket",
                 tag = "docsBucketWeeklyHistogram",
-                note = "`BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size. "
-                    + "For rows with a value outside of the range, "
-                    + "it returns a bucket value that corresponds to a bucket outside the range. "
-                    + "Combine`BUCKET` with <<esql-where>> to filter rows."
+                explanation = """
+                    NOTE: `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+                    For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
+                    Combine`BUCKET` with <<esql-where>> to filter rows."""
             ),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
                 file = "bucket",
                 tag = "docsBucketNumeric",
-                note = "Unlike the earlier example that intentionally filters on a date range, "
-                    + "you rarely want to filter on a numeric range. "
-                    + "You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."
+                explanation = """
+                    Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
+                    You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."""
             ),
             @Example(
                 description = "Create hourly buckets for the last 24 hours, and calculate the number of events per hour:",

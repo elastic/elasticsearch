@@ -37,9 +37,10 @@ public class ToCartesianShape extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "cartesian_shape",
-        description = "Converts an input value to a `cartesian_shape` value.\n"
-            + "A string will only be successfully converted if it respects the\n"
-            + "{wikipedia}/Well-known_text_representation_of_geometry[WKT] format.",
+        description = """
+            Converts an input value to a `cartesian_shape` value.
+            A string will only be successfully converted if it respects the
+            {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.""",
         examples = @Example(file = "spatial_shapes", tag = "to_cartesianshape-str")
     )
     public ToCartesianShape(

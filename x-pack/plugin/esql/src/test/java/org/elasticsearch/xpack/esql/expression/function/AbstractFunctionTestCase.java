@@ -1228,9 +1228,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
                 |===
                 """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
-            if (example.note().length() > 0) {
-                builder.append("\nNOTE: ");
-                builder.append(example.note());
+            if (example.explanation().length() > 0) {
+                builder.append("\n");
+                builder.append(example.explanation());
                 builder.append("\n\n");
             }
         }

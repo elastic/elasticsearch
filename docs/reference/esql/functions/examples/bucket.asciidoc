@@ -2,7 +2,9 @@
 
 *Examples*
 
-Using a target number of buckets, a start of a range, and an end of a range, `BUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer. For example, asking for at most 20 buckets over a year results in monthly buckets:
+Using a target number of buckets, a start of a range, and an end of a range,
+`BUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer.
+For example, asking for at most 20 buckets over a year results in monthly buckets:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonth]
@@ -12,7 +14,8 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonth]
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonth-result]
 |===
 
-NOTE: The goal isn't to provide *exactly* the target number of buckets, it's to pick a range that people are comfortable with that provides at most the target number of buckets.
+The goal isn't to provide *exactly* the target number of buckets,
+it's to pick a range that people are comfortable with that provides at most the target number of buckets.
 
 Combine `BUCKET` with <<esql-stats-by>> to create a histogram:
 [source.merge.styled,esql]
@@ -24,9 +27,11 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonthlyHistogram]
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonthlyHistogram-result]
 |===
 
-NOTE: `BUCKET` does not create buckets that don't match any documents. That's why this example is missing `1985-03-01` and other dates.
+NOTE: `BUCKET` does not create buckets that don't match any documents.
++ "That's why this example is missing `1985-03-01` and other dates.
 
-Asking for more buckets can result in a smaller range. For example, asking for at most 100 buckets in a year results in weekly buckets:
+Asking for more buckets can result in a smaller range.
+For example, asking for at most 100 buckets in a year results in weekly buckets:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogram]
@@ -36,7 +41,9 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogram]
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogram-result]
 |===
 
-NOTE: `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size. For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range. Combine`BUCKET` with <<esql-where>> to filter rows.
+NOTE: `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
+Combine`BUCKET` with <<esql-where>> to filter rows.
 
 `BUCKET` can also operate on numeric fields. For example, to create a salary histogram:
 [source.merge.styled,esql]
@@ -48,7 +55,8 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumeric]
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumeric-result]
 |===
 
-NOTE: Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range. You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically.
+Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
+You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically.
 
 Create hourly buckets for the last 24 hours, and calculate the number of events per hour:
 [source.merge.styled,esql]

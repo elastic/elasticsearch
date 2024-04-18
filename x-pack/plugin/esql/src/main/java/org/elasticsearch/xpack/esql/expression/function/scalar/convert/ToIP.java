@@ -36,17 +36,16 @@ public class ToIP extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "ip",
         description = "Converts an input string to an IP value.",
-        examples = @Example(
-            file = "ip",
-            tag = "to_ip",
-            note = "Note that in this example, the last conversion of the string isn't possible. "
-                + "When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response. "
-                + "The header will provide information on the source of the failure:\n"
-                + "`\"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. "
-                + "Only first 20 failures recorded.\"`\n"
-                + "A following header will contain the failure reason and the offending value:\n"
-                + "`\"java.lang.IllegalArgumentException: 'foo' is not an IP string literal.\"`"
-        )
+        examples = @Example(file = "ip", tag = "to_ip", explanation = """
+            Note that in this example, the last conversion of the string isn't possible.
+            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            The header will provide information on the source of the failure:
+
+            `"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`
+
+            A following header will contain the failure reason and the offending value:
+
+            `"java.lang.IllegalArgumentException: 'foo' is not an IP string literal."`""")
     )
     public ToIP(
         Source source,

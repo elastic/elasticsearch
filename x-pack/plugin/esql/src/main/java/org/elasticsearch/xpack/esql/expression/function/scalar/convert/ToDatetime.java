@@ -43,26 +43,28 @@ public class ToDatetime extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "date",
-        description = "Converts an input value to a date value.\n"
-            + "A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. "
-            + "To convert dates in other formats, use <<esql-date_parse>>.",
+        description = """
+            Converts an input value to a date value.
+            A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`.
+            To convert dates in other formats, use <<esql-date_parse>>.""",
         examples = {
+            @Example(file = "date", tag = "to_datetime-str", explanation = """
+                Note that in this example, the last value in the source multi-valued field has not been converted.
+                The reason being that if the date format is not respected, the conversion will result in a *null* value.
+                When this happens a _Warning_ header is added to the response.
+                The header will provide information on the source of the failure:
+
+                `"Line 1:112: evaluation of [TO_DATETIME(string)] failed, treating result as null. "Only first 20 failures recorded."`
+
+                A following header will contain the failure reason and the offending value:
+
+                `"java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00]
+                with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"`
+                """),
             @Example(
-                file = "date",
-                tag = "to_datetime-str",
-                note = "Note that in this example, the last value in the source multi-valued field has not been converted. "
-                    + "The reason being that if the date format is not respected, the conversion will result in a *null* value. "
-                    + "When this happens a _Warning_ header is added to the response. "
-                    + "The header will provide information on the source of the failure:\n"
-                    + "`\"Line 1:112: evaluation of [TO_DATETIME(string)] failed, treating result as null. "
-                    + "Only first 20 failures recorded.\"`\n"
-                    + "A following header will contain the failure reason and the offending value:\n"
-                    + "`\"java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] "
-                    + "with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']\"`"
-            ),
-            @Example(
-                description = "If the input parameter is of a numeric type, "
-                    + "its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch]. For example:",
+                description = """
+                    If the input parameter is of a numeric type,
+                    its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch]. For example:""",
                 file = "date",
                 tag = "to_datetime-int"
             ) }

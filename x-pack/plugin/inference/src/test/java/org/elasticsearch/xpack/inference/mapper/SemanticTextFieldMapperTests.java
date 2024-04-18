@@ -52,6 +52,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -69,7 +70,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFEREN
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomModel;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -344,8 +344,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             final String fieldName1 = randomFieldName(depth);
             final String fieldName2 = randomFieldName(depth + 1);
 
-            Model model1 = randomModel(TaskType.SPARSE_EMBEDDING);
-            Model model2 = randomModel(TaskType.SPARSE_EMBEDDING);
+            Model model1 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+            Model model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
             XContentBuilder mapping = mapping(b -> {
                 addSemanticTextMapping(b, fieldName1, model1.getInferenceEntityId());
                 addSemanticTextMapping(b, fieldName2, model2.getInferenceEntityId());

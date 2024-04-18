@@ -107,18 +107,12 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
         private void validate() {
             switch (taskType) {
                 case TEXT_EMBEDDING:
-                    if (dimensions == null) {
-                        throw new IllegalArgumentException(
-                            "required [" + DIMENSIONS_FIELD + "] field is missing for task_type [" + taskType.name() + "]"
-                        );
-                    }
-                    if (similarity == null) {
-                        throw new IllegalArgumentException(
-                            "required [" + SIMILARITY_FIELD + "] field is missing for task_type [" + taskType.name() + "]"
-                        );
-                    }
+                    validateFieldPresent(DIMENSIONS_FIELD, dimensions);
+                    validateFieldPresent(SIMILARITY_FIELD, similarity);
                     break;
                 case SPARSE_EMBEDDING:
+                    validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);
+                    validateFieldNotPresent(SIMILARITY_FIELD, similarity);
                     break;
 
                 default:
@@ -132,6 +126,18 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
                             + ", got "
                             + taskType.name()
                     );
+            }
+        }
+
+        private void validateFieldPresent(ParseField field, Object fieldValue) {
+            if (fieldValue == null) {
+                throw new IllegalArgumentException("required [" + field + "] field is missing for task_type [" + taskType.name() + "]");
+            }
+        }
+
+        private void validateFieldNotPresent(ParseField field, Object fieldValue) {
+            if (fieldValue != null) {
+                throw new IllegalArgumentException("[" + field + "] is not allowed for task_type [" + taskType.name() + "]");
             }
         }
     }

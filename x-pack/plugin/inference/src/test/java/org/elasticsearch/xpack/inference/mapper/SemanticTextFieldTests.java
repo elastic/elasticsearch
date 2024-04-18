@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -87,12 +86,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     @Override
     protected SemanticTextField createTestInstance() {
         List<String> rawValues = randomList(1, 5, () -> randomAlphaOfLengthBetween(10, 20));
-        return randomSemanticText(
-            NAME,
-            randomModel(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)),
-            rawValues,
-            randomFrom(XContentType.values())
-        );
+        return randomSemanticText(NAME, TestModel.createRandomInstance(), rawValues, randomFrom(XContentType.values()));
     }
 
     @Override
@@ -216,19 +210,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         } catch (IOException exc) {
             throw new RuntimeException(exc);
         }
-    }
-
-    public static Model randomModel(TaskType taskType) {
-        String serviceName = randomAlphaOfLengthBetween(5, 10);
-        String inferenceId = randomAlphaOfLengthBetween(5, 10);
-        return new TestModel(
-            inferenceId,
-            taskType,
-            serviceName,
-            new TestModel.TestServiceSettings("my-model"),
-            new TestModel.TestTaskSettings(randomIntBetween(1, 100)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(10))
-        );
     }
 
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) {

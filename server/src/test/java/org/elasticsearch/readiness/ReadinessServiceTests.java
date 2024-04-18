@@ -55,7 +55,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     private static Metadata emptyReservedStateMetadata;
     static {
-        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(-1L);
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(1L);
         emptyReservedStateMetadata = new Metadata.Builder().put(fileSettingsState.build()).build();
     }
 

@@ -14,8 +14,12 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringFunctionProcessorTests.maxResultLengthTest;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.MAX_RESULT_LENGTH;
 
 public class ConcatProcessorTests extends AbstractWireSerializingTestCase<ConcatFunctionProcessor> {
 
@@ -59,5 +63,14 @@ public class ConcatProcessorTests extends AbstractWireSerializingTestCase<Concat
             () -> new Concat(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null)
         );
         assertEquals("A string/char is required; received [3]", siae.getMessage());
+    }
+
+    public void testMaxResultLength() {
+        byte[] buffer = new byte[(int) MAX_RESULT_LENGTH - 1];
+        Arrays.fill(buffer, (byte) 'a');
+        String str = new String(buffer);
+        assertEquals(MAX_RESULT_LENGTH, new Concat(EMPTY, l(str), l("b")).makePipe().asProcessor().process(null).toString().length());
+
+        maxResultLengthTest(MAX_RESULT_LENGTH + 1, () -> new Concat(EMPTY, l(str), l("bb")).makePipe().asProcessor().process(null));
     }
 }

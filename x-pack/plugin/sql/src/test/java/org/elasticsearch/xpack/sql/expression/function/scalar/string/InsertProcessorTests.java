@@ -14,8 +14,12 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringFunctionProcessorTests.maxResultLengthTest;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.MAX_RESULT_LENGTH;
 
 public class InsertProcessorTests extends AbstractWireSerializingTestCase<InsertFunctionProcessor> {
 
@@ -117,5 +121,23 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
             () -> new Insert(EMPTY, l("foobar"), l(1), l((long) Integer.MAX_VALUE + 1), l("bar")).makePipe().asProcessor().process(null)
         );
         assertEquals("[length] out of the allowed range [0, 2147483647], received [2147483648]", siae.getMessage());
+
+        byte[] buffer = new byte[(int) MAX_RESULT_LENGTH];
+        Arrays.fill(buffer, (byte) 'a');
+        String str = new String(buffer);
+        String replaceWith = "bar";
+        assertEquals(
+            MAX_RESULT_LENGTH,
+            new Insert(EMPTY, l(str), l(1), l(replaceWith.length()), l(replaceWith)).makePipe()
+                .asProcessor()
+                .process(null)
+                .toString()
+                .length()
+        );
+
+        maxResultLengthTest(
+            MAX_RESULT_LENGTH + 1,
+            () -> new Insert(EMPTY, l(str), l(1), l(replaceWith.length() - 1), l(replaceWith)).makePipe().asProcessor().process(null)
+        );
     }
 }

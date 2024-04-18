@@ -914,7 +914,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Decrement all of the non-recovered BCCs that are not referenced by the recovered commit
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 if (blobReference.getPrimaryTermAndGeneration().equals(recoveryBCCBlob.getPrimaryTermAndGeneration()) == false) {
-                    blobReference.deleted();
+                    blobReference.removeAllLocalCommitsRefs();
                 }
                 if (referencedBCCGenerationsByRecoveredCommit.contains(blobReference.getPrimaryTermAndGeneration()) == false) {
                     blobReference.closedLocalReaders();
@@ -1240,7 +1240,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     )
                 );
             }
-            blobReference.deleted();
+            blobReference.removeLocalCommitRef(commitPrimaryTermAndGeneration);
         }
 
         private PrimaryTermAndGeneration resolvePrimaryTermForGeneration(long generation) {
@@ -1629,7 +1629,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE, Set.of());
                 primaryTermAndGenToBlobReference.values().forEach(blobReference -> {
                     blobReference.closedLocalReaders();
-                    blobReference.deleted();
+                    blobReference.removeAllLocalCommitsRefs();
                 });
             }
         }
@@ -1863,7 +1863,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             private final Set<String> internalFiles;
             private final Set<BlobReference> references;
             private final AtomicBoolean readersClosed = new AtomicBoolean();
-            private final AtomicBoolean deleted = new AtomicBoolean();
+            /**
+             * Set to track the commits that are opened locally by Lucene.
+             * <ol>
+             *     <li>Initially created with all the includedCommitGenerations that represent the CCs stored in this BCC.</li>
+             *     <li> When a commit included in this BCC is locally deleted by Lucene.
+             *     {@link #removeLocalCommitRef(PrimaryTermAndGeneration)} is called and the deleted element is removed from the set.
+             *     </li>
+             *     <li>{@link #removeAllLocalCommitsRefs()} can be called concurrently when the index is deleted,
+             *     therefore we should take into account that multiple threads can compete to mark this BCC as locally deleted.</li>
+             *     <li> When localCommitsRef is empty, using getAndUpdate (since AtomicReference uses == for equality checks)
+             *     set the reference to null.When the Thread is able to successfully do the CAS operation from Set.of() -> null we decRef
+             *     this instance and the referenced instances.
+             *     </li>
+             * </ol>
+             */
+            private final AtomicReference<Set<PrimaryTermAndGeneration>> localCommitsRef;
             /**
              * Set of search node-ids using the commit. The lifecycle of entries is like this:
              * 1. Initially created at instantiation on recovery or commit created - with an empty set.
@@ -1886,6 +1901,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = references;
                 this.includedCommitGenerations = Set.copyOf(includedCommitGenerations);
+                this.localCommitsRef = new AtomicReference<>(Set.copyOf(includedCommitGenerations));
                 // we both decRef closedLocalReaders and closedExternalReaders, hence the extra incRef (in addition to the
                 // 1 ref given by AbstractRefCounted constructor)
                 this.incRef();
@@ -1905,13 +1921,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
 
-            public void deleted() {
-                // TODO: ES-8234 account for multiples CCs pointing to the same BlobReference
-                assert includedCommitGenerations.size() == 1 || includedCommitGenerations.isEmpty();
-                // be idempotent.
-                if (deleted.compareAndSet(false, true)) {
-                    references.forEach(AbstractRefCounted::decRef);
-                    decRef();
+            void removeAllLocalCommitsRefs() {
+                removeLocalCommitRefsAndMaybeMarkAsLocallyDeleted(includedCommitGenerations);
+            }
+
+            void removeLocalCommitRef(PrimaryTermAndGeneration primaryTermAndGeneration) {
+                removeLocalCommitRefsAndMaybeMarkAsLocallyDeleted(Set.of(primaryTermAndGeneration));
+            }
+
+            private void removeLocalCommitRefsAndMaybeMarkAsLocallyDeleted(Set<PrimaryTermAndGeneration> deletedCommits) {
+                var remainingLocalCommits = localCommitsRef.accumulateAndGet(deletedCommits, (existing, update) -> {
+                    if (existing == null) {
+                        // null is the terminal state
+                        return null;
+                    }
+                    return Sets.difference(existing, deletedCommits);
+                });
+
+                if (remainingLocalCommits != null && remainingLocalCommits.isEmpty()) {
+                    var previousUsedLocalCommits = localCommitsRef.getAndUpdate(existing -> null);
+                    if (previousUsedLocalCommits != null && previousUsedLocalCommits.isEmpty()) {
+                        references.forEach(AbstractRefCounted::decRef);
+                        decRef();
+                    }
                 }
             }
 
@@ -2055,7 +2087,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return "Batched compound commit blob "
                     + primaryTermAndGeneration
                     + " ["
-                    + deleted.get()
+                    + localCommitsRef.get()
                     + ","
                     + readersClosed.get()
                     + ","

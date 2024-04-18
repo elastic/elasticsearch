@@ -20,12 +20,8 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('inference'))
-  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
   javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
 }
-
-assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() == 8:
-  "If we are targeting a branch other than 8, we should enable migration tests"
 
 // Inference API added in 8.11
 BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.11.0")) { bwcVersion, baseName ->

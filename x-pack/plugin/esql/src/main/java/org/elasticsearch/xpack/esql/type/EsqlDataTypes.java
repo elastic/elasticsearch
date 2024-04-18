@@ -97,22 +97,7 @@ public final class EsqlDataTypes {
         Map<String, DataType> map = TYPES.stream().collect(toMap(DataType::typeName, Function.identity()));
         map.put("bool", BOOLEAN);
         map.put("int", INTEGER);
-        map.put("dbl", DOUBLE);
-        map.put("kw", KEYWORD);
-        map.put("str", KEYWORD);
         map.put("string", KEYWORD);
-        map.put("txt", TEXT);
-        map.put("dt", DATETIME);
-        map.put("ver", VERSION);
-        map.put("ul", UNSIGNED_LONG);
-        map.put("gp", GEO_POINT);
-        map.put("gpoint", GEO_POINT);
-        map.put("cp", CARTESIAN_POINT);
-        map.put("cpoint", CARTESIAN_POINT);
-        map.put("cs", CARTESIAN_SHAPE);
-        map.put("cshape", CARTESIAN_SHAPE);
-        map.put("gs", GEO_SHAPE);
-        map.put("gshape", GEO_SHAPE);
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
     }
 

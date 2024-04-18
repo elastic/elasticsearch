@@ -210,6 +210,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         when(mockThreadPool.executor(anyString())).thenReturn(mockExecutorService);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(mockThreadPool.schedule(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
+        when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
         return new HttpRequestSender.Factory(
             ServiceComponentsTests.createWithEmptySettings(mockThreadPool),

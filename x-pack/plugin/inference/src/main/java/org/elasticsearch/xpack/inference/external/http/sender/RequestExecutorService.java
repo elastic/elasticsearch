@@ -37,6 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -50,7 +51,8 @@ class RequestExecutorService implements RequestExecutor {
 
     // default for tests
     static final Sleeper DEFAULT_SLEEPER = sleepTime -> sleepTime.timeUnit().sleep(sleepTime.duration());
-    private static final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> QUEUE_CREATOR =
+    // d efault for tests
+    static final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> DEFAULT_QUEUE_CREATOR =
         new AdjustableCapacityBlockingQueue.QueueCreator<>() {
             @Override
             public BlockingQueue<RejectableTask> create(int capacity) {
@@ -69,12 +71,19 @@ class RequestExecutorService implements RequestExecutor {
                 return new LinkedBlockingQueue<>();
             }
         };
-    private static final TimeValue DEFAULT_CLEANUP_INTERVAL = TimeValue.timeValueDays(10);
+
+    interface RateLimiterCreator {
+        RateLimiter create(double accumulatedTokensLimit, double tokensPerTimeUnit, TimeUnit unit);
+    }
+
+    // default for testing
+    static final RateLimiterCreator DEFAULT_RATE_LIMIT_CREATOR = RateLimiter::new;
+    private static final TimeValue DEFAULT_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
     private static final Duration DEFAULT_STALE_DURATION = Duration.ofDays(10);
 
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
 
-    private final ConcurrentMap<Object, RateLimitingEndpointHandler> inferenceEndpoints = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
@@ -86,6 +95,8 @@ class RequestExecutorService implements RequestExecutor {
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
     private final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> queueCreator;
     private final Sleeper sleeper;
+    private final RateLimiterCreator rateLimiterCreator;
+    private final AtomicReference<Scheduler.Cancellable> cancellableCleanUpTask = new AtomicReference<>();
 
     RequestExecutorService(
         ThreadPool threadPool,
@@ -95,14 +106,15 @@ class RequestExecutorService implements RequestExecutor {
     ) {
         this(
             threadPool,
-            QUEUE_CREATOR,
+            DEFAULT_QUEUE_CREATOR,
             startupLatch,
             settings,
             requestSender,
             DEFAULT_CLEANUP_INTERVAL,
             DEFAULT_STALE_DURATION,
             Clock.systemUTC(),
-            DEFAULT_SLEEPER
+            DEFAULT_SLEEPER,
+            DEFAULT_RATE_LIMIT_CREATOR
         );
     }
 
@@ -115,7 +127,8 @@ class RequestExecutorService implements RequestExecutor {
         @Nullable TimeValue cleanUpInterval,
         Duration staleEndpointDuration,
         Clock clock,
-        Sleeper sleeper
+        Sleeper sleeper,
+        RateLimiterCreator rateLimiterCreator
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.queueCreator = Objects.requireNonNull(queueCreator);
@@ -126,24 +139,15 @@ class RequestExecutorService implements RequestExecutor {
         this.staleEndpointDuration = Objects.requireNonNull(staleEndpointDuration);
         this.clock = Objects.requireNonNull(clock);
         this.sleeper = Objects.requireNonNull(sleeper);
-    }
-
-    // TODO schedule a cleanup thread to run on an interval and remove entries from the map that are over a day old
-    private Scheduler.Cancellable startCleanUpThread(ThreadPool threadPool) {
-        logger.debug(() -> Strings.format("Clean up task scheduled with interval [%s]", cleanUpInterval));
-
-        return threadPool.scheduleWithFixedDelay(this::removeOldEndpoints, cleanUpInterval, threadPool.executor(UTILITY_THREAD_POOL_NAME));
-    }
-
-    private void removeOldEndpoints() {
-        var now = Instant.now(clock);
-        // if the current time is after the last time the endpoint received a request + allowed stale period then we'll remove it
-        inferenceEndpoints.entrySet()
-            .removeIf(endpoint -> now.isAfter(endpoint.getValue().timeOfLastEnqueue().plus(staleEndpointDuration)));
+        this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
     }
 
     public void shutdown() {
         shutdown.set(true);
+        if (cancellableCleanUpTask.get() != null) {
+            logger.debug(() -> "Stopping clean up thread");
+            cancellableCleanUpTask.get().cancel();
+        }
     }
 
     public boolean isShutdown() {
@@ -159,12 +163,13 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     public int queueSize() {
-        return inferenceEndpoints.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
+        return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
     }
 
     public void start() {
         try {
             signalStartInitiated();
+            startCleanUpTask();
 
             while (isShutdown() == false) {
                 handleTasks();
@@ -184,9 +189,33 @@ class RequestExecutorService implements RequestExecutor {
         }
     }
 
+    private void startCleanUpTask() {
+        if (cleanUpInterval != null) {
+            cancellableCleanUpTask.updateAndGet(currentTask -> Objects.requireNonNullElseGet(currentTask, this::startCleanUpThread));
+        }
+    }
+
+    private Scheduler.Cancellable startCleanUpThread() {
+        logger.debug(() -> Strings.format("Clean up task scheduled with interval [%s]", cleanUpInterval));
+
+        return threadPool.scheduleWithFixedDelay(
+            this::removeStaleGroupings,
+            cleanUpInterval,
+            threadPool.executor(UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    // default for testing
+    void removeStaleGroupings() {
+        var now = Instant.now(clock);
+        // if the current time is after the last time the endpoint received a request + allowed stale period then we'll remove it
+        rateLimitGroupings.entrySet()
+            .removeIf(endpoint -> now.isAfter(endpoint.getValue().timeOfLastEnqueue().plus(staleEndpointDuration)));
+    }
+
     private void handleTasks() throws InterruptedException {
         boolean handledAtLeastOneTask = false;
-        for (var endpoint : inferenceEndpoints.values()) {
+        for (var endpoint : rateLimitGroupings.values()) {
             handledAtLeastOneTask |= endpoint.executeEnqueuedTask();
         }
 
@@ -198,20 +227,25 @@ class RequestExecutorService implements RequestExecutor {
     private void notifyRequestsOfShutdown() {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
-        for (var endpoint : inferenceEndpoints.values()) {
+        for (var endpoint : rateLimitGroupings.values()) {
             endpoint.notifyRequestsOfShutdown();
         }
     }
 
     // default for testing
     Integer remainingQueueCapacity(RequestManager requestManager) {
-        var endpoint = inferenceEndpoints.get(requestManager.rateLimitGrouping());
+        var endpoint = rateLimitGroupings.get(requestManager.rateLimitGrouping());
 
         if (endpoint == null) {
             return null;
         }
 
         return endpoint.remainingCapacity();
+    }
+
+    // default for testing
+    int numberOfRateLimitGroups() {
+        return rateLimitGroupings.size();
     }
 
     /**
@@ -240,7 +274,7 @@ class RequestExecutorService implements RequestExecutor {
             ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
         );
 
-        var endpoint = inferenceEndpoints.computeIfAbsent(
+        var endpoint = rateLimitGroupings.computeIfAbsent(
             requestManager.rateLimitGrouping(),
             key -> new RateLimitingEndpointHandler(
                 Integer.toString(requestManager.rateLimitGrouping().hashCode()),
@@ -249,7 +283,8 @@ class RequestExecutorService implements RequestExecutor {
                 requestSender,
                 clock,
                 requestManager.rateLimitSettings(),
-                this::isShutdown
+                this::isShutdown,
+                rateLimiterCreator
             )
         );
 
@@ -280,7 +315,8 @@ class RequestExecutorService implements RequestExecutor {
             RequestSender requestSender,
             Clock clock,
             RateLimitSettings rateLimitSettings,
-            Supplier<Boolean> isShutdownMethod
+            Supplier<Boolean> isShutdownMethod,
+            RateLimiterCreator rateLimiterCreator
         ) {
             this.id = Objects.requireNonNull(id);
             this.queue = new AdjustableCapacityBlockingQueue<>(createQueue, settings.getQueueCapacity());
@@ -289,19 +325,20 @@ class RequestExecutorService implements RequestExecutor {
             this.isShutdownMethod = Objects.requireNonNull(isShutdownMethod);
 
             Objects.requireNonNull(rateLimitSettings);
+            Objects.requireNonNull(rateLimiterCreator);
             // TODO figure out a good accumulatedTokensLimit
-            rateLimiter = new RateLimiter(1, rateLimitSettings.requestsPerTimeUnit(), rateLimitSettings.timeUnit());
+            rateLimiter = rateLimiterCreator.create(1, rateLimitSettings.requestsPerTimeUnit(), rateLimitSettings.timeUnit());
 
             settings.registerQueueCapacityCallback(this::onCapacityChange);
         }
 
         private void onCapacityChange(int capacity) {
-            logger.debug(() -> Strings.format("Executor service [%s] setting queue capacity to [%s]", id, capacity));
+            logger.debug(() -> Strings.format("Executor service grouping [%s] setting queue capacity to [%s]", id, capacity));
 
             try {
                 queue.setCapacity(capacity);
             } catch (Exception e) {
-                logger.warn(format("Executor service [%s] failed to set the capacity of the task queue to [%s]", id, capacity), e);
+                logger.warn(format("Executor service grouping [%s] failed to set the capacity of the task queue to [%s]", id, capacity), e);
             }
         }
 
@@ -321,7 +358,7 @@ class RequestExecutorService implements RequestExecutor {
             try {
                 return executeEnqueuedTaskInternal();
             } catch (Exception e) {
-                logger.warn(format("Executor service [%s] failed to execute request", id), e);
+                logger.warn(format("Executor service grouping [%s] failed to execute request", id), e);
                 // we tried to do some work but failed, so we'll say we did something to try looking for more work
                 return true;
             }
@@ -329,24 +366,30 @@ class RequestExecutorService implements RequestExecutor {
 
         private boolean executeEnqueuedTaskInternal() {
             var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
+            if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
+                return false;
+            }
+
             var task = queue.poll();
 
             // TODO Batching - in a situation where no new tasks are queued we'll want to execute any prepared tasks
             // check for null and call a helper method executePreparedTasks()
 
-            if (shouldExecuteTask(timeBeforeAvailableToken, task) == false) {
+            if (shouldExecuteTask(task) == false) {
                 return false;
             }
 
             // We should never have to wait because we checked above
-            rateLimiter.reserve(1);
+            var reserveRes = rateLimiter.reserve(1);
+            assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
+
             task.getRequestManager()
                 .execute(task.getQuery(), task.getInput(), requestSender, task.getRequestCompletedFunction(), task.getListener());
             return true;
         }
 
-        private static boolean shouldExecuteTask(TimeValue delay, RejectableTask task) {
-            return task != null && isNoopRequest(task) == false && task.hasCompleted() == false && shouldExecuteImmediately(delay);
+        private static boolean shouldExecuteTask(RejectableTask task) {
+            return task != null && isNoopRequest(task) == false && task.hasCompleted() == false;
         }
 
         private static boolean isNoopRequest(InferenceRequest inferenceRequest) {
@@ -365,8 +408,9 @@ class RequestExecutorService implements RequestExecutor {
             if (isShutdown()) {
                 EsRejectedExecutionException rejected = new EsRejectedExecutionException(
                     format(
-                        "Failed to enqueue task because the executor service [%s] has already shutdown",
-                        task.getRequestManager().inferenceEntityId()
+                        "Failed to enqueue task for inference id [%s] because the executor service grouping [%s] has already shutdown",
+                        task.getRequestManager().inferenceEntityId(),
+                        id
                     ),
                     true
                 );
@@ -380,8 +424,9 @@ class RequestExecutorService implements RequestExecutor {
             if (addedToQueue == false) {
                 EsRejectedExecutionException rejected = new EsRejectedExecutionException(
                     format(
-                        "Failed to execute task because the executor service [%s] queue is full",
-                        task.getRequestManager().inferenceEntityId()
+                        "Failed to execute task for inference id [%s] because the request service [%s] queue is full",
+                        task.getRequestManager().inferenceEntityId(),
+                        id
                     ),
                     false
                 );
@@ -401,7 +446,7 @@ class RequestExecutorService implements RequestExecutor {
 
                 rejectTasks(notExecuted);
             } catch (Exception e) {
-                logger.warn(format("Failed to notify tasks of queuing service [%s] shutdown", id));
+                logger.warn(format("Failed to notify tasks of executor service grouping [%s] shutdown", id));
             }
         }
 
@@ -416,7 +461,8 @@ class RequestExecutorService implements RequestExecutor {
                 task.onRejection(
                     new EsRejectedExecutionException(
                         format(
-                            "Failed to send request, queue service for inference entity [%s] has shutdown prior to executing request",
+                            "Failed to send request, request service [%s] for inference id [%s] has shutdown prior to executing request",
+                            id,
                             task.getRequestManager().inferenceEntityId()
                         ),
                         true
@@ -425,8 +471,9 @@ class RequestExecutorService implements RequestExecutor {
             } catch (Exception e) {
                 logger.warn(
                     format(
-                        "Failed to notify request for inference endpoint [%s] of rejection after queuing service shutdown",
-                        task.getRequestManager().inferenceEntityId()
+                        "Failed to notify request for inference id [%s] of rejection after request service [%s] shutdown",
+                        task.getRequestManager().inferenceEntityId(),
+                        id
                     )
                 );
             }

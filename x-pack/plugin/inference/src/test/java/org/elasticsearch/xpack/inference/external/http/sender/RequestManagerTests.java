@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -33,11 +32,11 @@ public class RequestManagerTests {
     }
 
     public static RequestManager createMock(RequestSender requestSender) {
-        return createMock(requestSender, "id", new RateLimitSettings(TimeValue.timeValueSeconds(1)));
+        return createMock(requestSender, "id", new RateLimitSettings(1));
     }
 
     public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId) {
-        return createMock(requestSender, inferenceEntityId, new RateLimitSettings(TimeValue.timeValueSeconds(1)));
+        return createMock(requestSender, inferenceEntityId, new RateLimitSettings(1));
     }
 
     public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId, RateLimitSettings settings) {

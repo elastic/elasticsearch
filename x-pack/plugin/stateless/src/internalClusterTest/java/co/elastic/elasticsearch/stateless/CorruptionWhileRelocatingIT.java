@@ -113,7 +113,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 assertThat(request, instanceOf(NewCommitNotificationRequest.class));
                 var notification = (NewCommitNotificationRequest) request;
-                if (notification.getTerm() == primaryTerm && notification.getGeneration() == finalGeneration && notification.isUpload()) {
+                if (notification.getTerm() == primaryTerm && notification.getGeneration() == finalGeneration && notification.isUploaded()) {
                     var count = receivedNotifications.incrementAndGet();
                     logger.info(
                         "--> search node received commit notification [primary term={}, generation={}, parent task={}]: {}",

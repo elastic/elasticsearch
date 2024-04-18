@@ -67,7 +67,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     "node-id",
                     primaryTerm,
                     firstCommitGeneration,
-                    uploadedBlobLocations::get
+                    uploadedBlobLocations::get,
+                    ESTestCase::randomNonNegativeLong
                 );
                 for (StatelessCommitRef statelessCommitRef : indexCommits) {
                     assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef));
@@ -138,7 +139,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 firstCommitGeneration,
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
-                }
+                },
+                ESTestCase::randomNonNegativeLong
             );
 
             for (StatelessCommitRef commit : commits) {
@@ -172,7 +174,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 commits.get(0).getGeneration(),
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
-                }
+                },
+                ESTestCase::randomNonNegativeLong
             );
             for (StatelessCommitRef statelessCommitRef : commits) {
                 assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef));
@@ -273,7 +276,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 commits.get(0).getGeneration(),
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
-                }
+                },
+                ESTestCase::randomNonNegativeLong
             );
 
             if (randomBoolean()) {
@@ -341,7 +345,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 firstCommitGeneration,
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
-                }
+                },
+                ESTestCase::randomNonNegativeLong
             );
 
             for (StatelessCommitRef commit : commits) {

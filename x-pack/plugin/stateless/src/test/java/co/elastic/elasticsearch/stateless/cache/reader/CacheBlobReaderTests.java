@@ -121,7 +121,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                 commits.get(0).getGeneration(),
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
-                }
+                },
+                ESTestCase::randomNonNegativeLong
             );
             appendCommitsToVbcc(commits);
 

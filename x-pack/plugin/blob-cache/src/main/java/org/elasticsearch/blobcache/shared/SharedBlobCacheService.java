@@ -299,6 +299,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final Executor ioExecutor;
 
     // executor to run bulk reading from the blobstore on
+    @Deprecated(forRemoval = true)
     private final Executor bulkIOExecutor;
 
     private final SharedBytes sharedBytes;

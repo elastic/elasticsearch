@@ -64,7 +64,11 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secrets),
+            serviceSettings
+        );
         try {
             this.uri = getEmbeddingsUri(serviceSettings.resourceName(), serviceSettings.deploymentId(), serviceSettings.apiVersion());
         } catch (URISyntaxException e) {

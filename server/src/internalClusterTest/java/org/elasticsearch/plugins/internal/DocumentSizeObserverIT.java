@@ -88,7 +88,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
                 @Override
                 public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
-                    return new TestDocumentSizeReporter();
+                    return new TestDocumentSizeReporter(indexName);
                 }
             };
         }
@@ -96,8 +96,14 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
     public static class TestDocumentSizeReporter implements DocumentSizeReporter {
 
+        private final String indexName;
+
+        public TestDocumentSizeReporter(String indexName) {
+            this.indexName = indexName;
+        }
+
         @Override
-        public void onIndexingCompleted(String indexName, long normalizedBytesParsed) {
+        public void onIndexingCompleted(long normalizedBytesParsed) {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
             assertThat(normalizedBytesParsed, equalTo(5L));
         }

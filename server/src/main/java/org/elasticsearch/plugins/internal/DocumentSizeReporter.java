@@ -19,7 +19,7 @@ public interface DocumentSizeReporter {
      */
     DocumentSizeReporter EMPTY_INSTANCE = new DocumentSizeReporter() {
         @Override
-        public void onIndexingCompleted(String indexName, long normalizedBytesParsed) {
+        public void onIndexingCompleted(long normalizedBytesParsed) {
 
         }
 
@@ -32,7 +32,7 @@ public interface DocumentSizeReporter {
     /**
      * An action to be performed upon finished parsing.
      */
-    void onIndexingCompleted(String indexName, long normalizedBytesParsed);
+    void onIndexingCompleted(long normalizedBytesParsed);
 
     void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed);
 

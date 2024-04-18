@@ -36,10 +36,12 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -142,8 +144,15 @@ public class DefaultHighlighter implements Highlighter {
         }
         Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
         builder.withBreakIterator(() -> breakIterator);
-        builder.withFieldMatcher(fieldMatcher(fieldContext));
         builder.withFormatter(passageFormatter);
+
+        Set<String> matchedFields = fieldContext.field.fieldOptions().matchedFields();
+        // Masked fields require that the default field matcher is used
+        if (matchedFields != null && matchedFields.isEmpty() == false) {
+            builder.withMaskedFieldsFunc((fieldName) -> fieldName.equals(fieldContext.fieldName) ? matchedFields : Collections.emptySet());
+        } else {
+            builder.withFieldMatcher(fieldMatcher(fieldContext));
+        }
         return new CustomUnifiedHighlighter(
             builder,
             offsetSource,

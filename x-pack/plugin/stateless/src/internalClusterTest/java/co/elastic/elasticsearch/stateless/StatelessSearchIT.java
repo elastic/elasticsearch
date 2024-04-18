@@ -386,11 +386,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             }
         }
 
+        // TODO: notificationPerBcc needs to be determined from a node setting
+        final int notificationPerBcc = STATELESS_UPLOAD_DELAYED ? 2 : 1;
         assertBusy(() -> {
             assertThat(
                 "Search shard notifications should be equal to the number of created commits multiplied by the number of replicas.",
                 searchNotifications.get(),
-                equalTo((getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas)
+                equalTo((getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas * notificationPerBcc)
             );
         });
     }

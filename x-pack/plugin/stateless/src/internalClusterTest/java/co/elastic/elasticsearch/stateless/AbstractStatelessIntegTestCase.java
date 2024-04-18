@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -94,6 +95,10 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
+
+    public static final boolean STATELESS_UPLOAD_DELAYED = Boolean.parseBoolean(
+        System.getProperty("es.test.stateless.upload.delayed", "false")
+    );
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -204,6 +209,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName());
         if (useBasePath) {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
+        }
+        if (STATELESS_UPLOAD_DELAYED) {
+            builder.put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true);
         }
         return builder;
     }

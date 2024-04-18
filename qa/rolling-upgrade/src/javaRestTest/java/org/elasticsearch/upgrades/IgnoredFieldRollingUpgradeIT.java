@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.rest.RestStatus;
@@ -36,10 +35,6 @@ public class IgnoredFieldRollingUpgradeIT extends ParameterizedRollingUpgradeTes
 
     @SuppressWarnings("unchecked")
     public void testIgnoredMetaFieldExistsQuery() throws IOException {
-        assumeTrue(
-            "_ignored metadata field used stored fields up to version 8.14, then started using doc values fields from version 8.15",
-            getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
-        );
         if (isOldCluster()) {
             assertRestStatus(client().performRequest(createNewIndex(INDEX_NAME)), RestStatus.OK);
             assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "1", "foofoo")), RestStatus.CREATED);
@@ -75,10 +70,6 @@ public class IgnoredFieldRollingUpgradeIT extends ParameterizedRollingUpgradeTes
 
     @SuppressWarnings("unchecked")
     public void testIgnoredMetaFieldGetQuery() throws IOException {
-        assumeTrue(
-            "_ignored metadata field used stored fields up to version 8.14, then started using doc values fields from version 8.15",
-            getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
-        );
         if (isOldCluster()) {
             assertRestStatus(client().performRequest(createNewIndex(INDEX_NAME)), RestStatus.OK);
             assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "1", "foofoo")), RestStatus.CREATED);
@@ -98,7 +89,7 @@ public class IgnoredFieldRollingUpgradeIT extends ParameterizedRollingUpgradeTes
     }
 
     private static Response get(final String index, final String docId) throws IOException {
-        return client().performRequest(new Request("GET", "/" + index + "/_doc/" + docId));
+        return client().performRequest(new Request("GET", "/" + index + "/_doc/" + docId + "?stored_fields=_ignored"));
     }
 
     private static Response existsQuery(final String index) throws IOException {

@@ -49,88 +49,88 @@ null
 
 convertToDouble
 required_feature: esql.casting_operator
-ROW zero="0"::double, one="1"::dbl
+ROW zero="0"::double
 ;
 
- zero:double   | one:double
-0.0            |1.0
+ zero:double
+0.0
 ;
 
 convertToString
 required_feature: esql.casting_operator
-ROW one=1::keyword, two=2::kw, three=3::text, four=4::txt, five=5::string, six=6::str
+ROW one=1::keyword, two=2::text, three=3::string
 ;
 
- one:keyword   | two:keyword   | three:keyword | four:keyword  | five:keyword  | six:keyword
-1              |2              |3              |4              |5              |6
+ one:keyword   | two:keyword   | three:keyword
+1              |2              |3
 ;
 
 convertToDatetime
 required_feature: esql.casting_operator
-ROW zero="1985-01-01T00:00:00Z"::datetime, one="1985-01-01T00:00:00Z"::dt, two=0::dt
+ROW date="1985-01-01T00:00:00Z"::datetime, zero=0::datetime
 ;
 
- zero:datetime          | one:datetime           | two:datetime
-1985-01-01T00:00:00.000Z|1985-01-01T00:00:00.000Z|1970-01-01T00:00:00.000Z
+ date:datetime          | zero:datetime
+1985-01-01T00:00:00.000Z|1970-01-01T00:00:00.000Z
 ;
 
 convertToVersion
 required_feature: esql.casting_operator
-ROW zero="1.2.3"::version, one="4"::ver
+ROW ver="1.2.3"::version
 ;
 
- zero:version  | one:version
-1.2.3          |4              
+ ver:version
+1.2.3
 ;
 
 convertToUnsignedLong
 required_feature: esql.casting_operator
-ROW zero="0"::unsigned_long, one=1::ul, two=abs(-2)::UnsigneD_LOng
+ROW zero="0"::unsigned_long, two=abs(-2)::UnsigneD_LOng
 ;
 
- zero:unsigned_long | one:unsigned_long | two:unsigned_long
-0                   |1                  |2
+ zero:unsigned_long | two:unsigned_long
+0                   |2
 ;
 
 convertToGeoPoint
 required_feature: esql.casting_operator
-ROW zero="POINT(0 0)"::geo_point, one="POINT(1 1)"::gpoint, two="POINT(2 2)"::gp
+ROW gp="POINT(0 0)"::geo_point
 ;
 
- zero:geo_point| one:geo_point | two:geo_point      
-POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+ gp:geo_point
+POINT (0.0 0.0)
 ;
 
 convertToGeoShape
 required_feature: esql.casting_operator
-ROW zero="POINT(0 0)"::geo_shape, one="POINT(1 1)"::gshape, two="POINT(2 2)"::gs
+ROW gs="POINT(0 0)"::geo_shape
 ;
 
- zero:geo_shape| one:geo_shape | two:geo_shape      
-POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+ gs:geo_shape
+POINT (0.0 0.0)
 ;
 
 convertToCartesianPoint
 required_feature: esql.casting_operator
-ROW zero="POINT(0 0)"::cartesian_point, one="POINT(1 1)"::cpoint, two="POINT(2 2)"::cp
+ROW cp="POINT(0 0)"::cartesian_point
 ;
 
- zero:cartesian_point| one:cartesian_point | two:cartesian_point      
-POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+ cp:cartesian_point
+POINT (0.0 0.0)
 ;
 
 convertToCartesianShape
 required_feature: esql.casting_operator
-ROW zero="POINT(0 0)"::cartesian_shape, one="POINT(1 1)"::cshape, two="POINT(2 2)"::cs
+ROW cs="POINT(0 0)"::cartesian_shape
 ;
 
- zero:cartesian_shape| one:cartesian_shape | two:cartesian_shape      
-POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+ cs:cartesian_shape
+POINT (0.0 0.0)
 ;
 
 convertChained
 required_feature: esql.casting_operator
-ROW one=1::STR::LONG::BOOL
+ROW one=1::STRING::LONG::BOOL
 ;
 
 one:boolean
@@ -140,9 +140,9 @@ true
 convertWithIndexMultipleConversionsInSameExpressionAndConversionInFiltering
 required_feature: esql.casting_operator
  FROM employees
-| EVAL en_str=emp_no::STRING, bd=abs(birth_date::LONG)::STRING
+| EVAL en_str=emp_no::STRING, bd=ABS(birth_date::LONG)::STRING
 | KEEP en_str, emp_no, bd, birth_date
-| WHERE abs(birth_date::LONG) < 176169600000
+| WHERE ABS(birth_date::LONG) < 176169600000
 | SORT emp_no
 ;
 
@@ -155,7 +155,7 @@ required_feature: esql.casting_operator
 convertWithBoolExpressionAndQualifiedName
 required_feature: esql.casting_operator
  FROM employees
-| EVAL neg = (NOT still_hired)::str, sf = ROUND(height.scaled_float::dbl, 2)
+| EVAL neg = (NOT still_hired)::string, sf = ROUND(height.scaled_float::double, 2)
 | KEEP emp_no, still_hired, neg, sf
 | SORT emp_no
 | WHERE neg == "false"

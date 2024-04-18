@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -24,34 +24,30 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.vectors.TokenPruningConfig;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldType;
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
-
-public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
-    public static final String NAME = "weighted_tokens";
+public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
+    public static final String NAME = "sparse_vector";
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
+    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     private final String fieldName;
     private final List<WeightedToken> tokens;
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
-    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
+    public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> tokens) {
         this(fieldName, tokens, null);
     }
 
-    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
+    public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
@@ -60,7 +56,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         this.tokenPruningConfig = tokenPruningConfig;
     }
 
-    public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
+    public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
         this.tokens = in.readCollectionAsList(WeightedToken::new);
@@ -156,16 +152,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         final String fieldTypeName = ft.typeName();
-        if (AllowedFieldType.isFieldTypeAllowed(fieldTypeName) == false) {
-            throw new ElasticsearchParseException(
-                "["
-                    + fieldTypeName
-                    + "]"
-                    + " is not an appropriate field type for this query. "
-                    + "Allowed field types are ["
-                    + AllowedFieldType.getAllowedFieldTypesAsString()
-                    + "]."
-            );
+        if (fieldTypeName.equals("sparse_vector") == false) {
+            throw new ElasticsearchParseException("[" + fieldTypeName + "] must be a [sparse_vector] field type.");
         }
 
         return (this.tokenPruningConfig == null)
@@ -204,7 +192,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     }
 
     @Override
-    protected boolean doEquals(WeightedTokensQueryBuilder other) {
+    protected boolean doEquals(SparseVectorQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
             && tokens.equals(other.tokens);
@@ -237,7 +225,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         );
     }
 
-    public static WeightedTokensQueryBuilder fromXContent(XContentParser parser) throws IOException {
+    public static SparseVectorQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String fieldName = null;
         List<WeightedToken> tokens = new ArrayList<>();
@@ -284,7 +272,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        var qb = new WeightedTokensQueryBuilder(fieldName, tokens, tokenPruningConfig);
+        var qb = new SparseVectorQueryBuilder(fieldName, tokens, tokenPruningConfig);
         qb.queryName(queryName);
         qb.boost(boost);
         return qb;

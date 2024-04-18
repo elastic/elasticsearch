@@ -25,7 +25,8 @@ import java.util.Objects;
  * This class iterates all shards from all nodes.
  * The shard order is defined by
  * (1) allocation recency: shards from the node that had a new shard allocation would appear in the end of iteration.
- * (2) shard priority: data stream write shards, then regular index shards, then the rest
+ * (2) shard priority: for necessary moves data stream write shards, then regular index shards, then the rest
+ *                     for rebalancing the order is inverse
  */
 public class OrderedShardsIterator implements Iterator<ShardRouting> {
 

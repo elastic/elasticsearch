@@ -1,7 +1,7 @@
 pr: 107333
 summary: Limit how much space some string functions can use
 area: SQL
-type: "breaking"
+type: "breaking, bug"
 issues: []
 breaking:
   title: Limit how much space some string functions can use

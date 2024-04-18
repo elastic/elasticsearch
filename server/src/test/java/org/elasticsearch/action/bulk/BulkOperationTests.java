@@ -528,12 +528,7 @@ public class BulkOperationTests extends ESTestCase {
                     new ShardId(ds2BackingIndex1.getIndex(), 0),
                     failWithException(() -> new MapperException("root cause")),
                     new ShardId(ds2FailureStore1.getIndex(), 0),
-                    goAsyncAndWait(
-                        writeExecutor,
-                        readyToPerformFailureStoreWrite,
-                        beginFailureStoreWrite,
-                        acceptAllShardWrites()
-                    )
+                    goAsyncAndWait(writeExecutor, readyToPerformFailureStoreWrite, beginFailureStoreWrite, acceptAllShardWrites())
                 )
             )
         );
@@ -789,9 +784,7 @@ public class BulkOperationTests extends ESTestCase {
      * When the request is received, it is marked as failed with an exception created by the supplier
      */
     private BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> failWithException(Supplier<Exception> exceptionSupplier) {
-        return (BulkShardRequest request, ActionListener<BulkShardResponse> listener) -> {
-            listener.onFailure(exceptionSupplier.get());
-        };
+        return (BulkShardRequest request, ActionListener<BulkShardResponse> listener) -> { listener.onFailure(exceptionSupplier.get()); };
     }
 
     /**

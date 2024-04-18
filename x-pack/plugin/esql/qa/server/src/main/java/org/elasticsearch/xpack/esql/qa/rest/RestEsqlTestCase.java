@@ -503,7 +503,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var firstHeader = "Line 1:55: evaluation of [to_int(case(integer %25 2 == 0, to_str(integer), keyword))] failed, "
             + "treating result as null. Only first 20 failures recorded.";
         assertThat(warnings.get(0), containsString(firstHeader));
-        for (int i = 1; i <= warnings.size(); i++) {
+        for (int i = 1; i < warnings.size(); i++) {
             assertThat(
                 warnings.get(i),
                 containsString("org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [keyword")

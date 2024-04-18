@@ -121,6 +121,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
     }
 
     public static class SyntheticLoader implements SourceLoader.SyntheticFieldLoader {
+        // Contains stored field values, i.e. encoded ignored field names and values.
         private List<Object> values = List.of();
 
         // Maps the names of existing objects to lists of ignored fields they contain.
@@ -143,7 +144,11 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {}
+        public void write(XContentBuilder b) throws IOException {
+            // This mapper doesn't contribute to source directly as it has no access to the
+            // object structure. Instead, it's accessed by object mappers to decode
+            // and write its fields within the appropriate object.
+        }
 
         public void trackObjectsWithIgnoredFields() {
             if (values == null || values.isEmpty()) {
@@ -162,6 +167,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
             values = null;
         }
 
+        // This is expected to be called by object mappers, to add their ignored fields as part of the source.
         public void write(XContentBuilder b, String prefix) throws IOException {
             var matches = objectsWithIgnoredFields.get(prefix);
             if (matches != null) {

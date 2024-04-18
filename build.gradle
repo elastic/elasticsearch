@@ -435,3 +435,33 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }
+
+subprojects { subProject ->
+  subProject.tasks.withType(Test).configureEach { task ->
+    def slowTasks = [
+      ":docs:yamlRestTest",
+      ":x-pack:plugin:yamlRestTest",
+      ":x-pack:plugin:transform:qa:multi-node-tests:javaRestTest",
+      ":x-pack:plugin:security:qa:multi-cluster:javaRestTest",
+      ":x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest",
+      ":x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest",
+      ":test:external-modules:test-esql-heap-attack:javaRestTest",
+      ":x-pack:plugin:ml:qa:ml-with-security:yamlRestTest",
+      ":x-pack:plugin:security:qa:security-trial:javaRestTest",
+      ":qa:smoke-test-multinode:yamlRestTest",
+      ":x-pack:plugin:security:qa:smoke-test-all-realms:javaRestTest",
+      ":x-pack:plugin:transform:qa:single-node-tests:javaRestTest",
+      ":x-pack:plugin:ilm:qa:multi-node:javaRestTest",
+      ":x-pack:plugin:sql:qa:server:single-node:javaRestTest",
+      ":x-pack:plugin:esql:qa:server:single-node:javaRestTest",
+      ":x-pack:plugin:esql:qa:server:multi-node:javaRestTest",
+      ":x-pack:plugin:sql:qa:server:multi-node:javaRestTest",
+      ":x-pack:plugin:esql:qa:server:single-node:yamlRestTest",
+      ":modules:aggregations:yamlRestTest",
+    ]
+
+    slowTasks.each { slowTask ->
+      task.shouldRunAfter(slowTask)
+    }
+  }
+}

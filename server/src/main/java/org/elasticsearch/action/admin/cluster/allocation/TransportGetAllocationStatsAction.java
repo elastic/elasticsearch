@@ -84,7 +84,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         listener.onResponse(
             new Response(
                 allocationStatsService.stats(),
-                clusterService.state().getMinTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)
+                clusterService.state().clusterFeatures().clusterHasFeature(AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
                     ? diskThresholdSettings
                     : null
             )

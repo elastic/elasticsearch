@@ -103,7 +103,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             evaluatorMap::containsKey,
             sourceText(),
             paramOrdinal,
-            evaluatorMap.keySet().stream().map(DataType::typeName).toArray(String[]::new)
+            evaluatorMap.keySet().stream().map(DataType::typeName).sorted().toArray(String[]::new)
         );
     }
 

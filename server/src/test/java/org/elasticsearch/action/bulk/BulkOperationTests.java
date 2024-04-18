@@ -501,7 +501,7 @@ public class BulkOperationTests extends ESTestCase {
      * returns an unblocked cluster, the redirection of failure documents should proceed and not return early.
      */
     public void testRetryableBlockAcceptsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();

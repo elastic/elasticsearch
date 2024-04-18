@@ -48,6 +48,7 @@ public class RequestExecutorServiceSettings {
 
     public RequestExecutorServiceSettings(Settings settings, ClusterService clusterService) {
         queueCapacity = TASK_QUEUE_CAPACITY_SETTING.get(settings);
+        taskPollFrequency = TASK_POLL_FREQUENCY_SETTING.get(settings);
 
         addSettingsUpdateConsumers(clusterService);
     }

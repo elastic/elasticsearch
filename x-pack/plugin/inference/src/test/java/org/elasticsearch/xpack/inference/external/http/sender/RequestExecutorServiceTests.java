@@ -19,12 +19,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -43,9 +45,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RequestExecutorServiceTests extends ESTestCase {
@@ -92,7 +93,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
-    public void testIsTerminated_AfterStopFromSeparateThread() throws Exception {
+    public void testIsTerminated_AfterStopFromSeparateThread() {
         var waitToShutdown = new CountDownLatch(1);
         var waitToReturnFromSend = new CountDownLatch(1);
 
@@ -133,36 +134,24 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.shutdown();
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(RequestManagerTests.createMock("id"), new DocumentsOnlyInput(List.of()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to enqueue task because the http executor service [test_service] has already shutdown")
-        );
+        assertThat(thrownException.getMessage(), is("Failed to enqueue task because the executor service [id] has already shutdown"));
         assertTrue(thrownException.isExecutorShutdown());
     }
 
     public void testSend_Throws_WhenQueueIsFull() {
-        var service = new RequestExecutorServiceOld(
-            "test_service",
-            threadPool,
-            null,
-            createRequestExecutorServiceSettings(1),
-            new SingleRequestManager(mock(RetryingHttpSender.class))
-        );
+        var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettings(1), mock(RetryingHttpSender.class));
 
         service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(RequestManagerTests.createMock("id"), new DocumentsOnlyInput(List.of()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to execute task because the http executor service [test_service] queue is full")
-        );
+        assertThat(thrownException.getMessage(), is("Failed to execute task because the executor service [id] queue is full"));
         assertFalse(thrownException.isExecutorShutdown());
     }
 
@@ -279,7 +268,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var service = createRequestExecutorServiceWithMocks();
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(RequestManagerTests.createMock(mock(RequestSender.class), "id"), new DocumentsOnlyInput(List.of()), null, listener);
 
         service.shutdown();
         service.start();
@@ -288,47 +277,59 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            is("Failed to send request, queue service [test_service] has shutdown prior to executing request")
+            is("Failed to send request, queue service for inference entity [id] has shutdown prior to executing request")
         );
         assertTrue(thrownException.isExecutorShutdown());
         assertTrue(service.isTerminated());
     }
 
-    public void testQueueTake_DoesNotCauseServiceToTerminate_WhenItThrows() throws InterruptedException {
+    public void testQueuePoll_DoesNotCauseServiceToTerminate_WhenItThrows() throws InterruptedException {
         @SuppressWarnings("unchecked")
         BlockingQueue<RejectableTask> queue = mock(LinkedBlockingQueue.class);
 
-        var service = new RequestExecutorServiceOld(
-            getTestName(),
+        var requestSender = mock(RetryingHttpSender.class);
+
+        var service = new RequestExecutorService(
             threadPool,
             mockQueueCreator(queue),
             null,
             createRequestExecutorServiceSettingsEmpty(),
-            new SingleRequestManager(mock(RetryingHttpSender.class))
+            requestSender,
+            null,
+            Duration.ofDays(2),
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_SLEEPER
         );
 
-        when(queue.take()).thenThrow(new ElasticsearchException("failed")).thenAnswer(invocation -> {
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var requestManager = RequestManagerTests.createMock(requestSender, "id");
+        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+
+        when(queue.poll()).thenThrow(new ElasticsearchException("failed")).thenAnswer(invocation -> {
             service.shutdown();
             return null;
         });
         service.start();
 
         assertTrue(service.isTerminated());
-        verify(queue, times(2)).take();
     }
 
-    public void testQueueTake_ThrowingInterruptedException_TerminatesService() throws Exception {
+    public void testSleep_ThrowingInterruptedException_TerminatesService() throws Exception {
         @SuppressWarnings("unchecked")
         BlockingQueue<RejectableTask> queue = mock(LinkedBlockingQueue.class);
-        when(queue.take()).thenThrow(new InterruptedException("failed"));
+        var sleeper = mock(RequestExecutorService.Sleeper.class);
+        doThrow(new InterruptedException("failed")).when(sleeper).sleep(any());
 
-        var service = new RequestExecutorServiceOld(
-            getTestName(),
+        var service = new RequestExecutorService(
             threadPool,
             mockQueueCreator(queue),
             null,
             createRequestExecutorServiceSettingsEmpty(),
-            new SingleRequestManager(mock(RetryingHttpSender.class))
+            mock(RetryingHttpSender.class),
+            null,
+            Duration.ofDays(2),
+            Clock.systemUTC(),
+            sleeper
         );
 
         Future<?> executorTermination = threadPool.generic().submit(() -> {
@@ -342,43 +343,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
         assertTrue(service.isTerminated());
-        verify(queue, times(1)).take();
-    }
-
-    public void testQueueTake_RejectsTask_WhenServiceShutsDown() throws Exception {
-        var mockTask = mock(RejectableTask.class);
-        @SuppressWarnings("unchecked")
-        BlockingQueue<RejectableTask> queue = mock(LinkedBlockingQueue.class);
-
-        var service = new RequestExecutorServiceOld(
-            "test_service",
-            threadPool,
-            mockQueueCreator(queue),
-            null,
-            createRequestExecutorServiceSettingsEmpty(),
-            new SingleRequestManager(mock(RetryingHttpSender.class))
-        );
-
-        doAnswer(invocation -> {
-            service.shutdown();
-            return mockTask;
-        }).doReturn(new NoopTask()).when(queue).take();
-
-        service.start();
-
-        assertTrue(service.isTerminated());
-        verify(queue, times(1)).take();
-
-        ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
-        verify(mockTask, times(1)).onRejection(argument.capture());
-        assertThat(argument.getValue(), instanceOf(EsRejectedExecutionException.class));
-        assertThat(
-            argument.getValue().getMessage(),
-            is("Failed to send request, queue service [test_service] has shutdown prior to executing request")
-        );
-
-        var rejectionException = (EsRejectedExecutionException) argument.getValue();
-        assertTrue(rejectionException.isExecutorShutdown());
     }
 
     public void testChangingCapacity_SetsCapacityToTwo() throws ExecutionException, InterruptedException, TimeoutException {
@@ -402,7 +366,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var waitToShutdown = new CountDownLatch(1);
         var waitToReturnFromSend = new CountDownLatch(1);
         // There is a request already queued, and its execution path will initiate shutting down the service
-        // TODO I think we need this to do the listener.onResponse?
         doAnswer(invocation -> {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
@@ -425,11 +388,21 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var settings = createRequestExecutorServiceSettings(3);
         var service = new RequestExecutorService(threadPool, null, settings, requestSender);
 
-        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
-        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
+        service.execute(
+            RequestManagerTests.createMock(requestSender, "id"),
+            new DocumentsOnlyInput(List.of()),
+            null,
+            new PlainActionFuture<>()
+        );
+        service.execute(
+            RequestManagerTests.createMock(requestSender, "id"),
+            new DocumentsOnlyInput(List.of()),
+            null,
+            new PlainActionFuture<>()
+        );
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        var requestManager = RequestManagerTests.createMock(requestSender);
+        var requestManager = RequestManagerTests.createMock(requestSender, "id");
         service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
         assertThat(service.queueSize(), is(3));
 
@@ -459,7 +432,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         );
         assertThat(
             thrownException.getMessage(),
-            is("Failed to send request, queue service [test_service] has shutdown prior to executing request")
+            is("Failed to send request, queue service for inference entity [id] has shutdown prior to executing request")
         );
         assertTrue(thrownException.isExecutorShutdown());
     }
@@ -476,13 +449,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(RequestManagerTests.createMock(requestSender, "id"), new DocumentsOnlyInput(List.of()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to execute task because the http executor service [test_service] queue is full")
-        );
+        assertThat(thrownException.getMessage(), is("Failed to execute task because the executor service [id] queue is full"));
 
         settings.setQueueCapacity(0);
 

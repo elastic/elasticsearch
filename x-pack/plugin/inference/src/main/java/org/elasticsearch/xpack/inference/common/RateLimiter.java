@@ -155,11 +155,6 @@ public class RateLimiter {
         }
     }
 
-    // TODO remove
-    public TimeValue timeToReserve2(int tokens) {
-        return TimeValue.timeValueSeconds(1);
-    }
-
     private static long microsBetweenExact(Instant start, Instant end) {
         try {
             return ChronoUnit.MICROS.between(start, end);

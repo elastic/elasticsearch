@@ -25,7 +25,11 @@ import static org.mockito.Mockito.when;
 
 public class RequestManagerTests {
     public static RequestManager createMock() {
-        return mock(RequestManager.class);
+        return createMock(mock(RequestSender.class));
+    }
+
+    public static RequestManager createMock(String inferenceEntityId) {
+        return createMock(mock(RequestSender.class), inferenceEntityId);
     }
 
     public static RequestManager createMock(RequestSender requestSender) {
@@ -41,7 +45,7 @@ public class RequestManagerTests {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[5];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
             requestSender.send(
                 mock(Logger.class),
                 RequestTests.mockRequest(inferenceEntityId),

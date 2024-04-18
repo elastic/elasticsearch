@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -214,8 +215,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.field("hits", hits);
                 builder.field("misses", misses);
                 builder.field("evictions", evictions);
-                builder.field("hits_time_in_millis", hitsTimeInMillis);
-                builder.field("misses_time_in_millis", missesTimeInMillis);
+                builder.humanReadableField("hits_time_in_millis", "hits_time", new TimeValue(hitsTimeInMillis));
+                builder.humanReadableField("misses_time_in_millis", "misses_time", new TimeValue(missesTimeInMillis));
                 return builder;
             }
 

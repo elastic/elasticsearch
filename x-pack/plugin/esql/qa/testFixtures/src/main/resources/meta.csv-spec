@@ -193,31 +193,31 @@ tan           |angle                               |"double|integer|long|unsigne
 tanh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 tau           |null                                |null                                                                                                                              |null
 to_base64     |string                              |"keyword|text"                                                                                                                    |A string.
-to_bool       |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |[""]
-to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |[""]
-to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |[""]
-to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |[""]
-to_datetime   |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |[""]
-to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_degrees    |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-to_double     |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_dt         |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |[""]
-to_geopoint   |field                               |"geo_point|keyword|text"                                                                                                          |[""]
-to_geoshape   |field                               |"geo_point|geo_shape|keyword|text"                                                                                                |[""]
-to_int        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_integer    |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_ip         |field                               |"ip|keyword|text"                                                                                                                 |[""]
-to_long       |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
+to_bool       |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_datetime   |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_degrees    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
+to_double     |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_dt         |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_geopoint   |field                               |"geo_point|keyword|text"                                                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_geoshape   |field                               |"geo_point|geo_shape|keyword|text"                                                                                                |Input value. The input can be a single- or multi-valued column or an expression.
+to_int        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_integer    |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_ip         |field                               |"ip|keyword|text"                                                                                                                 |Input value. The input can be a single- or multi-valued column or an expression.
+to_long       |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_lower      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
-to_radians    |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |[""]
-to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |[""]
-to_ul         |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_ulong      |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_unsigned_lo|field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
+to_radians    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
+to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_ul         |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_ulong      |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_unsigned_lo|field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
 to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
-to_ver        |field                               |"keyword|text|version"                                                                                                            |[""]
-to_version    |field                               |"keyword|text|version"                                                                                                            |[""]
+to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
+to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 ;
@@ -307,28 +307,28 @@ tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric fu
 tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
 tau           |Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
 to_base64     |Encode a string to a base64 string.
-to_bool       |Converts an input value to a boolean value.
-to_boolean    |Converts an input value to a boolean value.
-to_cartesianpo|Converts an input value to a point value.
-to_cartesiansh|Converts an input value to a shape value.
-to_datetime   |Converts an input value to a date value.
-to_dbl        |Converts an input value to a double value.
-to_degrees    |Converts a number in radians to degrees.
-to_double     |Converts an input value to a double value.
-to_dt         |Converts an input value to a date value.
-to_geopoint   |Converts an input value to a geo_point value.
-to_geoshape   |Converts an input value to a geo_shape value.
-to_int        |Converts an input value to an integer value.
-to_integer    |Converts an input value to an integer value.
+to_bool       |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
+to_boolean    |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
+to_cartesianpo|Converts an input value to a `cartesian_point` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
+to_cartesiansh|Converts an input value to a `cartesian_shape` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+to_datetime   |Converts an input value to a date value. A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use <<esql-date_parse>>.
+to_dbl        |Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
+to_degrees    |Converts a number in {wikipedia}/Radian[radians] to {wikipedia}/Degree_(angle)[degrees].
+to_double     |Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
+to_dt         |Converts an input value to a date value. A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use <<esql-date_parse>>.
+to_geopoint   |Converts an input value to a `geo_point` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
+to_geoshape   |Converts an input value to a `geo_shape` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+to_int        |Converts an input value to an integer value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to integer. Boolean *true* will be converted to integer *1*, *false* to *0*.
+to_integer    |Converts an input value to an integer value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to integer. Boolean *true* will be converted to integer *1*, *false* to *0*.
 to_ip         |Converts an input string to an IP value.
-to_long       |Converts an input value to a long value.
+to_long       |Converts an input value to a long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to long. Boolean *true* will be converted to long *1*, *false* to *0*.
 to_lower      |Returns a new string representing the input string converted to lower case.
-to_radians    |Converts a number in degrees to radians.
-to_str        |Converts a field into a string.
-to_string     |Converts a field into a string.
-to_ul         |Converts an input value to an unsigned long value.
-to_ulong      |Converts an input value to an unsigned long value.
-to_unsigned_lo|Converts an input value to an unsigned long value.
+to_radians    |Converts a number in {wikipedia}/Degree_(angle)[degrees] to {wikipedia}/Radian[radians].
+to_str        |Converts an input value into a string.
+to_string     |Converts an input value into a string.
+to_ul         |Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
+to_ulong      |Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
+to_unsigned_lo|Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
 to_upper      |Returns a new string representing the input string converted to upper case.
 to_ver        |Converts an input string to a version value.
 to_version    |Converts an input string to a version value.

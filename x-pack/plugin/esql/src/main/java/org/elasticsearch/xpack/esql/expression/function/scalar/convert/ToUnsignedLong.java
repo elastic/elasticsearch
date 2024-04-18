@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -47,12 +48,20 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "unsigned_long", description = "Converts an input value to an unsigned long value.")
+    @FunctionInfo(
+        returnType = "unsigned_long",
+        description = "Converts an input value to an unsigned long value.\nIf the input parameter is of a date type, "
+            + "its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], "
+            + "converted to unsigned long.\n"
+            + "Boolean *true* will be converted to unsigned long *1*, *false* to *0*.",
+        examples = @Example(file = "ints", tag = "to_unsigned_long-str")
+    )
     public ToUnsignedLong(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);

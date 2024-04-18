@@ -4,10 +4,8 @@
 
 *Syntax*
 
-[source,esql]
-----
-TO_LONG(v)
-----
+[.text-center]
+image::esql/functions/signature/to_long.svg[Embedded,opts=inline]
 
 *Parameters*
 
@@ -23,9 +21,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to long.
 
 Boolean *true* will be converted to long *1*, *false* to *0*.
 
-*Supported types*
-
-The input type must be of a boolean, date, string or numeric type.
+include::types/to_long.asciidoc[]
 
 *Example*
 

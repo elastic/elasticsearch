@@ -8,10 +8,8 @@
 
 *Syntax*
 
-[source,esql]
-----
-TO_DOUBLE(v)
-----
+[.text-center]
+image::esql/functions/signature/to_double.svg[Embedded,opts=inline]
 
 *Parameters*
 
@@ -27,9 +25,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double.
 
 Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
 
-*Supported types*
-
-The input type must be of a boolean, date, string or numeric type.
+include::types/to_double.asciidoc[]
 
 *Example*
 

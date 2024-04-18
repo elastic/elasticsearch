@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -44,12 +45,19 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new) // CastIntToDoubleEvaluator would be a candidate, but not MV'd
     );
 
-    @FunctionInfo(returnType = "double", description = "Converts an input value to a double value.")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Converts an input value to a double value.\nIf the input parameter is of a date type, "
+            + "its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], "
+            + "converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.",
+        examples = @Example(file = "floats", tag = "to_double-str")
+    )
     public ToDouble(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);

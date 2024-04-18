@@ -4,10 +4,8 @@
 
 *Syntax*
 
-[source,esql]
-----
-TO_IP(v)
-----
+[.text-center]
+image::esql/functions/signature/to_ip.svg[Embedded,opts=inline]
 
 *Parameters*
 
@@ -17,6 +15,8 @@ Input value. The input can be a single- or multi-valued column or an expression.
 *Description*
 
 Converts an input string to an IP value.
+
+include::types/to_ip.asciidoc[]
 
 *Example*
 

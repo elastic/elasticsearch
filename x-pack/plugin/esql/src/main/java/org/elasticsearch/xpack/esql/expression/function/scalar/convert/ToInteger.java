@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -45,12 +46,20 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "integer", description = "Converts an input value to an integer value.")
+    @FunctionInfo(
+        returnType = "integer",
+        description = "Converts an input value to an integer value.\n"
+            + "If the input parameter is of a date type, its value will be interpreted as milliseconds "
+            + "since the {wikipedia}/Unix_time[Unix epoch], converted to integer.\n"
+            + "Boolean *true* will be converted to integer *1*, *false* to *0*.",
+        examples = @Example(file = "ints", tag = "to_int-long")
+    )
     public ToInteger(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);

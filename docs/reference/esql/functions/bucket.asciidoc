@@ -4,10 +4,8 @@
 
 *Syntax*
 
-[source,esql]
-----
-BUCKET(expression, buckets, from, to)
-----
+[.text-center]
+image::esql/functions/signature/bucket.svg[Embedded,opts=inline]
 
 *Parameters*
 
@@ -27,6 +25,8 @@ End of the range. Can be a number or a date expressed as a string.
 
 Creates human-friendly buckets and returns a value for each row that corresponds
 to the resulting bucket the row falls into.
+
+include::types/bucket.asciidoc[]
 
 Using a target number of buckets, a start of a range, and an end of a range,
 `BUCKET` picks an appropriate bucket size to generate the target number of

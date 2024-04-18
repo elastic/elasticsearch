@@ -41,7 +41,7 @@ you want to create or update.
 [[slm-api-put-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[slm-api-put-request-body]]
@@ -55,7 +55,7 @@ Configuration for each snapshot created by the policy.
 [%collapsible%open]
 ====
 :page-id: put-slm-api
-include::{es-repo-dir}/snapshot-restore/apis/create-snapshot-api.asciidoc[tag=snapshot-config]
+include::{es-ref-dir}/snapshot-restore/apis/create-snapshot-api.asciidoc[tag=snapshot-config]
 :!page-id:
 ====
 

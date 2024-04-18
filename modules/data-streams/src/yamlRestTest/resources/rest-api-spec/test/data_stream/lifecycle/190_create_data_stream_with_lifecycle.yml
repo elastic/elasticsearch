@@ -1,8 +1,8 @@
 ---
 "Create data stream with lifecycle":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Data stream lifecycle was GA in 8.11"
       test_runner_features: allowed_warnings
   - do:
       allowed_warnings:
@@ -35,7 +35,5 @@
   - match: { data_streams.0.template: 'template-with-lifecycle' }
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.lifecycle.data_retention: '30d' }
-  - match: { data_streams.0.lifecycle.effective_retention: '30d'}
-  - match: { data_streams.0.lifecycle.retention_determined_by: 'data_stream_configuration'}
   - match: { data_streams.0.lifecycle.enabled: true }
   - is_true: data_streams.0.lifecycle.rollover

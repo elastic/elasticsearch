@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public abstract class MutedTestsBuildService implements BuildService<MutedTestsBuildService.Params> {
@@ -35,7 +36,7 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
         try (InputStream is = new BufferedInputStream(new FileInputStream(mutedTestsFile))) {
             ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
             List<MutedTest> mutedTests = objectMapper.readValue(is, MutedTests.class).getTests();
-            excludePatterns = buildExcludePatterns(mutedTests);
+            excludePatterns = buildExcludePatterns(mutedTests == null ? Collections.emptyList() : mutedTests);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

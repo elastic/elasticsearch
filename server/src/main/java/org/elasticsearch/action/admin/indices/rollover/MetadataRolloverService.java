@@ -360,7 +360,7 @@ public class MetadataRolloverService {
                         LongCounter counter = autoShardingResult.type() == AutoShardingType.INCREASE_SHARDS
                             ? increaseAutoShardCounter
                             : decreaseAutoShardCounter;
-                        counter.incrementBy(1L, Map.of("data_stream", dataStream.getName()));
+                        counter.increment();
 
                         yield new DataStreamAutoShardingEvent(
                             dataStream.getWriteIndex().getName(),

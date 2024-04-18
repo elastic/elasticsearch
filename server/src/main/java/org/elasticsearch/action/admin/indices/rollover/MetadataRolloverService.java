@@ -350,9 +350,11 @@ public class MetadataRolloverService {
                 (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))
             );
         } else {
-            LongCounter metricCounter = autoShardingMetricCounters.get(autoShardingResult.type());
-            if (metricCounter != null) {
-                metricCounter.increment();
+            if (autoShardingResult != null) {
+                LongCounter metricCounter = autoShardingMetricCounters.get(autoShardingResult.type());
+                if (metricCounter != null) {
+                    metricCounter.increment();
+                }
             }
 
             DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult == null

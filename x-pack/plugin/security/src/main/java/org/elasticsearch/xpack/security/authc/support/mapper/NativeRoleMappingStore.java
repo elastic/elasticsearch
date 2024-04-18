@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +77,17 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  */
 public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
 
+    /**
+     * This setting is never registered by the security plugin - in order to disable the native role APIs
+     * another plugin must register it as a boolean setting and cause it to be set to `false`.
+     *
+     * If this setting is set to <code>false</code> then
+     * <ul>
+     *     <li>the Rest APIs for native role mappings management are disabled.</li>
+     *     <li>The native role mappings store will not map any roles to any user.</li>
+     * </ul>
+     */
+    public static final String NATIVE_ROLE_MAPPINGS_ENABLED = "xpack.security.authc.native_role_mappings.enabled";
     private static final Logger logger = LogManager.getLogger(NativeRoleMappingStore.class);
     static final String DOC_TYPE_FIELD = "doc_type";
     static final String DOC_TYPE_ROLE_MAPPING = "role-mapping";
@@ -97,6 +107,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     private final ScriptService scriptService;
     private final boolean lastLoadCacheEnabled;
     private final AtomicReference<List<ExpressionRoleMapping>> lastLoadRef = new AtomicReference<>(null);
+    private final boolean enabled;
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
         this.settings = settings;
@@ -104,16 +115,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
         this.lastLoadCacheEnabled = LAST_LOAD_CACHE_ENABLED_SETTING.get(settings);
-    }
-
-    private static String getNameFromId(String id) {
-        assert id.startsWith(ID_PREFIX);
-        return id.substring(ID_PREFIX.length());
-    }
-
-    // package-private for testing
-    static String getIdForName(String name) {
-        return ID_PREFIX + name;
+        this.enabled = settings.getAsBoolean(NATIVE_ROLE_MAPPINGS_ENABLED, true);
     }
 
     /**
@@ -121,6 +123,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
      * <em>package private</em> for unit testing
      */
     protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
+        if (enabled == false) {
+            listener.onResponse(List.of());
+            return;
+        }
         if (securityIndex.isIndexUpToDate() == false) {
             listener.onFailure(
                 new IllegalStateException(
@@ -156,25 +162,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
                         () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),
                         ex
                     );
-                    listener.onResponse(Collections.emptyList());
+                    listener.onResponse(List.of());
                 })),
                 doc -> buildMapping(getNameFromId(doc.getId()), doc.getSourceRef())
             );
-        }
-    }
-
-    protected static ExpressionRoleMapping buildMapping(String id, BytesReference source) {
-        try (
-            XContentParser parser = XContentHelper.createParserNotCompressed(
-                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
-                source,
-                XContentType.JSON
-            )
-        ) {
-            return ExpressionRoleMapping.parse(id, parser);
-        } catch (Exception e) {
-            logger.warn(() -> "Role mapping [" + id + "] cannot be parsed and will be skipped", e);
-            return null;
         }
     }
 
@@ -182,6 +173,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
      * Stores (create or update) a single mapping in the index
      */
     public void putRoleMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role mapping management is disabled"));
+            return;
+        }
         // Validate all templates before storing the role mapping
         for (TemplateRoleName templateRoleName : request.getRoleTemplates()) {
             templateRoleName.validate(scriptService);
@@ -193,6 +188,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
      * Deletes a named mapping from the index
      */
     public void deleteRoleMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role mapping management is disabled"));
+            return;
+        }
         modifyMapping(request.getName(), this::innerDeleteMapping, request, listener);
     }
 
@@ -227,6 +226,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     private void innerPutMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role mapping management is disabled"));
+            return;
+        }
         final ExpressionRoleMapping mapping = request.getMapping();
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
@@ -264,6 +267,10 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role mapping management is disabled"));
+            return;
+        }
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
@@ -305,7 +312,9 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
      * Otherwise it retrieves the specified mappings by name.
      */
     public void getRoleMappings(Set<String> names, ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (names == null || names.isEmpty()) {
+        if (enabled == false) {
+            listener.onResponse(List.of());
+        } else if (names == null || names.isEmpty()) {
             getMappings(listener);
         } else {
             getMappings(listener.safeMap(mappings -> mappings.stream().filter(m -> names.contains(m.getName())).toList()));
@@ -313,10 +322,14 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     }
 
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
+        if (enabled == false) {
+            listener.onResponse(List.of());
+            return;
+        }
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("The security index does not exist - no role mappings can be loaded");
-            listener.onResponse(Collections.emptyList());
+            listener.onResponse(List.of());
             return;
         }
         final List<ExpressionRoleMapping> lastLoad = lastLoadRef.get();
@@ -327,7 +340,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
                 listener.onResponse(lastLoad);
             } else {
                 logger.debug("The security index exists but is closed - no role mappings can be loaded");
-                listener.onResponse(Collections.emptyList());
+                listener.onResponse(List.of());
             }
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             final ElasticsearchException unavailableReason = frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
@@ -363,18 +376,13 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
      * </ul>
      */
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        if (securityIndex.indexIsClosed() || securityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            reportStats(listener, Collections.emptyList());
+        if (enabled == false) {
+            reportStats(listener, List.of());
+        } else if (securityIndex.indexIsClosed() || securityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            reportStats(listener, List.of());
         } else {
             getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));
         }
-    }
-
-    private static void reportStats(ActionListener<Map<String, Object>> listener, List<ExpressionRoleMapping> mappings) {
-        Map<String, Object> usageStats = new HashMap<>();
-        usageStats.put("size", mappings.size());
-        usageStats.put("enabled", mappings.stream().filter(ExpressionRoleMapping::isEnabled).count());
-        listener.onResponse(usageStats);
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
@@ -404,5 +412,37 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
             logger.debug("Mapping user [{}] to roles [{}]", user, roles);
             listener.onResponse(roles);
         }, listener::onFailure));
+    }
+
+    protected static ExpressionRoleMapping buildMapping(String id, BytesReference source) {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                source,
+                XContentType.JSON
+            )
+        ) {
+            return ExpressionRoleMapping.parse(id, parser);
+        } catch (Exception e) {
+            logger.warn(() -> "Role mapping [" + id + "] cannot be parsed and will be skipped", e);
+            return null;
+        }
+    }
+
+    // package-private for testing
+    static String getIdForName(String name) {
+        return ID_PREFIX + name;
+    }
+
+    private static void reportStats(ActionListener<Map<String, Object>> listener, List<ExpressionRoleMapping> mappings) {
+        Map<String, Object> usageStats = new HashMap<>();
+        usageStats.put("size", mappings.size());
+        usageStats.put("enabled", mappings.stream().filter(ExpressionRoleMapping::isEnabled).count());
+        listener.onResponse(usageStats);
+    }
+
+    private static String getNameFromId(String id) {
+        assert id.startsWith(ID_PREFIX);
+        return id.substring(ID_PREFIX.length());
     }
 }

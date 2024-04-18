@@ -156,7 +156,7 @@ aliases. Otherwise, these are index aliases. Data stream aliases ignore the
 `index_routing`, `routing`, and `search_routing` options.
 // end::template-ds-alias[]
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
 

@@ -39,9 +39,9 @@ nested is disabled:
 
 ---
 object with unmapped fields:
-  - skip:
-      version: " - 8.13.99"
-      reason: introduced in 8.14.0
+  - requires:
+      cluster_features: ["mapper.track_ignored_values"]
+      reason: requires tracking ignored values
 
   - do:
       indices.create:
@@ -91,9 +91,9 @@ object with unmapped fields:
 
 ---
 nested object with unmapped fields:
-  - skip:
-      version: " - 8.13.99"
-      reason: introduced in 8.14.0
+  - requires:
+      cluster_features: ["mapper.track_ignored_values"]
+      reason: requires tracking ignored values
 
   - do:
       indices.create:
@@ -142,9 +142,9 @@ nested object with unmapped fields:
 
 ---
 empty object with unmapped fields:
-  - skip:
-      version: " - 8.13.99"
-      reason: introduced in 8.14.0
+  - requires:
+      cluster_features: ["mapper.track_ignored_values"]
+      reason: requires tracking ignored values
 
   - do:
       indices.create:

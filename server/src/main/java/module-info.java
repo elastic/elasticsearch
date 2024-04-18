@@ -423,6 +423,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;

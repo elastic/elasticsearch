@@ -13,6 +13,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -46,6 +47,15 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(context -> INSTANCE);
 
+    static final NodeFeature TRACK_IGNORED_VALUES = new NodeFeature("mapper.track_ignored_values");
+
+    /*
+     * Container for the ignored field data:
+     *  - the full name
+     *  - the offset in the full name indicating the end of the substring matching
+     *    the full name of the parent field
+     *  - the value, encoded as a byte array
+     */
     public record Values(String name, int parentOffset, BytesRef value) {}
 
     static final class IgnoredValuesFieldMapperType extends StringFieldType {

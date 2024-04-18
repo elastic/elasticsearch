@@ -76,10 +76,14 @@ public class MetadataRolloverService {
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
     public static final Settings HIDDEN_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
     public static final Map<AutoShardingType, String> AUTO_SHARDING_METRIC_NAMES = Map.of(
-        AutoShardingType.INCREASE_SHARDS, "es.auto_sharding.increase_shards.total",
-        AutoShardingType.DECREASE_SHARDS,"es.auto_sharding.decrease_shards.total",
-        AutoShardingType.COOLDOWN_PREVENTED_INCREASE, "es.auto_sharding.cooldown_prevented_increase.total",
-        AutoShardingType.COOLDOWN_PREVENTED_DECREASE, "es.auto_sharding.cooldown_prevented_decrease.total"
+        AutoShardingType.INCREASE_SHARDS,
+        "es.auto_sharding.increase_shards.total",
+        AutoShardingType.DECREASE_SHARDS,
+        "es.auto_sharding.decrease_shards.total",
+        AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
+        "es.auto_sharding.cooldown_prevented_increase.total",
+        AutoShardingType.COOLDOWN_PREVENTED_DECREASE,
+        "es.auto_sharding.cooldown_prevented_decrease.total"
     );
 
     private final ThreadPool threadPool;
@@ -106,7 +110,6 @@ public class MetadataRolloverService {
         this.systemIndices = systemIndices;
         this.writeLoadForecaster = writeLoadForecaster;
         this.clusterService = clusterService;
-
 
         for (var entry : AUTO_SHARDING_METRIC_NAMES.entrySet()) {
             final AutoShardingType type = entry.getKey();

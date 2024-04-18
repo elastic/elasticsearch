@@ -622,11 +622,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
             .numberOfReplicas(1);
     }
 
-    private static void assertTelemetry(
-        TestTelemetryPlugin telemetryPlugin,
-        String presentMetric,
-        List<String> missingMetrics
-    ) {
+    private static void assertTelemetry(TestTelemetryPlugin telemetryPlugin, String presentMetric, List<String> missingMetrics) {
         if (presentMetric != null) {
             final List<Measurement> measurements = telemetryPlugin.getLongCounterMeasurement(presentMetric);
             assertThat(measurements, hasSize(1));

@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.search.vectors.SparseVectorQueryBuilder.PRUNING_CONFIG;
+import static org.elasticsearch.search.vectors.SparseVectorQueryBuilder.PRUNING_CONFIG_FIELD;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");
@@ -149,7 +149,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 ).contains(currentFieldName) == false) {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG_FIELD.getPreferredName() + "] unknown token [" + currentFieldName + "]"
                     );
                 }
             } else if (token.isValue()) {
@@ -162,13 +162,13 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG.getPreferredName() + "] does not support [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG_FIELD.getPreferredName() + "] does not support [" + currentFieldName + "]"
                     );
                 }
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                    "[" + PRUNING_CONFIG_FIELD.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
                 );
             }
         }

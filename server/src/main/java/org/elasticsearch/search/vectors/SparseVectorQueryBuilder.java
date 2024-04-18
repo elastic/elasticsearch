@@ -24,31 +24,45 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
     public static final String NAME = "sparse_vector";
+    public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
+    public static final ParseField PRUNE_FIELD = new ParseField("prune");
+    public static final ParseField PRUNING_CONFIG_FIELD = new ParseField("pruning_config");
 
-    public static final ParseField TOKENS_FIELD = new ParseField("tokens");
-    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
+    private static final boolean DEFAULT_PRUNE = false;
     private final String fieldName;
     private final List<WeightedToken> tokens;
+    private final Boolean shouldPruneTokens;
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
     public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> tokens) {
-        this(fieldName, tokens, null);
+        this(fieldName, tokens, DEFAULT_PRUNE, null);
     }
 
-    public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
+    public SparseVectorQueryBuilder(
+        String fieldName,
+        List<WeightedToken> tokens,
+        @Nullable Boolean shouldPruneTokens,
+        @Nullable TokenPruningConfig tokenPruningConfig
+    ) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
+        this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
             throw new IllegalArgumentException("[" + NAME + "] requires at least one token");
@@ -59,7 +73,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.tokens = in.readCollectionAsList(WeightedToken::new);
+        this.shouldPruneTokens = in.readOptionalBoolean();
+        this.tokens = in.readOptionalCollectionAsList(WeightedToken::new);
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
@@ -75,24 +90,25 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeCollection(tokens);
+        out.writeOptionalBoolean(shouldPruneTokens);
+        out.writeOptionalCollection(tokens);
         out.writeOptionalWriteable(tokenPruningConfig);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.startObject(fieldName);
-        builder.startObject(TOKENS_FIELD.getPreferredName());
+        builder.field(FIELD_FIELD.getPreferredName(), fieldName);
+        builder.startObject(QUERY_VECTOR_FIELD.getPreferredName());
         for (var token : tokens) {
             token.toXContent(builder, params);
         }
         builder.endObject();
+        builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
         if (tokenPruningConfig != null) {
-            builder.field(PRUNING_CONFIG.getPreferredName(), tokenPruningConfig);
+            builder.field(PRUNING_CONFIG_FIELD.getPreferredName(), tokenPruningConfig);
         }
         boostAndQueryNameToXContent(builder);
-        builder.endObject();
         builder.endObject();
     }
 
@@ -225,56 +241,31 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         );
     }
 
-    public static SparseVectorQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        String currentFieldName = null;
-        String fieldName = null;
-        List<WeightedToken> tokens = new ArrayList<>();
-        TokenPruningConfig tokenPruningConfig = null;
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        String queryName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
-                fieldName = currentFieldName;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (PRUNING_CONFIG.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (token != XContentParser.Token.START_OBJECT) {
-                            throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "[" + PRUNING_CONFIG.getPreferredName() + "] should be an object"
-                            );
-                        }
-                        tokenPruningConfig = TokenPruningConfig.fromXContent(parser);
-                    } else if (TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        var tokensMap = parser.map();
-                        for (var e : tokensMap.entrySet()) {
-                            tokens.add(new WeightedToken(e.getKey(), parseWeight(e.getKey(), e.getValue())));
-                        }
-                    } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        boost = parser.floatValue();
-                    } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        queryName = parser.text();
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "unknown field [" + currentFieldName + "]");
-                    }
-                }
-            } else {
-                throw new IllegalArgumentException("invalid query");
-            }
-        }
+    private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
+        String fieldName = (String) a[0];
+        @SuppressWarnings("unchecked")
+        Map<String, Double> weightedTokenMap = (Map<String, Double>) a[1];
+        List<WeightedToken> weightedTokens = weightedTokenMap.entrySet()
+            .stream()
+            .map(e -> new WeightedToken(e.getKey(), e.getValue().floatValue()))
+            .toList();
+        Boolean shouldPruneTokens = (Boolean) a[2];
+        TokenPruningConfig tokenPruningConfig = (TokenPruningConfig) a[3];
+        return new SparseVectorQueryBuilder(fieldName, weightedTokens, shouldPruneTokens, tokenPruningConfig);
+    });
+    static {
+        PARSER.declareString(constructorArg(), FIELD_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), QUERY_VECTOR_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), PRUNE_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TokenPruningConfig.fromXContent(p), PRUNING_CONFIG_FIELD);
+        declareStandardFields(PARSER);
+    }
 
-        if (fieldName == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
+    public static SparseVectorQueryBuilder fromXContent(XContentParser parser) {
+        try {
+            return PARSER.apply(parser, null);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
-
-        var qb = new SparseVectorQueryBuilder(fieldName, tokens, tokenPruningConfig);
-        qb.queryName(queryName);
-        qb.boost(boost);
-        return qb;
     }
 }

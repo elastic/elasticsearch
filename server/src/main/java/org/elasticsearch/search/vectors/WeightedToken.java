@@ -8,17 +8,28 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
 
-public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
+public class WeightedToken implements Writeable, ToXContentFragment {
+
+    private final String token;
+    private final float weight;
+
+    public WeightedToken(String token, float weight) {
+        this.token = token;
+        this.weight = weight;
+    }
 
     public WeightedToken(StreamInput in) throws IOException {
         this(in.readString(), in.readFloat());
@@ -43,5 +54,26 @@ public record WeightedToken(String token, float weight) implements Writeable, To
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public String token() {
+        return token;
+    }
+
+    public float weight() {
+        return weight;
+    }
+
+    private static final ConstructingObjectParser<WeightedToken, String> PARSER = new ConstructingObjectParser<>(
+        "query_vector",
+        a -> new WeightedToken((String) a[0], (float) a[1])
+    );
+
+    public static WeightedToken fromXContent(XContentParser parser) {
+        try {
+            return PARSER.apply(parser, null);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
+        }
     }
 }

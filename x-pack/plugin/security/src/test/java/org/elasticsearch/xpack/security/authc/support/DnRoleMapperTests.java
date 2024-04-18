@@ -107,7 +107,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             DnRoleMapper mapper = createMapper(file, watcherService);
-            mapper.refreshRealmOnChange(mockCachingRealm(randomAlphaOfLength(8), latch));
+            mapper.clearRealmCacheOnChange(mockCachingRealm(randomAlphaOfLength(8), latch));
 
             Set<String> roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
             assertThat(roles, notNullValue());
@@ -151,7 +151,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             DnRoleMapper mapper = createMapper(file, watcherService);
-            mapper.refreshRealmOnChange(mockCachingRealm(randomAlphaOfLength(8), latch));
+            mapper.clearRealmCacheOnChange(mockCachingRealm(randomAlphaOfLength(8), latch));
 
             Set<String> roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
             assertThat(roles, notNullValue());

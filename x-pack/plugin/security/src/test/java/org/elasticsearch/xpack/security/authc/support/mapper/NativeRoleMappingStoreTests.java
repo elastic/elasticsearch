@@ -552,7 +552,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 localInvalidationCounter.incrementAndGet();
                 return null;
             }).when(mockRealm).expireAll();
-            store.refreshRealmOnChange(mockRealm);
+            store.clearRealmCacheOnChange(mockRealm);
         }
         return store;
     }

@@ -25,6 +25,10 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+/**
+ * This is the base class for {@link UserRoleMapper} implementations that need to notify registered {@link CachingRealm}s,
+ * when the role mapping rules change, to invalidate their caches that could rely on the obsolete role mapping rules.
+ */
 public abstract class AbstractRoleMapperClearRealmCache implements UserRoleMapper {
 
     private static final Logger logger = LogManager.getLogger(AbstractRoleMapperClearRealmCache.class);
@@ -32,15 +36,19 @@ public abstract class AbstractRoleMapperClearRealmCache implements UserRoleMappe
     private final List<Runnable> localRealmCacheInvalidators = new CopyOnWriteArrayList<>();
 
     /**
-     * Indicates that the provided realm should have its cache cleared if this store is updated
+     * Indicates that the provided realm should have its cache cleared if this store is updated.
      * @see ClearRealmCacheAction
      */
     @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
+    public void clearRealmCacheOnChange(CachingRealm realm) {
         realmNamesToClearCaches.add(realm.name());
         localRealmCacheInvalidators.add(realm::expireAll);
     }
 
+    /**
+     * {@link UserRoleMapper} implementations should be calling this method after role mappings changed,
+     * in order to clear realm caches across the cluster.
+     */
     protected void clearRealmCachesOnAllNodes(Client client, ActionListener<Void> listener) {
         if (realmNamesToClearCaches.isEmpty()) {
             listener.onResponse(null);
@@ -63,6 +71,10 @@ public abstract class AbstractRoleMapperClearRealmCache implements UserRoleMappe
     }
 
     // public for testing
+    /**
+     * {@link UserRoleMapper} implementations should be calling this method after role mappings changed,
+     * in order to clear realm caches on the local node only.
+     */
     public void clearRealmCachesOnLocalNode() {
         localRealmCacheInvalidators.forEach(Runnable::run);
     }

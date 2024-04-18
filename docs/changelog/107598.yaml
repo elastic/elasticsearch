@@ -1,0 +1,5 @@
+pr: 107598
+summary: Fix bulk NPE when retrying failure redirect after cluster block
+area: Data streams
+type: bug
+issues: []

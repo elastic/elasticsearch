@@ -59,6 +59,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.CURRENT_VERSION;
@@ -101,6 +102,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final String blobName;
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
+    private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
     private volatile boolean frozen = false;
 
@@ -109,7 +111,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         String nodeEphemeralId,
         long primaryTerm,
         long generation,
-        Function<String, BlobLocation> uploadedBlobLocationsSupplier
+        Function<String, BlobLocation> uploadedBlobLocationsSupplier,
+        LongSupplier timeInMillisSupplier
     ) {
         this.shardId = shardId;
         this.nodeEphemeralId = nodeEphemeralId;
@@ -117,6 +120,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
         this.blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+        this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
     }
 
     /**
@@ -358,6 +362,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return internalLocations;
     }
 
+    public long getCreationTimeInMillis() {
+        return creationTimeInMillis;
+    }
+
     public StatelessCompoundCommit lastCompoundCommit() {
         assert pendingCompoundCommits.isEmpty() == false;
         return pendingCompoundCommits.last().getStatelessCompoundCommit();
@@ -384,6 +392,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     List<PendingCompoundCommit> getPendingCompoundCommits() {
         return List.copyOf(pendingCompoundCommits);
+    }
+
+    int size() {
+        return pendingCompoundCommits.size();
     }
 
     Set<PrimaryTermAndGeneration> getPendingCompoundCommitGenerations() {

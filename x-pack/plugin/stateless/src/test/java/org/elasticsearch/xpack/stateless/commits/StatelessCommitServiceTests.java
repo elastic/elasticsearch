@@ -62,6 +62,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -72,6 +73,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -105,6 +107,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessCommitServiceTests extends ESTestCase {
 
@@ -1749,6 +1752,106 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             assertThat(deletedCommits, equalTo(staleCommits(initialCommits, shardId)));
+        }
+    }
+
+    public void testScheduledCommitUpload() throws Exception {
+        final Set<NewCommitNotificationRequest> newCommitNotificationRequests = ConcurrentCollections.newConcurrentSet();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                    .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueMillis(50))
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueMillis(30))
+                    // TODO: ES-8152 enable BCC with more than one CC when the settings are ready
+                    .build();
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return new NoOpNodeClient(threadPool) {
+                    @SuppressWarnings("unchecked")
+                    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        assert action == TransportNewCommitNotificationAction.TYPE;
+                        final var newCommitNotificationRequest = (NewCommitNotificationRequest) request;
+                        // should not see any duplicate notifications
+                        assertThat(newCommitNotificationRequests, not(hasItem(newCommitNotificationRequest)));
+                        newCommitNotificationRequests.add(newCommitNotificationRequest);
+                        ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
+                    }
+                };
+            }
+
+            @Override
+            protected StatelessCommitService createCommitService() {
+                return new StatelessCommitService(
+                    nodeSettings,
+                    objectStoreService,
+                    () -> clusterService.localNode().getEphemeralId(),
+                    this::getShardRoutingTable,
+                    clusterService.threadPool(),
+                    client,
+                    getCommitCleaner(),
+                    createAllNodesResolveBCCReferencesLocallySupplier()
+                ) {
+                    @Override
+                    protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm) {
+                        return new ShardCommitState(shardId, primaryTerm) {
+                            @Override
+                            protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
+                                return false; // NO regular upload
+                            }
+                        };
+                    }
+                };
+            }
+        }) {
+            final List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(between(5, 8));
+            for (var commitRef : commitRefs) {
+                testHarness.commitService.onCommitCreation(commitRef);
+                // randomly delay a bit to allow more interleaving between indexing and scheduled upload
+                safeSleep(randomLongBetween(10, 30));
+            }
+
+            // Assert all commits are uploaded
+            assertBusy(() -> {
+                assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
+                assertThat(testHarness.commitService.hasPendingBccUploads(testHarness.shardId), is(false));
+                final BlobContainer blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+                final List<BatchedCompoundCommit> allBatchedCompoundCommits = blobContainer.listBlobs(OperationPurpose.INDICES)
+                    .values()
+                    .stream()
+                    .filter(blobMetadata -> StatelessCompoundCommit.startsWithBlobPrefix(blobMetadata.name()))
+                    .map(blobMetadata -> {
+                        try {
+                            return BatchedCompoundCommit.readFromStore(
+                                blobMetadata.name(),
+                                blobMetadata.length(),
+                                (blobName, offset, length) -> new InputStreamStreamInput(
+                                    blobContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
+                                )
+                            );
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    })
+                    .toList();
+
+                assertThat(allBatchedCompoundCommits, not(empty()));
+                final List<Long> expectedCcGenerations = commitRefs.stream().map(StatelessCommitRef::getGeneration).toList();
+                assertThat(
+                    allBatchedCompoundCommits.stream()
+                        .flatMap(bcc -> bcc.compoundCommits().stream().map(StatelessCompoundCommit::generation))
+                        .toList(),
+                    equalTo(expectedCcGenerations)
+                );
+            });
         }
     }
 

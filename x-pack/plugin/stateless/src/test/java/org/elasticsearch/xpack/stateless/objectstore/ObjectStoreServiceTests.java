@@ -322,7 +322,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         "node-id",
                         primaryTerm,
                         firstCommitGeneration,
-                        uploadedBlobLocations::get
+                        uploadedBlobLocations::get,
+                        ESTestCase::randomNonNegativeLong
                     )
                 ) {
                     for (StatelessCommitRef statelessCommitRef : indexCommits) {

@@ -49,6 +49,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -78,6 +79,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -119,6 +121,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /**
+     * How long can a VBCC exists before the upload monitor task can trigger its upload
+     */
+    public static final Setting<TimeValue> STATELESS_UPLOAD_VBCC_MAX_AGE = Setting.positiveTimeSetting(
+        "stateless.upload.max_age",
+        TimeValue.timeValueSeconds(300),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How frequently the upload monitor should check the age of current VBCC and potentially trigger its upload
+     */
+    public static final Setting<TimeValue> STATELESS_UPLOAD_MONITOR_INTERVAL = Setting.positiveTimeSetting(
+        "stateless.upload.monitor.interval",
+        TimeValue.timeValueSeconds(30),
+        Setting.Property.NodeScope
+    );
+
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
     private final Function<ShardId, IndexShardRoutingTable> shardRoutingFinder;
@@ -138,6 +158,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final ShardInactivityMonitor shardInactivityMonitor;
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final boolean statelessUploadDelayed;
+    private final TimeValue virtualBccUploadMaxAge;
+    private final ScheduledUploadMonitor scheduledUploadMonitor;
 
     public StatelessCommitService(
         Settings settings,
@@ -181,6 +203,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.statelessUploadDelayed = STATELESS_UPLOAD_DELAYED.get(settings);
+        this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
+        if (statelessUploadDelayed) {
+            this.scheduledUploadMonitor = new ScheduledUploadMonitor(
+                threadPool,
+                threadPool.generic(),
+                STATELESS_UPLOAD_MONITOR_INTERVAL.get(settings)
+            );
+        } else {
+            this.scheduledUploadMonitor = null;
+        }
     }
 
     public boolean isStatelessUploadDelayed() {
@@ -245,11 +277,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             shardInactivityMonitorInterval,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
+        if (statelessUploadDelayed) {
+            scheduledUploadMonitor.rescheduleIfNecessary();
+        }
     }
 
     @Override
     protected void doStop() {
         scheduledShardInactivityMonitorFuture.cancel();
+        if (statelessUploadDelayed) {
+            scheduledUploadMonitor.close();
+        } else {
+            assert scheduledUploadMonitor == null;
+        }
     }
 
     @Override
@@ -270,8 +310,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    //
-
     /**
      * Resends the latest commit notification, to the search shards, for any index shard that hasn't written anything in a while.
      *
@@ -286,6 +324,39 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
         });
+    }
+
+    /**
+     * A scheduled task that runs on a fixed interval to iterate through each shard to check whether its VBCC is older than
+     * configured {@code virtualBccUploadMaxAge} and trigger an upload in that case.
+     */
+    private class ScheduledUploadMonitor extends AbstractAsyncTask {
+
+        private ScheduledUploadMonitor(ThreadPool threadPool, Executor executor, TimeValue interval) {
+            super(logger, threadPool, executor, interval, true);
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return true;
+        }
+
+        @Override
+        protected void runInternal() {
+            shardsCommitsStates.forEach((shardId, commitState) -> {
+                if (closedOrRelocated(commitState.state)) {
+                    return;
+                }
+                final var virtualBcc = commitState.getCurrentVirtualBcc();
+                if (virtualBcc == null) {
+                    return;
+                }
+                long elapsed = threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis();
+                if (elapsed > virtualBccUploadMaxAge.getMillis()) {
+                    commitState.maybeFreezeAndUploadCurrentVirtualBcc(virtualBcc);
+                }
+            });
+        }
     }
 
     public void onCommitCreation(StatelessCommitRef reference) {
@@ -319,14 +390,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final var virtualBcc = commitState.appendCommit(reference);
 
             if (statelessUploadDelayed) {
-                commitState.sendNewCommitNotification(
+                final var request = new NewCommitNotificationRequest(
+                    shardRoutingFinder.apply(shardId),
                     virtualBcc.lastCompoundCommit(),
-                    virtualBcc.getPrimaryTermAndGeneration().generation()
+                    virtualBcc.getPrimaryTermAndGeneration().generation(),
+                    commitState.getMaxUploadedBccTermAndGen()
                 );
+                // Another thread may freeze, upload the current VBCC and update latestUploadedBcc concurrently.
+                // In that case, we skip the notification since it will be handled by the other thread.
+                if (request.isUploaded() == false) {
+                    commitState.sendNewCommitNotification(request);
+                }
             }
 
             if (commitState.shouldUploadVirtualBcc(virtualBcc) == false) {
-                assert false : "must always upload till BCC is in full motion";
+                assert assertDelayedSetting("batched upload");
                 return;
             }
 
@@ -455,7 +533,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.generation = virtualBcc.getPrimaryTermAndGeneration().generation();
             this.startNanos = threadPool.relativeTimeInNanos();
             assert virtualBcc.isFrozen();
-            assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
+            assert assertBccSizeAndDelayedSettingConsistency(virtualBcc.size());
         }
 
         @Override
@@ -540,7 +618,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         uploadedFileBytes.getAndAdd(entry.getValue().fileLength());
                     }
                     // TODO: remove the following assertion when BCC can contain multiple CCs
-                    assert uploadedBcc.compoundCommits().size() == 1;
+                    assert assertBccSizeAndDelayedSettingConsistency(uploadedBcc.size());
                     shardCommitState.markBccUploaded(uploadedBcc);
                     final long end = threadPool.relativeTimeInNanos();
                     logger.debug(
@@ -651,6 +729,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private static boolean closedOrRelocated(ShardCommitState.State state) {
         return state == ShardCommitState.State.CLOSED || state == ShardCommitState.State.RELOCATED;
+    }
+
+    private boolean assertDelayedSetting(String behaviour) {
+        assert statelessUploadDelayed : behaviour + " requires [" + STATELESS_UPLOAD_DELAYED.getKey() + "] to be enabled";
+        return true;
+    }
+
+    private boolean assertBccSizeAndDelayedSettingConsistency(int size) {
+        assert statelessUploadDelayed || size == 1
+            : "BCC must contain a single CC unless [" + STATELESS_UPLOAD_DELAYED.getKey() + "] is enabled";
+        return true;
     }
 
     // Visible for testing
@@ -935,7 +1024,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ephemeralNodeIdSupplier.get(),
                         reference.getPrimaryTerm(),
                         reference.getGeneration(),
-                        fileName -> getBlobLocation(shardId, fileName)
+                        fileName -> getBlobLocation(shardId, fileName),
+                        threadPool::relativeTimeInMillis
                     );
                     final boolean appended = newVirtualBcc.appendCommit(reference);
                     assert appended : "append must be successful since the VBCC is new and empty";
@@ -1045,7 +1135,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private BlobReference createBlobReference(VirtualBatchedCompoundCommit virtualBcc) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to add commit data";
-            assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
+            assert assertBccSizeAndDelayedSettingConsistency(virtualBcc.size());
             assert commitReferencesInfos.keySet().containsAll(virtualBcc.getPendingCompoundCommitGenerations())
                 : "Commit references infos should be populated when new commits are appended";
             final var commitFiles = virtualBcc.getPendingCompoundCommits()
@@ -1166,7 +1256,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
-            assert uploadedBcc.size() == 1 : "BCC must have a single CC until it is fully enabled";
+            assert assertBccSizeAndDelayedSettingConsistency(uploadedBcc.size());
             final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
             final long newGeneration = uploadedBcc.last().generation(); // for notifying generation listeners
 
@@ -1260,6 +1350,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
+         * Gets the max uploaded BCC primary term and generation, by accessing the latest uploaded {@link BatchedCompoundCommit}
+         * without synchronization, or null if no upload has happened.
+         */
+        @Nullable
+        public PrimaryTermAndGeneration getMaxUploadedBccTermAndGen() {
+            return latestUploadedBcc == null ? null : latestUploadedBcc.primaryTermAndGeneration();
+        }
+
+        /**
          * Gets the max uploaded BCC generation, by accessing the latest uploaded {@link BatchedCompoundCommit}
          * without synchronization, or -1 if no upload has happened.
          */
@@ -1314,25 +1413,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         // TODO: merge this method with sendNewCommitNotification
-        private void sendNewCommitNotification(StatelessCompoundCommit compoundCommit, long bccGeneration) {
-            assert statelessUploadDelayed;
-            var shardRoutingTable = shardRoutingFinder.apply(shardId);
+        private void sendNewCommitNotification(NewCommitNotificationRequest request) {
+            assert assertDelayedSetting("new commit notification for non-upload commit");
+            assert request.isUploaded() == false;
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
-            final var request = new NewCommitNotificationRequest(
-                shardRoutingTable,
-                compoundCommit,
-                bccGeneration,
-                latestUploadedBcc == null ? null : latestUploadedBcc.primaryTermAndGeneration()
-            );
-            assert request.isUpload() == false;
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                 // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload notification
                 var consumer = commitNotificationSuccessListeners.get(shardId);
                 if (consumer != null) {
-                    consumer.accept(compoundCommit.generation());
+                    consumer.accept(request.getCompoundCommit().generation());
                 }
-            }, e -> logNotificationException(compoundCommit.generation(), bccGeneration, "create", e)));
+            },
+                e -> logNotificationException(
+                    request.getCompoundCommit().generation(),
+                    request.getBatchedCompoundCommitGeneration(),
+                    "create",
+                    e
+                )
+            ));
         }
 
         /**
@@ -1356,7 +1455,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 uploadedBcc.primaryTermAndGeneration().generation(),
                 uploadedBcc.primaryTermAndGeneration()
             );
-            assert request.isUpload();
+            assert request.isUploaded();
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(uploadedBcc.primaryTermAndGeneration().generation());
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewUploadedCommitNotificationResponse(

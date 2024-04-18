@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -117,7 +116,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
                     RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_TIME_UNIT_NAME, "3s"))
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
                 )
             ),
             ConfigurationParseContext.REQUEST
@@ -132,7 +131,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     dims,
                     maxInputTokens,
                     model,
-                    new RateLimitSettings(TimeValue.timeValueSeconds(3))
+                    new RateLimitSettings(3)
                 )
             )
         );
@@ -255,21 +254,14 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testXContent_WritesModelId() throws IOException {
-        var entity = new CohereServiceSettings(
-            (String) null,
-            null,
-            null,
-            null,
-            "modelId",
-            new RateLimitSettings(TimeValue.timeValueMinutes(1))
-        );
+        var entity = new CohereServiceSettings((String) null, null, null, null, "modelId", new RateLimitSettings(1));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, CoreMatchers.is("""
-            {"model_id":"modelId","rate_limit":{"requests_per_time_unit":"1m"}}"""));
+            {"model_id":"modelId","rate_limit":{"requests_per_minute":1}}"""));
     }
 
     @Override

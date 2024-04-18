@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -94,21 +93,13 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
                         ServiceFields.MAX_INPUT_TOKENS,
                         maxInputTokens,
                         RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_TIME_UNIT_NAME, "3s"))
+                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
                     )
                 )
             );
             assertThat(
                 serviceSettings,
-                is(
-                    new HuggingFaceServiceSettings(
-                        ServiceUtils.createUri(url),
-                        similarity,
-                        dims,
-                        maxInputTokens,
-                        new RateLimitSettings(TimeValue.timeValueSeconds(3))
-                    )
-                )
+                is(new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarity, dims, maxInputTokens, new RateLimitSettings(3)))
             );
         }
     }
@@ -172,20 +163,14 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new HuggingFaceServiceSettings(
-            ServiceUtils.createUri("url"),
-            null,
-            null,
-            null,
-            new RateLimitSettings(TimeValue.timeValueSeconds(3))
-        );
+        var serviceSettings = new HuggingFaceServiceSettings(ServiceUtils.createUri("url"), null, null, null, new RateLimitSettings(3));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = org.elasticsearch.common.Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"url":"url","rate_limit":{"requests_per_time_unit":"3s"}}"""));
+            {"url":"url","rate_limit":{"requests_per_minute":3}}"""));
     }
 
     @Override

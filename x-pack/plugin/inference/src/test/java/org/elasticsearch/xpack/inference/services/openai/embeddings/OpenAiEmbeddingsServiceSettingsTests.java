@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -208,7 +207,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var dims = 1536;
         var maxInputTokens = 512;
-        var rateLimit = randomTimeValue();
+        var rateLimit = 3;
         var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
@@ -227,7 +226,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
                     false,
                     RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_TIME_UNIT_NAME, rateLimit))
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit))
                 )
             ),
             ConfigurationParseContext.PERSISTENT
@@ -244,7 +243,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     maxInputTokens,
                     false,
-                    new RateLimitSettings(TimeValue.parseTimeValue(rateLimit, "test"))
+                    new RateLimitSettings(rateLimit)
                 )
             )
         );
@@ -377,7 +376,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"model","url":"url","organization_id":"org",""" + """
-            "rate_limit":{"requests_per_time_unit":"2d"},"dimensions_set_by_user":true}"""));
+            "rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":true}"""));
     }
 
     public void testToXContent_WritesDimensionsSetByUserFalse() throws IOException {
@@ -389,7 +388,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"model","url":"url","organization_id":"org",""" + """
-            "rate_limit":{"requests_per_time_unit":"2d"},"dimensions_set_by_user":false}"""));
+            "rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":false}"""));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -401,7 +400,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_time_unit":"2d"},"dimensions_set_by_user":false}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":3000},"dimensions_set_by_user":false}"""));
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
@@ -414,7 +413,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_time_unit":"2d"}}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":3000}}"""));
     }
 
     public void testToFilteredXContent_WritesAllValues_WithSpecifiedRateLimit() throws IOException {
@@ -426,7 +425,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             1,
             2,
             false,
-            new RateLimitSettings(TimeValue.timeValueMinutes(2000))
+            new RateLimitSettings(2000)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -436,7 +435,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_time_unit":"1.3d"}}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":2000}}"""));
     }
 
     @Override

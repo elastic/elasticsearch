@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
@@ -41,7 +40,8 @@ public class HuggingFaceServiceSettings implements ServiceSettings, HuggingFaceR
     public static final String NAME = "hugging_face_service_settings";
 
     // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value here is only a guess
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(TimeValue.timeValueMinutes(3000));
+    // 3000 requests per minute
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

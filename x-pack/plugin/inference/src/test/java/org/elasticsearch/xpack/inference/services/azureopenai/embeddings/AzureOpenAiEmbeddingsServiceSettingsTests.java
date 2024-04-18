@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -119,7 +118,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                     SIMILARITY,
                     SimilarityMeasure.COSINE.toString(),
                     RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_TIME_UNIT_NAME, "3s"))
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
                 )
             ),
             ConfigurationParseContext.REQUEST
@@ -136,7 +135,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                     true,
                     maxInputTokens,
                     SimilarityMeasure.COSINE,
-                    new RateLimitSettings(TimeValue.timeValueSeconds(3))
+                    new RateLimitSettings(3)
                 )
             )
         );
@@ -358,7 +357,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             true,
             null,
             null,
-            new RateLimitSettings(TimeValue.timeValueMinutes(2))
+            new RateLimitSettings(2)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -367,7 +366,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
-            "rate_limit":{"requests_per_time_unit":"2m"},"dimensions_set_by_user":true}"""));
+            "rate_limit":{"requests_per_minute":2},"dimensions_set_by_user":true}"""));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -379,7 +378,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             false,
             512,
             null,
-            new RateLimitSettings(TimeValue.timeValueSeconds(3))
+            new RateLimitSettings(3)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -388,7 +387,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
-            "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_time_unit":"3s"},"dimensions_set_by_user":false}"""));
+            "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":3},"dimensions_set_by_user":false}"""));
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
@@ -400,7 +399,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             false,
             512,
             null,
-            new RateLimitSettings(TimeValue.timeValueMinutes(1))
+            new RateLimitSettings(1)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -410,7 +409,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
-            "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_time_unit":"1m"}}"""));
+            "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":1}}"""));
     }
 
     @Override

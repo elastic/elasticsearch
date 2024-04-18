@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -45,7 +44,8 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
 
     // The rate limit for usage tier 1 is 500 request per minute for most of the completion models
     // To find this information you need to access your account's limits https://platform.openai.com/account/limits
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(TimeValue.timeValueMinutes(500));
+    // 500 requests per minute
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(500);
 
     public static OpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

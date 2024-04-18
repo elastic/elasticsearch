@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,7 +34,8 @@ public class HuggingFaceElserServiceSettings implements ServiceSettings, Hugging
     static final String URL = "url";
     private static final int ELSER_TOKEN_LIMIT = 512;
     // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value his is only a guess
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(TimeValue.timeValueMinutes(3000));
+    // 3000 requests per minute
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

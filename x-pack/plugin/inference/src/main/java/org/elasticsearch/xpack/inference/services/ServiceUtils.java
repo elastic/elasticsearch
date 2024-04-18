@@ -273,7 +273,7 @@ public class ServiceUtils {
         Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class);
 
         if (optionalField != null && optionalField <= 0) {
-            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, optionalField));
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, scope, optionalField));
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -351,12 +351,8 @@ public class ServiceUtils {
         }
     }
 
-    public static String mustBeAPositiveNumberErrorMessage(String settingName, int value) {
-        if (value <= 0) {
-            return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
-        } else {
-            throw new IllegalArgumentException("Value [" + value + "] is not a positive integer");
-        }
+    public static String mustBeAPositiveNumberErrorMessage(String settingName, String scope, int value) {
+        return format("[%s] Invalid value [%s]. [%s] must be a positive integer", scope, value, settingName);
     }
 
     /**

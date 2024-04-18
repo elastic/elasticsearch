@@ -49,6 +49,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -272,13 +273,15 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 indicesService,
                 xContentRegistry()
             );
+            TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
             rolloverService = new MetadataRolloverService(
                 testThreadPool,
                 createIndexService,
                 indexAliasesService,
                 EmptySystemIndices.INSTANCE,
                 WriteLoadForecaster.DEFAULT,
-                clusterService
+                clusterService,
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
         }
 

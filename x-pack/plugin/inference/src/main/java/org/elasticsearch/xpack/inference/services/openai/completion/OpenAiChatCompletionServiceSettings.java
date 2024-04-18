@@ -17,6 +17,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's chat completion models.
  */
-public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
+public class OpenAiChatCompletionServiceSettings implements ServiceSettings, OpenAiRateLimitServiceSettings {
 
     public static final String NAME = "openai_completion_service_settings";
 
@@ -94,14 +95,17 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
         this.maxInputTokens = in.readOptionalVInt();
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }
 
+    @Override
     public URI uri() {
         return uri;
     }
 
+    @Override
     public String organizationId() {
         return organizationId;
     }

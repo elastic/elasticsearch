@@ -163,7 +163,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             versionSupportsDateNanos()
         );
 
-        long randomTimestampWitnNanos = randomTimeInNanos();
+        long randomTimestampWitnNanos = randomTimestampWitnNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
@@ -195,7 +195,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             versionSupportsDateNanos()
         );
 
-        long randomTimestampWitnNanos = randomTimeInNanos();
+        long randomTimestampWitnNanos = randomTimestampWitnNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
@@ -216,6 +216,14 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 }
             }
         }
+    }
+
+    private static long randomTimestampWitnNanos() {
+        long randomTimestampWitnNanos = randomTimeInNanos();
+        // Indexing will jiggle the value by adding -1, 0, 1. The query will truncate it from ns to ms and expect no match. If the
+        // jiggled value will round to no sub-ms fraction, the query will match. So ensure that won't happen.
+        randomTimestampWitnNanos += (randomTimestampWitnNanos % 1_000_000 < 10) ? 10 : 0;
+        return randomTimestampWitnNanos;
     }
 
     public void testDate() throws IOException, SQLException {

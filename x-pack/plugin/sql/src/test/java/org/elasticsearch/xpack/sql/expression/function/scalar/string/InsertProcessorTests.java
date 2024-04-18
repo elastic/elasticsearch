@@ -18,6 +18,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatProcessorTests.repeat;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringFunctionProcessorTests.maxResultLengthTest;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.MAX_RESULT_LENGTH;
 
@@ -122,9 +123,7 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
         );
         assertEquals("[length] out of the allowed range [0, 2147483647], received [2147483648]", siae.getMessage());
 
-        byte[] buffer = new byte[(int) MAX_RESULT_LENGTH];
-        Arrays.fill(buffer, (byte) 'a');
-        String str = new String(buffer);
+        String str = repeat('a', (int) MAX_RESULT_LENGTH);
         String replaceWith = "bar";
         assertEquals(
             MAX_RESULT_LENGTH,

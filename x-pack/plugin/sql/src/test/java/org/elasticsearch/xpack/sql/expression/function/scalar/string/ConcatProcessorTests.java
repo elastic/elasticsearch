@@ -66,11 +66,17 @@ public class ConcatProcessorTests extends AbstractWireSerializingTestCase<Concat
     }
 
     public void testMaxResultLength() {
-        byte[] buffer = new byte[(int) MAX_RESULT_LENGTH - 1];
-        Arrays.fill(buffer, (byte) 'a');
-        String str = new String(buffer);
+        String str = repeat('a', (int) MAX_RESULT_LENGTH - 1);
         assertEquals(MAX_RESULT_LENGTH, new Concat(EMPTY, l(str), l("b")).makePipe().asProcessor().process(null).toString().length());
 
         maxResultLengthTest(MAX_RESULT_LENGTH + 1, () -> new Concat(EMPTY, l(str), l("bb")).makePipe().asProcessor().process(null));
+    }
+
+    public static String repeat(char ch, int count) {
+        StringBuilder sb = new StringBuilder(count);
+        for (int i = 0; i < count; i++) {
+            sb.append(ch);
+        }
+        return sb.toString();
     }
 }

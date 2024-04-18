@@ -53,8 +53,7 @@ public class SemanticQueryBuilderMultiClusterIT extends AbstractMultiClustersTes
         final String indexName = "test_index";
         createIndexOnAllClusters(indexName);
 
-        SearchRequestBuilder requestBuilder = client()
-            .prepareSearch(indexName, REMOTE_CLUSTER + ":" + indexName)
+        SearchRequestBuilder requestBuilder = client().prepareSearch(indexName, REMOTE_CLUSTER + ":" + indexName)
             .setQuery(new SemanticQueryBuilder("field", "query"));
 
         try {

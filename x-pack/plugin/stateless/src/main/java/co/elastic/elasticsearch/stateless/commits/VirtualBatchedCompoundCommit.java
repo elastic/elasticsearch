@@ -497,7 +497,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         private final List<StatelessCompoundCommit.InternalFile> internalFiles;
         private final StatelessCommitRef reference;
         private final StatelessCompoundCommit statelessCompoundCommit;
-        private volatile int padding = 0;
+        // No need to be volatile because writing is synchronized at higher level in StatelessCommitService
+        // and reading is dispatched to another thread after a second synchronization
+        private int padding = 0;
 
         private static final byte[] PADDING_BYTES;
         static {

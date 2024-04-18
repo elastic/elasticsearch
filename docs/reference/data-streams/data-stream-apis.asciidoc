@@ -25,7 +25,7 @@ preview:[]
 preview:[]
 * <<data-streams-explain-lifecycle,Explain data stream lifecycle>>
 preview:[]
-* <<data-streams-get-lifecycle-stats, Get data stream lifecycle stats>>
+* <<data-streams-get-lifecycle-stats,Get data stream lifecycle stats>>
 preview:[]
 
 The following API is available for <<tsds,time series data streams>>:
@@ -35,28 +35,28 @@ The following API is available for <<tsds,time series data streams>>:
 
 For concepts and tutorials, see <<data-streams>>.
 
-include::{es-repo-dir}/indices/create-data-stream.asciidoc[]
+include::{es-ref-dir}/indices/create-data-stream.asciidoc[]
 
-include::{es-repo-dir}/indices/delete-data-stream.asciidoc[]
+include::{es-ref-dir}/indices/delete-data-stream.asciidoc[]
 
-include::{es-repo-dir}/indices/get-data-stream.asciidoc[]
+include::{es-ref-dir}/indices/get-data-stream.asciidoc[]
 
-include::{es-repo-dir}/indices/migrate-to-data-stream.asciidoc[]
+include::{es-ref-dir}/indices/migrate-to-data-stream.asciidoc[]
 
-include::{es-repo-dir}/indices/data-stream-stats.asciidoc[]
+include::{es-ref-dir}/indices/data-stream-stats.asciidoc[]
 
-include::{es-repo-dir}/data-streams/promote-data-stream-api.asciidoc[]
+include::{es-ref-dir}/data-streams/promote-data-stream-api.asciidoc[]
 
-include::{es-repo-dir}/data-streams/modify-data-streams-api.asciidoc[]
+include::{es-ref-dir}/data-streams/modify-data-streams-api.asciidoc[]
 
-include::{es-repo-dir}/data-streams/lifecycle/apis/put-lifecycle.asciidoc[]
+include::{es-ref-dir}/data-streams/lifecycle/apis/put-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
+include::{es-ref-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/data-streams/lifecycle/apis/delete-lifecycle.asciidoc[]
+include::{es-ref-dir}/data-streams/lifecycle/apis/delete-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/data-streams/lifecycle/apis/explain-lifecycle.asciidoc[]
+include::{es-ref-dir}/data-streams/lifecycle/apis/explain-lifecycle.asciidoc[]
 
-include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle-stats.asciidoc[]
+include::{es-ref-dir}/data-streams/lifecycle/apis/get-lifecycle-stats.asciidoc[]
 
-include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]
+include::{es-ref-dir}/indices/downsample-data-stream.asciidoc[]

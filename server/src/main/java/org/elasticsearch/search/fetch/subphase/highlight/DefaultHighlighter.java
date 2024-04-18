@@ -161,7 +161,12 @@ public class DefaultHighlighter implements Highlighter {
     }
 
     protected PassageFormatter getPassageFormatter(SearchHighlightContext.Field field, Encoder encoder) {
-        return new CustomPassageFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0], encoder);
+        return new CustomPassageFormatter(
+            field.fieldOptions().preTags()[0],
+            field.fieldOptions().postTags()[0],
+            encoder,
+            field.fieldOptions().numberOfFragments()
+        );
     }
 
     protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {

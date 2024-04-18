@@ -18,12 +18,21 @@ import java.util.Objects;
 /**
  * Block implementation representing a constant null value.
  */
-final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, IntBlock, LongBlock, DoubleBlock, BytesRefBlock {
+final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+    implements
+        BooleanBlock,
+        IntBlock,
+        LongBlock,
+        DoubleBlock,
+        BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
+    private final int positionCount;
+    private BlockFactory blockFactory;
 
     ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
-        super(positionCount, blockFactory);
+        this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
     }
 
     @Override
@@ -88,7 +97,7 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
     }
 
     @Override
-    public Block expand() {
+    public ConstantNullBlock expand() {
         incRef();
         return this;
     }
@@ -164,11 +173,6 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            return appendNull();
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do
@@ -221,5 +225,35 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
     public long getLong(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public int getTotalValueCount() {
+        return 0;
+    }
+
+    @Override
+    public int getPositionCount() {
+        return positionCount;
+    }
+
+    @Override
+    public int getFirstValueIndex(int position) {
+        return 0;
+    }
+
+    @Override
+    public int getValueCount(int position) {
+        return 0;
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
     }
 }

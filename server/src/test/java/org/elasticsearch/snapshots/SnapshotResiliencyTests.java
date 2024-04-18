@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
@@ -39,7 +38,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -48,7 +46,6 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -188,6 +185,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
@@ -1390,6 +1388,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         safeAwait(testListener); // shouldn't throw
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testFullSnapshotUnassignedShards() {
         setupTestCluster(1, 0); // no data nodes, we want unassigned shards
 
@@ -1469,6 +1468,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testSnapshotNameAlreadyInUseExceptionLogging() {
         setupTestCluster(1, 1);
 
@@ -1519,6 +1519,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testIndexNotFoundExceptionLogging() {
         setupTestCluster(1, 0); // no need for data nodes here
 
@@ -1571,6 +1572,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testIllegalArgumentExceptionLogging() {
         setupTestCluster(1, 0); // no need for data nodes here
 
@@ -2119,19 +2121,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService,
                     Collections.singletonMap(
                         FsRepository.TYPE,
-                        metadata -> new FsRepository(
-                            metadata,
-                            environment,
-                            xContentRegistry(),
-                            clusterService,
-                            bigArrays,
-                            recoverySettings
-                        ) {
-                            @Override
-                            protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        }
+                        metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays, recoverySettings)
                     ),
                     emptyMap(),
                     threadPool,
@@ -2319,7 +2309,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new IndexSettingProviders(Set.of())
                 );
                 actions.put(
-                    CreateIndexAction.INSTANCE,
+                    TransportCreateIndexAction.TYPE,
                     new TransportCreateIndexAction(
                         transportService,
                         clusterService,
@@ -2334,7 +2324,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
                 mappingUpdatedAction.setClient(client);
                 actions.put(
-                    BulkAction.INSTANCE,
+                    TransportBulkAction.TYPE,
                     new TransportBulkAction(
                         threadPool,
                         transportService,
@@ -2472,7 +2462,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    CleanupRepositoryAction.INSTANCE,
+                    TransportCleanupRepositoryAction.TYPE,
                     new TransportCleanupRepositoryAction(
                         transportService,
                         clusterService,

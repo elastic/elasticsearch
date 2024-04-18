@@ -64,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -175,13 +176,29 @@ public final class InternalTestCluster extends TestCluster {
 
     private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
-    private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.canContainData(
-        nodeAndClient.node.settings()
-    );
+    private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = new Predicate<>() {
+        @Override
+        public boolean test(NodeAndClient nodeAndClient) {
+            return DiscoveryNode.canContainData(nodeAndClient.node.settings());
+        }
 
-    private static final Predicate<NodeAndClient> MASTER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
-        nodeAndClient.node.settings()
-    );
+        @Override
+        public String toString() {
+            return "any data node";
+        }
+    };
+
+    private static final Predicate<NodeAndClient> MASTER_NODE_PREDICATE = new Predicate<>() {
+        @Override
+        public boolean test(NodeAndClient nodeAndClient) {
+            return DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
+        }
+
+        @Override
+        public String toString() {
+            return "any master-eligible node";
+        }
+    };
 
     private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = DATA_NODE_PREDICATE.negate()
         .and(MASTER_NODE_PREDICATE.negate());
@@ -650,7 +667,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private NodeAndClient getRandomNodeAndClient() {
-        return getRandomNodeAndClient(nc -> true);
+        return getRandomNodeAndClient(Predicates.always());
     }
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
@@ -1588,15 +1605,25 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * @return the instance of the given class from the node with provided {@code nodeName}
      */
-    public <T> T getInstance(Class<T> clazz, final String nodeName) {
-        return getInstance(clazz, nc -> nodeName == null || nodeName.equals(nc.name));
+    public <T> T getInstance(Class<T> clazz, @Nullable final String nodeName) {
+        return getInstance(clazz, nodeName == null ? Predicates.always() : new NodeNamePredicate(nodeName));
     }
 
     /**
      * @return the instance of the given class from a random node with provided {@code role}
      */
     public <T> T getInstance(Class<T> clazz, DiscoveryNodeRole role) {
-        return getInstance(clazz, nc -> DiscoveryNode.getRolesFromSettings(nc.node.settings()).contains(role));
+        return getInstance(clazz, new Predicate<>() {
+            @Override
+            public boolean test(NodeAndClient nc) {
+                return DiscoveryNode.getRolesFromSettings(nc.node.settings()).contains(role);
+            }
+
+            @Override
+            public String toString() {
+                return "role: " + role;
+            }
+        });
     }
 
     public <T> T getDataNodeInstance(Class<T> clazz) {
@@ -1613,7 +1640,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
-        assert randomNodeAndClient != null;
+        if (randomNodeAndClient == null) {
+            throw new AssertionError("no node matches [" + predicate + "]");
+        }
         return getInstanceFromNode(clazz, randomNodeAndClient.node);
     }
 
@@ -1621,7 +1650,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to a random nodes instances of the given class &gt;T&lt;
      */
     public <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, nc -> true);
+        return getInstance(clazz, Predicates.always());
     }
 
     private static <T> T getInstanceFromNode(Class<T> clazz, Node node) {
@@ -1990,7 +2019,7 @@ public final class InternalTestCluster extends TestCluster {
      * @return the name of a random node in a cluster
      */
     public String getRandomNodeName() {
-        return getNodeNameThat(ignored -> true);
+        return getNodeNameThat(Predicates.always());
     }
 
     /**
@@ -2295,13 +2324,7 @@ public final class InternalTestCluster extends TestCluster {
         return map.values().stream().filter(predicate).collect(Collectors.toCollection(ArrayList::new));
     }
 
-    private static final class NodeNamePredicate implements Predicate<NodeAndClient> {
-        private final String nodeName;
-
-        NodeNamePredicate(String nodeName) {
-            this.nodeName = nodeName;
-        }
-
+    private record NodeNamePredicate(String nodeName) implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
             return nodeName.equals(nodeAndClient.getName());
@@ -2325,7 +2348,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard("id", routing, null, null)) {
+                    if (shard == indexRouting.indexShard("id", routing, null, null, null)) {
                         return routing;
                     }
                 }

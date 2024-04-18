@@ -1,0 +1,73 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-requirements-cohere-tab"
+            id="infer-api-requirements-cohere">
+      Cohere
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-hf-tab"
+            id="infer-api-requirements-hf">
+      HuggingFace
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-openai-tab"
+            id="infer-api-requirements-openai">
+      OpenAI
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-azure-openai-tab"
+            id="infer-api-requirements-azure-openai">
+      Azure OpenAI
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-cohere-tab"
+       aria-labelledby="infer-api-requirements-cohere">
+++++
+
+include::infer-api-requirements.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-hf-tab"
+       aria-labelledby="infer-api-requirements-hf"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=hugging-face]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-openai-tab"
+       aria-labelledby="infer-api-requirements-openai"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=openai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-azure-openai-tab"
+       aria-labelledby="infer-api-requirements-azure-openai"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=azure-openai]
+
+++++
+  </div>
+</div>
+++++

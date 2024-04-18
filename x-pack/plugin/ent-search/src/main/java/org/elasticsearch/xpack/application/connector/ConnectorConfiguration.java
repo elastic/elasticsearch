@@ -30,8 +30,11 @@ import org.elasticsearch.xpack.application.connector.configuration.Configuration
 import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidation;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -43,10 +46,14 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
 
     @Nullable
     private final String category;
+    @Nullable
     private final Object defaultValue;
+    @Nullable
     private final List<ConfigurationDependency> dependsOn;
+    @Nullable
     private final ConfigurationDisplayType display;
     private final String label;
+    @Nullable
     private final List<ConfigurationSelectOption> options;
     @Nullable
     private final Integer order;
@@ -56,9 +63,13 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
     private final boolean sensitive;
     @Nullable
     private final String tooltip;
+    @Nullable
     private final ConfigurationFieldType type;
+    @Nullable
     private final List<String> uiRestrictions;
+    @Nullable
     private final List<ConfigurationValidation> validations;
+    @Nullable
     private final Object value;
 
     /**
@@ -217,6 +228,62 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         );
     }
 
+    public String getCategory() {
+        return category;
+    }
+
+    public Object getDefaultValue() {
+        return defaultValue;
+    }
+
+    public List<ConfigurationDependency> getDependsOn() {
+        return dependsOn;
+    }
+
+    public ConfigurationDisplayType getDisplay() {
+        return display;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public List<ConfigurationSelectOption> getOptions() {
+        return options;
+    }
+
+    public Integer getOrder() {
+        return order;
+    }
+
+    public String getPlaceholder() {
+        return placeholder;
+    }
+
+    public boolean isRequired() {
+        return required;
+    }
+
+    public boolean isSensitive() {
+        return sensitive;
+    }
+
+    public String getTooltip() {
+        return tooltip;
+    }
+
+    public ConfigurationFieldType getType() {
+        return type;
+    }
+
+    public List<String> getUiRestrictions() {
+        return uiRestrictions;
+    }
+
+    public List<ConfigurationValidation> getValidations() {
+        return validations;
+    }
+
     public Object getValue() {
         return value;
     }
@@ -318,6 +385,43 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         out.writeOptionalStringCollection(uiRestrictions);
         out.writeOptionalCollection(validations);
         out.writeGenericValue(value);
+    }
+
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new HashMap<>();
+
+        Optional.ofNullable(category).ifPresent(c -> map.put(CATEGORY_FIELD.getPreferredName(), c));
+        map.put(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
+
+        Optional.ofNullable(dependsOn)
+            .ifPresent(d -> map.put(DEPENDS_ON_FIELD.getPreferredName(), d.stream().map(ConfigurationDependency::toMap).toList()));
+
+        Optional.ofNullable(display).ifPresent(d -> map.put(DISPLAY_FIELD.getPreferredName(), d.toString()));
+
+        map.put(LABEL_FIELD.getPreferredName(), label);
+
+        Optional.ofNullable(options)
+            .ifPresent(o -> map.put(OPTIONS_FIELD.getPreferredName(), o.stream().map(ConfigurationSelectOption::toMap).toList()));
+
+        Optional.ofNullable(order).ifPresent(o -> map.put(ORDER_FIELD.getPreferredName(), o));
+
+        Optional.ofNullable(placeholder).ifPresent(p -> map.put(PLACEHOLDER_FIELD.getPreferredName(), p));
+
+        map.put(REQUIRED_FIELD.getPreferredName(), required);
+        map.put(SENSITIVE_FIELD.getPreferredName(), sensitive);
+
+        Optional.ofNullable(tooltip).ifPresent(t -> map.put(TOOLTIP_FIELD.getPreferredName(), t));
+
+        Optional.ofNullable(type).ifPresent(t -> map.put(TYPE_FIELD.getPreferredName(), t.toString()));
+
+        Optional.ofNullable(uiRestrictions).ifPresent(u -> map.put(UI_RESTRICTIONS_FIELD.getPreferredName(), u));
+
+        Optional.ofNullable(validations)
+            .ifPresent(v -> map.put(VALIDATIONS_FIELD.getPreferredName(), v.stream().map(ConfigurationValidation::toMap).toList()));
+
+        map.put(VALUE_FIELD.getPreferredName(), value);
+
+        return map;
     }
 
     @Override

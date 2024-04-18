@@ -1,0 +1,5 @@
+pr: 105779
+summary: "[Profiling] Speed up serialization of flamegraph"
+area: Application
+type: enhancement
+issues: []

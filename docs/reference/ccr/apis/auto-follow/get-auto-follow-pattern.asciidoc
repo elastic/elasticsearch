@@ -72,6 +72,11 @@ This API will return the specified auto-follow pattern collection.
   to retrieve. If you do not specify a name, the API returns information for all
   collections.
 
+[[ccr-get-auto-follow-pattern-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 [[ccr-get-auto-follow-pattern-examples]]
 ==== {api-examples-title}
 

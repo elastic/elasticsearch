@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.readiness.MockReadinessService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,6 +32,30 @@ import static org.hamcrest.Matchers.empty;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeShutdownReadinessIT extends ESIntegTestCase {
+
+    Path configDir;
+
+    @Before
+    public void setupMasterConfigDir() throws IOException {
+        configDir = createTempDir();
+        Path settingsFile = configDir.resolve("operator").resolve("settings.json");
+        Files.createDirectories(settingsFile.getParent());
+        Files.writeString(settingsFile, """
+            {
+                 "metadata": {
+                     "version": "1",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {}
+                 }
+            }""");
+    }
+
+    @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return configDir;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
@@ -63,17 +88,6 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
 
     private void deleteNodeShutdown(String nodeId) {
         assertAcked(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(nodeId)));
-    }
-
-    private String getNodeId(String nodeName) {
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        return nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(nodeName))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
     }
 
     private void assertNoShuttingDownNodes(String nodeId) throws ExecutionException, InterruptedException {

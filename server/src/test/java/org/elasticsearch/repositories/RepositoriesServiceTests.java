@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -39,6 +40,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -51,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
@@ -332,7 +335,13 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        public void getSnapshotInfo(
+            Collection<SnapshotId> snapshotIds,
+            boolean abortOnFailure,
+            BooleanSupplier isCancelled,
+            CheckedConsumer<SnapshotInfo, Exception> consumer,
+            ActionListener<Void> listener
+        ) {
             throw new UnsupportedOperationException();
         }
 

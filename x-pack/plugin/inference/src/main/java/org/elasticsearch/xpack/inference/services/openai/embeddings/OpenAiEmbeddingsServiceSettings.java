@@ -13,13 +13,15 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -37,18 +39,18 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
+public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiRateLimitServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
-    static final String ORGANIZATION = "organization_id";
     static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
-    public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
+    public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return switch (context) {
             case REQUEST -> fromRequestMap(map);
             case PERSISTENT -> fromPersistentMap(map);
@@ -183,18 +185,22 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         );
     }
 
+    @Override
     public URI uri() {
         return uri;
     }
 
+    @Override
     public String organizationId() {
         return organizationId;
     }
 
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }
@@ -207,8 +213,14 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return maxInputTokens;
     }
 
+    @Override
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     @Override
@@ -271,8 +283,9 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(organizationId);
+
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalEnum(similarity);
+            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
         }

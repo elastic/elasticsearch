@@ -77,3 +77,18 @@ teardown:
         name: test-search-application-to-delete
 
   - match: { acknowledged: true }
+
+---
+"Delete Search Application - Alias does not exist as alias was explicitly removed":
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test-index
+                alias: test-search-application-to-delete
+
+      search_application.delete:
+        name: test-search-application-to-delete
+
+  - match: { acknowledged: true }

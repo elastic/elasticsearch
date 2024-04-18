@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
 import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
 import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
-import org.elasticsearch.common.inject.internal.ProviderMethod;
 import org.elasticsearch.common.inject.internal.Scoping;
 import org.elasticsearch.common.inject.internal.UntargettedBindingImpl;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
@@ -62,12 +60,7 @@ class BindingProcessor extends AbstractProcessor {
         final Object source = command.getSource();
 
         if (Void.class.equals(command.getKey().getRawType())) {
-            if (command instanceof ProviderInstanceBinding
-                && ((ProviderInstanceBinding<?>) command).getProviderInstance() instanceof ProviderMethod) {
-                errors.voidProviderMethod();
-            } else {
-                errors.missingConstantValues();
-            }
+            errors.missingConstantValues();
             return true;
         }
 
@@ -79,9 +72,7 @@ class BindingProcessor extends AbstractProcessor {
             return true;
         }
 
-        validateKey(command.getSource(), command.getKey());
-
-        final Scoping scoping = Scopes.makeInjectable(((BindingImpl<?>) command).getScoping(), injector, errors);
+        final Scoping scoping = ((BindingImpl<?>) command).getScoping();
 
         command.acceptTargetVisitor(new BindingTargetVisitor<T, Void>() {
 
@@ -177,10 +168,6 @@ class BindingProcessor extends AbstractProcessor {
         });
 
         return true;
-    }
-
-    private <T> void validateKey(Object source, Key<T> key) {
-        Annotations.checkForMisplacedScopeAnnotations(key.getRawType(), source, errors);
     }
 
     static <T> UntargettedBindingImpl<T> invalidBinding(InjectorImpl injector, Key<T> key, Object source) {

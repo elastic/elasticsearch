@@ -55,14 +55,14 @@ emp_no:integer |hire_date:date          |hire_double:double
 10003          |1986-08-28T00:00:00.000Z|5.255712E11
 ;
 
-convertFromString
+convertFromString#[skip:-8.13.99, reason:warning changed in 8.14]
 // tag::to_double-str[]
 ROW str1 = "5.20128E11", str2 = "foo"
 | EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
 // end::to_double-str[]
 ;
 warning:Line 2:72: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:72: java.lang.NumberFormatException: For input string: \"foo\"
+warning:Line 2:72: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [foo]
 
 // tag::to_double-str-result[]
 str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
@@ -91,7 +91,9 @@ int:integer |dbl:double
 520128      |520128
 ;
 
-lessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+lessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -105,7 +107,9 @@ emp_no:integer |salary_change:double
 10030          |-0.4
 ;
 
-greaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+greaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -119,7 +123,9 @@ emp_no:integer |salary_change:double
 10079          |7.58
 ;
 
-equalToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+equalToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change == 1.19 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -129,7 +135,9 @@ emp_no:integer |salary_change:double
 10001          |1.19
 ;
 
-equalToOrEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+equalToOrEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change == 1.19 or salary_change == 7.58 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -140,7 +148,9 @@ emp_no:integer |salary_change:double
 10079          |7.58
 ;
 
-inMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+inMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change in (1.19, 7.58) | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change in (1.19, 7.58)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -151,7 +161,9 @@ emp_no:integer |salary_change:double
 10079          |7.58
 ;
 
-notLessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notLessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change < 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -165,7 +177,9 @@ emp_no:integer |salary_change:double
 10079          | 7.58
 ;
 
-notGreaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notGreaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change > 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -179,7 +193,9 @@ emp_no:integer |salary_change:double
 10030          | -0.4
 ;
 
-notEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change == 1.19)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -224,26 +240,21 @@ row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
 [1.1, 2.1, 2.1] | [1.1, 2.1]
 ;
 
-autoBucket
-FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
-| SORT hire_date, height
-| KEEP hire_date, height, bh
-;
+mvSliceEmp
+required_feature: esql.mv_sort
 
-hire_date:date           | height:double | bh:double
-1985-02-18T00:00:00.000Z | 1.85          | 1.85
-1985-02-24T00:00:00.000Z | 2.0           | 2.0
-1985-05-13T00:00:00.000Z | 2.0           | 2.0
-1985-07-09T00:00:00.000Z | 1.83          | 1.8
-1985-09-17T00:00:00.000Z | 1.45          | 1.4000000000000001
-1985-10-14T00:00:00.000Z | 1.77          | 1.75
-1985-10-20T00:00:00.000Z | 1.94          | 1.9000000000000001
-1985-11-19T00:00:00.000Z | 1.8           | 1.8
-1985-11-20T00:00:00.000Z | 1.93          | 1.9000000000000001
-1985-11-20T00:00:00.000Z | 1.99          | 1.9500000000000002
-1985-11-21T00:00:00.000Z | 2.08          | 2.0500000000000003
+from employees
+| eval a1 = mv_slice(salary_change, 0, 1)
+| keep emp_no, salary_change, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change:double    | a1:double
+10001          | 1.19                    | 1.19
+10002          | [-7.23,11.17]           | [-7.23,11.17]
+10003          | [12.82,14.68]           | [12.82,14.68]
+10004          | [-0.35,1.13,3.65,13.48] | [-0.35, 1.13]
+10005          | [-2.14,13.07]           | [-2.14,13.07]
 ;
 
 cos
@@ -422,4 +433,139 @@ ROW deg = [90.0, 180.0, 270.0]
           deg:double | rad:double
 [90.0, 180.0, 270.0] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
 // end::to_radians-result[]
+;
+
+mvSort
+required_feature: esql.mv_sort
+
+row a = [4.0, 2.0, -3.0, 2.0] | eval sa = mv_sort(a), sd = mv_sort(a, "DESC");
+
+a:double              | sa:double             | sd:double
+[4.0, 2.0, -3.0, 2.0] | [-3.0, 2.0, 2.0, 4.0] | [4.0, 2.0, 2.0, -3.0]
+;
+
+mvSortEmp
+required_feature: esql.mv_sort
+
+FROM employees
+| eval sd = mv_sort(salary_change, "DESC"), sa = mv_sort(salary_change)
+| sort emp_no
+| keep emp_no, salary_change, sa, sd
+| limit 9
+;
+
+emp_no:integer | salary_change:double    | sa:double               | sd:double
+10001          | 1.19                    | 1.19                    | 1.19
+10002          | [-7.23,11.17]           | [-7.23,11.17]           | [11.17, -7.23]
+10003          | [12.82, 14.68]          | [12.82, 14.68]          | [14.68,12.82]
+10004          | [-0.35,1.13,3.65,13.48] | [-0.35,1.13,3.65,13.48] | [13.48,3.65,1.13,-0.35]
+10005          | [-2.14,13.07]           | [-2.14,13.07]           | [13.07,-2.14]
+10006          | -3.90                   | -3.90                   | -3.90
+10007          | [-7.06,0.57,1.99]       | [-7.06,0.57,1.99]       | [1.99,0.57,-7.06]
+10008          | [-2.92,0.75,3.54,12.68] | [-2.92,0.75,3.54,12.68] | [12.68,3.54,0.75,-2.92]
+10009          | null                    | null                    | null
+;
+
+values
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS h=MV_SORT(VALUES(height))
+;
+
+   h:double
+[1.56, 1.7, 1.78, 1.83, 1.85, 2.03, 2.05, 2.08, 2.1]
+;
+
+valuesGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS h=MV_SORT(VALUES(height)) BY first_letter
+| SORT first_letter
+;
+
+   h:double | first_letter:keyword
+       1.56 | A
+       2.08 | B
+       1.78 | C
+       2.03 | G
+       2.05 | K
+       1.83 | P
+[1.85, 2.1] | S
+       1.70 | T
+;
+
+valuesGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS h=MV_SORT(VALUES(height)) BY job_positions
+| SORT job_positions
+;
+
+         h:double | job_positions:keyword
+             2.03 | Accountant
+             1.78 | Head Human Resources
+      [1.85, 2.1] | Internship
+              2.1 | Junior Developer
+             1.56 | Principal Support Engineer
+              2.1 | Purchase Manager
+             1.78 | Reporting Analyst
+[1.85, 2.03, 2.1] | Senior Python Developer
+     [1.56, 2.08] | Senior Team Lead
+             1.78 | Support Engineer
+     [1.56, 1.78] | Tech Lead
+[1.7, 1.83, 2.05] | null
+;
+
+signumOfPositiveDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row d = to_double(100) | eval s = signum(d);
+
+d:double | s:double
+100      | 1.0
+;
+
+signumOfNegativeDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row d = to_double(-100) | eval s = signum(d);
+
+d:double | s:double
+-100     | -1.0
+;
+
+signumOfZeroDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row d = to_double(0) | eval s = signum(d);
+
+d:double | s:double
+0        | 0.0
+;
+
+signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+
+from employees
+| where emp_no <= 10009
+| eval s = signum(mv_min(salary_change))
+| where signum(mv_max(salary_change)) >= 0
+| STATS x = AVG(signum(60000 - salary));
+
+x:double
+0.14285714285714285
+;
+
+signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+from employees
+| eval s = signum(mv_min(salary_change))
+| where signum(mv_max(salary_change)) >= 0
+| keep s, emp_no, salary, salary_change
+| sort s, emp_no
+| limit 3;
+
+s:double | emp_no:integer | salary:integer  | salary_change:double
+-1.0     | 10002          | 56371           | [-7.23, 11.17]
+-1.0     | 10004          | 36174           | [-0.35, 1.13, 3.65, 13.48]
+-1.0     | 10005          | 63528           | [-2.14, 13.07]
 ;

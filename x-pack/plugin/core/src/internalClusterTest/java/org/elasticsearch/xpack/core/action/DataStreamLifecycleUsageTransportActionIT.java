@@ -122,19 +122,22 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     indices.add(index);
                 }
                 boolean systemDataStream = randomBoolean();
+                boolean replicated = randomBoolean();
                 DataStream dataStream = new DataStream(
                     randomAlphaOfLength(50),
                     indices,
                     randomLongBetween(0, 1000),
                     Map.of(),
                     systemDataStream || randomBoolean(),
-                    randomBoolean(),
+                    replicated,
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
                     lifecycle,
                     false,
-                    List.of()
+                    List.of(),
+                    replicated == false && randomBoolean(),
+                    null
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

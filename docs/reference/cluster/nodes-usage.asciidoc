@@ -48,13 +48,13 @@ of features for each node. All the nodes selective options are explained
         that action has been called on the node.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-usage-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[cluster-nodes-usage-api-example]]

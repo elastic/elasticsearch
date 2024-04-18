@@ -99,6 +99,7 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
  * The local execution planner takes a plan (represented as PlanNode tree / digraph) as input and creates the corresponding
@@ -148,7 +149,7 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(PhysicalPlan node) {
+    public LocalExecutionPlan plan(PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
@@ -159,12 +160,11 @@ public class LocalExecutionPlanner {
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
-        node = node.transformUp(
+        localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
             a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
-
-        PhysicalOperation physicalOperation = plan(node, context);
+        PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
@@ -181,7 +181,7 @@ public class LocalExecutionPlanner {
         if (node instanceof AggregateExec aggregate) {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
-            return planFieldExtractNode(context, fieldExtractExec);
+            return planFieldExtractNode(fieldExtractExec, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -259,7 +259,7 @@ public class LocalExecutionPlanner {
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
-    private PhysicalOperation planFieldExtractNode(LocalExecutionPlannerContext context, FieldExtractExec fieldExtractExec) {
+    private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context));
     }
 
@@ -367,7 +367,7 @@ public class LocalExecutionPlanner {
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {
-            limit = Integer.parseInt(literal.value().toString());
+            limit = stringToInt(literal.value().toString());
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
@@ -461,15 +461,17 @@ public class LocalExecutionPlanner {
         if (enrichIndex == null) {
             throw new EsqlIllegalArgumentException("No concrete enrich index for cluster [" + clusterAlias + "]");
         }
+        Layout.ChannelAndType input = source.layout.get(enrich.matchField().id());
         return source.with(
             new EnrichLookupOperator.Factory(
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                source.layout.get(enrich.matchField().id()).channel(),
+                input.channel(),
                 enrichLookupService,
+                input.type(),
                 enrichIndex,
-                "match", // TODO: enrich should also resolve the match_type
+                enrich.matchType(),
                 enrich.policyMatchField(),
                 enrich.enrichFields()
             ),

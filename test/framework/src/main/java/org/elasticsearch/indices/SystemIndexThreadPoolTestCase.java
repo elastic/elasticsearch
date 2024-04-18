@@ -17,7 +17,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Phaser;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -44,29 +43,7 @@ public abstract class SystemIndexThreadPoolTestCase extends ESIntegTestCase {
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) {
-        Phaser phaser = new Phaser();
-        Runnable waitAction = () -> {
-            phaser.arriveAndAwaitAdvance();
-            phaser.arriveAndAwaitAdvance();
-        };
-        phaser.register(); // register this test's thread
-
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
-            for (String threadPoolName : threadPoolsToBlock()) {
-                ThreadPool.Info info = threadPool.info(threadPoolName);
-                phaser.bulkRegister(info.getMax());
-                for (int i = 0; i < info.getMax(); i++) {
-                    threadPool.executor(threadPoolName).submit(waitAction);
-                }
-            }
-        }
-        phaser.arriveAndAwaitAdvance();
-        try {
-            runnable.run();
-        } finally {
-            phaser.arriveAndAwaitAdvance();
-        }
+        SystemIndexThreadPoolUtils.runWithBlockedThreadPools(threadPoolsToBlock(), internalCluster(), runnable);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107625")

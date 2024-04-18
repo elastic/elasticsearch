@@ -81,7 +81,6 @@ tasks {
         // A work-in-progress exclusion list of failed tests
         filter {
             excludeTestsMatching("*.AutoscalingMemoryMetricsIT.testNoMissedIndexMappingUpdatesOnSlowClusterUpdates")
-            excludeTestsMatching("*.CorruptionWhileRelocatingIT.testMergeWhileRelocationCausesCorruption")
             excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
             excludeTestsMatching("*.StatelessRealTimeGetIT.testShardMultiGetFromTranslogDuringRelocation")
             excludeTestsMatching("*.StatelessRealTimeGetIT.testGetFromTranslogDuringRelocation")

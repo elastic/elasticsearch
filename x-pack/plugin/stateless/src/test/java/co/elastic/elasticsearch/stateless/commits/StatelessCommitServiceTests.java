@@ -1855,6 +1855,68 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testMarkCommitDeletedIsIdempotent() throws Exception {
+        var fakeSearchNode = new FakeSearchNode(threadPool);
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return new StatelessCommitCleaner(null, null, null) {
+                    @Override
+                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                        deletedCommits.add(staleCompoundCommit);
+                    }
+                };
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return fakeSearchNode;
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            var numberOfCommits = randomIntBetween(2, 4);
+            List<StatelessCommitRef> commits = testHarness.generateIndexCommits(numberOfCommits, randomBoolean());
+
+            for (StatelessCommitRef commitRef : commits) {
+                commitService.onCommitCreation(commitRef);
+
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                commitService.addListenerForUploadedGeneration(shardId, commitRef.getGeneration(), future);
+                future.actionGet();
+
+                // Wait until the new commit notification is sent
+                fakeSearchNode.getListenerForNewCommitNotification(commitRef.getGeneration()).get();
+
+                if (randomBoolean()) {
+                    // Call at least 3 times, ensuring that we do not decRef more than once and delete the blob accidentally
+                    var numberOfCalls = randomIntBetween(3, 5);
+                    for (int i = 0; i < numberOfCalls; i++) {
+                        commitService.markCommitDeleted(shardId, commitRef.getGeneration());
+                    }
+                }
+            }
+
+            assertThat(deletedCommits, is(empty()));
+
+            commitService.delete(shardId);
+            commitService.unregister(shardId);
+
+            // We need assertBusy as we do an incRef for the BlobReference before we start the BCC upload
+            // (in StatelessCommitService#createAndRunCommitUpload) and decRef once the BCC is uploaded,
+            // a new commit notification is sent and the listener finishes, even-though we wait until the
+            // new commit notification is sent, there's still a slight chance of the upload decRef running
+            // after we call commitService.unregister.
+            assertBusy(() -> assertThat(deletedCommits, is(equalTo(staleCommits(commits, shardId)))));
+        }
+    }
+
     private Set<StaleCompoundCommit> staleCommits(List<StatelessCommitRef> commits, ShardId shardId) {
         return commits.stream().map(commit -> staleCommit(shardId, commit)).collect(Collectors.toSet());
     }

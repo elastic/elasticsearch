@@ -23,9 +23,7 @@ public class MutedTestPlugin implements Plugin<Project> {
         File infoPath = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "build-tools-internal");
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()
             .getSharedServices()
-            .registerIfAbsent("mutedTests", MutedTestsBuildService.class, spec -> {
-                spec.getParameters().getInfoPath().set(infoPath);
-            });
+            .registerIfAbsent("mutedTests", MutedTestsBuildService.class, spec -> { spec.getParameters().getInfoPath().set(infoPath); });
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.filter(filter -> {

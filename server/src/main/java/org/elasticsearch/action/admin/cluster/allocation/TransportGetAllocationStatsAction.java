@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +45,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     private final AllocationStatsService allocationStatsService;
     private final DiskThresholdSettings diskThresholdSettings;
+    private final FeatureService featureService;
 
     @Inject
     public TransportGetAllocationStatsAction(
@@ -52,7 +54,8 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationStatsService allocationStatsService
+        AllocationStatsService allocationStatsService,
+        FeatureService featureService
     ) {
         super(
             TYPE.name(),
@@ -67,6 +70,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         );
         this.allocationStatsService = allocationStatsService;
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
+        this.featureService = featureService;
     }
 
     @Override
@@ -84,7 +88,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         listener.onResponse(
             new Response(
                 allocationStatsService.stats(),
-                clusterService.state().clusterFeatures().clusterHasFeature(AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
+                featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
                     ? diskThresholdSettings
                     : null
             )

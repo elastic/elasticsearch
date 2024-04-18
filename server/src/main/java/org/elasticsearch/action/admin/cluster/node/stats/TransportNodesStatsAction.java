@@ -87,8 +87,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     ) {
         Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
         if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)
-            || NodesStatsRequestParameters.Metric.FS.containedIn(metrics)
-        ) {
+            || NodesStatsRequestParameters.Metric.FS.containedIn(metrics)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
                 new TransportGetAllocationStatsAction.Request(new TaskId(clusterService.localNode().getId(), task.getId())),

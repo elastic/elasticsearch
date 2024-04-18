@@ -322,13 +322,4 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         return sourceToParse;
     }
-
-    private static List<Float> generateTextEmbeddingVector(int size) {
-        List<Float> vector = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            vector.add((float) i);
-        }
-
-        return vector;
-    }
 }

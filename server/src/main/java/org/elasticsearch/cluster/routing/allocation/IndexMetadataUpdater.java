@@ -170,7 +170,6 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
                     updatedIndexMetadata = updatedIndexMetadata.withTimestampRanges(
-                        /// MP TODO: Is it safe/OK to call removeShard here twice? Not sure why we call removeShard on this to start with.
                         updatedIndexMetadata.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards()),
                         updatedIndexMetadata.getEventIngestedRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
                     );

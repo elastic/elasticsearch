@@ -964,6 +964,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         ),
         Map.entry(
             Set.of(
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.IP,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.VERSION,
+                DataTypes.NULL
+            ),
+            "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+        ),
+        Map.entry(
+            Set.of(
                 DataTypes.BOOLEAN,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,

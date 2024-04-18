@@ -117,7 +117,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 5);
-                        assertTelemetry(telemetryPlugin, true, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            "es.auto_sharding.increase_shards.total",
+                            List.of(
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                     case DECREASE_SHARDS -> {
                         {
@@ -145,7 +153,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 metConditions,
                                 1
                             );
-                            assertTelemetry(telemetryPlugin, false, true);
+                            assertTelemetry(
+                                telemetryPlugin,
+                                "es.auto_sharding.decrease_shards.total",
+                                List.of(
+                                    "es.auto_sharding.increase_shards.total",
+                                    "es.auto_sharding.cooldown_prevented_increase.total",
+                                    "es.auto_sharding.cooldown_prevented_decrease.total"
+                                )
+                            );
                         }
 
                         {
@@ -198,7 +214,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            "es.auto_sharding.cooldown_prevented_increase.total",
+                            List.of(
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                     case COOLDOWN_PREVENTED_DECREASE -> {
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
@@ -216,7 +240,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            "es.auto_sharding.cooldown_prevented_decrease.total",
+                            List.of(
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total"
+                            )
+                        );
                     }
                     case NO_CHANGE_REQUIRED -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
@@ -234,7 +266,16 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            null,
+                            List.of(
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                     case NOT_APPLICABLE -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
@@ -252,7 +293,16 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            null,
+                            List.of(
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                 }
             }
@@ -329,7 +379,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 5);
-                        assertTelemetry(telemetryPlugin, true, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            "es.auto_sharding.increase_shards.total",
+                            List.of(
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                     case DECREASE_SHARDS -> {
                         {
@@ -357,7 +415,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 metConditions,
                                 1
                             );
-                            assertTelemetry(telemetryPlugin, false, true);
+                            assertTelemetry(
+                                telemetryPlugin,
+                                "es.auto_sharding.decrease_shards.total",
+                                List.of(
+                                    "es.auto_sharding.increase_shards.total",
+                                    "es.auto_sharding.cooldown_prevented_increase.total",
+                                    "es.auto_sharding.cooldown_prevented_decrease.total"
+                                )
+                            );
                         }
 
                         {
@@ -403,7 +469,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            "es.auto_sharding.cooldown_prevented_increase.total",
+                            List.of(
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                     case COOLDOWN_PREVENTED_DECREASE -> {
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
@@ -421,7 +495,15 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            "es.auto_sharding.cooldown_prevented_decrease.total",
+                            List.of(
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total"
+                            )
+                        );
                     }
                     case NO_CHANGE_REQUIRED -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
@@ -439,7 +521,16 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            null,
+                            List.of(
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                     case NOT_APPLICABLE -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
@@ -458,7 +549,16 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         );
                         // if the auto sharding is not applicable we just use whatever's in the index template (1 shard in this case)
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 1);
-                        assertTelemetry(telemetryPlugin, false, false);
+                        assertTelemetry(
+                            telemetryPlugin,
+                            null,
+                            List.of(
+                                "es.auto_sharding.decrease_shards.total",
+                                "es.auto_sharding.increase_shards.total",
+                                "es.auto_sharding.cooldown_prevented_increase.total",
+                                "es.auto_sharding.cooldown_prevented_decrease.total"
+                            )
+                        );
                     }
                 }
             }
@@ -524,35 +624,20 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
 
     private static void assertTelemetry(
         TestTelemetryPlugin telemetryPlugin,
-        boolean isIncrease,
-        boolean isDecrease
+        String presentMetric,
+        List<String> missingMetrics
     ) {
-        {
-            final List<Measurement> measurements = telemetryPlugin.getLongCounterMeasurement(
-                MetadataRolloverService.AUTO_SHARDING_INCREASE_METRIC
-            );
-            if (isIncrease) {
-                assertThat(measurements, hasSize(1));
-                Measurement measurement = measurements.get(0);
-                assertThat(measurement.getLong(), is(1L));
-                assertFalse(measurement.isDouble());
-            } else {
-                assertThat(measurements, empty());
-            }
+        if (presentMetric != null) {
+            final List<Measurement> measurements = telemetryPlugin.getLongCounterMeasurement(presentMetric);
+            assertThat(measurements, hasSize(1));
+            Measurement measurement = measurements.get(0);
+            assertThat(measurement.getLong(), is(1L));
+            assertFalse(measurement.isDouble());
         }
 
-        {
-            final List<Measurement> measurements = telemetryPlugin.getLongCounterMeasurement(
-                MetadataRolloverService.AUTO_SHARDING_DECREASE_METRIC
-            );
-            if (isDecrease) {
-                assertThat(measurements, hasSize(1));
-                Measurement measurement = measurements.get(0);
-                assertThat(measurement.getLong(), is(1L));
-                assertFalse(measurement.isDouble());
-            } else {
-                assertThat(measurements, empty());
-            }
+        for (String metric : missingMetrics) {
+            final List<Measurement> measurements = telemetryPlugin.getLongCounterMeasurement(metric);
+            assertThat(measurements, empty());
         }
     }
 }

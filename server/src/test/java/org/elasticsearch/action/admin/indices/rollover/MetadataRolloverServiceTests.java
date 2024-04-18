@@ -591,8 +591,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
 
-            assertThat(telemetryPlugin.getLongCounterMeasurement(MetadataRolloverService.AUTO_SHARDING_INCREASE_METRIC), empty());
-            assertThat(telemetryPlugin.getLongCounterMeasurement(MetadataRolloverService.AUTO_SHARDING_DECREASE_METRIC), empty());
+            for (String metric : MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.values()) {
+                assertThat(telemetryPlugin.getLongCounterMeasurement(metric), empty());
+            }
         } finally {
             testThreadPool.shutdown();
         }

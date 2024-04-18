@@ -53,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,8 +75,12 @@ public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
     public static final Settings HIDDEN_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
-    public static final String AUTO_SHARDING_INCREASE_METRIC = "es.auto_sharding.increase.total";
-    public static final String AUTO_SHARDING_DECREASE_METRIC = "es.auto_sharding.decrease.total";
+    public static final Map<AutoShardingType, String> AUTO_SHARDING_METRIC_NAMES = Map.of(
+        AutoShardingType.INCREASE_SHARDS, "es.auto_sharding.increase_shards.total",
+        AutoShardingType.DECREASE_SHARDS,"es.auto_sharding.decrease_shards.total",
+        AutoShardingType.COOLDOWN_PREVENTED_INCREASE, "es.auto_sharding.cooldown_prevented_increase.total",
+        AutoShardingType.COOLDOWN_PREVENTED_DECREASE, "es.auto_sharding.cooldown_prevented_decrease.total"
+    );
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
@@ -83,8 +88,7 @@ public class MetadataRolloverService {
     private final SystemIndices systemIndices;
     private final WriteLoadForecaster writeLoadForecaster;
     private final ClusterService clusterService;
-    private final LongCounter increaseAutoShardCounter;
-    private final LongCounter decreaseAutoShardCounter;
+    private final Map<AutoShardingType, LongCounter> autoShardingMetricCounters = new HashMap<>();
 
     @Inject
     public MetadataRolloverService(
@@ -102,10 +106,15 @@ public class MetadataRolloverService {
         this.systemIndices = systemIndices;
         this.writeLoadForecaster = writeLoadForecaster;
         this.clusterService = clusterService;
-        this.increaseAutoShardCounter = telemetryProvider.getMeterRegistry()
-            .registerLongCounter(AUTO_SHARDING_INCREASE_METRIC, "auto-sharding increase-shards counter", "unit");
-        this.decreaseAutoShardCounter = telemetryProvider.getMeterRegistry()
-            .registerLongCounter(AUTO_SHARDING_DECREASE_METRIC, "auto-sharding decrease-shards counter", "unit");
+
+
+        for (var entry : AUTO_SHARDING_METRIC_NAMES.entrySet()) {
+            final AutoShardingType type = entry.getKey();
+            final String metricName = entry.getValue();
+            final String description = String.format(Locale.ROOT, "auto-sharding %s counter", type.name().toLowerCase(Locale.ROOT));
+            final LongCounter counter = telemetryProvider.getMeterRegistry().registerLongCounter(metricName, description, "unit");
+            this.autoShardingMetricCounters.put(type, counter);
+        }
     }
 
     public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
@@ -341,6 +350,11 @@ public class MetadataRolloverService {
                 (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))
             );
         } else {
+            LongCounter metricCounter = autoShardingMetricCounters.get(autoShardingResult.type());
+            if (metricCounter != null) {
+                metricCounter.increment();
+            }
+
             DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult == null
                 ? dataStream.getAutoShardingEvent()
                 : switch (autoShardingResult.type()) {
@@ -356,12 +370,6 @@ public class MetadataRolloverService {
                     }
                     case INCREASE_SHARDS, DECREASE_SHARDS -> {
                         logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
-
-                        LongCounter counter = autoShardingResult.type() == AutoShardingType.INCREASE_SHARDS
-                            ? increaseAutoShardCounter
-                            : decreaseAutoShardCounter;
-                        counter.increment();
-
                         yield new DataStreamAutoShardingEvent(
                             dataStream.getWriteIndex().getName(),
                             autoShardingResult.targetNumberOfShards(),

@@ -21,17 +21,13 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -45,7 +41,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,10 +58,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
-import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
-import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -267,15 +258,8 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         reason = "to ensure we translog events on DEBUG level"
     )
     public void testTranslogStressRecoveryTest() throws Exception {
-        Settings isolatedNodeSettings = addIsolatedNodeSettings(Settings.builder()).build();
-        runStressTest(
-            4,
-            isolatedNodeSettings,
-            Failures.RESTART,
-            Failures.REPLACE_FAILED_NODE,
-            Failures.LOCAL_FAIL_SHARD,
-            Failures.ISOLATED_INDEXING_NODE
-        );
+        // TODO: Add Failures.REMOTE_FAIL once issues with remote failure have been resolved
+        runStressTest(4, Failures.RESTART, Failures.REPLACE_FAILED_NODE, Failures.LOCAL_FAIL_SHARD);
     }
 
     @TestLogging(
@@ -298,6 +282,16 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         runStressTest(2, Failures.REPLACE_FAILED_NODE);
     }
 
+    // TODO: Uncomment once issues with remote failure have been resolved
+    // @TestLogging(
+    // value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
+    // + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+    // reason = "to ensure we translog events on DEBUG level"
+    // )
+    // public void testTranslogRemoteFailureOnlyStressRecoveryTest() throws Exception {
+    // runStressTest(3, Failures.REMOTE_FAIL);
+    // }
+
     @TestLogging(
         value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
             + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
@@ -318,23 +312,6 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
             .build();
         runStressTest(2, heartbeatSettings, Failures.MASTER_FAIL);
-    }
-
-    @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
-            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
-        reason = "to ensure we translog events on DEBUG level"
-    )
-    public void testTranslogIsolatedNodeOnlyStressRecoveryTest() throws Exception {
-        Settings isolatedNodeSettings = addIsolatedNodeSettings(Settings.builder()).build();
-        runStressTest(2, isolatedNodeSettings, Failures.ISOLATED_INDEXING_NODE);
-    }
-
-    private static Settings.Builder addIsolatedNodeSettings(Settings.Builder builder) {
-        return builder.put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-            .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-            .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
-            .put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "500ms");
     }
 
     private void runStressTest(int failureCount, Failures... failureTypes) throws Exception {
@@ -468,8 +445,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         REPLACE_FAILED_NODE,
         LOCAL_FAIL_SHARD,
         REMOTE_FAIL_SHARD,
-        MASTER_FAIL,
-        ISOLATED_INDEXING_NODE
+        MASTER_FAIL
     }
 
     private void induceFailures(Settings settings, String indexName, Failures... failureTypes) throws Exception {
@@ -514,34 +490,6 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                 internalCluster().stopCurrentMasterNode();
                 startIndexingAndMasterNode(settings);
                 ensureStableCluster(4);
-            }
-            case ISOLATED_INDEXING_NODE -> {
-                String isolatedNode = nonMasterIndexingNode();
-                final MockTransportService nodeATransportService = MockTransportService.getInstance(isolatedNode);
-                final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
-                try {
-                    PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
-
-                    final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-                    masterClusterService.addListener(clusterChangedEvent -> {
-                        if (removedNode.isDone() == false
-                            && clusterChangedEvent.nodesDelta().removedNodes().stream().anyMatch(d -> d.getName().equals(isolatedNode))) {
-                            removedNode.onResponse(null);
-                        }
-                    });
-                    masterTransportService.addUnresponsiveRule(nodeATransportService);
-                    removedNode.actionGet();
-                    ClusterHealthRequest healthRequest = new ClusterHealthRequest(indexName).timeout(TimeValue.timeValueSeconds(30))
-                        .waitForStatus(ClusterHealthStatus.YELLOW)
-                        .waitForEvents(Priority.LANGUID)
-                        .waitForNoRelocatingShards(true)
-                        .waitForNoInitializingShards(true)
-                        .waitForNodes(Integer.toString(3));
-
-                    internalCluster().masterClient().admin().cluster().health(healthRequest).actionGet();
-                } finally {
-                    masterTransportService.clearAllRules();
-                }
             }
         }
         ensureGreen(indexName);

@@ -392,7 +392,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     translog.bytes().data(),
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         isUploaded = true;
-                        logger.debug(() -> format("uploaded translog file [%s]", translog.metadata()));
+                        logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
                         listener.onResponse(unused);
 
                     }, e -> {
@@ -740,31 +740,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                     // If the shard sync state has been deregistered we can just ignore
                                     if (shardSyncState != null) {
                                         ShardSyncState.SyncMarker syncMarker = entry.getValue();
-                                        boolean syncFinishedAccepted = shardSyncState.markSyncFinished(syncMarker);
-                                        if (syncFinishedAccepted) {
-                                            modifiedShardSyncedLocations.add(shardSyncState);
-                                        } else {
-                                            assert syncMarker.primaryTerm() != shardSyncState.currentPrimaryTerm();
-                                            logger.debug(
-                                                () -> format(
-                                                    "skipped shard %s sync notification after translog file [%s] upload "
-                                                        + "because primary term advanced [syncPrimaryTerm=%s, currentPrimaryTerm=%s]",
-                                                    entry.getKey(),
-                                                    translogFile.blobName(),
-                                                    syncMarker.primaryTerm(),
-                                                    shardSyncState.currentPrimaryTerm()
-                                                )
-                                            );
-                                        }
-                                    } else {
-                                        logger.debug(
-                                            () -> format(
-                                                "skipped shard %s sync notification after translog file [%s] upload because "
-                                                    + "shard unregistered",
-                                                entry.getKey(),
-                                                translogFile.blobName()
-                                            )
-                                        );
+                                        shardSyncState.markSyncFinished(syncMarker);
+                                        modifiedShardSyncedLocations.add(shardSyncState);
                                     }
                                 }
                             } finally {

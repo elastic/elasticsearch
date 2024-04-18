@@ -31,9 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -282,45 +280,11 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(seqNos, empty());
 
         shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
-        assertTrue(shardSyncState.markSyncFinished(syncMarker));
+        shardSyncState.markSyncFinished(syncMarker);
         shardSyncState.notifyListeners();
 
         assertThat(seqNos, contains(0L, 1L, 2L));
         assertThat(seqNos, not(contains(3L)));
-    }
-
-    public void testSyncDoesNotAdvanceIfPrimaryTermChange() throws IOException {
-        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
-        long primaryTerm = randomLongBetween(0, 20);
-        long generation = randomLongBetween(1, 5);
-        ArrayList<Long> seqNos = new ArrayList<>();
-        AtomicLong currentPrimaryTerm = new AtomicLong(primaryTerm);
-        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, currentPrimaryTerm::get, seqNos::add);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 1, new Translog.Location(0, 10, 20));
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 2, new Translog.Location(0, 20, 30));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 3, new Translog.Location(0, 30, 40));
-
-        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            generation,
-            "",
-            Map.of(shardId, syncState.metadata(0, 30)),
-            Collections.singleton(shardId)
-        ) {
-            @Override
-            protected void closeInternal() {}
-        };
-
-        assertThat(seqNos, empty());
-
-        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
-        currentPrimaryTerm.incrementAndGet();
-        assertFalse(shardSyncState.markSyncFinished(syncMarker));
-        shardSyncState.notifyListeners();
-
-        assertThat(seqNos, empty());
     }
 
     public void testPersistedSeqNoConsumerCalledFirst() throws IOException {
@@ -361,7 +325,8 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(seqNos, empty());
 
         shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
-        assertTrue(shardSyncState.markSyncFinished(syncMarker));
+        shardSyncState.markSyncFinished(syncMarker);
+        ;
         shardSyncState.notifyListeners();
 
         assertThat(seqNos, contains(0L));
@@ -372,19 +337,10 @@ public class ShardSyncStateTests extends ESTestCase {
     }
 
     private static ShardSyncState getShardSyncState(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
-        return getShardSyncState(shardId, primaryTerm, () -> primaryTerm, persistedSeqNoConsumer);
-    }
-
-    private static ShardSyncState getShardSyncState(
-        ShardId shardId,
-        long primaryTerm,
-        LongSupplier primaryTermSupplier,
-        LongConsumer persistedSeqNoConsumer
-    ) {
         ShardSyncState shardSyncState = new ShardSyncState(
             shardId,
             primaryTerm,
-            primaryTermSupplier,
+            () -> primaryTerm,
             persistedSeqNoConsumer,
             new ThreadContext(Settings.EMPTY),
             BigArrays.NON_RECYCLING_INSTANCE

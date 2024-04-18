@@ -137,7 +137,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             super(in);
             this.nodeAllocationStats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
             if (in.getTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
-                this.diskThresholdSettings = DiskThresholdSettings.readFrom(in);
+                this.diskThresholdSettings = in.readOptionalWriteable(DiskThresholdSettings::readFrom);
             } else {
                 this.diskThresholdSettings = null;
             }
@@ -147,7 +147,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(nodeAllocationStats, StreamOutput::writeString, StreamOutput::writeWriteable);
             if (out.getTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
-                diskThresholdSettings.writeTo(out);
+                out.writeOptionalWriteable(diskThresholdSettings);
             } else {
                 assert diskThresholdSettings == null;
             }

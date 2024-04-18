@@ -175,7 +175,12 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
         dimensionsSetByUser = in.readBoolean();
         maxInputTokens = in.readOptionalVInt();
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        rateLimitSettings = RateLimitSettings.of(in, DEFAULT_RATE_LIMIT_SETTINGS);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        }
     }
 
     private AzureOpenAiEmbeddingsServiceSettings(CommonFields fields) {
@@ -293,7 +298,10 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
-        rateLimitSettings.writeTo(out);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

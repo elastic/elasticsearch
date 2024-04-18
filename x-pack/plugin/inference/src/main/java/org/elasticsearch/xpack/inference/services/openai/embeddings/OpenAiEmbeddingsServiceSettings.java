@@ -191,7 +191,12 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         } else {
             modelId = "unset";
         }
-        rateLimitSettings = RateLimitSettings.of(in, DEFAULT_RATE_LIMIT_SETTINGS);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        }
     }
 
     private OpenAiEmbeddingsServiceSettings(CommonFields fields, Boolean dimensionsSetByUser) {
@@ -324,7 +329,10 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
             out.writeString(modelId);
         }
-        rateLimitSettings.writeTo(out);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

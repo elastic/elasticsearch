@@ -105,7 +105,12 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
         this.uri = createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.maxInputTokens = in.readOptionalVInt();
-        rateLimitSettings = RateLimitSettings.of(in, DEFAULT_RATE_LIMIT_SETTINGS);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        }
     }
 
     @Override
@@ -173,7 +178,10 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(organizationId);
         out.writeOptionalVInt(maxInputTokens);
-        rateLimitSettings.writeTo(out);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

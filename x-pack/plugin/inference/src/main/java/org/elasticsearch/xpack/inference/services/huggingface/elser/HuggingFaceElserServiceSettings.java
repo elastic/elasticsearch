@@ -63,7 +63,12 @@ public class HuggingFaceElserServiceSettings implements ServiceSettings, Hugging
 
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {
         uri = createUri(in.readString());
-        rateLimitSettings = RateLimitSettings.of(in, DEFAULT_RATE_LIMIT_SETTINGS);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        }
     }
 
     @Override
@@ -109,7 +114,10 @@ public class HuggingFaceElserServiceSettings implements ServiceSettings, Hugging
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-        rateLimitSettings.writeTo(out);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

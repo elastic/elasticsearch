@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,19 +37,11 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         return timeValue == null ? defaultValue : new RateLimitSettings(timeValue);
     }
 
-    public static RateLimitSettings of(StreamInput in, RateLimitSettings defaultSettings) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            return new RateLimitSettings(in);
-        } else {
-            return defaultSettings;
-        }
-    }
-
     public RateLimitSettings(TimeValue requestsPerTimeUnit) {
         this.requestsPerTimeUnit = Objects.requireNonNull(requestsPerTimeUnit);
     }
 
-    RateLimitSettings(StreamInput in) throws IOException {
+    public RateLimitSettings(StreamInput in) throws IOException {
         requestsPerTimeUnit = in.readTimeValue();
     }
 
@@ -72,9 +63,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            out.writeTimeValue(requestsPerTimeUnit);
-        }
+        out.writeTimeValue(requestsPerTimeUnit);
     }
 
     @Override

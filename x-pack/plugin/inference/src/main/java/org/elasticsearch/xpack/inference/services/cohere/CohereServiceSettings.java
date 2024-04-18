@@ -117,7 +117,12 @@ public class CohereServiceSettings implements ServiceSettings, CohereRateLimitSe
         dimensions = in.readOptionalVInt();
         maxInputTokens = in.readOptionalVInt();
         modelId = in.readOptionalString();
-        rateLimitSettings = RateLimitSettings.of(in, DEFAULT_RATE_LIMIT_SETTINGS);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        }
     }
 
     // should only be used for testing, public because it's accessed outside of the package
@@ -206,7 +211,10 @@ public class CohereServiceSettings implements ServiceSettings, CohereRateLimitSe
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalString(modelId);
-        rateLimitSettings.writeTo(out);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

@@ -48,7 +48,7 @@ Name of the snapshot repository to review and clean up.
 [[clean-up-snapshot-repo-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[clean-up-snapshot-repo-api-response-body]]

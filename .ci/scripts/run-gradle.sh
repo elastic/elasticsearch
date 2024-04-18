@@ -36,5 +36,8 @@ if [[ "$MAX_WORKERS" == "0" ]]; then
   MAX_WORKERS=1
 fi
 
+# TODO
+MAX_WORKERS=32
+
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

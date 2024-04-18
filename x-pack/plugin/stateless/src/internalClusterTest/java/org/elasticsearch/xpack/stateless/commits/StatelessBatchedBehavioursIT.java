@@ -74,6 +74,8 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
     }
 
     public void testDefaultToNotifyOnlyForUpload() {
+        assumeFalse("skip test because stateless.upload.delayed is enabled", STATELESS_UPLOAD_DELAYED);
+
         final String indexNode = startMasterAndIndexNode();
         startSearchNode();
 

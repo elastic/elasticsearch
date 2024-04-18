@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.12.99"
-      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+      version: " - 8.14.99"
+      reason: semantic_text introduced in 8.15.0
 
   - do:
       inference.put_model:
@@ -92,7 +92,7 @@ setup:
 ---
 "Query using a dense embedding model":
   - skip:
-      features: [ "headers" ]
+      features: [ "headers", "close_to" ]
 
   - do:
       index:
@@ -117,8 +117,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - gte: { hits.hits.0._score: 0.6616 }
-  - lte: { hits.hits.0._score: 0.6617 }
+  - close_to: { hits.hits.0._score: { value: 0.6616, error: 0.0001 } }
 
 ---
 "Apply boost and query name":

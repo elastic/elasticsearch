@@ -1062,7 +1062,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderTypes(description.argNames());
             renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
-            renderDescription(description.description(), info.note());
+            renderDescription(description.description(), info.detailedDescription(), info.note());
             boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
             renderKibanaInlineDocs(name, info);
@@ -1136,11 +1136,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("parameters", rendered, "asciidoc");
     }
 
-    private static void renderDescription(String description, String note) throws IOException {
+    private static void renderDescription(String description, String detailedDescription, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
             """ + description + "\n";
+
+        if (Strings.isNullOrEmpty(detailedDescription) == false) {
+            rendered += "\n" + detailedDescription + "\n";
+        }
+
         if (Strings.isNullOrEmpty(note) == false) {
             rendered += "\nNOTE: " + note + "\n";
         }
@@ -1174,6 +1179,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
                 |===
                 """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
+            if (example.note().length() > 0) {
+                builder.append("\nNOTE: ");
+                builder.append(example.note());
+                builder.append("\n\n");
+            }
         }
         builder.append('\n');
         String rendered = builder.toString();

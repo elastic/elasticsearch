@@ -124,9 +124,29 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "integer",
-        description = "Subtracts the `startTimestamp` from the `endTimestamp` and returns the\n"
-            + "difference in multiples of `unit`. If `startTimestamp` is later than the\n"
-            + "`endTimestamp`, negative values are returned.",
+        description = "Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`. "
+            + "If `startTimestamp` is later than the `endTimestamp`, negative values are returned.",
+        detailedDescription = "[cols=\"^,^\",role=\"styled\"]\n"
+            + "|===\n"
+            + "2+h|Datetime difference units\n"
+            + "\n"
+            + "s|unit\n"
+            + "s|abbreviations\n"
+            + "\n"
+            + "| year        | years, yy, yyyy\n"
+            + "| quarter     | quarters, qq, q\n"
+            + "| month       | months, mm, m\n"
+            + "| dayofyear   | dy, y\n"
+            + "| day         | days, dd, d\n"
+            + "| week        | weeks, wk, ww\n"
+            + "| weekday     | weekdays, dw\n"
+            + "| hour        | hours, hh\n"
+            + "| minute      | minutes, mi, n\n"
+            + "| second      | seconds, ss, s\n"
+            + "| millisecond | milliseconds, ms\n"
+            + "| microsecond | microseconds, mcs\n"
+            + "| nanosecond  | nanoseconds, ns\n"
+            + "|===",
         examples = @Example(file = "date", tag = "docsDateDiff")
     )
     public DateDiff(

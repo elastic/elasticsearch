@@ -33,4 +33,6 @@ public @interface Example {
      * The tag that fences this example.
      */
     String tag();
+
+    String note() default "";
 }

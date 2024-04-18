@@ -165,6 +165,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     );
 
                     final ActionListener<Response> doExecuteListener = cancelTransformTasksListener(
+                        persistentTasksService,
                         transformNodeAssignments.getWaitingForAssignment(),
                         finalListener
                     );
@@ -173,9 +174,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                         // When force==true, we **do not** fan out to individual tasks (i.e. taskOperation method will not be called) as we
                         // want to make sure that the persistent tasks will be removed from cluster state even if these tasks are no longer
                         // visible by the PersistentTasksService.
-                        cancelTransformTasksListener(transformNodeAssignments.getAssigned(), doExecuteListener).onResponse(
-                            new Response(true)
-                        );
+                        cancelTransformTasksListener(persistentTasksService, transformNodeAssignments.getAssigned(), doExecuteListener)
+                            .onResponse(new Response(true));
                     } else if (transformNodeAssignments.getExecutorNodes().isEmpty()) {
                         doExecuteListener.onResponse(new Response(true));
                     } else {
@@ -195,6 +195,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                             // found transforms without a config
                         } else if (request.isForce()) {
                             final ActionListener<Response> doExecuteListener = cancelTransformTasksListener(
+                                persistentTasksService,
                                 transformNodeAssignments.getWaitingForAssignment(),
                                 finalListener
                             );
@@ -488,6 +489,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }));
     }
 
+    // Visible for testing
     /**
      * Creates and returns the listener that sends remove request for every task in the given set.
      *
@@ -495,7 +497,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
      * @param finalListener listener that should be called once all the given tasks are removed
      * @return listener that removes given tasks in parallel
      */
-    private ActionListener<Response> cancelTransformTasksListener(
+    static ActionListener<Response> cancelTransformTasksListener(
+        final PersistentTasksService persistentTasksService,
         final Set<String> transformTasks,
         final ActionListener<Response> finalListener
     ) {
@@ -505,16 +508,23 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         return ActionListener.wrap(response -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 transformTasks.size(),
-                ActionListener.wrap(r -> finalListener.onResponse(response), finalListener::onFailure)
+                ActionListener.wrap(unused -> finalListener.onResponse(response), finalListener::onFailure)
             );
 
             for (String taskId : transformTasks) {
-                persistentTasksService.sendRemoveRequest(taskId, null, groupedListener);
+                persistentTasksService.sendRemoveRequest(taskId, null, ActionListener.wrap(groupedListener::onResponse, e -> {
+                    // If we are about to remove a persistent task which does not exist, treat it as success.
+                    if (e instanceof ResourceNotFoundException) {
+                        groupedListener.onResponse(null);
+                        return;
+                    }
+                    groupedListener.onFailure(e);
+                }));
             }
         }, e -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 transformTasks.size(),
-                ActionListener.wrap(r -> finalListener.onFailure(e), finalListener::onFailure)
+                ActionListener.wrap(unused -> finalListener.onFailure(e), finalListener::onFailure)
             );
 
             for (String taskId : transformTasks) {

@@ -18,6 +18,8 @@ non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[get-inference-api-request]]
 ==== {api-request-title}
 
+`GET /_inference`
+
 `GET /_inference/_all`
 
 `GET /_inference/<inference_id>`

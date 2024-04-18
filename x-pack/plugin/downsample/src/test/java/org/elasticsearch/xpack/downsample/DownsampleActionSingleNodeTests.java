@@ -125,6 +125,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
@@ -1178,8 +1179,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(1, measurement.attributes().size());
             assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
         }
+        List<Measurement> shardActionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS_SHARD);
+        assertThat(shardActionMeasurements.size(), greaterThanOrEqualTo(1));
+        assertThat(shardActionMeasurements.get(0).getLong(), equalTo(1L));
+        assertThat(shardActionMeasurements.get(0).attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
 
-        // Total latency gets recorded after reindex and force-merge complete.
+        // Total latency and counters are recorded after reindex and force-merge complete.
         assertBusy(() -> {
             final List<Measurement> latencyTotalMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
             assertFalse(latencyTotalMetrics.isEmpty());
@@ -1191,6 +1196,14 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 assertEquals(1, measurement.attributes().size());
                 assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
             }
+
+            List<Measurement> actionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS);
+            assertThat(actionMeasurements.size(), greaterThanOrEqualTo(1));
+            assertThat(actionMeasurements.get(0).getLong(), equalTo(1L));
+            assertThat(
+                actionMeasurements.get(0).attributes().get("status"),
+                Matchers.in(List.of("success", "invalid_configuration", "failed"))
+            );
         }, 10, TimeUnit.SECONDS);
     }
 

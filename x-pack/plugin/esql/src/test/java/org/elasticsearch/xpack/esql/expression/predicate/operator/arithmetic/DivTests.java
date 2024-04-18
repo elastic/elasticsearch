@@ -34,29 +34,42 @@ public class DivTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
             TestCaseSupplier.forBinaryWithWidening(
-                new TestCaseSupplier.NumericTypeTestConfigs(
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Integer.MIN_VALUE >> 1) - 1,
                         (Integer.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.intValue() / r.intValue(),
                         "DivIntsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Long.MIN_VALUE >> 1) - 1,
                         (Long.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.longValue() / r.longValue(),
                         "DivLongsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
-                        Double.NEGATIVE_INFINITY,
-                        Double.POSITIVE_INFINITY,
-                        (l, r) -> l.doubleValue() / r.doubleValue(),
-                        "DivDoublesEvaluator"
-                    )
+                    new TestCaseSupplier.NumericTypeTestConfig<>(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, (l, r) -> {
+                        double v = l.doubleValue() / r.doubleValue();
+                        if (Double.isFinite(v)) {
+                            return v;
+                        }
+                        return null;
+                    }, "DivDoublesEvaluator")
                 ),
                 "lhs",
                 "rhs",
-                List.of(),
+                (lhs, rhs) -> {
+                    if (lhs.type() != DataTypes.DOUBLE || rhs.type() != DataTypes.DOUBLE) {
+                        return List.of();
+                    }
+                    double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
+                    if (Double.isFinite(v)) {
+                        return List.of();
+                    }
+                    return List.of(
+                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                    );
+                },
                 false
             )
         );
@@ -77,20 +90,20 @@ public class DivTests extends AbstractFunctionTestCase {
         suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
 
         // Divide by zero cases - all of these should warn and return null
-        TestCaseSupplier.NumericTypeTestConfigs typeStuff = new TestCaseSupplier.NumericTypeTestConfigs(
-            new TestCaseSupplier.NumericTypeTestConfig(
+        TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 (Integer.MIN_VALUE >> 1) - 1,
                 (Integer.MAX_VALUE >> 1) - 1,
                 (l, r) -> null,
                 "DivIntsEvaluator"
             ),
-            new TestCaseSupplier.NumericTypeTestConfig(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 (Long.MIN_VALUE >> 1) - 1,
                 (Long.MAX_VALUE >> 1) - 1,
                 (l, r) -> null,
                 "DivLongsEvaluator"
             ),
-            new TestCaseSupplier.NumericTypeTestConfig(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 Double.NEGATIVE_INFINITY,
                 Double.POSITIVE_INFINITY,
                 (l, r) -> null,
@@ -102,7 +115,7 @@ public class DivTests extends AbstractFunctionTestCase {
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
-                TestCaseSupplier.NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
+                TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
                 BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
                     + "["
                     + "lhs"
@@ -118,7 +131,7 @@ public class DivTests extends AbstractFunctionTestCase {
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
                     TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
                     evaluatorToString,
-                    List.of(
+                    (lhs, rhs) -> List.of(
                         "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                         "Line -1:-1: java.lang.ArithmeticException: / by zero"
                     ),

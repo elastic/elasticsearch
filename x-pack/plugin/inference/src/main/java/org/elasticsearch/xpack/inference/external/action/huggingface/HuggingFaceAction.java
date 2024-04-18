@@ -13,7 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.HuggingFaceExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.HuggingFaceRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrap
 public class HuggingFaceAction implements ExecutableAction {
     private final String errorMessage;
     private final Sender sender;
-    private final HuggingFaceExecutableRequestCreator requestCreator;
+    private final HuggingFaceRequestManager requestCreator;
 
     public HuggingFaceAction(
         Sender sender,
@@ -40,7 +40,12 @@ public class HuggingFaceAction implements ExecutableAction {
         Objects.requireNonNull(serviceComponents);
         Objects.requireNonNull(requestType);
         this.sender = Objects.requireNonNull(sender);
-        requestCreator = new HuggingFaceExecutableRequestCreator(model, responseHandler, serviceComponents.truncator());
+        requestCreator = HuggingFaceRequestManager.of(
+            model,
+            responseHandler,
+            serviceComponents.truncator(),
+            serviceComponents.threadPool()
+        );
         errorMessage = format(
             "Failed to send Hugging Face %s request from inference entity id [%s]",
             requestType,

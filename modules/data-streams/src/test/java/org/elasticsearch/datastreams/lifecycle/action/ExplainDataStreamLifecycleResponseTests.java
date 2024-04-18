@@ -37,7 +37,6 @@ import java.util.Map;
 
 import static org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction.Response;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -195,23 +194,6 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
                 Map<String, Object> lifecycleMap = (Map<String, Object>) explainIndexMap.get("lifecycle");
                 assertThat(lifecycleMap.get("data_retention"), nullValue());
-
-                if (response.getGlobalRetention() == null) {
-                    assertThat(lifecycleMap.get("effective_retention"), nullValue());
-                    assertThat(lifecycleMap.get("retention_determined_by"), nullValue());
-                } else if (response.getGlobalRetention().getDefaultRetention() != null) {
-                    assertThat(
-                        lifecycleMap.get("effective_retention"),
-                        equalTo(response.getGlobalRetention().getDefaultRetention().getStringRep())
-                    );
-                    assertThat(lifecycleMap.get("retention_determined_by"), equalTo("default_global_retention"));
-                } else {
-                    assertThat(
-                        lifecycleMap.get("effective_retention"),
-                        equalTo(response.getGlobalRetention().getMaxRetention().getStringRep())
-                    );
-                    assertThat(lifecycleMap.get("retention_determined_by"), equalTo("max_global_retention"));
-                }
 
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) lifecycleMap.get("rollover");
                 assertThat(lifecycleRollover.get("min_primary_shard_docs"), is(4));

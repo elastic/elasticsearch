@@ -671,7 +671,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                     lastUploadedTermAndGen
                 ) {
                     @Override
-                    public boolean isUpload() {
+                    public boolean isUploaded() {
                         return true;
                     }
                 };

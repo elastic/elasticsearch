@@ -755,6 +755,8 @@ public class Stateless extends Plugin
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
             StatelessCommitService.STATELESS_UPLOAD_DELAYED,
+            StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE,
+            StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,

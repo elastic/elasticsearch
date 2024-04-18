@@ -193,7 +193,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
         );
 
         var request = new NewCommitNotificationRequest(indexShardRoutingTable, statelessCompoundCommit, bccGeneration, null);
-        assertThat(request.toString(), request.isUpload(), is(false));
+        assertThat(request.toString(), request.isUploaded(), is(false));
 
         request = new NewCommitNotificationRequest(
             indexShardRoutingTable,
@@ -201,7 +201,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             bccGeneration,
             new PrimaryTermAndGeneration(randomLongBetween(1, primaryTerm), randomLongBetween(1, bccGeneration - 1))
         );
-        assertThat(request.toString(), request.isUpload(), is(false));
+        assertThat(request.toString(), request.isUploaded(), is(false));
 
         request = new NewCommitNotificationRequest(
             indexShardRoutingTable,
@@ -209,7 +209,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             bccGeneration,
             new PrimaryTermAndGeneration(primaryTerm, bccGeneration)
         );
-        assertThat(request.toString(), request.isUpload(), is(true));
+        assertThat(request.toString(), request.isUploaded(), is(true));
     }
 
     private IndexShardRoutingTable randomIndexShardRoutingTable() {

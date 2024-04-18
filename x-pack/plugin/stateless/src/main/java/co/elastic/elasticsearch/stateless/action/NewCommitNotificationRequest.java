@@ -86,9 +86,9 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
     }
 
     /**
-     * Whether the request is for an uploaded commit
+     * Whether the BCC in this request is uploaded
      */
-    public boolean isUpload() {
+    public boolean isUploaded() {
         return latestUploadedBatchedCompoundCommitTermAndGen != null
             && latestUploadedBatchedCompoundCommitTermAndGen.generation() == batchedCompoundCommitGeneration;
     }

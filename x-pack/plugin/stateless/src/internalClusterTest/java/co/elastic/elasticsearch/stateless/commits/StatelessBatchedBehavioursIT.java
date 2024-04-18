@@ -99,7 +99,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             refresh(indexName);
             final NewCommitNotificationRequest request = requestRef.getAndSet(null);
             assertThat(request, notNullValue());
-            assertThat(request.isUpload(), is(true));
+            assertThat(request.isUploaded(), is(true));
         }
     }
 
@@ -131,8 +131,8 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
                 assertThat(requestList.size(), equalTo(2));
                 final var creationNotificationRequest = requestList.get(0);
                 final var uploadNotificationRequest = requestList.get(1);
-                assertThat(creationNotificationRequest.isUpload(), is(false));
-                assertThat(uploadNotificationRequest.isUpload(), is(true));
+                assertThat(creationNotificationRequest.isUploaded(), is(false));
+                assertThat(uploadNotificationRequest.isUploaded(), is(true));
 
                 assertThat(creationNotificationRequest.getCompoundCommit(), equalTo(uploadNotificationRequest.getCompoundCommit()));
                 assertThat(
@@ -186,7 +186,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         final AtomicBoolean seenUploadNotification = new AtomicBoolean(false);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportNewCommitNotificationAction.NAME + "[u]")) {
-                if (((NewCommitNotificationRequest) request).isUpload()) {
+                if (((NewCommitNotificationRequest) request).isUploaded()) {
                     seenUploadNotification.set(true);
                 }
             }

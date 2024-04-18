@@ -279,21 +279,18 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            commitService = new StatelessCommitService(
-                nodeSettings,
-                objectStoreService,
-                () -> clusterService.localNode().getEphemeralId(),
-                this::getShardRoutingTable,
-                clusterService.threadPool(),
-                client,
-                commitCleaner,
-                createAllNodesResolveBCCReferencesLocallySupplier()
-            );
+            commitService = createCommitService();
+            commitService.start();
             commitService.register(shardId, getPrimaryTerm());
+            localCloseables.add(commitService);
             indexingDirectory.getSearchDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
 
             closeables = localCloseables.transfer();
         }
+    }
+
+    public StatelessCommitCleaner getCommitCleaner() {
+        return commitCleaner;
     }
 
     protected SearchDirectory createSearchDirectory(
@@ -389,6 +386,19 @@ public class FakeStatelessNode implements Closeable {
         ObjectStoreService objectStoreService
     ) {
         return new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
+    }
+
+    protected StatelessCommitService createCommitService() {
+        return new StatelessCommitService(
+            nodeSettings,
+            objectStoreService,
+            () -> clusterService.localNode().getEphemeralId(),
+            this::getShardRoutingTable,
+            clusterService.threadPool(),
+            client,
+            commitCleaner,
+            createAllNodesResolveBCCReferencesLocallySupplier()
+        );
     }
 
     protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {

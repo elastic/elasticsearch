@@ -49,10 +49,12 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -121,6 +123,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> STATELESS_UPLOAD_MAX_AMOUNT_COMMITS = Setting.intSetting(
+        "stateless.upload.max_commits",
+        0,
+        0,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> STATELESS_UPLOAD_MAX_SIZE = Setting.byteSizeSetting(
+        "stateless.upload.max_size",
+        ByteSizeValue.ofMb(15),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofGb(1),
+        Setting.Property.NodeScope
+    );
+
     /**
      * How long can a VBCC exists before the upload monitor task can trigger its upload
      */
@@ -160,6 +177,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final boolean statelessUploadDelayed;
     private final TimeValue virtualBccUploadMaxAge;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
+
+    private final int bccMaxAmountOfCommits;
+    private final long bccUploadMaxSizeInBytes;
 
     public StatelessCommitService(
         Settings settings,
@@ -213,6 +233,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         } else {
             this.scheduledUploadMonitor = null;
         }
+        this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
+        this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
     }
 
     public boolean isStatelessUploadDelayed() {
@@ -419,6 +441,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(reference);
             }
         }
+    }
+
+    // Visible for testing
+    // TODO Remove this simulation and use `onCommitCreation` + `ShardCommitState#getMaxPendingUploadBcc`
+    // as soon as we remove "must contain a single CC till BCC is in full motion" assertions and fully support uploading
+    // batch commits.
+    boolean simulateAppendAndShouldUploadVirtualBccForTesting(StatelessCommitRef reference) {
+        if (Assertions.ENABLED) {
+            ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
+            VirtualBatchedCompoundCommit virtualBcc = commitState.appendCommit(reference);
+            return commitState.shouldUploadVirtualBcc(virtualBcc);
+        }
+        return false;
     }
 
     private void createAndRunCommitUpload(
@@ -1129,8 +1164,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         // TODO: expand for more criteria such as size, time interval
         protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
-            assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
-            return virtualBcc.getPendingCompoundCommits().isEmpty() == false;
+            if (statelessUploadDelayed == false) {
+                return true;
+            }
+            return virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes
+                || virtualBcc.getPendingCompoundCommits().size() >= bccMaxAmountOfCommits;
         }
 
         private BlobReference createBlobReference(VirtualBatchedCompoundCommit virtualBcc) {

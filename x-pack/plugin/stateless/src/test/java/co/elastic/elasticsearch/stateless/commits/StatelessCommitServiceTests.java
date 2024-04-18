@@ -58,6 +58,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
@@ -1852,6 +1853,76 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     equalTo(expectedCcGenerations)
                 );
             });
+        }
+    }
+
+    public void testShouldUploadVirtualBccByDefault() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+        }) {
+            for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
+                assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRef));
+            }
+        }
+    }
+
+    public void testShouldUploadVirtualBccWhenDelayedUploadAreEnabled() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder().put(super.nodeSettings()).put("stateless.upload.delayed", "true").build();
+            }
+        }) {
+            for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
+                assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRef));
+            }
+        }
+    }
+
+    public void testShouldOnlyUploadVirtualBccWhenOverMaxCommitLimit() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put("stateless.upload.delayed", "true")
+                    .put("stateless.upload.max_commits", 2)
+                    .build();
+            }
+        }) {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
+            assertFalse(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(0)));
+            // TODO This is assertTrue only in a simulated scenario where we append a commit before testing
+            assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(1)));
+            assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(2)));
+        }
+    }
+
+    public void testShouldOnlyUploadVirtualBccWhenOverMaxSizeLimit() throws Exception {
+        long uploadMaxSize = randomLongBetween(1, ByteSizeValue.ofKb(20).getBytes());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put("stateless.upload.delayed", "true")
+                    .put("stateless.upload.max_commits", 100)
+                    .put("stateless.upload.max_size", uploadMaxSize + "b")
+                    .build();
+            }
+        }) {
+            while (true) {
+                List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(1);
+                boolean shouldUpload = testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(0));
+                VirtualBatchedCompoundCommit currentVirtualBcc = testHarness.commitService.getCurrentVirtualBcc(
+                    commitRefs.get(0).getShardId()
+                );
+                if (currentVirtualBcc.getTotalSizeInBytes() > uploadMaxSize) {
+                    assertTrue(shouldUpload);
+                    break;
+                } else {
+                    assertFalse(shouldUpload);
+                }
+            }
         }
     }
 

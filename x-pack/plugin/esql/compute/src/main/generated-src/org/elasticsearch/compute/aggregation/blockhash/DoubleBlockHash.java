@@ -29,7 +29,7 @@ import java.util.BitSet;
  */
 final class DoubleBlockHash extends BlockHash {
     private final int channel;
-    private final LongHash longHash;
+    private final LongHash hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -43,7 +43,7 @@ final class DoubleBlockHash extends BlockHash {
     DoubleBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.longHash = new LongHash(1, blockFactory.bigArrays());
+        this.hash = new LongHash(1, blockFactory.bigArrays());
     }
 
     @Override
@@ -54,18 +54,18 @@ final class DoubleBlockHash extends BlockHash {
             try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
                 addInput.add(0, groupIds);
             }
-        } else {
-            DoubleBlock doubleBlock = (DoubleBlock) block;
-            DoubleVector doubleVector = doubleBlock.asVector();
-            if (doubleVector == null) {
-                try (IntBlock groupIds = add(doubleBlock)) {
-                    addInput.add(0, groupIds);
-                }
-            } else {
-                try (IntVector groupIds = add(doubleVector)) {
-                    addInput.add(0, groupIds);
-                }
+            return;
+        }
+        DoubleBlock castBlock = (DoubleBlock) block;
+        DoubleVector vector = castBlock.asVector();
+        if (vector == null) {
+            try (IntBlock groupIds = add(castBlock)) {
+                addInput.add(0, groupIds);
             }
+            return;
+        }
+        try (IntVector groupIds = add(vector)) {
+            addInput.add(0, groupIds);
         }
     }
 
@@ -73,73 +73,61 @@ final class DoubleBlockHash extends BlockHash {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(Double.doubleToLongBits(vector.getDouble(i))))));
+                long v = Double.doubleToLongBits(vector.getDouble(i));
+                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
             }
             return builder.build();
         }
     }
 
     private IntBlock add(DoubleBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hashAdd(blockFactory, longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
-    }
-
-    private IntVector lookup(DoubleVector vector) {
-        int positions = vector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
-            for (int i = 0; i < positions; i++) {
-                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(Double.doubleToLongBits(vector.getDouble(i))))));
-            }
-            return builder.build();
-        }
-    }
-
-    private IntBlock lookup(DoubleBlock block) {
-        return new MultivalueDedupeDouble(block).hashLookup(blockFactory, longHash);
     }
 
     @Override
     public DoubleBlock[] getKeys() {
         if (seenNull) {
-            final int size = Math.toIntExact(longHash.size() + 1);
+            final int size = Math.toIntExact(hash.size() + 1);
             final double[] keys = new double[size];
             for (int i = 1; i < size; i++) {
-                keys[i] = Double.longBitsToDouble(longHash.get(i - 1));
+                keys[i] = Double.longBitsToDouble(hash.get(i - 1));
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
             return new DoubleBlock[] {
                 blockFactory.newDoubleArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
         }
-
-        final int size = Math.toIntExact(longHash.size());
+        final int size = Math.toIntExact(hash.size());
         final double[] keys = new double[size];
         for (int i = 0; i < size; i++) {
-            keys[i] = Double.longBitsToDouble(longHash.get(i));
+            keys[i] = Double.longBitsToDouble(hash.get(i));
         }
-
-        // TODO claim the array and wrap?
         return new DoubleBlock[] { blockFactory.newDoubleArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1), blockFactory);
+        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1)).seenGroupIds(bigArrays);
+        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
     }
 
     @Override
     public void close() {
-        longHash.close();
+        hash.close();
     }
 
     @Override
     public String toString() {
-        return "DoubleBlockHash{channel=" + channel + ", entries=" + longHash.size() + ", seenNull=" + seenNull + '}';
+        StringBuilder b = new StringBuilder();
+        b.append("DoubleBlockHash{channel=").append(channel);
+        b.append(", entries=").append(hash.size());
+        b.append(", seenNull=").append(seenNull);
+        return b.append('}').toString();
     }
 }

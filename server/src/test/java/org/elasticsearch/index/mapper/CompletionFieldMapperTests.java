@@ -150,11 +150,14 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
         } else {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            assertThat(
+                ((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"),
+                instanceOf(Completion99PostingsFormat.class)
+            );
         }
-        PerFieldMapperCodec perFieldCodec = (PerFieldMapperCodec) codec;
-        assertThat(perFieldCodec.getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
     }
 
     public void testDefaultConfiguration() throws IOException {

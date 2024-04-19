@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -1285,7 +1286,11 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
      * This is behavior that ES-6685 will change / fix.
      */
     public void testRetainCommitForReadersAfterShardMovedAway() throws Exception {
-        final String indexNode = startMasterAndIndexNode();
+        final String indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+                .build()
+        );
         final String searchNodeA = startSearchNode();
         final String searchNodeB = startSearchNode();
 
@@ -1334,9 +1339,11 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             // that the reader is using.
             assertHitCount(scrollSearchResponse, numDocsToIndex);
             assertThat(scrollSearchResponse.getHits().getHits().length, equalTo(1));
-            assertThrows(
-                ExecutionException.class,
-                () -> client().searchScroll(new SearchScrollRequest(scrollSearchResponse.getScrollId())).get()
+            assertBusy(
+                () -> assertThrows(
+                    ExecutionException.class,
+                    () -> client().searchScroll(new SearchScrollRequest(scrollSearchResponse.getScrollId())).get().decRef()
+                )
             );
         } finally {
             // There's an implicit incRef in prepareSearch(), so call decRef() to release the response object back into the resource pool.

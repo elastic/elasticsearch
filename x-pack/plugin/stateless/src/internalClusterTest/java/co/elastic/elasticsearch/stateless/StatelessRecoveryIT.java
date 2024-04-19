@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -1221,7 +1222,10 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     public void testRecoverIndexingShardWithStaleCompoundCommit() throws Exception {
         final var masterNode = internalCluster().getMasterName(); // started in {@link #init()}
-        final var indexNode = startIndexNode();
+        final var extraSettings = Settings.builder()
+            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+        final var indexNode = startIndexNode(extraSettings);
         ensureStableCluster(2, masterNode);
 
         final String indexName = randomIdentifier();
@@ -1253,7 +1257,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var generationBeforeFailOver = indexEngine.getLastCommittedSegmentInfos().getGeneration();
 
         logger.debug("--> start a new indexing node");
-        final var newIndexNode = startIndexNode();
+        final var newIndexNode = startIndexNode(extraSettings);
         ensureStableCluster(3, masterNode);
 
         logger.debug("--> index more docs, without flushing");
@@ -1345,9 +1349,10 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 blobName -> blobNamesAndPrimaryTerms.computeIfAbsent(blobName, s -> new HashSet<>()).add(Long.parseLong(child.getKey()))
             );
         }
-        // number of compound commit blobs = initialFlushes + stale index shard flush + extra forced index shard flush (omitting the
-        // generation that is in both primary terms)
-        assertThat(blobNamesAndPrimaryTerms.size(), equalTo(initialFlushes + 1 + 1));
+        // There should be at least the number of commits initially made + 1 stale commit / post recovery commit with same generation + 1
+        // forced commit on the new indexing shard.
+        // Is it possible there are more commits from the initial shard creation that may or may not have been deleted
+        assertThat(blobNamesAndPrimaryTerms.size(), greaterThanOrEqualTo(initialFlushes + 1 + 1));
         assertThat(
             "All commits uploaded under 1 primary term, except the stale generation",
             blobNamesAndPrimaryTerms.entrySet()
@@ -1378,7 +1383,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         );
 
         logger.debug("--> now we have duplicate commits with different primary terms, trigger a new recovery");
-        startIndexNode();
+        startIndexNode(extraSettings);
         ensureStableCluster(3, masterNode);
 
         internalCluster().stopNode(newIndexNode);

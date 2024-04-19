@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.objectstore.gc;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -313,7 +314,10 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
                 .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
                 .build()
         );
-        var indexNode = startIndexNode();
+        var extraSettings = Settings.builder()
+            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+        var indexNode = startIndexNode(extraSettings);
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
         IntStream.range(0, between(5, 10)).forEach(i -> {
@@ -380,7 +384,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
             assertThat(client(masterNode).admin().cluster().prepareHealth(indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
         });
 
-        var indexNode2 = startIndexNode();
+        var indexNode2 = startIndexNode(extraSettings);
 
         assertBusy(() -> {
             assertThat(client(masterNode).admin().cluster().prepareHealth(indexName).get().getStatus(), equalTo(ClusterHealthStatus.GREEN));

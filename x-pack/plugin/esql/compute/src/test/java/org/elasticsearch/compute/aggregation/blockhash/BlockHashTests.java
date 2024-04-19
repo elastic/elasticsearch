@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -1151,9 +1150,9 @@ public class BlockHashTests extends ESTestCase {
 
     private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) {
         try {
-            List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(values.length);
+            List<BlockHash.GroupSpec> specs = new ArrayList<>(values.length);
             for (int c = 0; c < values.length; c++) {
-                specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
+                specs.add(new BlockHash.GroupSpec(c, values[c].elementType()));
             }
             try (
                 BlockHash blockHash = forcePackedHash

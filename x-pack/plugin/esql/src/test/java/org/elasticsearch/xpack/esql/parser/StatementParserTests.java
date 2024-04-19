@@ -1027,6 +1027,18 @@ public class StatementParserTests extends ESTestCase {
         assertThat(ua.name(), is("`name`* = language_name"));
     }
 
+    public void testInlineConvertWithNonexistentType() {
+        expectError("ROW 1::doesnotexist", "line 1:9: Unknown data type named [doesnotexist]");
+        expectError("ROW \"1\"::doesnotexist", "line 1:11: Unknown data type named [doesnotexist]");
+        expectError("ROW false::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+        expectError("ROW abs(1)::doesnotexist", "line 1:14: Unknown data type named [doesnotexist]");
+        expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+    }
+
+    public void testInlineConvertUnsupportedType() {
+        expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
+    }
+
     private LogicalPlan statement(String e) {
         return statement(e, List.of());
     }

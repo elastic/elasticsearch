@@ -861,6 +861,41 @@ public class BasicBlockTests extends ESTestCase {
         int valueCount() {
             return values.stream().mapToInt(l -> l == null ? 0 : l.size()).sum();
         }
+
+        /**
+         * Build a {@link RandomBlock} contain the values of two blocks, preserving the relative order.
+         */
+        public BasicBlockTests.RandomBlock merge(BasicBlockTests.RandomBlock rhs) {
+            int estimatedSize = values().size() + rhs.values().size();
+            int l = 0;
+            int r = 0;
+            List<List<Object>> mergedValues = new ArrayList<>(estimatedSize);
+            try (Block.Builder mergedBlock = block.elementType().newBlockBuilder(estimatedSize, block.blockFactory())) {
+                while (l < values.size() && r < rhs.values.size()) {
+                    if (randomBoolean()) {
+                        mergedValues.add(values.get(l));
+                        mergedBlock.copyFrom(block, l, l + 1);
+                        l++;
+                    } else {
+                        mergedValues.add(rhs.values.get(r));
+                        mergedBlock.copyFrom(rhs.block, r, r + 1);
+                        r++;
+                    }
+                }
+                while (l < values.size()) {
+                    mergedValues.add(values.get(l));
+                    mergedBlock.copyFrom(block, l, l + 1);
+                    l++;
+                }
+                while (r < rhs.values.size()) {
+                    mergedValues.add(rhs.values.get(r));
+                    mergedBlock.copyFrom(rhs.block, r, r + 1);
+                    r++;
+                }
+                return new BasicBlockTests.RandomBlock(mergedValues, mergedBlock.build());
+            }
+        }
+
     }
 
     public static RandomBlock randomBlock(

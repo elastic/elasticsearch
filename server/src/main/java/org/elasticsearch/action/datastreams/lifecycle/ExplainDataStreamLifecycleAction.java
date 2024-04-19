@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.lifecycle.action;
+package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
@@ -37,9 +36,7 @@ import java.util.Objects;
  */
 public class ExplainDataStreamLifecycleAction {
 
-    public static final ActionType<ExplainDataStreamLifecycleAction.Response> INSTANCE = new ActionType<>(
-        "indices:admin/data_stream/lifecycle/explain"
-    );
+    public static final ActionType<Response> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/explain");
 
     private ExplainDataStreamLifecycleAction() {/* no instances */}
 

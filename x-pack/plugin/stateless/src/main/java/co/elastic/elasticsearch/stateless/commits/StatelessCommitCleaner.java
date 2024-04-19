@@ -114,7 +114,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
-            consistencyService.ensureClusterStateConsistentWithRootBlob(listener, TimeValue.MAX_VALUE);
+            consistencyService.delayedEnsureClusterStateConsistentWithRootBlob(listener);
         }
 
         @Override

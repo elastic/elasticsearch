@@ -706,7 +706,6 @@ public class MasterService extends AbstractLifecycleComponent {
         public void onCommit(TimeValue commitTime) {
             TimeValue ackTimeout = contextPreservingAckListener.ackTimeout();
             if (ackTimeout == null) {
-                assert false : "ackTimeout must always be present: " + contextPreservingAckListener;
                 ackTimeout = TimeValue.ZERO;
             }
             final TimeValue timeLeft = TimeValue.timeValueNanos(Math.max(0, ackTimeout.nanos() - commitTime.nanos()));

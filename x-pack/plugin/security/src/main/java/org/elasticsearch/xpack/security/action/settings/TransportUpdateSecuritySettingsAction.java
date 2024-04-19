@@ -85,21 +85,21 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             createUpdateSettingsRequest(
                 SECURITY_MAIN_ALIAS,
                 Settings.builder().loadFromMap(request.mainIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             ),
             createUpdateSettingsRequest(
                 SECURITY_TOKENS_ALIAS,
                 Settings.builder().loadFromMap(request.tokensIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             ),
             createUpdateSettingsRequest(
                 SECURITY_PROFILE_ALIAS,
                 Settings.builder().loadFromMap(request.profilesIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             )

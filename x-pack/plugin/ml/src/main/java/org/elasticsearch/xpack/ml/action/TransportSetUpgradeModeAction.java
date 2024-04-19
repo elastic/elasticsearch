@@ -156,7 +156,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
                 // There is a chance that we failed un-allocating a task due to allocation_id being changed
                 // This call will timeout in that case and return an error
                 .setWaitForCompletion(true)
-                .setTimeout(request.timeout())
+                .setTimeout(request.ackTimeout())
                 .execute(ActionListener.wrap(r -> {
                     try {
                         // Handle potential node timeouts,
@@ -230,7 +230,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
                     persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
                         .stream()
                         .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE)),
-                    request.timeout(),
+                    request.ackTimeout(),
                     ActionListener.wrap(r -> {
                         logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");
                         wrappedListener.onResponse(AcknowledgedResponse.TRUE);

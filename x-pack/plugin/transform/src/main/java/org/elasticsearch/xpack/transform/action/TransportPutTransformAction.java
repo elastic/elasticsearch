@@ -115,7 +115,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
                 client,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
+                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
                 l
             )
         );

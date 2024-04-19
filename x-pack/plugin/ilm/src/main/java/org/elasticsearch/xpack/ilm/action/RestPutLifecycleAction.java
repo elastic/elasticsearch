@@ -37,7 +37,7 @@ public class RestPutLifecycleAction extends BaseRestHandler {
         String lifecycleName = restRequest.param("name");
         try (XContentParser parser = restRequest.contentParser()) {
             PutLifecycleRequest putLifecycleRequest = PutLifecycleRequest.parseRequest(lifecycleName, parser);
-            putLifecycleRequest.timeout(restRequest.paramAsTime("timeout", putLifecycleRequest.timeout()));
+            putLifecycleRequest.ackTimeout(restRequest.paramAsTime("timeout", putLifecycleRequest.ackTimeout()));
             putLifecycleRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
 
             return channel -> client.execute(ILMActions.PUT, putLifecycleRequest, new RestToXContentListener<>(channel));

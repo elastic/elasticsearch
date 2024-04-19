@@ -233,7 +233,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
-            .ackTimeout(targetIndex.timeout())
+            .ackTimeout(targetIndex.ackTimeout())
             .masterNodeTimeout(targetIndex.masterNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())

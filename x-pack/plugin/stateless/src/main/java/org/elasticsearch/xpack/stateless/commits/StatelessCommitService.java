@@ -410,6 +410,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
 
             final var virtualBcc = commitState.appendCommit(reference);
+            success = true;
 
             if (statelessUploadDelayed) {
                 final var request = new NewCommitNotificationRequest(
@@ -431,7 +432,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             commitState.maybeFreezeAndUploadCurrentVirtualBcc(virtualBcc);
-            success = true;
         } catch (Exception ex) {
             assert false : ex;
             logger.warn(Strings.format("failed to handle new commit [%s], generation [%s]", reference, reference.getGeneration()), ex);

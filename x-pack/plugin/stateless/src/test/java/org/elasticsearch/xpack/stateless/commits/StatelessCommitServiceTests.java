@@ -109,6 +109,10 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class StatelessCommitServiceTests extends ESTestCase {
 
@@ -1985,6 +1989,42 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // new commit notification is sent, there's still a slight chance of the upload decRef running
             // after we call commitService.unregister.
             assertBusy(() -> assertThat(deletedCommits, is(equalTo(staleCommits(commits, shardId)))));
+        }
+    }
+
+    public void testDoesNotCloseCommitReferenceOnceAppended() throws IOException {
+        final var expectedException = new AssertionError("failure after append");
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                    .build();
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return new NodeClient(nodeSettings, threadPool) {
+                    @Override
+                    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        throw expectedException;
+                    }
+                };
+            }
+        }) {
+            final StatelessCommitRef commitRef = spy(testHarness.generateIndexCommits(1).get(0));
+            assertThat(
+                expectThrows(AssertionError.class, () -> testHarness.commitService.onCommitCreation(commitRef)),
+                sameInstance(expectedException)
+            );
+            final var virtualBcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            assertThat(virtualBcc.getLastPendingCompoundCommit().getCommitReference(), sameInstance(commitRef));
+            verify(commitRef, never()).close();
         }
     }
 

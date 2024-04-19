@@ -3370,6 +3370,10 @@ public class InternalEngine extends Engine {
         }
     }
 
+    public boolean initLastUnsafeSegmentGenerationForGets(long generation) {
+        return lastUnsafeSegmentGenerationForGets.compareAndSet(-1L, generation);
+    }
+
     public long getLastUnsafeSegmentGenerationForGets() {
         return lastUnsafeSegmentGenerationForGets.get();
     }

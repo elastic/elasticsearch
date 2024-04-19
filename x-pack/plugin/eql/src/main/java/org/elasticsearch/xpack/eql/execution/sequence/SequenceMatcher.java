@@ -434,12 +434,20 @@ public class SequenceMatcher {
     // sequences.
     private void trackMemory() {
         long newRamBytesUsedInFlight = ramBytesUsedInFlight();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
+        updateCircuitBreaker(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
         prevRamBytesUsedInFlight = newRamBytesUsedInFlight;
 
         long newRamBytesUsedCompleted = ramBytesUsedCompleted();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
+        updateCircuitBreaker(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
         prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
+    }
+
+    private void updateCircuitBreaker(long bytes, String label) {
+        if (bytes >= 0) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        } else {
+            circuitBreaker.addWithoutBreaking(bytes);
+        }
     }
 
     @Override

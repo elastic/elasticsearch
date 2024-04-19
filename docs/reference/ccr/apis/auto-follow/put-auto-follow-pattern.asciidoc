@@ -74,7 +74,7 @@ the new patterns.
 [[ccr-put-auto-follow-pattern-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-put-auto-follow-pattern-request-body]]
 ==== {api-request-body-title}

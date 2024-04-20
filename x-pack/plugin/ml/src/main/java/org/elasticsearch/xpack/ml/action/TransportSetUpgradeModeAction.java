@@ -66,7 +66,6 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PersistentTasksClusterService persistentTasksClusterService;
     private final PersistentTasksService persistentTasksService;
-    private final ClusterService clusterService;
     private final OriginSettingClient client;
 
     @Inject
@@ -91,7 +90,6 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksClusterService = persistentTasksClusterService;
-        this.clusterService = clusterService;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.persistentTasksService = persistentTasksService;
     }

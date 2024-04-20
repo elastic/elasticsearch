@@ -434,15 +434,17 @@ public class SequenceMatcher {
     // sequences.
     private void trackMemory() {
         long newRamBytesUsedInFlight = ramBytesUsedInFlight();
-        updateCircuitBreaker(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
+        addRequestCircuitBreakerBytes(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
         prevRamBytesUsedInFlight = newRamBytesUsedInFlight;
 
         long newRamBytesUsedCompleted = ramBytesUsedCompleted();
-        updateCircuitBreaker(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
+        addRequestCircuitBreakerBytes(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
         prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
     }
 
-    private void updateCircuitBreaker(long bytes, String label) {
+    private void addRequestCircuitBreakerBytes(long bytes, String label) {
+        // Only use the potential to circuit break if bytes are being incremented, In the case of 0
+        // bytes, it will trigger the parent circuit breaker.
         if (bytes >= 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
         } else {

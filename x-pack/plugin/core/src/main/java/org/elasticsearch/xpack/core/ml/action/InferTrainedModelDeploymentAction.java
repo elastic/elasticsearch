@@ -274,10 +274,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
             private String id;
             private List<Map<String, Object>> docs;
-            private TimeValue timeout;
             private InferenceConfigUpdate update;
-            private boolean skipQueue = false;
-            private List<String> textInput;
 
             private Builder() {}
 
@@ -291,32 +288,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return this;
             }
 
-            public Builder setInferenceTimeout(TimeValue inferenceTimeout) {
-                this.timeout = inferenceTimeout;
-                return this;
-            }
-
             public Builder setUpdate(InferenceConfigUpdate update) {
                 this.update = update;
                 return this;
             }
 
-            private Builder setInferenceTimeout(String inferenceTimeout) {
-                return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
-            }
-
-            public Builder setTextInput(List<String> textInput) {
-                this.textInput = textInput;
-                return this;
-            }
-
-            public Builder setSkipQueue(boolean skipQueue) {
-                this.skipQueue = skipQueue;
-                return this;
-            }
-
             public Request build() {
-                return new Request(id, update, docs, textInput, skipQueue, timeout);
+                return new Request(id, update, docs, null, false, null);
             }
         }
     }

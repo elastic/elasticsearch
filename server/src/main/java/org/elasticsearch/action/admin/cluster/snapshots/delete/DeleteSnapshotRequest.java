@@ -32,11 +32,6 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     private String[] snapshots;
 
     /**
-     * Constructs a new delete snapshots request
-     */
-    public DeleteSnapshotRequest() {}
-
-    /**
      * Constructs a new delete snapshots request with repository and snapshot names
      *
      * @param repository repository name
@@ -45,15 +40,6 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     public DeleteSnapshotRequest(String repository, String... snapshots) {
         this.repository = repository;
         this.snapshots = snapshots;
-    }
-
-    /**
-     * Constructs a new delete snapshots request with repository name
-     *
-     * @param repository repository name
-     */
-    public DeleteSnapshotRequest(String repository) {
-        this.repository = repository;
     }
 
     public DeleteSnapshotRequest(StreamInput in) throws IOException {

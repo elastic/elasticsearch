@@ -42,7 +42,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The search to be executed.
      */
-    private SearchRequest searchRequest;
+    private final SearchRequest searchRequest;
 
     /**
      * Maximum number of processed documents. Defaults to -1 meaning process all

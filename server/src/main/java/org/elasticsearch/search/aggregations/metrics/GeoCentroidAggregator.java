@@ -92,8 +92,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     }
 
     private LeafBucketCollector getLeafCollector(GeoPointValues values, LeafBucketCollector sub) {
-        final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
-        final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -103,19 +102,17 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     counts.increment(bucket, 1);
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    compensatedSumLat.reset(latSum.get(bucket), latCompensations.get(bucket));
-                    compensatedSumLon.reset(lonSum.get(bucket), lonCompensations.get(bucket));
-                    // update the sum
                     final GeoPoint value = values.pointValue();
                     // latitude
-                    compensatedSumLat.add(value.getLat());
+                    compensatedSum.reset(latSum.get(bucket), latCompensations.get(bucket));
+                    compensatedSum.add(value.getLat());
+                    latSum.set(bucket, compensatedSum.value());
+                    latCompensations.set(bucket, compensatedSum.delta());
                     // longitude
-                    compensatedSumLon.add(value.getLon());
-
-                    lonSum.set(bucket, compensatedSumLon.value());
-                    lonCompensations.set(bucket, compensatedSumLon.delta());
-                    latSum.set(bucket, compensatedSumLat.value());
-                    latCompensations.set(bucket, compensatedSumLat.delta());
+                    compensatedSum.reset(lonSum.get(bucket), lonCompensations.get(bucket));
+                    compensatedSum.add(value.getLon());
+                    lonSum.set(bucket, compensatedSum.value());
+                    lonCompensations.set(bucket, compensatedSum.delta());
                 }
             }
         };

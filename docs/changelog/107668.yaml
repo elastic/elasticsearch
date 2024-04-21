@@ -1,0 +1,5 @@
+pr: 107668
+summary: Add node stats effective watermark thresholds doc.
+area: Doc
+type: bug
+issues: [106676]

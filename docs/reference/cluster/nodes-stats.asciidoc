@@ -1888,31 +1888,33 @@ allocation.
 (<<byte-units,byte value>>)
 The effective flood stage disk watermark for this data path on this node: when
 a node has less free space than this value for at least one data path, its disk
-usage has exceeded the flood stage watermark. See <<disk-based-shard-allocation>>
-for more information about disk watermarks and their effects on shard allocation.
+usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
 
 `flood_stage_free_space_in_bytes`::
 (integer)
-The effective flood stage disk watermark, in bytes, for this data path on this node:
-when a node has less free space than this value for at least one data path, its
-disk usage has exceeded the flood stage watermark. See <<disk-based-shard-allocation>>
-for more information about disk watermarks and their effects on shard
-allocation.
+The effective flood stage disk watermark, in bytes, for this data path on this
+node: when a node has less free space than this value for at least one data
+path, its disk usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
 
 `frozen_flood_stage_free_space`::
 (<<byte-units,byte value>>)
-The effective flood stage disk watermark for this data path on dedicated frozen node:
-when a node has less free space than this value for at least one data path, its disk
-usage has exceeded the flood stage watermark. See <<disk-based-shard-allocation>>
-for more information about disk watermarks and their effects on shard allocation.
+The effective flood stage disk watermark for this data path on a dedicated
+frozen node: when a dedicated frozen node has less free space than this value
+for at least one data path, its disk usage has exceeded the flood stage
+watermark. See <<disk-based-shard-allocation>> for more information about disk
+watermarks and their effects on shard allocation.
 
 `frozen_flood_stage_free_space_in_bytes`::
 (integer)
-The effective flood stage disk watermark, in bytes, for this data path on dedicated
-frozen node: when a node has less free space than this value for at least one data
-path, its disk usage has exceeded the flood stage watermark. See
-<<disk-based-shard-allocation>> for more information about disk watermarks
-and their effects on shard allocation.
+The effective flood stage disk watermark, in bytes, for this data path on a
+dedicated frozen node: when a dedicated frozen node has less free space than
+this value for at least one data path, its disk usage has exceeded the flood
+stage watermark. See <<disk-based-shard-allocation>> for more information about
+disk watermarks and their effects on shard allocation.
 =======
 
 `io_stats` (Linux only)::

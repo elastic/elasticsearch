@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.operator.mvdedupe;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.util.LongHash;
@@ -27,11 +27,23 @@ public class MultivalueDedupeInt {
      * with low overhead to an {@code n*log(n)} strategy with higher overhead.
      * The choice of number has been experimentally derived.
      */
-    private static final int ALWAYS_COPY_MISSING = 300;
+    static final int ALWAYS_COPY_MISSING = 300;
 
-    private final IntBlock block;
-    private int[] work = new int[ArrayUtil.oversize(2, Integer.BYTES)];
-    private int w;
+    /**
+     * The {@link Block} being deduplicated.
+     */
+    final IntBlock block;
+    /**
+     * Oversized array of values that contains deduplicated values after
+     * running {@link #copyMissing} and sorted values after calling
+     * {@link #copyAndSort}
+     */
+    int[] work = new int[ArrayUtil.oversize(2, Integer.BYTES)];
+    /**
+     * After calling {@link #copyMissing} or {@link #copyAndSort} this is
+     * the number of values in {@link #work} for the current position.
+     */
+    int w;
 
     public MultivalueDedupeInt(IntBlock block) {
         this.block = block;
@@ -290,7 +302,7 @@ public class MultivalueDedupeInt {
      * Copy all value from the position into {@link #work} and then
      * sorts it {@code n * log(n)}.
      */
-    private void copyAndSort(int first, int count) {
+    void copyAndSort(int first, int count) {
         grow(count);
         int end = first + count;
 
@@ -306,7 +318,7 @@ public class MultivalueDedupeInt {
      * Fill {@link #work} with the unique values in the position by scanning
      * all fields already copied {@code n^2}.
      */
-    private void copyMissing(int first, int count) {
+    void copyMissing(int first, int count) {
         grow(count);
         int end = first + count;
 

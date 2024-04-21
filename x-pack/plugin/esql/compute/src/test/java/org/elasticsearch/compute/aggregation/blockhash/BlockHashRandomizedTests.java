@@ -22,7 +22,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupeTests;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeTests;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -235,10 +235,10 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private static class Oracle {
         private final NavigableSet<List<Object>> keys = new TreeSet<>(new KeyComparator());
 
-        private final boolean collectsNull;
+        private final boolean collectsNullLongs;
 
-        private Oracle(boolean collectsNull) {
-            this.collectsNull = collectsNull;
+        private Oracle(boolean collectsNullLongs) {
+            this.collectsNullLongs = collectsNullLongs;
         }
 
         void add(BasicBlockTests.RandomBlock[] randomBlocks) {
@@ -255,7 +255,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
             BasicBlockTests.RandomBlock block = randomBlocks[key.size()];
             List<Object> values = block.values().get(p);
             if (values == null) {
-                if (collectsNull) {
+                if (block.block().elementType() != ElementType.LONG || collectsNullLongs) {
                     List<Object> newKey = new ArrayList<>(key);
                     newKey.add(null);
                     add(randomBlocks, p, newKey);

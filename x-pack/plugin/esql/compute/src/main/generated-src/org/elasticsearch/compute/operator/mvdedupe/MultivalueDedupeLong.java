@@ -5,83 +5,67 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefHash;
-$else$
 import org.elasticsearch.common.util.LongHash;
-$endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(int)$
-import org.elasticsearch.compute.data.IntBlock;
-
-$elseif(long)$
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
-$else$
-import org.elasticsearch.compute.data.$Type$Block;
-import org.elasticsearch.compute.data.IntBlock;
-
-$endif$
 import java.util.Arrays;
 
 /**
  * Removes duplicate values from multivalued positions.
  * This class is generated. Edit {@code X-MultivalueDedupe.java.st} instead.
  */
-public class MultivalueDedupe$Type$ {
+public class MultivalueDedupeLong {
     /**
      * The number of entries before we switch from and {@code n^2} strategy
      * with low overhead to an {@code n*log(n)} strategy with higher overhead.
      * The choice of number has been experimentally derived.
      */
-$if(BytesRef)$
-    private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
-$elseif(double)$
-    private static final int ALWAYS_COPY_MISSING = 110;
-$else$
-    private static final int ALWAYS_COPY_MISSING = 300;
-$endif$
+    static final int ALWAYS_COPY_MISSING = 300;
 
-    private final $Type$Block block;
-    private $type$[] work = new $type$[ArrayUtil.oversize(2, $BYTES$)];
-    private int w;
+    /**
+     * The {@link Block} being deduplicated.
+     */
+    final LongBlock block;
+    /**
+     * Oversized array of values that contains deduplicated values after
+     * running {@link #copyMissing} and sorted values after calling
+     * {@link #copyAndSort}
+     */
+    long[] work = new long[ArrayUtil.oversize(2, Long.BYTES)];
+    /**
+     * After calling {@link #copyMissing} or {@link #copyAndSort} this is
+     * the number of values in {@link #work} for the current position.
+     */
+    int w;
 
-    public MultivalueDedupe$Type$($Type$Block block) {
+    public MultivalueDedupeLong(LongBlock block) {
         this.block = block;
-$if(BytesRef)$
-        // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
-        fillWork(0, work.length);
-$endif$
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public $Type$Block dedupeToBlockAdaptive(BlockFactory blockFactory) {
+    public LongBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
+                    case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         /*
                          * It's better to copyMissing when there are few unique values
@@ -120,22 +104,18 @@ $endif$
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public $Type$Block dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+    public LongBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
+                    case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         copyAndSort(first, count);
                         deduplicatedSortedWork(builder);
@@ -154,22 +134,18 @@ $endif$
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public $Type$Block dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+    public LongBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
+                    case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
@@ -183,18 +159,14 @@ $endif$
     /**
      * Sort values from each position and write the results to a {@link Block}.
      */
-    public $Type$Block sortToBlock(BlockFactory blockFactory, boolean ascending) {
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+    public LongBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
+                    case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         copyAndSort(first, count);
                         writeSortedWork(builder, ascending);
@@ -210,11 +182,7 @@ $endif$
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-$if(BytesRef)$
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefHash hash) {
-$else$
     public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHash hash) {
-$endif$
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -226,11 +194,7 @@ $endif$
                         builder.appendInt(0);
                     }
                     case 1 -> {
-$if(BytesRef)$
-                        BytesRef v = block.getBytesRef(first, work[0]);
-$else$
-                        $type$ v = block.get$Type$(first);
-$endif$
+                        long v = block.getLong(first);
                         hashAdd(builder, hash, v);
                     }
                     default -> {
@@ -252,11 +216,7 @@ $endif$
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-$if(BytesRef)$
-    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefHash hash) {
-$else$
     public IntBlock hashLookup(BlockFactory blockFactory, LongHash hash) {
-$endif$
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -264,11 +224,7 @@ $endif$
                 switch (count) {
                     case 0 -> builder.appendInt(0);
                     case 1 -> {
-$if(BytesRef)$
-                        BytesRef v = block.getBytesRef(first, work[0]);
-$else$
-                        $type$ v = block.get$Type$(first);
-$endif$
+                        long v = block.getLong(first);
                         hashLookupSingle(builder, hash, v);
                     }
                     default -> {
@@ -292,17 +248,13 @@ $endif$
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
-        return new BatchEncoder.$Type$s(batchSize) {
+        return new BatchEncoder.Longs(batchSize) {
             @Override
             protected void readNextBatch() {
                 int position = firstPosition();
                 if (w > 0) {
                     // The last block didn't fit so we have to *make* it fit
-$if(BytesRef)$
-                    ensureCapacity(workSize(), w);
-$else$
                     ensureCapacity(w);
-$endif$
                     startPosition();
                     encodeUniquedWork(this);
                     endPosition();
@@ -314,13 +266,8 @@ $endif$
                     switch (count) {
                         case 0 -> encodeNull();
                         case 1 -> {
-$if(BytesRef)$
-                            BytesRef v = block.getBytesRef(first, work[0]);
-                            if (hasCapacity(v.length, 1)) {
-$else$
-                            $type$ v = block.get$Type$(first);
+                            long v = block.getLong(first);
                             if (hasCapacity(1)) {
-$endif$
                                 startPosition();
                                 encode(v);
                                 endPosition();
@@ -337,11 +284,7 @@ $endif$
                                 copyAndSort(first, count);
                                 convertSortedWorkToUnique();
                             }
-$if(BytesRef)$
-                            if (hasCapacity(workSize(), w)) {
-$else$
                             if (hasCapacity(w)) {
-$endif$
                                 startPosition();
                                 encodeUniquedWork(this);
                                 endPosition();
@@ -353,15 +296,6 @@ $endif$
                 }
             }
 
-$if(BytesRef)$
-            private int workSize() {
-                int size = 0;
-                for (int i = 0; i < w; i++) {
-                    size += work[i].length;
-                }
-                return size;
-            }
-$endif$
         };
     }
 
@@ -369,18 +303,13 @@ $endif$
      * Copy all value from the position into {@link #work} and then
      * sorts it {@code n * log(n)}.
      */
-    private void copyAndSort(int first, int count) {
+    void copyAndSort(int first, int count) {
         grow(count);
         int end = first + count;
 
         w = 0;
         for (int i = first; i < end; i++) {
-$if(BytesRef)$
-            work[w] = block.getBytesRef(i, work[w]);
-            w++;
-$else$
-            work[w++] = block.get$Type$(i);
-$endif$
+            work[w++] = block.getLong(i);
         }
 
         Arrays.sort(work, 0, w);
@@ -390,28 +319,16 @@ $endif$
      * Fill {@link #work} with the unique values in the position by scanning
      * all fields already copied {@code n^2}.
      */
-    private void copyMissing(int first, int count) {
+    void copyMissing(int first, int count) {
         grow(count);
         int end = first + count;
 
-$if(BytesRef)$
-        work[0] = block.getBytesRef(first, work[0]);
-$else$
-        work[0] = block.get$Type$(first);
-$endif$
+        work[0] = block.getLong(first);
         w = 1;
         i: for (int i = first + 1; i < end; i++) {
-$if(BytesRef)$
-            $type$ v = block.getBytesRef(i, work[w]);
-$else$
-            $type$ v = block.get$Type$(i);
-$endif$
+            long v = block.getLong(i);
             for (int j = 0; j < w; j++) {
-$if(BytesRef)$
-                if (v.equals(work[j])) {
-$else$
                 if (v == work[j]) {
-$endif$
                     continue i;
                 }
             }
@@ -420,50 +337,46 @@ $endif$
     }
 
     /**
-     * Writes an already deduplicated {@link #work} to a {@link $Type$Block.Builder}.
+     * Writes an already deduplicated {@link #work} to a {@link LongBlock.Builder}.
      */
-    private void writeUniquedWork($Type$Block.Builder builder) {
+    private void writeUniquedWork(LongBlock.Builder builder) {
         if (w == 1) {
-            builder.append$Type$(work[0]);
+            builder.appendLong(work[0]);
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
-            builder.append$Type$(work[i]);
+            builder.appendLong(work[i]);
         }
         builder.endPositionEntry();
     }
 
     /**
-     * Writes a sorted {@link #work} to a {@link $Type$Block.Builder}, skipping duplicates.
+     * Writes a sorted {@link #work} to a {@link LongBlock.Builder}, skipping duplicates.
      */
-    private void deduplicatedSortedWork($Type$Block.Builder builder) {
+    private void deduplicatedSortedWork(LongBlock.Builder builder) {
         builder.beginPositionEntry();
-        $type$ prev = work[0];
-        builder.append$Type$(prev);
+        long prev = work[0];
+        builder.appendLong(prev);
         for (int i = 1; i < w; i++) {
-$if(BytesRef)$
-            if (false == prev.equals(work[i])) {
-$else$
             if (prev != work[i]) {
-$endif$
                 prev = work[i];
-                builder.append$Type$(prev);
+                builder.appendLong(prev);
             }
         }
         builder.endPositionEntry();
     }
 
     /**
-     * Writes a {@link #work} to a {@link $Type$Block.Builder}.
+     * Writes a {@link #work} to a {@link LongBlock.Builder}.
      */
-    private void writeSortedWork($Type$Block.Builder builder, boolean ascending) {
+    private void writeSortedWork(LongBlock.Builder builder, boolean ascending) {
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
             if (ascending) {
-                builder.append$Type$(work[i]);
+                builder.appendLong(work[i]);
             } else {
-                builder.append$Type$(work[w - i - 1]);
+                builder.appendLong(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();
@@ -472,11 +385,7 @@ $endif$
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-$if(BytesRef)$
-    private void hashAddUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
     private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -491,17 +400,13 @@ $endif$
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-$if(BytesRef)$
-    private void hashAddSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
     private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
         }
         builder.beginPositionEntry();
-        $type$ prev = work[0];
+        long prev = work[0];
         hashAdd(builder, hash, prev);
         for (int i = 1; i < w; i++) {
             if (false == valuesEqual(prev, work[i])) {
@@ -515,11 +420,7 @@ $endif$
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-$if(BytesRef)$
-    private void hashLookupUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
     private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -578,11 +479,7 @@ $endif$
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-$if(BytesRef)$
-    private void hashLookupSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
     private void hashLookupSortedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -595,7 +492,7 @@ $endif$
          *   firstLookup will contain the first value in the hash
          */
         int i = 1;
-        $type$ prev = work[0];
+        long prev = work[0];
         long firstLookup = hashLookup(hash, prev);
         while (firstLookup < 0) {
             if (i >= w) {
@@ -653,9 +550,9 @@ $endif$
     }
 
     /**
-     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.$Type$s}.
+     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.Longs}.
      */
-    private void encodeUniquedWork(BatchEncoder.$Type$s encoder) {
+    private void encodeUniquedWork(BatchEncoder.Longs encoder) {
         for (int i = 0; i < w; i++) {
             encoder.encode(work[i]);
         }
@@ -665,73 +562,30 @@ $endif$
      * Converts {@link #work} from sorted array to a deduplicated array.
      */
     private void convertSortedWorkToUnique() {
-        $type$ prev = work[0];
+        long prev = work[0];
         int end = w;
         w = 1;
         for (int i = 1; i < end; i++) {
             if (false == valuesEqual(prev, work[i])) {
-$if(BytesRef)$
-                prev = work[i];
-                work[w].bytes = prev.bytes;
-                work[w].offset = prev.offset;
-                work[w].length = prev.length;
-                w++;
-            }
-$else$
                 prev = work[i];
                 work[w++] = prev;
             }
-$endif$
         }
     }
 
     private void grow(int size) {
-$if(BytesRef)$
-        int prev = work.length;
         work = ArrayUtil.grow(work, size);
-        fillWork(prev, work.length);
-$else$
-        work = ArrayUtil.grow(work, size);
-$endif$
     }
 
-$if(BytesRef)$
-    private void fillWork(int from, int to) {
-        for (int i = from; i < to; i++) {
-            work[i] = new BytesRef();
-        }
-    }
-$endif$
-
-$if(BytesRef)$
-    private void hashAdd(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-$else$
-    private void hashAdd(IntBlock.Builder builder, LongHash hash, $type$ v) {
-$endif$
-$if(double)$
-        appendFound(builder, hash.add(Double.doubleToLongBits(v)));
-$else$
+    private void hashAdd(IntBlock.Builder builder, LongHash hash, long v) {
         appendFound(builder, hash.add(v));
-$endif$
     }
 
-$if(BytesRef)$
-    private long hashLookup(BytesRefHash hash, BytesRef v) {
-$else$
-    private long hashLookup(LongHash hash, $type$ v) {
-$endif$
-$if(double)$
-        return hash.find(Double.doubleToLongBits(v));
-$else$
+    private long hashLookup(LongHash hash, long v) {
         return hash.find(v);
-$endif$
     }
 
-$if(BytesRef)$
-    private void hashLookupSingle(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-$else$
-    private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, $type$ v) {
-$endif$
+    private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, long v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);
@@ -744,11 +598,7 @@ $endif$
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(found)));
     }
 
-    private static boolean valuesEqual($type$ lhs, $type$ rhs) {
-$if(BytesRef)$
-        return lhs.equals(rhs);
-$else$
+    private static boolean valuesEqual(long lhs, long rhs) {
         return lhs == rhs;
-$endif$
     }
 }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 import java.util.function.BiFunction;
@@ -79,7 +80,7 @@ public final class MultivalueDedupe {
     }
 
     /**
-     * Build and {@link EvalOperator.ExpressionEvaluator} that deduplicates values
+     * Build and {@link ExpressionEvaluator} that deduplicates values
      * using an adaptive algorithm based on the size of the input list.
      */
     public static ExpressionEvaluator.Factory evaluator(ElementType elementType, ExpressionEvaluator.Factory field) {

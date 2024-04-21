@@ -5,16 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
 import java.util.Arrays;
@@ -23,39 +22,49 @@ import java.util.Arrays;
  * Removes duplicate values from multivalued positions.
  * This class is generated. Edit {@code X-MultivalueDedupe.java.st} instead.
  */
-public class MultivalueDedupeBytesRef {
+public class MultivalueDedupeDouble {
     /**
      * The number of entries before we switch from and {@code n^2} strategy
      * with low overhead to an {@code n*log(n)} strategy with higher overhead.
      * The choice of number has been experimentally derived.
      */
-    private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
-    private final BytesRefBlock block;
-    private BytesRef[] work = new BytesRef[ArrayUtil.oversize(2, org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-    private int w;
+    static final int ALWAYS_COPY_MISSING = 110;
+    /**
+     * The {@link Block} being deduplicated.
+     */
+    final DoubleBlock block;
+    /**
+     * Oversized array of values that contains deduplicated values after
+     * running {@link #copyMissing} and sorted values after calling
+     * {@link #copyAndSort}
+     */
+    double[] work = new double[ArrayUtil.oversize(2, Double.BYTES)];
+    /**
+     * After calling {@link #copyMissing} or {@link #copyAndSort} this is
+     * the number of values in {@link #work} for the current position.
+     */
+    int w;
 
-    public MultivalueDedupeBytesRef(BytesRefBlock block) {
+    public MultivalueDedupeDouble(DoubleBlock block) {
         this.block = block;
-        // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
-        fillWork(0, work.length);
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public BytesRefBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
+    public DoubleBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    case 1 -> builder.appendDouble(block.getDouble(first));
                     default -> {
                         /*
                          * It's better to copyMissing when there are few unique values
@@ -94,18 +103,18 @@ public class MultivalueDedupeBytesRef {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public BytesRefBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+    public DoubleBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    case 1 -> builder.appendDouble(block.getDouble(first));
                     default -> {
                         copyAndSort(first, count);
                         deduplicatedSortedWork(builder);
@@ -124,18 +133,18 @@ public class MultivalueDedupeBytesRef {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public BytesRefBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+    public DoubleBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    case 1 -> builder.appendDouble(block.getDouble(first));
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
@@ -149,14 +158,14 @@ public class MultivalueDedupeBytesRef {
     /**
      * Sort values from each position and write the results to a {@link Block}.
      */
-    public BytesRefBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
+    public DoubleBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    case 1 -> builder.appendDouble(block.getDouble(first));
                     default -> {
                         copyAndSort(first, count);
                         writeSortedWork(builder, ascending);
@@ -172,7 +181,7 @@ public class MultivalueDedupeBytesRef {
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefHash hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHash hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -184,7 +193,7 @@ public class MultivalueDedupeBytesRef {
                         builder.appendInt(0);
                     }
                     case 1 -> {
-                        BytesRef v = block.getBytesRef(first, work[0]);
+                        double v = block.getDouble(first);
                         hashAdd(builder, hash, v);
                     }
                     default -> {
@@ -206,7 +215,7 @@ public class MultivalueDedupeBytesRef {
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefHash hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, LongHash hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -214,7 +223,7 @@ public class MultivalueDedupeBytesRef {
                 switch (count) {
                     case 0 -> builder.appendInt(0);
                     case 1 -> {
-                        BytesRef v = block.getBytesRef(first, work[0]);
+                        double v = block.getDouble(first);
                         hashLookupSingle(builder, hash, v);
                     }
                     default -> {
@@ -238,13 +247,13 @@ public class MultivalueDedupeBytesRef {
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
-        return new BatchEncoder.BytesRefs(batchSize) {
+        return new BatchEncoder.Doubles(batchSize) {
             @Override
             protected void readNextBatch() {
                 int position = firstPosition();
                 if (w > 0) {
                     // The last block didn't fit so we have to *make* it fit
-                    ensureCapacity(workSize(), w);
+                    ensureCapacity(w);
                     startPosition();
                     encodeUniquedWork(this);
                     endPosition();
@@ -256,8 +265,8 @@ public class MultivalueDedupeBytesRef {
                     switch (count) {
                         case 0 -> encodeNull();
                         case 1 -> {
-                            BytesRef v = block.getBytesRef(first, work[0]);
-                            if (hasCapacity(v.length, 1)) {
+                            double v = block.getDouble(first);
+                            if (hasCapacity(1)) {
                                 startPosition();
                                 encode(v);
                                 endPosition();
@@ -274,7 +283,7 @@ public class MultivalueDedupeBytesRef {
                                 copyAndSort(first, count);
                                 convertSortedWorkToUnique();
                             }
-                            if (hasCapacity(workSize(), w)) {
+                            if (hasCapacity(w)) {
                                 startPosition();
                                 encodeUniquedWork(this);
                                 endPosition();
@@ -286,13 +295,6 @@ public class MultivalueDedupeBytesRef {
                 }
             }
 
-            private int workSize() {
-                int size = 0;
-                for (int i = 0; i < w; i++) {
-                    size += work[i].length;
-                }
-                return size;
-            }
         };
     }
 
@@ -300,14 +302,13 @@ public class MultivalueDedupeBytesRef {
      * Copy all value from the position into {@link #work} and then
      * sorts it {@code n * log(n)}.
      */
-    private void copyAndSort(int first, int count) {
+    void copyAndSort(int first, int count) {
         grow(count);
         int end = first + count;
 
         w = 0;
         for (int i = first; i < end; i++) {
-            work[w] = block.getBytesRef(i, work[w]);
-            w++;
+            work[w++] = block.getDouble(i);
         }
 
         Arrays.sort(work, 0, w);
@@ -317,16 +318,16 @@ public class MultivalueDedupeBytesRef {
      * Fill {@link #work} with the unique values in the position by scanning
      * all fields already copied {@code n^2}.
      */
-    private void copyMissing(int first, int count) {
+    void copyMissing(int first, int count) {
         grow(count);
         int end = first + count;
 
-        work[0] = block.getBytesRef(first, work[0]);
+        work[0] = block.getDouble(first);
         w = 1;
         i: for (int i = first + 1; i < end; i++) {
-            BytesRef v = block.getBytesRef(i, work[w]);
+            double v = block.getDouble(i);
             for (int j = 0; j < w; j++) {
-                if (v.equals(work[j])) {
+                if (v == work[j]) {
                     continue i;
                 }
             }
@@ -335,46 +336,46 @@ public class MultivalueDedupeBytesRef {
     }
 
     /**
-     * Writes an already deduplicated {@link #work} to a {@link BytesRefBlock.Builder}.
+     * Writes an already deduplicated {@link #work} to a {@link DoubleBlock.Builder}.
      */
-    private void writeUniquedWork(BytesRefBlock.Builder builder) {
+    private void writeUniquedWork(DoubleBlock.Builder builder) {
         if (w == 1) {
-            builder.appendBytesRef(work[0]);
+            builder.appendDouble(work[0]);
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
-            builder.appendBytesRef(work[i]);
+            builder.appendDouble(work[i]);
         }
         builder.endPositionEntry();
     }
 
     /**
-     * Writes a sorted {@link #work} to a {@link BytesRefBlock.Builder}, skipping duplicates.
+     * Writes a sorted {@link #work} to a {@link DoubleBlock.Builder}, skipping duplicates.
      */
-    private void deduplicatedSortedWork(BytesRefBlock.Builder builder) {
+    private void deduplicatedSortedWork(DoubleBlock.Builder builder) {
         builder.beginPositionEntry();
-        BytesRef prev = work[0];
-        builder.appendBytesRef(prev);
+        double prev = work[0];
+        builder.appendDouble(prev);
         for (int i = 1; i < w; i++) {
-            if (false == prev.equals(work[i])) {
+            if (prev != work[i]) {
                 prev = work[i];
-                builder.appendBytesRef(prev);
+                builder.appendDouble(prev);
             }
         }
         builder.endPositionEntry();
     }
 
     /**
-     * Writes a {@link #work} to a {@link BytesRefBlock.Builder}.
+     * Writes a {@link #work} to a {@link DoubleBlock.Builder}.
      */
-    private void writeSortedWork(BytesRefBlock.Builder builder, boolean ascending) {
+    private void writeSortedWork(DoubleBlock.Builder builder, boolean ascending) {
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
             if (ascending) {
-                builder.appendBytesRef(work[i]);
+                builder.appendDouble(work[i]);
             } else {
-                builder.appendBytesRef(work[w - i - 1]);
+                builder.appendDouble(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();
@@ -383,7 +384,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -398,13 +399,13 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
         }
         builder.beginPositionEntry();
-        BytesRef prev = work[0];
+        double prev = work[0];
         hashAdd(builder, hash, prev);
         for (int i = 1; i < w; i++) {
             if (false == valuesEqual(prev, work[i])) {
@@ -418,7 +419,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -477,7 +478,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -490,7 +491,7 @@ public class MultivalueDedupeBytesRef {
          *   firstLookup will contain the first value in the hash
          */
         int i = 1;
-        BytesRef prev = work[0];
+        double prev = work[0];
         long firstLookup = hashLookup(hash, prev);
         while (firstLookup < 0) {
             if (i >= w) {
@@ -548,9 +549,9 @@ public class MultivalueDedupeBytesRef {
     }
 
     /**
-     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.BytesRefs}.
+     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.Doubles}.
      */
-    private void encodeUniquedWork(BatchEncoder.BytesRefs encoder) {
+    private void encodeUniquedWork(BatchEncoder.Doubles encoder) {
         for (int i = 0; i < w; i++) {
             encoder.encode(work[i]);
         }
@@ -560,41 +561,30 @@ public class MultivalueDedupeBytesRef {
      * Converts {@link #work} from sorted array to a deduplicated array.
      */
     private void convertSortedWorkToUnique() {
-        BytesRef prev = work[0];
+        double prev = work[0];
         int end = w;
         w = 1;
         for (int i = 1; i < end; i++) {
             if (false == valuesEqual(prev, work[i])) {
                 prev = work[i];
-                work[w].bytes = prev.bytes;
-                work[w].offset = prev.offset;
-                work[w].length = prev.length;
-                w++;
+                work[w++] = prev;
             }
         }
     }
 
     private void grow(int size) {
-        int prev = work.length;
         work = ArrayUtil.grow(work, size);
-        fillWork(prev, work.length);
     }
 
-    private void fillWork(int from, int to) {
-        for (int i = from; i < to; i++) {
-            work[i] = new BytesRef();
-        }
+    private void hashAdd(IntBlock.Builder builder, LongHash hash, double v) {
+        appendFound(builder, hash.add(Double.doubleToLongBits(v)));
     }
 
-    private void hashAdd(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-        appendFound(builder, hash.add(v));
+    private long hashLookup(LongHash hash, double v) {
+        return hash.find(Double.doubleToLongBits(v));
     }
 
-    private long hashLookup(BytesRefHash hash, BytesRef v) {
-        return hash.find(v);
-    }
-
-    private void hashLookupSingle(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
+    private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, double v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);
@@ -607,7 +597,7 @@ public class MultivalueDedupeBytesRef {
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(found)));
     }
 
-    private static boolean valuesEqual(BytesRef lhs, BytesRef rhs) {
-        return lhs.equals(rhs);
+    private static boolean valuesEqual(double lhs, double rhs) {
+        return lhs == rhs;
     }
 }

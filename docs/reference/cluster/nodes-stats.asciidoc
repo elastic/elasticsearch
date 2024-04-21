@@ -1806,41 +1806,6 @@ Total number of bytes available to this Java virtual machine on all file
 stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
-
-`low_watermark_free_space`::
-(<<byte-units,byte value>>)
-The effective low disk watermark for this data path on this node: when a node
-has less free space than this value for at least one data path, its disk usage
-has exceeded the low watermark. See <<disk-based-shard-allocation>> for more
-information about disk watermarks and their effects on shard allocation.
-
-`low_watermark_free_space_in_bytes`::
-(integer)
-Total amount of effective low watermark free bytes available to this Java virtual machine on this file store.
-
-`high_watermark_free_space`::
-(<<byte-units,byte value>>)
-Total amount of effective high watermark free disk space available to this Java virtual machine on this file store.
-
-`high_watermark_free_space_in_bytes`::
-(integer)
-Total amount of effective high watermark free bytes available to this Java virtual machine on this file store.
-
-`flood_stage_free_space`::
-(<<byte-units,byte value>>)
-Total amount of effective flood stage free disk space available to this Java virtual machine on this file store.
-
-`flood_stage_free_space_in_bytes`::
-(integer)
-Total amount of effective flood stage free bytes available to this Java virtual machine on this file store.
-
-`frozen_flood_stage_free_space`::
-(<<byte-units,byte value>>)
-Total amount of effective flood stage free disk space available to this Java virtual machine on this file store for dedicated frozen nodes.
-
-`frozen_flood_stage_free_space_in_bytes`::
-(integer)
-Total amount of effective flood stage free bytes available to this Java virtual machine on this file store for dedicated frozen nodes.
 =======
 
 [[cluster-nodes-stats-fs-data]]
@@ -1888,6 +1853,51 @@ store.
 (integer)
 Total number of bytes available to this Java virtual machine on this file
 store.
+
+`low_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective low disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the low watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`low_watermark_free_space_in_bytes`::
+(integer)
+The effective low disk watermark in bytes for this data path on this node.
+
+`high_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective high disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the high watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`high_watermark_free_space_in_bytes`::
+(integer)
+The effective high disk watermark in bytes for this data path on this node.
+
+`flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on this node: when
+a node has less free space than this value for at least one data path, its disk
+usage has exceeded the flood stage watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard allocation.
+
+`flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark in bytes for this data path on this node.
+
+`frozen_flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on dedicated frozen node:
+when a node has less free space than this value for at least one data path, its disk
+usage has exceeded the flood stage watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard allocation.
+
+`frozen_flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark in bytes for this data path on dedicated
+frozen node.
 =======
 
 `io_stats` (Linux only)::

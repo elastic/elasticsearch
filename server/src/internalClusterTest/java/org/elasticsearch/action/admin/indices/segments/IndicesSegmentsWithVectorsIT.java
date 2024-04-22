@@ -21,6 +21,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -34,7 +35,7 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
 
         String vectorField = "embedding";
         addMapping(indexName, vectorField);
-        addVectors(indexName, vectorField);
+        addVectors(indexName, vectorField, 100, 100);
 
         IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).get();
         assertNoFailures(response);
@@ -57,7 +58,7 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
 
         String vectorField = "embedding";
         addMapping(indexName, vectorField);
-        addVectors(indexName, vectorField);
+        addVectors(indexName, vectorField, 100, 100);
         IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).includeVectorFormatInfo(true).get();
         assertNoFailures(response);
 
@@ -79,7 +80,7 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
 
         String vectorField = "embedding";
         addMapping(indexName, vectorField);
-        addVectors(indexName, vectorField);
+        addVectors(indexName, vectorField, 100, 100);
 
         IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).includeVectorFormatInfo(false).get();
         assertNoFailures(response);
@@ -102,13 +103,62 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().putMapping(request).actionGet());
     }
 
-    private static void addVectors(String indexName, String vectorField) {
-        int docs = between(10, 100);
-        int dims = randomInt(100);
+    private static void addVectors(String indexName, String vectorField, int maxDims, int maxDocs) {
+        int docs = between(10, maxDocs);
+        int dims = between(10, maxDims);
         for (int i = 0; i < docs; i++) {
             List<Float> floats = randomList(dims, dims, ESTestCase::randomFloat);
             prepareIndex(indexName).setId("" + i).setSource(vectorField, floats).get();
         }
         indicesAdmin().prepareFlush(indexName).get();
+    }
+
+    public void testManyIndicesSegmentsWithVectorsIncluded() {
+        String indexName = "test-vectors";
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        int numVectorFields = randomIntBetween(100, 1000);
+        for (int i = 0; i < numVectorFields; i++) {
+            String vectorField = "embedding_" + i;
+            addMapping(indexName, vectorField);
+            addVectors(indexName, vectorField, 1024, 1000);
+        }
+
+        long start = System.currentTimeMillis();
+        IndicesSegmentResponse response = indicesAdmin().prepareSegments(indexName).includeVectorFormatInfo(false).get();
+        long end = System.currentTimeMillis();
+        long timeMS = end - start;
+
+        assertNoFailures(response);
+        IndexSegments indexSegments = response.getIndices().get(indexName);
+        assertNotNull(indexSegments);
+        IndexShardSegments shardSegments = indexSegments.getShards().get(0);
+        assertNotNull(shardSegments);
+
+        ShardSegments shard = shardSegments.shards()[0];
+        for (Segment segment : shard.getSegments()) {
+            assertThat(segment.getAttributes().keySet(), not(hasItem(endsWith("VectorsFormat"))));
+        }
+
+        indicesAdmin().prepareClearCache(indexName).get();
+
+        long startIncluded = System.currentTimeMillis();
+        IndicesSegmentResponse responseIncluded = indicesAdmin().prepareSegments(indexName).includeVectorFormatInfo(true).get();
+        long endIncluded = System.currentTimeMillis();
+        long includedTimeMS = endIncluded - startIncluded;
+
+        assertNoFailures(responseIncluded);
+        IndexSegments indexSegmentsIncluded = responseIncluded.getIndices().get(indexName);
+        assertNotNull(indexSegmentsIncluded);
+        IndexShardSegments shardSegmentsIncluded = indexSegmentsIncluded.getShards().get(0);
+        assertNotNull(shardSegmentsIncluded);
+
+        shard = shardSegmentsIncluded.shards()[0];
+        for (Segment segment : shard.getSegments()) {
+            assertThat(segment.getAttributes().keySet(), hasItem(endsWith("VectorsFormat")));
+        }
+
+        assertThat(includedTimeMS, lessThan(timeMS * numVectorFields));
     }
 }

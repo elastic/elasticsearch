@@ -121,6 +121,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     enum MvOrdering {
         UNORDERED(false, false),
         DEDUPLICATED_UNORDERD(true, false),
+        SORTED_ASCENDING(false, true),
         DEDUPLICATED_AND_SORTED_ASCENDING(true, true);
 
         private final boolean deduplicated;

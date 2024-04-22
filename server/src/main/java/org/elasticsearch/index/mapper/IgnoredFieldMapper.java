@@ -15,7 +15,6 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -76,17 +75,6 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             // be too slow in practice since the number of unique terms in this
             // field is bounded by the number of fields in the mappings.
             return new TermRangeQuery(name(), null, null, true, true);
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            throw new IllegalArgumentException(
-                "aggregations on the '"
-                    + typeName()
-                    + "' field are supported for indices created by version "
-                    + Version.V_8_15_0
-                    + " or higher"
-            );
         }
     }
 

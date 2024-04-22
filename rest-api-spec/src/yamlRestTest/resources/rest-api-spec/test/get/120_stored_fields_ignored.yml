@@ -1,9 +1,8 @@
 ---
 "_ignored field through get api using stored_fields":
   - skip:
-      #TODO(101373): this will actually be introduced in 8.15 so change this skip version accordingly after we branch
-      reason: "_ignored metadata field uses doc values instead of stored field from version 8.14"
-      version: " - 8.13.99"
+      reason: "_ignored metadata field uses doc values instead of stored field from version 8.15"
+      version: " - 8.14.99"
   - do:
       indices.create:
         index: test

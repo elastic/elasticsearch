@@ -50,4 +50,20 @@ public record PrimaryTermAndGeneration(long primaryTerm, long generation) implem
     public int compareTo(PrimaryTermAndGeneration other) {
         return COMPARATOR.compare(this, other);
     }
+
+    public boolean after(PrimaryTermAndGeneration other) {
+        return compareTo(other) > 0;
+    }
+
+    public boolean onOrAfter(PrimaryTermAndGeneration other) {
+        return compareTo(other) >= 0;
+    }
+
+    public boolean before(PrimaryTermAndGeneration other) {
+        return compareTo(other) < 0;
+    }
+
+    public boolean onOrBefore(PrimaryTermAndGeneration other) {
+        return compareTo(other) <= 0;
+    }
 }

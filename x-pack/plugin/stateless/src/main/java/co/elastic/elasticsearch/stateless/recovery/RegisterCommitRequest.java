@@ -23,25 +23,41 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY;
+
 public class RegisterCommitRequest extends ActionRequest {
 
-    // The primary term and generation of the stateless compound commit that the search shard wants to use for recovery.
-    private final PrimaryTermAndGeneration commit;
+    @Nullable // null for search nodes that do not support recovering from virtual batched compound commit
+    private final PrimaryTermAndGeneration batchedCompoundCommitPrimaryTermAndGeneration;
+    private final PrimaryTermAndGeneration compoundCommitPrimaryTermAndGeneration;
     private final ShardId shardId;
     private final String nodeId;
     private final long clusterStateVersion;
 
-    public RegisterCommitRequest(PrimaryTermAndGeneration commit, ShardId shardId, String nodeId) {
-        this(commit, shardId, nodeId, -1);
+    public RegisterCommitRequest(
+        PrimaryTermAndGeneration batchedCompoundCommitPrimaryTermAndGeneration,
+        PrimaryTermAndGeneration compoundCommitPrimaryTermAndGeneration,
+        ShardId shardId,
+        String nodeId
+    ) {
+        this(batchedCompoundCommitPrimaryTermAndGeneration, compoundCommitPrimaryTermAndGeneration, shardId, nodeId, -1L);
     }
 
-    public RegisterCommitRequest(PrimaryTermAndGeneration commit, ShardId shardId, String nodeId, long clusterStateVersion) {
-        this.commit = Objects.requireNonNull(commit);
+    RegisterCommitRequest(
+        @Nullable PrimaryTermAndGeneration batchedCompoundCommitPrimaryTermAndGeneration,
+        PrimaryTermAndGeneration compoundCommitPrimaryTermAndGeneration,
+        ShardId shardId,
+        String nodeId,
+        long clusterStateVersion
+    ) {
+        this.batchedCompoundCommitPrimaryTermAndGeneration = batchedCompoundCommitPrimaryTermAndGeneration;
+        this.compoundCommitPrimaryTermAndGeneration = Objects.requireNonNull(compoundCommitPrimaryTermAndGeneration);
         this.shardId = Objects.requireNonNull(shardId);
         this.nodeId = Objects.requireNonNull(nodeId);
         this.clusterStateVersion = clusterStateVersion;
@@ -49,27 +65,62 @@ public class RegisterCommitRequest extends ActionRequest {
 
     public RegisterCommitRequest(StreamInput in) throws IOException {
         super(in);
-        commit = new PrimaryTermAndGeneration(in);
-        shardId = new ShardId(in);
-        nodeId = in.readString();
-        clusterStateVersion = in.readZLong();
+        if (in.getTransportVersion().onOrAfter(REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY)) {
+            this.batchedCompoundCommitPrimaryTermAndGeneration = new PrimaryTermAndGeneration(in);
+        } else {
+            // the search node that issued this request does not support recovering from virtual batched compound commit
+            this.batchedCompoundCommitPrimaryTermAndGeneration = null;
+        }
+        this.compoundCommitPrimaryTermAndGeneration = new PrimaryTermAndGeneration(in);
+        this.shardId = new ShardId(in);
+        this.nodeId = in.readString();
+        this.clusterStateVersion = in.readZLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        commit.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY)) {
+            assert batchedCompoundCommitPrimaryTermAndGeneration != null;
+            batchedCompoundCommitPrimaryTermAndGeneration.writeTo(out);
+        }
+        compoundCommitPrimaryTermAndGeneration.writeTo(out);
         shardId.writeTo(out);
         out.writeString(nodeId);
         out.writeZLong(clusterStateVersion);
     }
 
-    public ShardId getShardId() {
-        return shardId;
+    /**
+     * Returns a new copy of the current {@link RegisterCommitRequest} with a new cluster state version value
+     * @param version the new cluster state version
+     * @return returns a new copy
+     */
+    public RegisterCommitRequest withClusterStateVersion(long version) {
+        assert this.clusterStateVersion < version : this.clusterStateVersion + " >= " + version;
+        return new RegisterCommitRequest(
+            batchedCompoundCommitPrimaryTermAndGeneration,
+            compoundCommitPrimaryTermAndGeneration,
+            shardId,
+            nodeId,
+            version
+        );
     }
 
-    public PrimaryTermAndGeneration getCommit() {
-        return commit;
+    /**
+     * @return the batched compound commit primary term/generation that the search node found in the object store, or {@code null} is the
+     * node does not support recovering from virtual batched compound commits.
+     */
+    @Nullable
+    public PrimaryTermAndGeneration getBatchedCompoundCommitPrimaryTermAndGeneration() {
+        return batchedCompoundCommitPrimaryTermAndGeneration;
+    }
+
+    public PrimaryTermAndGeneration getCompoundCommitPrimaryTermAndGeneration() {
+        return compoundCommitPrimaryTermAndGeneration;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 
     public String getNodeId() {
@@ -87,30 +138,40 @@ public class RegisterCommitRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "Request{"
-            + "commit="
-            + commit
+        return "RegisterCommitRequest ["
+            + "bcc="
+            + batchedCompoundCommitPrimaryTermAndGeneration
+            + ", cc="
+            + compoundCommitPrimaryTermAndGeneration
             + ", shardId="
             + shardId
-            + ", nodeId="
+            + ", nodeId='"
             + nodeId
-            + ", clusterStateVersion="
+            + '\''
+            + ", version="
             + clusterStateVersion
-            + "}";
+            + ']';
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commit, shardId, nodeId, clusterStateVersion);
+        return Objects.hash(
+            batchedCompoundCommitPrimaryTermAndGeneration,
+            compoundCommitPrimaryTermAndGeneration,
+            shardId,
+            nodeId,
+            clusterStateVersion
+        );
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o instanceof RegisterCommitRequest == false) return false;
+        if (o == null || getClass() != o.getClass()) return false;
         RegisterCommitRequest other = (RegisterCommitRequest) o;
         return clusterStateVersion == other.clusterStateVersion
-            && Objects.equals(commit, other.commit)
+            && Objects.equals(batchedCompoundCommitPrimaryTermAndGeneration, other.batchedCompoundCommitPrimaryTermAndGeneration)
+            && Objects.equals(compoundCommitPrimaryTermAndGeneration, other.compoundCommitPrimaryTermAndGeneration)
             && Objects.equals(shardId, other.shardId)
             && Objects.equals(nodeId, other.nodeId);
     }

@@ -36,6 +36,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -50,9 +51,7 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.function.Supplier;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
 class StatelessIndexEventListener implements IndexEventListener {
@@ -60,23 +59,23 @@ class StatelessIndexEventListener implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(StatelessIndexEventListener.class);
 
     private final StatelessCommitService statelessCommitService;
-    private final Supplier<ObjectStoreService> objectStoreService;
-    private final Supplier<TranslogReplicator> translogReplicator;
-    private final Supplier<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler;
-    private final Supplier<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService;
+    private final ObjectStoreService objectStoreService;
+    private final TranslogReplicator translogReplicator;
+    private final RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler;
+    private final SharedBlobCacheWarmingService warmingService;
 
     StatelessIndexEventListener(
         StatelessCommitService statelessCommitService,
-        Supplier<ObjectStoreService> objectStoreService,
-        Supplier<TranslogReplicator> translogReplicator,
-        Supplier<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler,
-        Supplier<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService
+        ObjectStoreService objectStoreService,
+        TranslogReplicator translogReplicator,
+        RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
+        SharedBlobCacheWarmingService warmingService
     ) {
         this.statelessCommitService = statelessCommitService;
         this.objectStoreService = objectStoreService;
         this.translogReplicator = translogReplicator;
         this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
-        this.sharedBlobCacheWarmingService = sharedBlobCacheWarmingService;
+        this.warmingService = warmingService;
     }
 
     @Override
@@ -84,10 +83,9 @@ class StatelessIndexEventListener implements IndexEventListener {
         final Store store = indexShard.store();
         try {
             store.incRef();
-            final var service = objectStoreService.get();
-            final var blobStore = service.blobStore();
+            final var blobStore = objectStoreService.blobStore();
             final ShardId shardId = indexShard.shardId();
-            final var shardBasePath = service.shardBasePath(shardId);
+            final var shardBasePath = objectStoreService.shardBasePath(shardId);
             SearchDirectory.unwrapDirectory(store.directory())
                 .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
             final BlobContainer existingBlobContainer;
@@ -146,6 +144,24 @@ class StatelessIndexEventListener implements IndexEventListener {
         }
     }
 
+    private static void logBootstrapping(
+        IndexShard indexShard,
+        StatelessCompoundCommit latestCommit,
+        PrimaryTermAndGeneration latestUploaded
+    ) {
+        assert indexShard.routingEntry().isPromotableToPrimary() == false;
+        assert latestCommit != null;
+        logger.info(
+            "{} bootstrapping [{}] shard on primary term [{}] with {} and latest uploaded {} from indexing shard ({})",
+            indexShard.shardId(),
+            indexShard.routingEntry().role(),
+            indexShard.getOperationPrimaryTerm(),
+            latestCommit.toShortDescription(),
+            latestUploaded,
+            indexShard.recoveryState().getRecoverySource()
+        );
+    }
+
     private void beforeRecoveryIndexShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
         throws IOException {
         final Set<BlobFile> unreferencedFiles;
@@ -165,7 +181,6 @@ class StatelessIndexEventListener implements IndexEventListener {
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
             if (batchedCompoundCommit != null) {
                 indexDirectory.updateCommit(batchedCompoundCommit.last(), null);
-                var warmingService = sharedBlobCacheWarmingService.get();
                 warmingService.warmCacheForShardRecovery(indexShard, batchedCompoundCommit.last());
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
@@ -194,10 +209,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                 }
             });
 
-            final TranslogReplicator localTranslogReplicator = translogReplicator.get();
             statelessCommitService.addConsumerForNewUploadedBcc(
                 indexShard.shardId(),
-                info -> localTranslogReplicator.markShardCommitUploaded(
+                info -> translogReplicator.markShardCommitUploaded(
                     indexShard.shardId(),
                     // Use the largest translog start file from all CCs to release translog files
                     info.uploadedBcc().last().translogRecoveryStartFile()
@@ -207,69 +221,82 @@ class StatelessIndexEventListener implements IndexEventListener {
         });
     }
 
-    private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
+    private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
         throws IOException {
-        final BatchedCompoundCommit batchedCompoundCommit;
-        if (existingBlobContainer != null) {
-            batchedCompoundCommit = ObjectStoreService.readSearchShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
-            logBootstrapping(indexShard, batchedCompoundCommit);
-        } else {
-            batchedCompoundCommit = null;
-        }
-        if (batchedCompoundCommit == null) {
-            // TODO: can this happen? Do we need this?
-            listener.onResponse(null);
-            return;
-        }
-        final Store store = indexShard.store();
-        // On a search shard. First register, then read the new or confirmed commit.
-        store.incRef();
-        // TODO: We may want to register for referenced BCCs. For now we use CC here to keep the existing behaviour. See also ES-8200
-        final StatelessCompoundCommit commit = batchedCompoundCommit.last();
-        var commitToRegister = commit.primaryTermAndGeneration();
-        recoveryCommitRegistrationHandler.get().register(commitToRegister, commit.shardId(), new ActionListener<>() {
-            @Override
-            public void onResponse(PrimaryTermAndGeneration commitToUse) {
-                ActionListener.completeWith(listener, () -> {
-                    try {
-                        logger.debug(
-                            "{} indexing shard's response to registering commit {} for recovery is {}",
-                            commit.shardId(),
-                            commitToRegister,
-                            commitToUse
-                        );
-                        var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
-                        var compoundCommit = commit;
-                        // TODO - If commitToUse is on the indexing node, return a StatelessCompoundCommit from the indexing node. Maybe
-                        // also consider returning the latest uploaded BCC to pass it to the updateCommit method as well (ES-8200)
-                        if (commitToRegister.equals(commitToUse) == false) {
-                            // TODO: This won't work once we fully enable BCC, ES-8200
-                            compoundCommit = ObjectStoreService.readStatelessCompoundCommit(
-                                searchDirectory.getBlobContainer(commitToUse.primaryTerm()),
-                                commitToUse.generation()
-                            );
-                        }
-                        assert compoundCommit != null;
-                        // TODO once we have multi-CC VBCCs, using commitToUse for the "last BCC uploaded" argument will be wrong, as it
-                        // may not be on the object store yet. Either use commitToRegister to be safe (it is definitely on the object store)
-                        // or extend the registration action's response to receive the last BCC uploaded as well. (ES-8200)
-                        searchDirectory.updateCommit(compoundCommit, commitToUse);
-                        var warmingService = sharedBlobCacheWarmingService.get();
-                        warmingService.warmCacheForShardRecovery(indexShard, commit);
-                        return null;
-                    } finally {
-                        store.decRef();
-                    }
-                });
-            }
+        assert blobContainer != null : indexShard.routingEntry();
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(() -> format("%s error while registering commit %s for recovery", commit.shardId(), commitToRegister), e);
-                store.decRef();
-                listener.onFailure(e);
+        final var batchedCompoundCommit = ObjectStoreService.readSearchShardState(blobContainer, indexShard.getOperationPrimaryTerm());
+        assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
+            : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
+
+        final var store = indexShard.store();
+        store.incRef();
+        final var storeDecRef = Releasables.assertOnce(store::decRef);
+        boolean registering = false;
+        try {
+            recoveryCommitRegistrationHandler.register(
+                batchedCompoundCommit != null ? batchedCompoundCommit.primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
+                batchedCompoundCommit != null ? batchedCompoundCommit.last().primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
+                indexShard.shardId(),
+                ActionListener.releaseAfter(listener.delegateFailure((l, response) -> ActionListener.completeWith(listener, () -> {
+                    var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
+                    var lastUploaded = response.getLatestUploadedBatchedCompoundCommitTermAndGen();
+
+                    var compoundCommit = response.getCompoundCommit();
+                    if (compoundCommit == null) {
+                        // The indexing shard provided no compound commit to recover from: it might be on a node with an old version, or it
+                        // might be closing its engine.
+                        if (PrimaryTermAndGeneration.ZERO.equals(lastUploaded)) {
+                            // If there are no compound commit nor last uploaded term/generation to use, recover from an empty commit
+                            if (batchedCompoundCommit == null) {
+                                logBootstrapping(indexShard, null);
+                                return null;
+                            }
+
+                            // Otherwise recover from the compound commit found in the object store
+                            logBootstrapping(indexShard, batchedCompoundCommit);
+                            // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
+                            // until the next new commit notification.
+                            compoundCommit = batchedCompoundCommit.last();
+                            lastUploaded = compoundCommit.primaryTermAndGeneration();
+
+                            // TODO removes this branch once indexing shards are upgraded to a version that provides a real or EMPTY commit
+                        } else {
+                            // If the indexing shard is on an old version: the shard still uploads single compound commits so use the last
+                            // uploaded one, which should contain a single compound commit, and for which the indexing shard registered
+                            // this search shard.
+                            if (batchedCompoundCommit == null || batchedCompoundCommit.primaryTermAndGeneration().before(lastUploaded)) {
+                                var latestBatchedCompoundCommit = ObjectStoreService.readBatchedCompoundCommit(
+                                    searchDirectory.getBlobContainer(lastUploaded.primaryTerm()),
+                                    lastUploaded.generation()
+                                );
+                                logBootstrapping(indexShard, latestBatchedCompoundCommit);
+                                compoundCommit = latestBatchedCompoundCommit.last();
+                            } else {
+                                logBootstrapping(indexShard, batchedCompoundCommit);
+                                compoundCommit = batchedCompoundCommit.last();
+                            }
+                        }
+                    } else {
+                        logBootstrapping(indexShard, compoundCommit, lastUploaded);
+                    }
+
+                    assert batchedCompoundCommit == null
+                        || batchedCompoundCommit.last().primaryTermAndGeneration().onOrBefore(compoundCommit.primaryTermAndGeneration());
+                    assert compoundCommit != null;
+
+                    searchDirectory.updateCommit(compoundCommit, lastUploaded);
+                    warmingService.warmCacheForShardRecovery(indexShard, compoundCommit);
+                    return null;
+                })), storeDecRef)
+            );
+            registering = true;
+        } finally {
+            assert registering : "unexpected exception when calling register()";
+            if (registering == false) {
+                Releasables.close(storeDecRef);
             }
-        });
+        }
     }
 
     @Override

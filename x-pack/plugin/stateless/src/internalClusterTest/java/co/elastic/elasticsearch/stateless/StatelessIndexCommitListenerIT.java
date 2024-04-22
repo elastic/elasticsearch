@@ -21,10 +21,12 @@ import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -60,6 +62,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
@@ -95,6 +98,21 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                 commitService
             ).getIndexEngineLocalReaderListenerForShard(any(ShardId.class));
             doAnswer(invocation -> null).when(commitService).ensureMaxGenerationToUploadForFlush(any(ShardId.class), anyLong());
+            doAnswer(invocation -> {
+                PrimaryTermAndGeneration compoundCommitGeneration = invocation.getArgument(1);
+                @SuppressWarnings("unchecked")
+                ActionListener<RegisterCommitResponse> listener = invocation.getArgument(5);
+                listener.onResponse(new RegisterCommitResponse(compoundCommitGeneration, null));
+                return null;
+            }).when(commitService)
+                .registerCommitForUnpromotableRecovery(
+                    any(PrimaryTermAndGeneration.class),
+                    any(PrimaryTermAndGeneration.class),
+                    any(ShardId.class),
+                    anyString(),
+                    any(ClusterState.class),
+                    any()
+                );
             return commitService;
         }
 

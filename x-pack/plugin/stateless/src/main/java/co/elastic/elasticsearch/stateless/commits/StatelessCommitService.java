@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
 import co.elastic.elasticsearch.stateless.utils.WaitForVersion;
 
 import org.apache.logging.log4j.LogManager;
@@ -740,6 +741,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return null;
     }
 
+    // Visible for testing
+    @Nullable
+    public BatchedCompoundCommit getLatestUploadedBcc(ShardId shardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.latestUploadedBcc;
+    }
+
     private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {
@@ -978,6 +986,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         public VirtualBatchedCompoundCommit getCurrentVirtualBcc() {
             return currentVirtualBcc;
+        }
+
+        @Nullable
+        public VirtualBatchedCompoundCommit getCurrentOrPendingUploadVirtualBcc() {
+            var virtualBcc = getCurrentVirtualBcc();
+            if (virtualBcc == null) {
+                virtualBcc = getMaxPendingUploadBcc().orElse(null);
+            }
+            return virtualBcc;
         }
 
         /**
@@ -1794,67 +1811,119 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * Register commit used by unpromotable, returning the commit to use by the unpromotable.
          */
-        BlobReference registerCommitForUnpromotableRecovery(String nodeId, PrimaryTermAndGeneration commit) {
-            // Find a commit (starting with the requested one) that could be used for unpromotable recovery
-            // TODO: ES-8200 We should account for the fact that the node will register using a commit,
-            // but the blob references point to BCCs
-            var blobReference = primaryTermAndGenToBlobReference.get(commit);
-            if (blobReference == null) {
-                long lastUploadedBccGeneration = getMaxUploadedBccGeneration();
-                if (lastUploadedBccGeneration != -1) {
-                    blobReference = primaryTermAndGenToBlobReference.get(resolvePrimaryTermForGeneration(lastUploadedBccGeneration));
-                }
-            }
+        RegisterCommitResponse registerCommitForUnpromotableRecovery(
+            @Nullable PrimaryTermAndGeneration batchedCompoundGeneration,
+            PrimaryTermAndGeneration compoundCommitGeneration,
+            String nodeId
+        ) {
             // If the indexing shard is not finished initializing from the object store, we are not
             // able to register the commit for recovery. For now, fail the registration request.
             // TODO: we should be able to handle this case by either retrying the registration or keep the
             // registration and run it after the indexing shard is finished initializing.
-            if (blobReference == null) {
+            // TODO We should force a flush at the end of the indexing shard recovery so that latestUploadedBcc will be non null after
+            // shard is initialized (ES-8327)
+            var latestUploaded = this.latestUploadedBcc;
+            if (latestUploaded == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
             }
-            // TODO: We should compare with blobReference.maxGeneration once BCC is fully enabled
-            if (blobReference.primaryTermAndGeneration.compareTo(commit) < 0) {
-                var message = Strings.format(
-                    "requested commit to register (%s) is newer than the newest known local commit (%s)",
-                    commit,
-                    blobReference
+            var latestUploadedCommit = latestUploaded.last();
+            if (compoundCommitGeneration.after(latestUploadedCommit.primaryTermAndGeneration())) {
+                throw new RecoveryCommitTooNewException(
+                    shardId,
+                    "Compound commit "
+                        + compoundCommitGeneration
+                        + " used for registration is newer than the latest uploaded compound commit "
+                        + latestUploadedCommit.toShortDescription()
+                        + " in batch "
+                        + latestUploaded.primaryTermAndGeneration()
                 );
-                throw new RecoveryCommitTooNewException(shardId, message);
             }
-            // Register the commit that is going to be used for unpromotable recovery
-            long previousGenerationUploaded = -1;
-            while (true) {
-                if (blobReference != null && registerUnpromotableBCCRefsForCommit(blobReference.getPrimaryTermAndGeneration(), nodeId)) {
-                    assert blobReference.isExternalReadersClosed() == false;
-                    return blobReference;
-                } else {
-                    // TODO: the following generation management needs to be refined with ES-8200
-                    long generation = getMaxUploadedBccGeneration();
-                    assert generation > previousGenerationUploaded;
-                    previousGenerationUploaded = generation;
-                    blobReference = primaryTermAndGenToBlobReference.get(new PrimaryTermAndGeneration(allocationPrimaryTerm, generation));
-                    assert blobReference != null || getMaxUploadedBccGeneration() > generation;
-                }
+
+            // search shard is on a node that does not register with a BCC generation, so it does not support recovering from a VBCC
+            // and should use the last uploaded BCC.
+            if (batchedCompoundGeneration == null) {
+                return registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId));
             }
+
+            return registerVirtualBccForUnpromotableRecovery(Set.of(nodeId));
         }
 
-        private boolean registerUnpromotableBCCRefsForCommit(PrimaryTermAndGeneration commitPrimaryTermAndGeneration, String nodeId) {
-            // TODO: maybe we should let the search node to resolve the dependencies for the commit?
-            var commitInfo = commitReferencesInfos.get(commitPrimaryTermAndGeneration);
-            if (commitInfo == null) {
-                return false;
-            }
+        /**
+         * Register the virtual batched compound commit as the commit to use for the unpromotable shard recovery.
+         *
+         * If a VBCC exists at the time this method is called, then the latest appended commit of that VBCC is retrieved to compute a list
+         * of referenced BCCs to retain during the recovery. The method then tries to register the {@code nodeId} for every referenced BCC
+         * (using {@link #registerUnpromoteableCommitRefs(Set, BlobReference)}). If that works a registration response is returned with the
+         * latest uploaded BCC term/generation and a compound commit to use from the VBCC. Otherwise the method simply retries.
+         *
+         * @param nodeIds a set containing the search shard's node id
+         * @return a registration response
+         */
+        private RegisterCommitResponse registerVirtualBccForUnpromotableRecovery(Set<String> nodeIds) {
+            while (true) {
+                var virtual = getCurrentOrPendingUploadVirtualBcc();
+                if (virtual == null || closedOrRelocated(state)) {
+                    break;
+                }
+                final var virtualPrimaryTermAndGeneration = virtual.getPrimaryTermAndGeneration();
+                final var virtualCompoundCommit = virtual.lastCompoundCommit();
 
-            var referencedBCCsForCommit = commitInfo.referencedBCCs();
-            for (PrimaryTermAndGeneration bccPrimaryTermAndGeneration : referencedBCCsForCommit) {
-                var blobReference = primaryTermAndGenToBlobReference.get(bccPrimaryTermAndGeneration);
-                // TODO: ES-8200 once we move to multiple CCs per BCC we'll need to handle the case where
-                // TODO: blobReference is null for the non-uploaded BCCs
-                if (blobReference == null || registerUnpromoteableCommitRefs(Set.of(nodeId), blobReference) == false) {
-                    return false;
+                var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(virtualCompoundCommit)
+                    .stream()
+                    // Exclude the virtual compound commit that is pending upload from the list of referenced BCC term/generations because:
+                    // - it does not exist in the object store yet (and therefore does not need to be retained for deletion)
+                    // - the search shard will be registered against this virtual compound commit the next time a new commit notification
+                    // is sent (see trackOutstandingUnpromotableShardCommitRef in sendNewUploadedCommitNotification)
+                    .filter(primaryTermAndGeneration -> primaryTermAndGeneration.before(virtualPrimaryTermAndGeneration))
+                    .collect(Collectors.toSet());
+                if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
+                    return new RegisterCommitResponse(latestUploadedBcc.primaryTermAndGeneration(), virtualCompoundCommit);
                 }
             }
-            return true;
+            // fall back to the last uploaded BCC if VBCC do not exist yet
+            return registerLastUploadedBccForUnpromotableRecovery(nodeIds);
+        }
+
+        /**
+         * Register the last uploaded batched compound commit as the commit to use for the unpromotable shard recovery.
+         *
+         * @param nodeIds a set containing the search shard's node id
+         * @return a registration response
+         */
+        private RegisterCommitResponse registerLastUploadedBccForUnpromotableRecovery(Set<String> nodeIds) {
+            BatchedCompoundCommit latest;
+            long previousGenerationUploaded = -1L;
+            while ((latest = this.latestUploadedBcc) != null) {
+                if (closedOrRelocated(state)) {
+                    break;
+                }
+                assert latest.primaryTermAndGeneration().generation() > 0;
+                assert latest.primaryTermAndGeneration().generation() > previousGenerationUploaded;
+                assert latest.primaryTermAndGeneration().primaryTerm() == allocationPrimaryTerm;
+
+                var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(latest.last());
+                if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
+                    return new RegisterCommitResponse(latest.primaryTermAndGeneration(), latest.last());
+                }
+            }
+            throw new NoShardAvailableActionException(shardId, "Indexing shard is closed");
+        }
+
+        private boolean registerForUnpromotableRecovery(Set<PrimaryTermAndGeneration> primaryTermAndGenerations, Set<String> nodeIds) {
+            assert nodeIds != null && nodeIds.size() == 1;
+            int registered = 0;
+            for (var primaryTermAndGeneration : primaryTermAndGenerations) {
+                var blobReference = primaryTermAndGenToBlobReference.get(primaryTermAndGeneration);
+                if (blobReference != null && registerUnpromoteableCommitRefs(nodeIds, blobReference)) {
+                    // it is ok to register a search shard against the BlobReference here even if it fails afterward for the other
+                    // references: the next new commit notification will register all search shards and remove stale references.
+                    assert blobReference.isExternalReadersClosed() == false;
+                    registered++;
+                } else {
+                    break;
+                }
+            }
+            return registered == primaryTermAndGenerations.size();
         }
 
         /**
@@ -2198,32 +2267,37 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     /**
      *
-     * @param commit the commit to register
      * @param shardId the shard id to register for
      * @param nodeId the nodeId using the commit
      * @param state the cluster state already applied on this node, but possibly not handled in this object yet.
      * @param listener notified when available.
      */
     public void registerCommitForUnpromotableRecovery(
-        PrimaryTermAndGeneration commit,
+        @Nullable PrimaryTermAndGeneration batchedCompoundGeneration,
+        PrimaryTermAndGeneration compoundCommitGeneration,
         ShardId shardId,
         String nodeId,
         ClusterState state,
-        ActionListener<PrimaryTermAndGeneration> listener
+        ActionListener<RegisterCommitResponse> listener
     ) {
         // todo: assert clusterStateVersion <= clusterService.state().version();
         waitForClusterStateProcessed(state.version(), () -> {
             ActionListener.completeWith(listener, () -> {
                 var shardCommitsState = getSafe(shardsCommitsStates, shardId);
-                var blobReference = shardCommitsState.registerCommitForUnpromotableRecovery(nodeId, commit);
-                var proposed = blobReference.primaryTermAndGeneration;
-                assert proposed.compareTo(commit) >= 0
-                    : Strings.format(
-                        "Proposed commit (%s) for unpromotable recovery must be newer that the requested one (%s)",
-                        proposed,
-                        commit
-                    );
-                return proposed;
+                var registrationResponse = shardCommitsState.registerCommitForUnpromotableRecovery(
+                    batchedCompoundGeneration,
+                    compoundCommitGeneration,
+                    nodeId
+                );
+                if (Assertions.ENABLED) {
+                    assert registrationResponse.getCompoundCommit() != null;
+                    var cc = registrationResponse.getCompoundCommit().primaryTermAndGeneration();
+                    assert cc.onOrAfter(compoundCommitGeneration) : cc + " < " + compoundCommitGeneration;
+                    var bcc = registrationResponse.getLatestUploadedBatchedCompoundCommitTermAndGen();
+                    assert batchedCompoundGeneration == null || bcc.onOrAfter(batchedCompoundGeneration)
+                        : bcc + " < " + batchedCompoundGeneration;
+                }
+                return registrationResponse;
             });
         });
     }

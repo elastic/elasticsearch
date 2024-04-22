@@ -1958,12 +1958,27 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 allCommitRefs.get(0).getGeneration(),
                 allCommitRefs.stream().map(StatelessCommitRef::getGeneration).toList()
             );
-            final long bccSizeInBytes = batchedCompoundCommit.compoundCommits()
+
+            final long[] ccSizes = batchedCompoundCommit.compoundCommits()
                 .stream()
-                .mapToLong(cc -> BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes()))
-                .sum();
-            assertThat(bccSizeInBytes, greaterThanOrEqualTo(uploadMaxSize));
-            assertThat(bccSizeInBytes - batchedCompoundCommit.last().sizeInBytes(), lessThan(uploadMaxSize));
+                .mapToLong(StatelessCompoundCommit::sizeInBytes)
+                .toArray();
+            long sizeBeforeUpload = 0;
+            for (int i = 0; i <= ccSizes.length - 2; i++) {
+                if (i == ccSizes.length - 2) {
+                    sizeBeforeUpload += ccSizes[i];
+                } else {
+                    sizeBeforeUpload += BlobCacheUtils.toPageAlignedSize(ccSizes[i]);
+                }
+            }
+            assertThat(sizeBeforeUpload, lessThan(uploadMaxSize));
+
+            long totalSize = 0;
+            for (int i = 0; i < ccSizes.length - 1; i++) {
+                totalSize += BlobCacheUtils.toPageAlignedSize(ccSizes[i]);
+            }
+            totalSize += ccSizes[ccSizes.length - 1];
+            assertThat(totalSize, greaterThanOrEqualTo(uploadMaxSize));
         }
     }
 

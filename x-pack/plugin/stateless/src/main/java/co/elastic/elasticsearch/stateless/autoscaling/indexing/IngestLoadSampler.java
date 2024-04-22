@@ -180,6 +180,16 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
 
         var previousRatio = previousReading / numProcessors;
         var currentRatio = currentReading / numProcessors;
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "Ingest load ratio on nodeId {}: previous ({}), current ({}), threshold ({}), above sensibility threshold: {}",
+                nodeId,
+                previousRatio,
+                currentRatio,
+                minSensitivityRatio,
+                currentRatio - previousRatio >= minSensitivityRatio
+            );
+        }
         if (currentRatio - previousRatio >= minSensitivityRatio
             || timeSinceLastPublicationInMillis() >= maxTimeBetweenPublications.getMillis()) {
             publishCurrentLoad(nodeId);

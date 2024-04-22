@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -227,7 +229,10 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         longAwait(barrier);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1532")
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1532",
+        value = "co.elastic.elasticsearch.stateless.autoscaling.indexing:TRACE"
+    )
     public void testAverageWriteLoadSamplerDynamicEwmaAlphaSetting() throws Exception {
         startMasterOnlyNode();
         // Reduce the time between publications, so we can expect at least one publication per second.
@@ -276,10 +281,13 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
 
         // Updating Alpha means the EWMA would reflect task execution time of new tasks.
         logger.info("--> Updating {} to 1.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
-        admin().cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Map.of(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 1.0))
-            .get();
+
+        assertAcked(
+            admin().cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Map.of(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 1.0))
+                .get()
+        );
 
         logger.info("--> Indexing documents with {}=1.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
         for (int i = 0; i < bulks; i++) {

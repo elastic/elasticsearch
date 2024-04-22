@@ -45,7 +45,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     public List<Route> routes() {
         // wildcard regex is not exhaustive, it's just to stop this action from matching paths that could never work
         // the full rules are enforced by MetadataCreateIndexService.validateIndexOrAliasName
-        final String indexWildcard = "/{[^_\\-\\+].+|index}";
+        final String indexWildcard = "/{_all|[^_\\-\\+].+|index}";
         return List.of(new Route(GET, indexWildcard), new Route(HEAD, indexWildcard));
     }
 

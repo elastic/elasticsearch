@@ -112,7 +112,6 @@ public class IgnoredMetaFieldRollingUpgradeIT extends ParameterizedRollingUpgrad
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testIgnoredMetaFieldGetWithoutIgnoredQuery() throws IOException {
         if (isOldCluster()) {
             assertRestStatus(client().performRequest(createNewIndex("old-get-index")), RestStatus.OK);

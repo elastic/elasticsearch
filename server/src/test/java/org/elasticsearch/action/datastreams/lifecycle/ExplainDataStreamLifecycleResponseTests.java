@@ -6,14 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.lifecycle.action;
+package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -35,7 +33,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction.Response;
+import static org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction.Response;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +39,8 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse> {
 
+    public static final ActionType<ClusterSearchShardsResponse> TYPE = new ActionType<>("indices:admin/shards/search_shards");
+
     private final IndicesService indicesService;
 
     @Inject
@@ -50,7 +53,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterSearchShardsAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

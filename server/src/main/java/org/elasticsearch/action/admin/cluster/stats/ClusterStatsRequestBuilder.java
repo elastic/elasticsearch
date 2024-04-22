@@ -17,6 +17,6 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
     ClusterStatsRequestBuilder> {
 
     public ClusterStatsRequestBuilder(ElasticsearchClient client) {
-        super(client, ClusterStatsAction.INSTANCE, new ClusterStatsRequest());
+        super(client, TransportClusterStatsAction.TYPE, new ClusterStatsRequest());
     }
 }

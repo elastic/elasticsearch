@@ -72,7 +72,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
                 request.getStartTime(),
                 systemDataStreamDescriptor,
                 request.masterNodeTimeout(),
-                request.timeout(),
+                request.ackTimeout(),
                 true
             );
         metadataCreateDataStreamService.createDataStream(updateRequest, listener);

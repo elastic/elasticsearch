@@ -150,9 +150,9 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
         String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();
-        assertThat(statsResponse.getCoordinatorStats().get(0).getNodeId(), equalTo(localNodeId));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), equalTo((long) numDocs));
+        assertThat(statsResponse.getCoordinatorStats().get(0).nodeId(), equalTo(localNodeId));
+        assertThat(statsResponse.getCoordinatorStats().get(0).remoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).executedSearchesTotal(), equalTo((long) numDocs));
     }
 
     public void testIngestDataWithGeoMatchProcessor() {
@@ -230,9 +230,9 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
         String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();
-        assertThat(statsResponse.getCoordinatorStats().get(0).getNodeId(), equalTo(localNodeId));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), equalTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).nodeId(), equalTo(localNodeId));
+        assertThat(statsResponse.getCoordinatorStats().get(0).remoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).executedSearchesTotal(), equalTo(1L));
     }
 
     public void testMultiplePolicies() {

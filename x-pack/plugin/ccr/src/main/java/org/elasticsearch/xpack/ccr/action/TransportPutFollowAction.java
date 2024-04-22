@@ -306,7 +306,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     clusterService,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
-                    request.timeout(),
+                    request.ackTimeout(),
                     l.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
                 )
             )

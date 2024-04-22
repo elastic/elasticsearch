@@ -777,12 +777,12 @@ public class Stateless extends Plugin
     @Override
     public void onIndexModule(IndexModule indexModule) {
         var statelessCommitService = commitService.get();
+        var localTranslogReplicator = translogReplicator.get();
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
 
             indexModule.addIndexEventListener(indicesMappingSizeCollector.get());
 
-            var localTranslogReplicator = translogReplicator.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
 
                 @Override
@@ -874,10 +874,10 @@ public class Stateless extends Plugin
         indexModule.addIndexEventListener(
             new StatelessIndexEventListener(
                 statelessCommitService,
-                objectStoreService::get,
-                translogReplicator::get,
-                recoveryCommitRegistrationHandler::get,
-                sharedBlobCacheWarmingService::get
+                objectStoreService.get(),
+                localTranslogReplicator,
+                recoveryCommitRegistrationHandler.get(),
+                sharedBlobCacheWarmingService.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

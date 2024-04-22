@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.index.IndexFileNames;
@@ -100,6 +101,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
+import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration.ZERO;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.empty;
@@ -1377,8 +1379,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
             if (clusterChangedFirst) {
                 commitService.clusterChanged(new ClusterChangedEvent("test", state, stateWithNoSearchShards));
             }
-            PlainActionFuture<PrimaryTermAndGeneration> registerFuture = new PlainActionFuture<>();
+            PlainActionFuture<RegisterCommitResponse> registerFuture = new PlainActionFuture<>();
             commitService.registerCommitForUnpromotableRecovery(
+                null,
                 new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()),
                 shardId,
                 state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId(),
@@ -1389,7 +1392,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 assertThat(registerFuture.isDone(), is(false));
                 commitService.clusterChanged(new ClusterChangedEvent("test", state, stateWithNoSearchShards));
             }
-            PrimaryTermAndGeneration registeredCommit = registerFuture.actionGet();
+            PrimaryTermAndGeneration registeredCommit = registerFuture.actionGet().getCompoundCommit().primaryTermAndGeneration();
             assertThat(registeredCommit, equalTo(new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration())));
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
@@ -1572,6 +1575,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 long generationResponded = latestCommit.get().generation();
 
                 public void respond(long toGeneration, PrimaryTermAndGeneration... commits) {
+                    respond(toGeneration, Set.of(commits));
+                }
+
+                public void respond(long toGeneration, Set<PrimaryTermAndGeneration> commits) {
                     while (generationResponded < toGeneration) {
                         ++generationResponded;
                         // we generate commits with holes in the sequence, skip those.
@@ -1587,37 +1594,31 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     for (long i = 0; i < 10 || indexingRoundsCompleted.get() < 10; ++i) {
                         respond(latestCommit.get().generation());
                         var clusterState = changeClusterState(searchState);
-                        PlainActionFuture<PrimaryTermAndGeneration> future = new PlainActionFuture<>();
+                        PlainActionFuture<RegisterCommitResponse> future = new PlainActionFuture<>();
+
+                        var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
                         commitService.registerCommitForUnpromotableRecovery(
-                            latestCommit.get(),
+                            latestUploadedBcc != null ? latestUploadedBcc.primaryTermAndGeneration() : ZERO,
+                            latestUploadedBcc != null ? latestUploadedBcc.last().primaryTermAndGeneration() : ZERO,
                             shardId,
                             searchState.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId(),
                             clusterState,
                             future
                         );
-                        PrimaryTermAndGeneration recoveryCommit;
+                        PrimaryTermAndGeneration searchRecoveredGeneration;
+                        Set<PrimaryTermAndGeneration> usedCommits;
                         try {
-                            recoveryCommit = future.actionGet();
+                            var recoveryCommit = future.actionGet().getCompoundCommit();
+                            searchRecoveredGeneration = recoveryCommit.primaryTermAndGeneration();
+                            usedCommits = BatchedCompoundCommit.computeReferencedBCCGenerations(recoveryCommit);
                         } catch (NoShardAvailableActionException e) {
                             // todo: avoid the NoShardAvailableException when not warranted.
                             continue;
                         }
-                        if (randomBoolean()) {
-                            respond(recoveryCommit.generation() - 1);
-                        } else if (randomBoolean()) {
-                            respond(recoveryCommit.generation() - 1, recoveryCommit);
+                        respond(searchRecoveredGeneration.generation(), usedCommits);
+                        for (var usedCommit : usedCommits) {
+                            assertThat(deletedCommits, not(hasItems(new StaleCompoundCommit(shardId, usedCommit, primaryTerm))));
                         }
-
-                        if (randomBoolean()) {
-                            respond(latestCommit.get().generation(), recoveryCommit);
-                        } else {
-                            // respond filters duplicates
-                            PrimaryTermAndGeneration latest = latestCommit.get();
-                            respond(latest.generation(), recoveryCommit, latest);
-                            assertThat(deletedCommits, not(hasItems(new StaleCompoundCommit(shardId, latest, primaryTerm))));
-                        }
-                        assertThat(deletedCommits, not(hasItems(new StaleCompoundCommit(shardId, recoveryCommit, primaryTerm))));
-
                         changeClusterState(noSearchState);
                     }
                 }
@@ -1662,8 +1663,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.clusterChanged(new ClusterChangedEvent("test", state, stateWithNoSearchShards));
             // Registration sent to an un-initialized shard
             var commitToRegister = new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration());
-            PlainActionFuture<PrimaryTermAndGeneration> registerFuture = new PlainActionFuture<>();
-            commitService.registerCommitForUnpromotableRecovery(commitToRegister, shardId, nodeId, state, registerFuture);
+            PlainActionFuture<RegisterCommitResponse> registerFuture = new PlainActionFuture<>();
+            commitService.registerCommitForUnpromotableRecovery(null, commitToRegister, shardId, nodeId, state, registerFuture);
             expectThrows(NoShardAvailableActionException.class, registerFuture::actionGet);
             // Registering after initialization is done should work
             for (StatelessCommitRef initialCommit : initialCommits) {
@@ -1673,8 +1674,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), future);
             future.actionGet();
             registerFuture = new PlainActionFuture<>();
-            commitService.registerCommitForUnpromotableRecovery(commitToRegister, shardId, nodeId, state, registerFuture);
-            assertThat(registerFuture.get(), equalTo(commitToRegister));
+            commitService.registerCommitForUnpromotableRecovery(null, commitToRegister, shardId, nodeId, state, registerFuture);
+            var registrationResponse = registerFuture.get();
+            assertThat(registrationResponse, notNullValue());
+            assertThat(registrationResponse.getLatestUploadedBatchedCompoundCommitTermAndGen(), equalTo(commitToRegister));
         }
     }
 

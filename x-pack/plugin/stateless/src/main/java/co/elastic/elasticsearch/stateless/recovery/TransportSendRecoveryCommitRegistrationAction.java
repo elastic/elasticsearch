@@ -126,16 +126,16 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             var shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
             if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
                 // TODO: A search shard should be able to continue using the found commit despite not being able to register it.
-                // For now, we fail the request to register the commit.
+                // For now, we retry the request to register the commit.
                 throw new ShardNotFoundException(shardId, "cannot route request to the indexing shard");
             }
             DiscoveryNode node = state.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
-            logger.debug("sending recovery commit registration to {}", node);
+            logger.debug("{} sending recovery commit registration to {}", shardId, node);
             assert node != null;
             transportService.sendChildRequest(
                 node,
                 TransportRegisterCommitForRecoveryAction.NAME,
-                new RegisterCommitRequest(request.getCommit(), request.getShardId(), request.getNodeId(), state.version()),
+                request.withClusterStateVersion(state.version()),
                 task,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(listener, RegisterCommitResponse::new, transportService.getThreadPool().generic())

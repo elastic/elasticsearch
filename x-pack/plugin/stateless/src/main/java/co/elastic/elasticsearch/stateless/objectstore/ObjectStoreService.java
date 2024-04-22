@@ -61,6 +61,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -467,16 +468,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         if (blobMetadataOfMaxGeneration == null) {
             return null;
         }
+        return readBatchedCompoundCommitFromStore(blobContainer, blobMetadataOfMaxGeneration.name(), blobMetadataOfMaxGeneration.length());
+    }
 
-        final var batchedCompoundCommit = BatchedCompoundCommit.readFromStore(
-            blobMetadataOfMaxGeneration.name(),
-            blobMetadataOfMaxGeneration.length(),
+    private static BatchedCompoundCommit readBatchedCompoundCommitFromStore(BlobContainer blobContainer, String blobName, long blobLength)
+        throws IOException {
+        return BatchedCompoundCommit.readFromStore(
+            blobName,
+            blobLength,
             // The following issues a new call to blobstore for each CC as suggested by the BlobReader interface.
-            (blobName, offset, length) -> new InputStreamStreamInput(
-                blobContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
-            )
+            (name, offset, length) -> new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, name, offset, length))
         );
-        return batchedCompoundCommit;
     }
 
     private static List<Tuple<Long, BlobContainer>> getContainersToSearch(BlobContainer shardContainer, long primaryTerm)
@@ -511,6 +513,22 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             }
         }
         return latestBcc;
+    }
+
+    public static BatchedCompoundCommit readBatchedCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {
+        // TODO save a GET here
+        var blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+        var blobs = blobContainer.listBlobsByPrefix(OperationPurpose.INDICES, blobName);
+        assert blobs != null && blobs.size() == 1 : blobName + " not found in " + blobs;
+
+        var blobMetadata = blobs.get(blobName);
+        if (blobMetadata != null) {
+            var batchedCompoundCommit = readBatchedCompoundCommitFromStore(blobContainer, blobMetadata.name(), blobMetadata.length());
+            logLatestBcc(batchedCompoundCommit, blobContainer);
+            return batchedCompoundCommit;
+        }
+        assert false : blobName + " not found";
+        throw new FileNotFoundException("Blob [" + blobName + "] not found");
     }
 
     public static Tuple<BatchedCompoundCommit, Set<BlobFile>> readIndexingShardState(BlobContainer shardContainer, long primaryTerm)

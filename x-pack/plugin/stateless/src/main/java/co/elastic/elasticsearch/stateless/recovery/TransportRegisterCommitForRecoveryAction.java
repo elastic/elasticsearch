@@ -102,7 +102,6 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
             if (isSearchShardInRoutingTable(state, shardId, request.getNodeId()) == false) {
                 throw new ShardNotFoundException(shardId, "search shard not found in the routing table");
             }
-            final var commit = request.getCommit();
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final var indexShard = indexService.getShard(shardId.id());
             assert indexShard.routingEntry().isPromotableToPrimary()
@@ -110,17 +109,18 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
             final var engine = indexShard.getEngineOrNull();
             if (engine == null || engine instanceof NoOpEngine) {
                 // engine is closed, but search shard should be able to continue recovery
-                listener.onResponse(new RegisterCommitResponse(request.getCommit()));
+                listener.onResponse(RegisterCommitResponse.EMPTY);
                 return;
             }
             assert engine instanceof IndexEngine;
             var statelessCommitService = ((IndexEngine) engine).getStatelessCommitService();
             statelessCommitService.registerCommitForUnpromotableRecovery(
-                commit,
+                request.getBatchedCompoundCommitPrimaryTermAndGeneration(),
+                request.getCompoundCommitPrimaryTermAndGeneration(),
                 shardId,
                 request.getNodeId(),
                 state,
-                listener.map(RegisterCommitResponse::new)
+                listener
             );
         });
     }

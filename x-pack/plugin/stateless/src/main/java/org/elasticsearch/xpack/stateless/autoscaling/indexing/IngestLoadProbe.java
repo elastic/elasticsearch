@@ -20,6 +20,8 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.function.Function;
 
@@ -27,6 +29,8 @@ import java.util.function.Function;
  * This class computes the current node indexing load
  */
 public class IngestLoadProbe {
+
+    private static final Logger logger = LogManager.getLogger(IngestLoadProbe.class);
 
     /**
      * MAX_TIME_TO_CLEAR_QUEUE is a threshold that defines the length of time that the current number of threads could take to clear up
@@ -96,6 +100,17 @@ public class IngestLoadProbe {
         TimeValue maxTimeToClearQueue,
         double maxThreadsToHandleQueue
     ) {
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "averageWriteLoad: {}, averageTaskExecutionTime: {}, currentQueueSize: {}, maxTimeToClearQueue: {}, "
+                    + "maxThreadsToHandleQueue: {}",
+                averageWriteLoad,
+                averageTaskExecutionTime,
+                currentQueueSize,
+                maxTimeToClearQueue,
+                maxThreadsToHandleQueue
+            );
+        }
         assert maxThreadsToHandleQueue > 0.0;
         if (averageTaskExecutionTime == 0.0) {
             return averageWriteLoad;

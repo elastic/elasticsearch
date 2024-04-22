@@ -175,6 +175,9 @@ class RequestExecutorService implements RequestExecutor {
         return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
     }
 
+    /**
+     * Begin servicing tasks.
+     */
     public void start() {
         try {
             startCleanupTask();
@@ -315,7 +318,6 @@ class RequestExecutorService implements RequestExecutor {
      * Provides rate limiting functionality for requests. A single {@link RateLimitingEndpointHandler} governs a group of requests.
      * This allows many requests to be serialized if they are being sent too fast. If the rate limit has not been met they will be sent
      * as soon as a thread is available.
-     *
      */
     private static class RateLimitingEndpointHandler {
 
@@ -349,7 +351,6 @@ class RequestExecutorService implements RequestExecutor {
 
             Objects.requireNonNull(rateLimitSettings);
             Objects.requireNonNull(rateLimiterCreator);
-            // TODO figure out a good accumulatedTokensLimit
             rateLimiter = rateLimiterCreator.create(1, rateLimitSettings.requestsPerTimeUnit(), rateLimitSettings.timeUnit());
 
             settings.registerQueueCapacityCallback(id, this::onCapacityChange);
@@ -431,7 +432,7 @@ class RequestExecutorService implements RequestExecutor {
             if (isShutdown()) {
                 EsRejectedExecutionException rejected = new EsRejectedExecutionException(
                     format(
-                        "Failed to enqueue task for inference id [%s] because the executor service grouping [%s] has already shutdown",
+                        "Failed to enqueue task for inference id [%s] because the request service [%s] has already shutdown",
                         task.getRequestManager().inferenceEntityId(),
                         id
                     ),
@@ -494,7 +495,7 @@ class RequestExecutorService implements RequestExecutor {
             } catch (Exception e) {
                 logger.warn(
                     format(
-                        "Failed to notify request for inference id [%s] of rejection after request service [%s] shutdown",
+                        "Failed to notify request for inference id [%s] of rejection after executor service grouping [%s] shutdown",
                         task.getRequestManager().inferenceEntityId(),
                         id
                     )

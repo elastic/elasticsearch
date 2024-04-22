@@ -136,7 +136,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
-    public void testSend_AfterShutdown_Throws() {
+    public void testExecute_AfterShutdown_Throws() {
         var service = createRequestExecutorServiceWithMocks();
 
         service.shutdown();
@@ -151,7 +151,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             thrownException.getMessage(),
             is(
                 Strings.format(
-                    "Failed to enqueue task for inference id [id] because the executor service grouping [%s] has already shutdown",
+                    "Failed to enqueue task for inference id [id] because the request service [%s] has already shutdown",
                     requestManager.rateLimitGrouping().hashCode()
                 )
             )
@@ -159,7 +159,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(thrownException.isExecutorShutdown());
     }
 
-    public void testSend_Throws_WhenQueueIsFull() {
+    public void testExecute_Throws_WhenQueueIsFull() {
         var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettings(1), mock(RetryingHttpSender.class));
 
         service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
@@ -219,7 +219,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isShutdown());
     }
 
-    public void testSend_CallsOnFailure_WhenRequestTimesOut() {
+    public void testExecute_CallsOnFailure_WhenRequestTimesOut() {
         var service = createRequestExecutorServiceWithMocks();
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
@@ -233,7 +233,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         );
     }
 
-    public void testSend_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
+    public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
         var headerKey = "not empty";
         var headerValue = "value";
 
@@ -291,7 +291,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         finishedOnResponse.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
     }
 
-    public void testSend_NotifiesTasksOfShutdown() {
+    public void testExecute_NotifiesTasksOfShutdown() {
         var service = createRequestExecutorServiceWithMocks();
 
         var requestManager = RequestManagerTests.createMock(mock(RequestSender.class), "id");

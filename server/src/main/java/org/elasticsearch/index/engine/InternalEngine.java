@@ -290,6 +290,7 @@ public class InternalEngine extends Engine {
             this.internalReaderManager = internalReaderManager;
             this.externalReaderManager = externalReaderManager;
             internalReaderManager.addListener(versionMap);
+            this.lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
@@ -3368,10 +3369,6 @@ public class InternalEngine extends Engine {
         } else {
             listener.onResponse(null);
         }
-    }
-
-    public boolean initLastUnsafeSegmentGenerationForGets(long generation) {
-        return lastUnsafeSegmentGenerationForGets.compareAndSet(-1L, generation);
     }
 
     public long getLastUnsafeSegmentGenerationForGets() {

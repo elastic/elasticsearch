@@ -31,7 +31,6 @@ import java.util.List;
 
 public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
 
-    private final TransportService transportService;
     private final DatabaseNodeService registry;
     private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
 
@@ -52,7 +51,6 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.transportService = transportService;
         this.registry = registry;
         this.geoIpDownloaderTaskExecutor = geoIpDownloaderTaskExecutor;
     }

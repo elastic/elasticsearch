@@ -45,7 +45,7 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
     private final TimeValue timeout;
     private final AtomicLong retentionPeriodInMs;
     private final AtomicLong deleteIntervalInMs;
-    private volatile long lastRunMs;
+    private volatile long lastRunMs = -1;
 
     InactiveApiKeysRemover(Settings settings, Client client, ClusterService clusterService) {
         this.client = client;
@@ -94,7 +94,7 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
     }
 
     void maybeSubmit(ThreadPool threadPool) {
-        if (threadPool.relativeTimeInMillis() - lastRunMs > deleteIntervalInMs.get()) {
+        if (lastRunMs == -1 || threadPool.relativeTimeInMillis() - lastRunMs > deleteIntervalInMs.get()) {
             if (inProgress.compareAndSet(false, true)) {
                 threadPool.executor(Names.GENERIC).submit(this);
             }

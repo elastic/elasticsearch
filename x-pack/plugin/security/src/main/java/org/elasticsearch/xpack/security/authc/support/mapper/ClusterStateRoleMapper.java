@@ -14,24 +14,20 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
-public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListener {
+public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ClusterStateRoleMapper.class);
 
     private final ScriptService scriptService;
     private final ClusterService clusterService;
-    private final CopyOnWriteArrayList<Runnable> clearCacheListeners = new CopyOnWriteArrayList<>();
 
     public ClusterStateRoleMapper(ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
@@ -55,17 +51,8 @@ public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListe
         listener.onResponse(roles);
     }
 
-    @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
-        clearCacheListeners.add(realm::expireAll);
-    }
-
     private Set<ExpressionRoleMapping> getMappings() {
         return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
-    }
-
-    private void notifyClearCache() {
-        clearCacheListeners.forEach(Runnable::run);
     }
 
     @Override
@@ -74,7 +61,7 @@ public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListe
             RoleMappingMetadata.getFromClusterState(event.previousState()),
             RoleMappingMetadata.getFromClusterState(event.state())
         )) {
-            notifyClearCache();
+            clearRealmCachesOnLocalNode();
         }
     }
 }

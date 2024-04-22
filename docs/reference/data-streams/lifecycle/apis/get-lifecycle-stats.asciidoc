@@ -4,8 +4,6 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview::[]
-
 Gets stats about the execution of data stream lifecycle.
 
 [[get-lifecycle-stats-api-prereqs]]

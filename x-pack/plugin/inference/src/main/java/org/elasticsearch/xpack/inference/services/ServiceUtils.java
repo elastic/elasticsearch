@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -402,4 +403,9 @@ public class ServiceUtils {
     }
 
     private static final String TEST_EMBEDDING_INPUT = "how big";
+
+    public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
+        // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
+        return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
+    }
 }

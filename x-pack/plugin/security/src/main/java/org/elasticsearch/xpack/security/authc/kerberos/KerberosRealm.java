@@ -85,7 +85,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     ) {
         super(config);
         this.userRoleMapper = userRoleMapper;
-        this.userRoleMapper.refreshRealmOnChange(this);
+        this.userRoleMapper.clearRealmCacheOnChange(this);
         final TimeValue ttl = config.getSetting(KerberosRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             this.userPrincipalNameToUserCache = (userPrincipalNameToUserCache == null)

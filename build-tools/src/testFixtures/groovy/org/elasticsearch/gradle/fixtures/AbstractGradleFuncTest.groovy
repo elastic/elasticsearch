@@ -21,6 +21,8 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 
@@ -56,6 +58,10 @@ abstract class AbstractGradleFuncTest extends Specification {
             plugins {
                 id 'base'
             }
+        """
+        def mutedTestsFile = Files.createFile(Path.of(testProjectDir.newFolder("build-tools-internal").path, "muted-tests.yml"))
+        mutedTestsFile << """
+            tests: []
         """
     }
 

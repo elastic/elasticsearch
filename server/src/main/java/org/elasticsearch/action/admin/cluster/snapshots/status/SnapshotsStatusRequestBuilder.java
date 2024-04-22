@@ -24,14 +24,14 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
      * Constructs the new snapshot status request
      */
     public SnapshotsStatusRequestBuilder(ElasticsearchClient client) {
-        super(client, SnapshotsStatusAction.INSTANCE, new SnapshotsStatusRequest());
+        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest());
     }
 
     /**
      * Constructs the new snapshot status request with specified repository
      */
     public SnapshotsStatusRequestBuilder(ElasticsearchClient client, String repository) {
-        super(client, SnapshotsStatusAction.INSTANCE, new SnapshotsStatusRequest(repository));
+        super(client, TransportSnapshotsStatusAction.TYPE, new SnapshotsStatusRequest(repository));
     }
 
     /**

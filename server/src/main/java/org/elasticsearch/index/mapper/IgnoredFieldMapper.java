@@ -15,6 +15,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -83,7 +84,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
                 "aggregations on the '"
                     + typeName()
                     + "' field are supported for indices created by version "
-                    + IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD
+                    + Version.V_8_15_0
                     + " or higher"
             );
         }

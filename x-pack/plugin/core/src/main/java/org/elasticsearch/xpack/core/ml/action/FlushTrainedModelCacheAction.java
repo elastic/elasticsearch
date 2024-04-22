@@ -40,7 +40,7 @@ public class FlushTrainedModelCacheAction extends ActionType<AcknowledgedRespons
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(timeout);
+            return Objects.hashCode(ackTimeout());
         }
 
         @Override
@@ -48,7 +48,7 @@ public class FlushTrainedModelCacheAction extends ActionType<AcknowledgedRespons
             if (other == this) return true;
             if (other == null || getClass() != other.getClass()) return false;
             Request that = (Request) other;
-            return Objects.equals(that.timeout, timeout);
+            return Objects.equals(that.ackTimeout(), ackTimeout());
         }
     }
 }

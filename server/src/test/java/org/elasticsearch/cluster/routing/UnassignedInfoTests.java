@@ -49,6 +49,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REMOVE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -631,7 +633,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         int numberOfShutdowns = randomIntBetween(1, 15);
         for (int i = 0; i <= numberOfShutdowns; i++) {
             final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
-            final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final String targetNodeName = type == REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
             shutdowns = shutdowns.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
@@ -639,7 +641,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setType(type)
                     .setTargetNodeName(targetNodeName)
-                    .setGracePeriod(type == SingleNodeShutdownMetadata.Type.SIGTERM ? randomTimeValue() : null)
+                    .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                     .build()
             );
         }
@@ -650,10 +652,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that delay calculation is not impacted when the node the shard was last assigned to was registered for removal.
      */
     public void testRemainingDelayCalculationWhenNodeIsShuttingDownForRemoval() {
-        for (SingleNodeShutdownMetadata.Type type : List.of(
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            SingleNodeShutdownMetadata.Type.SIGTERM
-        )) {
+        for (SingleNodeShutdownMetadata.Type type : List.of(REMOVE, SIGTERM)) {
             String lastNodeId = "bogusNodeId";
             NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()

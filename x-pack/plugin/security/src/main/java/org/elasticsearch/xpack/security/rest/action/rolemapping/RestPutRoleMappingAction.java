@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * @see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
 @ServerlessScope(Scope.INTERNAL)
-public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
+public class RestPutRoleMappingAction extends NativeRoleMappingBaseRestHandler {
 
     public RestPutRoleMappingAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

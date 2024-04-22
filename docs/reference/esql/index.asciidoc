@@ -1,7 +1,7 @@
 [[esql]]
 = {esql}
 
-:esql-tests: {xes-repo-dir}/../../plugin/esql/qa
+:esql-tests: {elasticsearch-root}/x-pack/docs/{lang}/../../plugin/esql/qa
 :esql-specs: {esql-tests}/testFixtures/src/main/resources
 
 [partintro]

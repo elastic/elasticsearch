@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
@@ -36,18 +35,15 @@ import static org.mockito.Mockito.when;
 
 public class ShardSearchRequestInterceptorTests extends ESTestCase {
 
-    private ClusterService clusterService;
     private ThreadPool threadPool;
-    private MockLicenseState licenseState;
     private ShardSearchRequestInterceptor interceptor;
 
     @Before
     public void init() {
         threadPool = new TestThreadPool("shard search request interceptor tests");
-        licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
-        clusterService = mock(ClusterService.class);
-        interceptor = new ShardSearchRequestInterceptor(threadPool, licenseState, clusterService);
+        interceptor = new ShardSearchRequestInterceptor(threadPool, licenseState);
     }
 
     @After
@@ -57,7 +53,6 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
 
     private void configureMinMondeVersion(Version version) {
         final ClusterState clusterState = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(clusterState);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(version);

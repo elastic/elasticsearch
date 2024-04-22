@@ -1,0 +1,5 @@
+pr: 107178
+summary: "Add support for Azure OpenAI embeddings to inference service"
+area: Machine Learning
+type: feature
+issues: [ ]

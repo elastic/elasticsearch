@@ -51,9 +51,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     DataStreamsStatsAction.Response,
     DataStreamsStatsAction.DataStreamShardStats> {
 
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public DataStreamsStatsTransportAction(
@@ -72,9 +70,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             DataStreamsStatsAction.Request::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

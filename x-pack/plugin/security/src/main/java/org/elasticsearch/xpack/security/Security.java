@@ -299,6 +299,7 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
+import org.elasticsearch.xpack.security.authz.FileRoleValidator;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
@@ -580,6 +581,7 @@ public class Security extends Plugin
     private final SetOnce<CreateApiKeyRequestBuilderFactory> createApiKeyRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<UpdateApiKeyRequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<BulkUpdateApiKeyRequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<RestGrantApiKeyAction.RequestTranslator> grantApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
@@ -591,6 +593,7 @@ public class Security extends Plugin
     private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
     private final SetOnce<AuthorizationDenialMessages> authorizationDenialMessages = new SetOnce<>();
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
+    private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -834,7 +837,6 @@ public class Security extends Plugin
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
-        this.fileRolesStore.set(new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry));
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(
             settings,
             client,
@@ -859,12 +861,21 @@ public class Security extends Plugin
         if (bulkUpdateApiKeyRequestTranslator.get() == null) {
             bulkUpdateApiKeyRequestTranslator.set(new BulkUpdateApiKeyRequestTranslator.Default());
         }
+        if (grantApiKeyRequestTranslator.get() == null) {
+            grantApiKeyRequestTranslator.set(new RestGrantApiKeyAction.RequestTranslator.Default());
+        }
         if (hasPrivilegesRequestBuilderFactory.get() == null) {
             hasPrivilegesRequestBuilderFactory.trySet(new HasPrivilegesRequestBuilderFactory.Default());
         }
         if (reservedRoleNameCheckerFactory.get() == null) {
             reservedRoleNameCheckerFactory.set(new ReservedRoleNameChecker.Factory.Default());
         }
+        if (fileRoleValidator.get() == null) {
+            fileRoleValidator.set(new FileRoleValidator.Default());
+        }
+        this.fileRolesStore.set(
+            new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
+        );
         final ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists);
         components.add(new PluginComponentBinding<>(ReservedRoleNameChecker.class, reservedRoleNameChecker));
 
@@ -1014,8 +1025,8 @@ public class Security extends Plugin
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors.addAll(
                 Arrays.asList(
-                    new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
-                    new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
+                    new SearchRequestInterceptor(threadPool, getLicenseState()),
+                    new ShardSearchRequestInterceptor(threadPool, getLicenseState()),
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
@@ -1478,7 +1489,7 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
-            new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get(), fileRolesStore.get()),
+            new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get()),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
@@ -1508,7 +1519,7 @@ public class Security extends Plugin
             new RestUpdateApiKeyAction(settings, getLicenseState(), updateApiKeyRequestTranslator.get()),
             new RestBulkUpdateApiKeyAction(settings, getLicenseState(), bulkUpdateApiKeyRequestTranslator.get()),
             new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
-            new RestGrantApiKeyAction(settings, getLicenseState()),
+            new RestGrantApiKeyAction(settings, getLicenseState(), grantApiKeyRequestTranslator.get()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
             new RestQueryApiKeyAction(settings, getLicenseState()),
@@ -1519,7 +1530,7 @@ public class Security extends Plugin
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState()),
-            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestProfileHasPrivilegesAction(settings, getLicenseState()),
             new RestGetProfilesAction(settings, getLicenseState()),
             new RestActivateProfileAction(settings, getLicenseState()),
             new RestUpdateProfileDataAction(settings, getLicenseState()),
@@ -2123,6 +2134,8 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
         loadSingletonExtensionAndSetOnce(loader, reservedRoleNameCheckerFactory, ReservedRoleNameChecker.Factory.class);
+        loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
     }
 

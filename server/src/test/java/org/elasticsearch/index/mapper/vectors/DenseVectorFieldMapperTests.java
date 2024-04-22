@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -1114,8 +1115,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
-        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        KnnVectorsFormat knnVectorsFormat;
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        } else {
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        }
         String expectedString = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
@@ -1146,14 +1153,20 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
-        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        String expectedString = "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn="
+        KnnVectorsFormat knnVectorsFormat;
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        } else {
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        }
+        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat("
-            + "name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval="
+            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
+            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", rawVectorFormat=Lucene99FlatVectorsFormat()"
             + "))";

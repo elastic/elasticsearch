@@ -1994,7 +1994,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return restoreRateLimitingTimeInNanos.count();
     }
 
-    protected void assertSnapshotOrStatelessPermittedThreadPool() {
+    private void assertSnapshotOrStatelessPermittedThreadPool() {
         // The Stateless plugin adds custom thread pools for object store operations
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SNAPSHOT,

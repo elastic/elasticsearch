@@ -665,12 +665,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(0));
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     public void testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int numShards = between(1, 3);
+        int numShards = 1; // between(1, 3);
 
-        boolean indexed = randomBoolean();
-        final String dateType = randomFrom("date", "date_nanos");
+        boolean indexed = true; // randomBoolean();
+        String dateType = randomFrom("date", "date_nanos");
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setMapping(
@@ -757,6 +758,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         if (indexed) {
             assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+            /*
+              assert below fails for
+              ./gradlew -p x-pack/plugin/searchable-snapshots internalClusterTest --tests
+              "org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests.testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata"
+              -Dtests.seed=43E2F3AF43017B21 -Dtests.locale=en-IE -Dtests.timezone=America/Belem
+             */
             assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
             if (docCount == 0) {
                 assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));

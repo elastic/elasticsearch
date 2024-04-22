@@ -1,5 +1,6 @@
 pr: 107706
-summary: Inference API rate limit queuing logic refactor
+summary: Add rate limiting support for the Inference API
 area: Machine Learning
 type: enhancement
-issues: []
+issues:
+  - 105993

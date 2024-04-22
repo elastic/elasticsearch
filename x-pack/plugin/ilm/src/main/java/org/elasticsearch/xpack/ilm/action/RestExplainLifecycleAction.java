@@ -40,11 +40,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         explainLifecycleRequest.onlyManaged(restRequest.paramAsBoolean("only_managed", false));
         explainLifecycleRequest.onlyErrors(restRequest.paramAsBoolean("only_errors", false));
-        String masterNodeTimeout = restRequest.param("master_timeout");
-        if (masterNodeTimeout != null) {
-            explainLifecycleRequest.masterNodeTimeout(masterNodeTimeout);
-        }
-
+        explainLifecycleRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", explainLifecycleRequest.masterNodeTimeout()));
         return channel -> client.execute(ExplainLifecycleAction.INSTANCE, explainLifecycleRequest, new RestToXContentListener<>(channel));
     }
 }

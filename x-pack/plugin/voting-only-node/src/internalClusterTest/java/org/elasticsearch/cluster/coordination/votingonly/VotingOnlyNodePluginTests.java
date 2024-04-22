@@ -18,6 +18,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -153,7 +154,12 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         expectThrows(
             MasterNotDiscoveredException.class,
             () -> assertThat(
-                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId(),
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getState()
+                    .nodes()
+                    .getMasterNodeId(),
                 nullValue()
             )
         );

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
@@ -38,7 +39,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertFalse(
             prepareCreate(indexName).setSettings(settings)
                 .setWaitForActiveShards(randomBoolean() ? ActiveShardCount.from(1) : ActiveShardCount.ALL)
-                .setTimeout("100ms")
+                .setTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .isShardsAcknowledged()
         );
@@ -70,7 +71,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertFalse(
             prepareCreate(indexName).setSettings(settings)
                 .setWaitForActiveShards(randomIntBetween(numDataNodes + 1, numReplicas + 1))
-                .setTimeout("100ms")
+                .setTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .isShardsAcknowledged()
         );
@@ -101,7 +102,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertFalse(
             prepareCreate(indexName).setSettings(settings)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
-                .setTimeout("100ms")
+                .setTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .isShardsAcknowledged()
         );

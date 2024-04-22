@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -243,7 +244,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                     indexSettings(numberOfShards, 0).put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 )
                 .setMapping(mapping)
-                .setTimeout("60s")
+                .setTimeout(TimeValue.timeValueMinutes(1))
         );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetadata masterMappingMetadata = indicesAdmin().prepareGetMappings("test").get().getMappings().get("test");

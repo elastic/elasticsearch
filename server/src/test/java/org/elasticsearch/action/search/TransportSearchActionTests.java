@@ -1312,7 +1312,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest();
-            searchRequest.scroll("5s");
+            searchRequest.scroll(TimeValue.timeValueSeconds(5));
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
         {
@@ -1467,7 +1467,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")))
-                .scroll("5m");
+                .scroll(TimeValue.timeValueMinutes(5));
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
                     clusterState,
@@ -1553,7 +1553,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp"))
             );
-            searchRequest.scroll("5s");
+            searchRequest.scroll(TimeValue.timeValueSeconds(5));
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
                     clusterState,

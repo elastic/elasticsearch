@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -48,7 +49,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 SearchResponse searchScrollResponse = prepareSearch("index").setSearchType(context.searchType)
                     .addSort(context.sort)
                     .setSize(context.scrollRequestSize)
-                    .setScroll("10m")
+                    .setScroll(TimeValue.timeValueMinutes(10))
                     .get();
                 try {
 
@@ -65,7 +66,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                     String scrollId = searchScrollResponse.getScrollId();
                     while (true) {
                         searchScrollResponse.decRef();
-                        searchScrollResponse = client().prepareSearchScroll(scrollId).setScroll("10m").get();
+                        searchScrollResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(10)).get();
                         assertNoFailures(searchScrollResponse);
                         assertThat(searchScrollResponse.getHits().getTotalHits().value, equalTo((long) context.numDocs));
                         if (searchScrollResponse.getHits().getHits().length == 0) {
@@ -232,7 +233,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchQuery("foo", "true"))
                     .addSort(SortBuilders.fieldSort("_doc"))
                     .setTrackScores(trackScores)
-                    .setScroll("10m")
+                    .setScroll(TimeValue.timeValueMinutes(10))
                     .get();
 
                 int scrollDocs = 0;
@@ -251,7 +252,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                         }
                         scrollDocs += scroll.getHits().getHits().length;
                         scroll.decRef();
-                        scroll = client().prepareSearchScroll(scroll.getScrollId()).setScroll("10m").get();
+                        scroll = client().prepareSearchScroll(scroll.getScrollId()).setScroll(TimeValue.timeValueMinutes(10)).get();
                     }
                     assertEquals(control.getHits().getTotalHits().value, scrollDocs);
                 } catch (AssertionError e) {

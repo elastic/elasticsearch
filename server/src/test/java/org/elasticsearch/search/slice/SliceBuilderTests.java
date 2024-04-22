@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -111,7 +112,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     private ShardSearchRequest createScrollRequest(int shardIndex, int numShards) {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll("1m");
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(TimeValue.timeValueMinutes(1));
         return new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,

@@ -48,7 +48,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState()
                 .clear()
                 .setNodes(true)
-                .setMasterNodeTimeout("100ms");
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100));
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
@@ -68,7 +68,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
                 .clear()
                 .setLocal(true)
                 .setNodes(true)
-                .setMasterNodeTimeout("100ms")
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .getState()
                 .nodes();

@@ -595,7 +595,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.getParameters().setMaxReadRequestOperationCount(between(1, 10000));
         request.waitForActiveShards(waitForActiveShards);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }
@@ -606,7 +606,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }

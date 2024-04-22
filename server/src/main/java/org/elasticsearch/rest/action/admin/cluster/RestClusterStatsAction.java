@@ -38,7 +38,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
-        clusterStatsRequest.timeout(request.param("timeout"));
+        clusterStatsRequest.timeout(request.paramAsTime("timeout", null));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));

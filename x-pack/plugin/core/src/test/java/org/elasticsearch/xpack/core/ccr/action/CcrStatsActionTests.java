@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -24,8 +25,8 @@ public class CcrStatsActionTests extends AbstractWireSerializingTestCase<CcrStat
     @Override
     protected CcrStatsAction.Request createTestInstance() {
         var request = new CcrStatsAction.Request();
-        request.setTimeout(randomFrom("1s", "5s", "10s", "15s"));
-        request.masterNodeTimeout(randomFrom("1s", "5s", "10s", "15s"));
+        request.setTimeout(TimeValue.timeValueSeconds(randomFrom(1, 5, 10, 15)));
+        request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(1, 5, 10, 15)));
         return request;
     }
 
@@ -35,12 +36,12 @@ public class CcrStatsActionTests extends AbstractWireSerializingTestCase<CcrStat
             case 0 -> {
                 var mutatedInstance = new CcrStatsAction.Request();
                 mutatedInstance.setTimeout(instance.getTimeout());
-                mutatedInstance.masterNodeTimeout(randomFrom("20s", "25s", "30s"));
+                mutatedInstance.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(20, 25, 30)));
                 yield mutatedInstance;
             }
             case 1 -> {
                 var mutatedInstance = new CcrStatsAction.Request();
-                mutatedInstance.setTimeout(randomFrom("20s", "25s", "30s"));
+                mutatedInstance.setTimeout(TimeValue.timeValueSeconds(randomFrom(20, 25, 30)));
                 mutatedInstance.masterNodeTimeout(instance.masterNodeTimeout());
                 yield mutatedInstance;
             }
@@ -52,7 +53,7 @@ public class CcrStatsActionTests extends AbstractWireSerializingTestCase<CcrStat
         // In previous version `timeout` is not set
         var request = new CcrStatsAction.Request();
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("20s", "25s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(20, 25, 30)));
         }
         assertSerialization(request, TransportVersionUtils.getPreviousVersion(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM));
         assertSerialization(request, TransportVersions.MINIMUM_CCS_VERSION);

@@ -96,7 +96,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             responses::add,
             failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll("1m")
+            new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
         );
 
         hitSource.start();

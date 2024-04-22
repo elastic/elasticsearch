@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.plugins.Plugin;
@@ -115,7 +116,10 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void expectMasterNotFound() {
-        expectThrows(MasterNotDiscoveredException.class, clusterAdmin().prepareState().setMasterNodeTimeout("100ms"));
+        expectThrows(
+            MasterNotDiscoveredException.class,
+            clusterAdmin().prepareState().setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+        );
     }
 
     public void testReadinessDuringRestarts() throws Exception {

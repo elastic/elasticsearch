@@ -86,7 +86,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
-        nodesInfoRequest.timeout(request.param("timeout"));
+        nodesInfoRequest.timeout(request.paramAsTime("timeout", null));
         // shortcut, don't do checks if only all is specified
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesInfoRequest.all();

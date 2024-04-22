@@ -1131,7 +1131,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field
                 // or that doesn't support data streams so it's safe to ignore
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
-                if (statusCode < 404 || statusCode > 405) {
+                if (statusCode != 400 && statusCode != 404 && statusCode != 405) {
                     throw ee;
                 }
             }

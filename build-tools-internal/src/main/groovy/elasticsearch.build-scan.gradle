@@ -125,8 +125,8 @@ buildScan {
       def metricsStartTime = LocalDateTime.now().minusSeconds(uptime.longValue()).minusHours(1).toString()
       def metricsEndTime = LocalDateTime.now().plusHours(1).toString()
 
-      link 'Agent Metrics', "https://es-buildkite-agents.elastic.dev/app/metrics/detail/host/${System.getenv('BUILDKITE_AGENT_NAME')}?_a=(time:(from:%27${metricsStartTime}%27,interval:%3E%3D1m,to:%27${metricsEndTime}%27))"
-      link 'Agent Logs', "https://es-buildkite-agents.elastic.dev/app/logs/stream?logFilter=(filters:!(),query:(language:kuery,query:%27host.name:%20${System.getenv('BUILDKITE_AGENT_NAME')}%27),timeRange:(from:%27${metricsStartTime}%27,to:%27${metricsEndTime}Z%27))"
+      link 'Agent Metrics', "https://es-buildkite-agents.elastic.dev/app/metrics/detail/host/${System.getenv('BUILDKITE_AGENT_NAME')}?_a=(time:(from:%27${metricsStartTime}Z%27,interval:%3E%3D1m,to:%27${metricsEndTime}Z%27))"
+      link 'Agent Logs', "https://es-buildkite-agents.elastic.dev/app/logs/stream?logFilter=(filters:!(),query:(language:kuery,query:%27host.name:%20${System.getenv('BUILDKITE_AGENT_NAME')}%27),timeRange:(from:%27${metricsStartTime}Z%27,to:%27${metricsEndTime}Z%27))"
 
       if (branch) {
         tag branch

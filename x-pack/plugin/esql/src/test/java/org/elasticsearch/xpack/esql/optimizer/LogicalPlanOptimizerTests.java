@@ -3378,8 +3378,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(evalBottom.fields().size(), is(1));
         assertThat(evalBottom.fields().get(0), instanceOf(Alias.class));
         var alias = evalBottom.fields().get(0);
-
         assertEquals(ref, alias.toAttribute());
+
+        assertThat(agg.aggregates().size(), is(1));
+        assertThat(agg.aggregates().get(0), is(ref));
+        assertThat(agg.groupings().size(), is(1));
+        assertThat(agg.groupings().get(0), is(ref));
     }
 
     /**

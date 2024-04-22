@@ -70,6 +70,24 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         this.sum = sum;
         this.min = min;
         this.max = max;
+        verifyFormattingStats();
+    }
+
+    private void verifyFormattingStats() {
+        if (format != DocValueFormat.RAW) {
+            verifyFormattingStat(Fields.MIN, format, min);
+            verifyFormattingStat(Fields.MAX, format, max);
+            verifyFormattingStat(Fields.AVG, format, getAvg());
+            verifyFormattingStat(Fields.SUM, format, sum);
+        }
+    }
+
+    private static void verifyFormattingStat(String stat, DocValueFormat format, double value) {
+        try {
+            format.format(value);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot format stat [" + stat + "] with format [" + format.toString() + "]", e);
+        }
     }
 
     /**
@@ -105,47 +123,47 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public long getCount() {
+    public final long getCount() {
         return count;
     }
 
     @Override
-    public double getMin() {
+    public final double getMin() {
         return min;
     }
 
     @Override
-    public double getMax() {
+    public final double getMax() {
         return max;
     }
 
     @Override
-    public double getAvg() {
+    public final double getAvg() {
         return sum / count;
     }
 
     @Override
-    public double getSum() {
+    public final double getSum() {
         return sum;
     }
 
     @Override
-    public String getMinAsString() {
+    public final String getMinAsString() {
         return valueAsString(Metrics.min.name());
     }
 
     @Override
-    public String getMaxAsString() {
+    public final String getMaxAsString() {
         return valueAsString(Metrics.max.name());
     }
 
     @Override
-    public String getAvgAsString() {
+    public final String getAvgAsString() {
         return valueAsString(Metrics.avg.name());
     }
 
     @Override
-    public String getSumAsString() {
+    public final String getSumAsString() {
         return valueAsString(Metrics.sum.name());
     }
 

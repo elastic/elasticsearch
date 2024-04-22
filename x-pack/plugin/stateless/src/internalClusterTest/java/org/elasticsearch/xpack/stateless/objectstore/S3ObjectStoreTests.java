@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -290,7 +289,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         }
     }
 
-    public void testShouldNotRetryForNoSuchFileException() throws IOException {
+    public void testShouldNotRetryForNoSuchFileException() throws Exception {
         final String masterAndIndexNode = startMasterAndIndexNode();
         final String searchNode = startSearchNode();
 
@@ -334,13 +333,14 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
             indexDocs(indexName, randomIntBetween(1, 10));
 
-            final BroadcastResponse broadcastResponse = indicesAdmin().prepareRefresh(indexName).get(TimeValue.timeValueSeconds(10));
+            final BroadcastResponse broadcastResponse = indicesAdmin().prepareRefresh(indexName).get();
             assertThat(broadcastResponse.getFailedShards(), greaterThan(0));
             assertThat(
                 Arrays.stream(broadcastResponse.getShardFailures()).map(DefaultShardOperationFailedException::status).toList(),
                 everyItem(oneOf(RestStatus.NOT_FOUND, RestStatus.INTERNAL_SERVER_ERROR))
             );
             mockLogAppender.assertAllExpectationsMatched();
+
         } finally {
             // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
             internalCluster().stopNode(searchNode);
@@ -350,7 +350,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private static class InterceptableS3HttpHandler extends S3HttpHandler {
-        private Interceptor interceptor;
+        private volatile Interceptor interceptor;
 
         InterceptableS3HttpHandler(String bucket) {
             super(bucket);

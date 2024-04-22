@@ -74,6 +74,10 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         PARSER.declareString(ignored, new ParseField(UPGRADE_API_TYPE_FIELD));
     }
 
+    /**
+     * Given the user information (in the form of {@link UserRoleMapper.UserData}) and a collection of {@link ExpressionRoleMapping}s,
+     * this returns the set of role names that should be mapped to the user, according to the provided role mapping rules.
+     */
     public static Set<String> resolveRoles(
         UserRoleMapper.UserData user,
         Collection<ExpressionRoleMapping> mappings,

@@ -65,7 +65,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
     private final NodeClient client;
-    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateAction(
@@ -84,7 +83,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
-        this.clusterService = clusterService;
     }
 
     @Override

@@ -144,7 +144,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 waitForTransformTaskStarted(
                     task.getId(),
                     transformTask,
-                    request.timeout(),
+                    request.ackTimeout(),
                     ActionListener.wrap(taskStarted -> listener.onResponse(new StartTransformAction.Response(true)), listener::onFailure)
                 );
             }, listener::onFailure);
@@ -260,7 +260,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 client,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, false, request.timeout()),
+                new ValidateTransformAction.Request(config, false, request.ackTimeout()),
                 validationListener
             );
         }, listener::onFailure);

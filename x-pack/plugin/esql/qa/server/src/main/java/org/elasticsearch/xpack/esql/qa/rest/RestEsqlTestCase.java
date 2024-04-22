@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -496,13 +497,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
-        int expectedWarnings = Math.min(count / 2, 20);
+        int minExpectedWarnings = Math.min(count / 2, 20);
         var warnings = response.getWarnings();
-        assertThat(warnings.size(), is(1 + expectedWarnings));
+        assertThat(warnings.size(), is(greaterThanOrEqualTo(1 + minExpectedWarnings))); // in multi-node there could be more
         var firstHeader = "Line 1:55: evaluation of [to_int(case(integer %25 2 == 0, to_str(integer), keyword))] failed, "
             + "treating result as null. Only first 20 failures recorded.";
         assertThat(warnings.get(0), containsString(firstHeader));
-        for (int i = 1; i <= expectedWarnings; i++) {
+        for (int i = 1; i < warnings.size(); i++) {
             assertThat(
                 warnings.get(i),
                 containsString("org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [keyword")

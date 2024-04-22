@@ -129,7 +129,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         return Objects.equals(commands, other.commands)
             && Objects.equals(dryRun, other.dryRun)
             && Objects.equals(explain, other.explain)
-            && Objects.equals(timeout, other.timeout)
+            && Objects.equals(ackTimeout(), other.ackTimeout())
             && Objects.equals(retryFailed, other.retryFailed)
             && Objects.equals(masterNodeTimeout, other.masterNodeTimeout);
     }
@@ -137,6 +137,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     @Override
     public int hashCode() {
         // Override equals and hashCode for testing
-        return Objects.hash(commands, dryRun, explain, timeout, retryFailed, masterNodeTimeout);
+        return Objects.hash(commands, dryRun, explain, ackTimeout(), retryFailed, masterNodeTimeout);
     }
 }

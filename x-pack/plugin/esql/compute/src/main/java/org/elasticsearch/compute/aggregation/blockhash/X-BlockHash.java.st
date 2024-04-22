@@ -11,8 +11,8 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 $endif$
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 $if(BytesRef)$
@@ -50,6 +50,8 @@ $endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupe$Type$;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 $if(BytesRef)$
 import java.io.IOException;
@@ -58,6 +60,12 @@ $else$
 import java.util.BitSet;
 
 $endif$
+$if(boolean)$
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
+$endif$
+
 /**
  * Maps a {@link $Type$Block} column to group ids.
  */
@@ -77,7 +85,10 @@ final class $Type$BlockHash extends BlockHash {
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
+$if(boolean)$
+$else$
         this.hash = new $Hash$(1, blockFactory.bigArrays());
+$endif$
     }
 
     @Override
@@ -127,6 +138,55 @@ $endif$
         MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        try {
+            var block = page.getBlock(channel);
+            if (block.areAllValuesNull()) {
+                return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
+            }
+
+            $Type$Block castBlock = ($Type$Block) block;
+            $Type$Vector vector = castBlock.asVector();
+            // TODO honor targetBlockSize and chunk the pages if requested.
+            if (vector == null) {
+                return ReleasableIterator.single(lookup(castBlock));
+            }
+            return ReleasableIterator.single(lookup(vector));
+        } finally {
+            Releasables.closeExpectNoException(page::releaseBlocks);
+        }
+    }
+
+    private IntBlock lookup($Type$Vector vector) {
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+$if(double)$
+                long v = Double.doubleToLongBits(vector.getDouble(i));
+$elseif(BytesRef)$
+                BytesRef v = vector.getBytesRef(i, scratch);
+$else$
+                $type$ v = vector.get$Type$(i);
+$endif$
+                long found = hash.find(v);
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(found)));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup($Type$Block block) {
+        return new MultivalueDedupe$Type$(block).hashLookup(blockFactory, hash);
     }
 
     @Override

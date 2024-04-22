@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -17,6 +18,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.NULL_ORD;
@@ -70,6 +73,44 @@ final class BooleanBlockHash extends BlockHash {
 
     private IntBlock add(BooleanBlock block) {
         return new MultivalueDedupeBoolean(block).hash(blockFactory, everSeen);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        try {
+            var block = page.getBlock(channel);
+            if (block.areAllValuesNull()) {
+                return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
+            }
+            BooleanBlock castBlock = page.getBlock(channel);
+            BooleanVector vector = castBlock.asVector();
+            if (vector == null) {
+                return ReleasableIterator.single(lookup(castBlock));
+            }
+            return ReleasableIterator.single(lookup(vector));
+        } finally {
+            Releasables.closeExpectNoException(page::releaseBlocks);
+        }
+    }
+
+    private IntBlock lookup(BooleanVector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                boolean v = vector.getBoolean(i);
+                int ord = v ? TRUE_ORD : FALSE_ORD;
+                if (everSeen[ord]) {
+                    builder.appendInt(ord);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup(BooleanBlock block) {
+        return new MultivalueDedupeBoolean(block).hash(blockFactory, new boolean[TRUE_ORD + 1]);
     }
 
     @Override

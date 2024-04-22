@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;

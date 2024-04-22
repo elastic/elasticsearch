@@ -572,13 +572,14 @@ public class AggregatorBenchmark {
         };
 
         DriverContext driverContext = driverContext();
-        Operator operator = operator(driverContext, grouping, op, dataType);
-        Page page = page(driverContext.blockFactory(), grouping, blockType);
-        for (int i = 0; i < opCount; i++) {
-            operator.addInput(page);
+        try (Operator operator = operator(driverContext, grouping, op, dataType)) {
+            Page page = page(driverContext.blockFactory(), grouping, blockType);
+            for (int i = 0; i < opCount; i++) {
+                operator.addInput(page.shallowCopy());
+            }
+            operator.finish();
+            checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
         }
-        operator.finish();
-        checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
     }
 
     static DriverContext driverContext() {

@@ -37,7 +37,7 @@ if [[ "$MAX_WORKERS" == "0" ]]; then
 fi
 
 # TODO
-MAX_WORKERS=28
+MAX_WORKERS=20
 
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

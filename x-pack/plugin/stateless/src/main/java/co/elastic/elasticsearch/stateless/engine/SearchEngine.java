@@ -19,6 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
@@ -72,6 +73,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -101,6 +103,7 @@ public class SearchEngine extends Engine {
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
+    private final Executor blobStoreFetchExecutor;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
@@ -114,6 +117,8 @@ public class SearchEngine extends Engine {
         super(config);
         assert config.isPromotableToPrimary() == false;
         this.closedShardService = closedShardService;
+
+        this.blobStoreFetchExecutor = config.getThreadPool().executor(Stateless.SHARD_READ_THREAD_POOL);
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -291,6 +296,7 @@ public class SearchEngine extends Engine {
                         if (false && engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime < SEARCH_IDLE_TIME) {
                             directory.downloadCommit(
                                 latestCommit,
+                                blobStoreFetchExecutor,
                                 new ThreadedActionListener<>(
                                     refreshExecutor,
                                     ActionListener.running(() -> updateInternalState(latestCommit, current))

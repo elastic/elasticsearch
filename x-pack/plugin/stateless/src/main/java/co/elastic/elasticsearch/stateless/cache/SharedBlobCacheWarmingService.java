@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectory.unwrapDirectory;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
@@ -60,11 +61,13 @@ public class SharedBlobCacheWarmingService {
 
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
+    private final Executor fetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
 
     public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
+        this.fetchExecutor = threadPool.executor(Stateless.SHARD_READ_THREAD_POOL);
         this.throttledTaskRunner = new ThrottledTaskRunner(
             "prewarming-cache",
             // use half of the SHARD_READ_THREAD_POOL at max to leave room for regular concurrent reads to complete
@@ -299,6 +302,7 @@ public class SharedBlobCacheWarmingService {
                                 }
                             }
                         },
+                        fetchExecutor,
                         ActionListener.releaseAfter(listener.map(warmed -> {
                             logger.trace("{}: warmed {} with result {}", indexShard.shardId(), target, warmed);
                             return null;

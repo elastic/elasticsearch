@@ -82,7 +82,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle())
                 .setFailureStoreEnabled(true)
-                .setFailureIndices(DataStream.DataStreamIndices.failureBuilder(failureStores).build())
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 
             String ilmPolicyName = "rollover-30days";
@@ -185,7 +185,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle(null, null, false))
                 .setFailureStoreEnabled(true)
-                .setFailureIndices(DataStream.DataStreamIndices.failureBuilder(failureStores).build())
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 
             String ilmPolicyName = "rollover-30days";

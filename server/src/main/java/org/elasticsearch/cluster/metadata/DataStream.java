@@ -1375,11 +1375,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return getDefaultIndexName(namePrefix, dataStreamName, generation, epochMillis);
         }
 
-        public static Builder backingBuilder(List<Index> indices) {
+        public static Builder backingIndicesBuilder(List<Index> indices) {
             return new Builder(BACKING_INDEX_PREFIX, indices);
         }
 
-        public static Builder failureBuilder(List<Index> indices) {
+        public static Builder failureIndicesBuilder(List<Index> indices) {
             return new Builder(FAILURE_STORE_PREFIX, indices);
         }
 
@@ -1476,12 +1476,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private DataStreamLifecycle lifecycle = null;
         private boolean failureStoreEnabled = false;
         private DataStreamIndices backingIndices;
-        private DataStreamIndices failureIndices = DataStreamIndices.failureBuilder(List.of()).build();
+        private DataStreamIndices failureIndices = DataStreamIndices.failureIndicesBuilder(List.of()).build();
 
         public Builder(String name, List<Index> indices) {
             this.name = name;
             assert indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
-            this.backingIndices = DataStreamIndices.backingBuilder(indices).build();
+            this.backingIndices = DataStreamIndices.backingIndicesBuilder(indices).build();
         }
 
         public Builder(DataStream dataStream) {

@@ -14,7 +14,7 @@ satisfy the configuration.
 
 In order to fix this follow the next steps:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/increase-cluster-shard-limit-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/data/increase-cluster-shard-limit-widget.asciidoc[]
 
 
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -47,6 +48,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineException;
@@ -77,6 +79,7 @@ import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -201,15 +204,41 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         try {
             csDeduplicator.execute(
                 new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SNAPSHOT_META), listener.map(response -> {
+                    Snapshot snapshot = new Snapshot(this.metadata.name(), SNAPSHOT_ID);
+
+                    // RestoreService will validate the snapshot is restorable based on the max index version.
+                    // However, we do not increment index version on every single release.
+                    // To prevent attempting to restore an index of a future version, we reject the restore
+                    // already when building the snapshot info from newer nodes matching the current index version.
+                    IndexVersion maxIndexVersion = response.getNodes().getMaxDataNodeCompatibleIndexVersion();
+                    if (IndexVersion.current().equals(maxIndexVersion)) {
+                        for (var node : response.nodes()) {
+                            if (node.canContainData() && node.getMaxIndexVersion().equals(maxIndexVersion)) {
+                                // TODO: Revisit when looking into removing release version from DiscoveryNode
+                                BuildVersion remoteVersion = BuildVersion.fromVersionId(node.getVersion().id);
+                                if (remoteVersion.isFutureVersion()) {
+                                    throw new SnapshotException(
+                                        snapshot,
+                                        "the snapshot was created with version ["
+                                            + remoteVersion
+                                            + "] which is higher than the version of this node ["
+                                            + Build.current().version()
+                                            + "]"
+                                    );
+                                }
+                            }
+                        }
+                    }
+
                     Metadata responseMetadata = response.metadata();
                     Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
                     consumer.accept(
                         new SnapshotInfo(
-                            new Snapshot(this.metadata.name(), SNAPSHOT_ID),
+                            snapshot,
                             List.copyOf(indicesMap.keySet()),
                             List.copyOf(responseMetadata.dataStreams().keySet()),
                             List.of(),
-                            response.getNodes().getMaxDataNodeCompatibleIndexVersion(),
+                            maxIndexVersion,
                             SnapshotState.SUCCESS
                         )
                     );

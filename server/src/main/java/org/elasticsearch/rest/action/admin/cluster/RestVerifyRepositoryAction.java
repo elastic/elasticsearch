@@ -39,7 +39,7 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
         String name = request.param("repository");
         VerifyRepositoryRequest verifyRepositoryRequest = new VerifyRepositoryRequest(name);
         verifyRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRepositoryRequest.masterNodeTimeout()));
-        verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.timeout()));
+        verifyRepositoryRequest.ackTimeout(request.paramAsTime("timeout", verifyRepositoryRequest.ackTimeout()));
         return channel -> client.admin().cluster().verifyRepository(verifyRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }

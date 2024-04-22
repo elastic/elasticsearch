@@ -30,7 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.hasSize;
 
 @SuppressWarnings("resource")
-public class IgnoreFieldIT extends ESSingleNodeTestCase {
+public class IgnoredMetadataFieldIT extends ESSingleNodeTestCase {
 
     public static final String NUMERIC_FIELD_NAME = "numeric_field";
     public static final String DATE_FIELD_NAME = "date_field";
@@ -68,7 +68,7 @@ public class IgnoreFieldIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIgnoreFieldFetch() {
+    public void testIgnoredMetadataFieldFetch() {
         SearchResponse searchResponse1 = null;
         SearchResponse searchResponse2 = null;
         try {
@@ -106,7 +106,7 @@ public class IgnoreFieldIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIgnoreFieldAggregation() {
+    public void testIgnoredMetadataFieldAggregation() {
         SearchResponse avgSearch = null;
         SearchResponse termsSearch = null;
         try {

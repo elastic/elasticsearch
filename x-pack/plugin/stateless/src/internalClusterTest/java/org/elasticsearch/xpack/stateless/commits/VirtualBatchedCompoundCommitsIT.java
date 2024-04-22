@@ -68,6 +68,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -250,12 +251,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     public void testSimulatedGetVirtualBatchedCompoundCommitChunkWaitsForPrimaryRelocation() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
-        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
 
         final var indexNodeB = startIndexNode();
         TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeB);
@@ -300,13 +301,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     public void testSimulatedGetVirtualBatchedCompoundCommitChunkRetriesIfPrimaryRelocates() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
-        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         final var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
 
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         final var indexNodeB = startIndexNode();
         TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeB);
         ensureStableCluster(4);
@@ -362,11 +363,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
 
+        final var getChunkActionBlocked = new AtomicBoolean(false); // block only the manually triggered read action
         CountDownLatch actionAppeared = new CountDownLatch(1);
         CountDownLatch actionSent = new CountDownLatch(1);
         final var transportService = MockTransportService.getInstance(searchNode);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")
+                && getChunkActionBlocked.compareAndSet(false, true)) {
                 actionAppeared.countDown();
                 safeAwait(actionSent);
             }
@@ -491,12 +494,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     public void testSimulatedGetVirtualBatchedCompoundCommitChunkRetryConnectivity() throws Exception {
         startMasterOnlyNode();
         final var indexNode = startIndexNode();
-        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNode);
         var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
+
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNode);
         final var index = resolveIndex(indexName);
         final var indexShard = findIndexShard(index, 0);
 
@@ -537,13 +541,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     public void testSimulatedGetVirtualBatchedCompoundCommitChunkFileError() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
-        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
 
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         final var index = resolveIndex(indexName);
         long primaryTermStart = findIndexShard(index, 0).getOperationPrimaryTerm();
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
@@ -567,13 +571,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     public void testGetVirtualBatchedCompoundCommitChunkFailWithWrongPrimaryTerm() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
-        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         final var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
 
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         CountDownLatch actionSent = new CountDownLatch(1);
         CountDownLatch relocationCompleted = new CountDownLatch(1);
         final var transportService = MockTransportService.getInstance(searchNode);

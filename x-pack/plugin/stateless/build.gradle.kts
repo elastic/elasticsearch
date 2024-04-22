@@ -84,12 +84,6 @@ tasks {
             excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
             excludeTestsMatching("*.StatelessRealTimeGetIT.testShardMultiGetFromTranslogDuringRelocation")
             excludeTestsMatching("*.StatelessRealTimeGetIT.testGetFromTranslogDuringRelocation")
-            excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses")
-            excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkFailWithWrongPrimaryTerm")
-            excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testSimulatedGetVirtualBatchedCompoundCommitChunkRetryConnectivity")
-            excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testSimulatedGetVirtualBatchedCompoundCommitChunkFileError")
-            excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testSimulatedGetVirtualBatchedCompoundCommitChunkRetriesIfPrimaryRelocates")
-            excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testSimulatedGetVirtualBatchedCompoundCommitChunkWaitsForPrimaryRelocation")
         }
     }
 

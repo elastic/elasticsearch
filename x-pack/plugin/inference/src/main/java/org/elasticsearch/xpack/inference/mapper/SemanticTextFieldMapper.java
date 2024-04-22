@@ -196,10 +196,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 xContentLocation,
                 Strings.format(
                     "The configured %s [%s] for field [%s] doesn't match the %s [%s] reported in the document.",
-                    INFERENCE_ID_FIELD.getPreferredName(),
+                    INFERENCE_ID_FIELD,
                     field.inference().inferenceId(),
                     fullFieldName,
-                    INFERENCE_ID_FIELD.getPreferredName(),
+                    INFERENCE_ID_FIELD,
                     fieldType().getInferenceId()
                 )
             );
@@ -227,7 +227,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     "Incompatible model settings for field ["
                         + name()
                         + "]. Check that the "
-                        + INFERENCE_ID_FIELD.getPreferredName()
+                        + INFERENCE_ID_FIELD
                         + " is not using different model settings",
                     exc
                 );
@@ -376,11 +376,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         public NestedObjectMapper getChunksField() {
-            return (NestedObjectMapper) inferenceField.getMapper(CHUNKS_FIELD.getPreferredName());
+            return (NestedObjectMapper) inferenceField.getMapper(CHUNKS_FIELD);
         }
 
         public FieldMapper getEmbeddingsField() {
-            return (FieldMapper) getChunksField().getMapper(CHUNKED_EMBEDDINGS_FIELD.getPreferredName());
+            return (FieldMapper) getChunksField().getMapper(CHUNKED_EMBEDDINGS_FIELD);
         }
 
         @Override
@@ -405,7 +405,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         @Nullable SemanticTextField.ModelSettings modelSettings
     ) {
-        return new ObjectMapper.Builder(INFERENCE_FIELD.getPreferredName(), Explicit.EXPLICIT_TRUE).dynamic(ObjectMapper.Dynamic.FALSE)
+        return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.EXPLICIT_TRUE).dynamic(ObjectMapper.Dynamic.FALSE)
             .add(createChunksField(indexVersionCreated, modelSettings))
             .build(context);
     }
@@ -414,12 +414,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         SemanticTextField.ModelSettings modelSettings
     ) {
-        NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(CHUNKS_FIELD.getPreferredName(), indexVersionCreated);
+        NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(CHUNKS_FIELD, indexVersionCreated);
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
-        KeywordFieldMapper.Builder chunkTextField = new KeywordFieldMapper.Builder(
-            CHUNKED_TEXT_FIELD.getPreferredName(),
-            indexVersionCreated
-        ).indexed(false).docValues(false);
+        KeywordFieldMapper.Builder chunkTextField = new KeywordFieldMapper.Builder(CHUNKED_TEXT_FIELD, indexVersionCreated).indexed(false)
+            .docValues(false);
         if (modelSettings != null) {
             chunksField.add(createEmbeddingsField(indexVersionCreated, modelSettings));
         }
@@ -429,10 +427,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     private static Mapper.Builder createEmbeddingsField(IndexVersion indexVersionCreated, SemanticTextField.ModelSettings modelSettings) {
         return switch (modelSettings.taskType()) {
-            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD.getPreferredName());
+            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD);
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
-                    CHUNKED_EMBEDDINGS_FIELD.getPreferredName(),
+                    CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated
                 );
                 SimilarityMeasure similarity = modelSettings.similarity();

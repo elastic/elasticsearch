@@ -51,16 +51,16 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     implements
         ToXContentObject {
 
-    static final ParseField TEXT_FIELD = new ParseField("text");
-    static final ParseField INFERENCE_FIELD = new ParseField("inference");
-    static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
-    static final ParseField CHUNKS_FIELD = new ParseField("chunks");
-    static final ParseField CHUNKED_EMBEDDINGS_FIELD = new ParseField("embeddings");
-    static final ParseField CHUNKED_TEXT_FIELD = new ParseField("text");
-    static final ParseField MODEL_SETTINGS_FIELD = new ParseField("model_settings");
-    static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
-    static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
-    static final ParseField SIMILARITY_FIELD = new ParseField("similarity");
+    static final String TEXT_FIELD = "text";
+    static final String INFERENCE_FIELD = "inference";
+    static final String INFERENCE_ID_FIELD = "inference_id";
+    static final String CHUNKS_FIELD = "chunks";
+    static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
+    static final String CHUNKED_TEXT_FIELD = "text";
+    static final String MODEL_SETTINGS_FIELD = "model_settings";
+    static final String TASK_TYPE_FIELD = "task_type";
+    static final String DIMENSIONS_FIELD = "dimensions";
+    static final String SIMILARITY_FIELD = "similarity";
 
     public record InferenceResult(String inferenceId, ModelSettings modelSettings, List<Chunk> chunks) {}
 
@@ -81,12 +81,12 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(TASK_TYPE_FIELD.getPreferredName(), taskType.toString());
+            builder.field(TASK_TYPE_FIELD, taskType.toString());
             if (dimensions != null) {
-                builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
+                builder.field(DIMENSIONS_FIELD, dimensions);
             }
             if (similarity != null) {
-                builder.field(SIMILARITY_FIELD.getPreferredName(), similarity);
+                builder.field(SIMILARITY_FIELD, similarity);
             }
             return builder.endObject();
         }
@@ -118,7 +118,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
                 default:
                     throw new IllegalArgumentException(
                         "Wrong ["
-                            + TASK_TYPE_FIELD.getPreferredName()
+                            + TASK_TYPE_FIELD
                             + "], expected "
                             + TEXT_EMBEDDING
                             + " or "
@@ -129,13 +129,13 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             }
         }
 
-        private void validateFieldPresent(ParseField field, Object fieldValue) {
+        private void validateFieldPresent(String field, Object fieldValue) {
             if (fieldValue == null) {
                 throw new IllegalArgumentException("required [" + field + "] field is missing for task_type [" + taskType.name() + "]");
             }
         }
 
-        private void validateFieldNotPresent(ParseField field, Object fieldValue) {
+        private void validateFieldNotPresent(String field, Object fieldValue) {
             if (fieldValue != null) {
                 throw new IllegalArgumentException("[" + field + "] is not allowed for task_type [" + taskType.name() + "]");
             }
@@ -143,19 +143,19 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     }
 
     public static String getOriginalTextFieldName(String fieldName) {
-        return fieldName + "." + TEXT_FIELD.getPreferredName();
+        return fieldName + "." + TEXT_FIELD;
     }
 
     public static String getInferenceFieldName(String fieldName) {
-        return fieldName + "." + INFERENCE_FIELD.getPreferredName();
+        return fieldName + "." + INFERENCE_FIELD;
     }
 
     public static String getChunksFieldName(String fieldName) {
-        return getInferenceFieldName(fieldName) + "." + CHUNKS_FIELD.getPreferredName();
+        return getInferenceFieldName(fieldName) + "." + CHUNKS_FIELD;
     }
 
     public static String getEmbeddingsFieldName(String fieldName) {
-        return getChunksFieldName(fieldName) + "." + CHUNKED_EMBEDDINGS_FIELD.getPreferredName();
+        return getChunksFieldName(fieldName) + "." + CHUNKED_EMBEDDINGS_FIELD;
     }
 
     static SemanticTextField parse(XContentParser parser, Tuple<String, XContentType> context) throws IOException {
@@ -171,7 +171,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             return null;
         }
         try {
-            Map<String, Object> map = XContentMapValues.nodeMapValue(node, MODEL_SETTINGS_FIELD.getPreferredName());
+            Map<String, Object> map = XContentMapValues.nodeMapValue(node, MODEL_SETTINGS_FIELD);
             XContentParser parser = new MapXContentParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
@@ -188,21 +188,21 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (originalValues.isEmpty() == false) {
-            builder.field(TEXT_FIELD.getPreferredName(), originalValues.size() == 1 ? originalValues.get(0) : originalValues);
+            builder.field(TEXT_FIELD, originalValues.size() == 1 ? originalValues.get(0) : originalValues);
         }
-        builder.startObject(INFERENCE_FIELD.getPreferredName());
-        builder.field(INFERENCE_ID_FIELD.getPreferredName(), inference.inferenceId);
-        builder.field(MODEL_SETTINGS_FIELD.getPreferredName(), inference.modelSettings);
-        builder.startArray(CHUNKS_FIELD.getPreferredName());
+        builder.startObject(INFERENCE_FIELD);
+        builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
+        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
+        builder.startArray(CHUNKS_FIELD);
         for (var chunk : inference.chunks) {
             builder.startObject();
-            builder.field(CHUNKED_TEXT_FIELD.getPreferredName(), chunk.text);
+            builder.field(CHUNKED_TEXT_FIELD, chunk.text);
             XContentParser parser = XContentHelper.createParserNotCompressed(
                 XContentParserConfiguration.EMPTY,
                 chunk.rawEmbeddings,
                 contentType
             );
-            builder.field(CHUNKED_EMBEDDINGS_FIELD.getPreferredName()).copyCurrentStructure(parser);
+            builder.field(CHUNKED_EMBEDDINGS_FIELD).copyCurrentStructure(parser);
             builder.endObject();
         }
         builder.endArray();
@@ -226,19 +226,19 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceResult, Void> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
-        INFERENCE_FIELD.getPreferredName(),
+        INFERENCE_FIELD,
         true,
         args -> new InferenceResult((String) args[0], (ModelSettings) args[1], (List<Chunk>) args[2])
     );
 
     private static final ConstructingObjectParser<Chunk, Void> CHUNKS_PARSER = new ConstructingObjectParser<>(
-        CHUNKS_FIELD.getPreferredName(),
+        CHUNKS_FIELD,
         true,
         args -> new Chunk((String) args[0], (BytesReference) args[1])
     );
 
     private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
-        MODEL_SETTINGS_FIELD.getPreferredName(),
+        MODEL_SETTINGS_FIELD,
         true,
         args -> {
             TaskType taskType = TaskType.fromString((String) args[0]);
@@ -249,22 +249,26 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     );
 
     static {
-        SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), TEXT_FIELD);
-        SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), (p, c) -> INFERENCE_RESULT_PARSER.parse(p, null), INFERENCE_FIELD);
+        SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
+        SEMANTIC_TEXT_FIELD_PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> INFERENCE_RESULT_PARSER.parse(p, null),
+            new ParseField(INFERENCE_FIELD)
+        );
 
-        INFERENCE_RESULT_PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);
-        INFERENCE_RESULT_PARSER.declareObject(constructorArg(), (p, c) -> MODEL_SETTINGS_PARSER.parse(p, c), MODEL_SETTINGS_FIELD);
-        INFERENCE_RESULT_PARSER.declareObjectArray(constructorArg(), (p, c) -> CHUNKS_PARSER.parse(p, c), CHUNKS_FIELD);
+        INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
+        INFERENCE_RESULT_PARSER.declareObject(constructorArg(), MODEL_SETTINGS_PARSER, new ParseField(MODEL_SETTINGS_FIELD));
+        INFERENCE_RESULT_PARSER.declareObjectArray(constructorArg(), CHUNKS_PARSER, new ParseField(CHUNKS_FIELD));
 
-        CHUNKS_PARSER.declareString(constructorArg(), CHUNKED_TEXT_FIELD);
+        CHUNKS_PARSER.declareString(constructorArg(), new ParseField(CHUNKED_TEXT_FIELD));
         CHUNKS_PARSER.declareField(constructorArg(), (p, c) -> {
             XContentBuilder b = XContentBuilder.builder(p.contentType().xContent());
             b.copyCurrentStructure(p);
             return BytesReference.bytes(b);
-        }, CHUNKED_EMBEDDINGS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
+        }, new ParseField(CHUNKED_EMBEDDINGS_FIELD), ObjectParser.ValueType.OBJECT_ARRAY);
 
-        MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.constructorArg(), TASK_TYPE_FIELD);
-        MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), DIMENSIONS_FIELD);
-        MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SIMILARITY_FIELD);
+        MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TASK_TYPE_FIELD));
+        MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
+        MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
     }
 }

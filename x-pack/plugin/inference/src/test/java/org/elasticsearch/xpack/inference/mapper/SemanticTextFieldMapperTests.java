@@ -315,7 +315,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             .get(getChunksFieldName(fieldName));
         assertThat(chunksMapper, equalTo(semanticFieldMapper.fieldType().getChunksField()));
         assertThat(chunksMapper.name(), equalTo(getChunksFieldName(fieldName)));
-        Mapper textMapper = chunksMapper.getMapper(CHUNKED_TEXT_FIELD.getPreferredName());
+        Mapper textMapper = chunksMapper.getMapper(CHUNKED_TEXT_FIELD);
         assertNotNull(textMapper);
         assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
         KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
@@ -323,7 +323,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertFalse(textFieldMapper.fieldType().hasDocValues());
         if (expectedModelSettings) {
             assertNotNull(semanticFieldMapper.fieldType().getModelSettings());
-            Mapper embeddingsMapper = chunksMapper.getMapper(CHUNKED_EMBEDDINGS_FIELD.getPreferredName());
+            Mapper embeddingsMapper = chunksMapper.getMapper(CHUNKED_EMBEDDINGS_FIELD);
             assertNotNull(embeddingsMapper);
             assertThat(embeddingsMapper, instanceOf(FieldMapper.class));
             FieldMapper embeddingsFieldMapper = (FieldMapper) embeddingsMapper;
@@ -448,12 +448,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             () -> documentMapper.parse(
                 source(
                     b -> b.startObject("field")
-                        .startObject(INFERENCE_FIELD.getPreferredName())
-                        .field(
-                            MODEL_SETTINGS_FIELD.getPreferredName(),
-                            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null)
-                        )
-                        .field(CHUNKS_FIELD.getPreferredName(), List.of())
+                        .startObject(INFERENCE_FIELD)
+                        .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null))
+                        .field(CHUNKS_FIELD, List.of())
                         .endObject()
                         .endObject()
                 )
@@ -468,13 +465,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             DocumentParsingException.class,
             IllegalArgumentException.class,
             () -> documentMapper.parse(
-                source(
-                    b -> b.startObject("field")
-                        .startObject(INFERENCE_FIELD.getPreferredName())
-                        .field(INFERENCE_ID_FIELD.getPreferredName(), "my_id")
-                        .endObject()
-                        .endObject()
-                )
+                source(b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject())
             )
         );
         assertThat(ex.getCause().getMessage(), containsString("Required [model_settings, chunks]"));
@@ -488,9 +479,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             () -> documentMapper.parse(
                 source(
                     b -> b.startObject("field")
-                        .startObject(INFERENCE_FIELD.getPreferredName())
-                        .field(INFERENCE_ID_FIELD.getPreferredName(), "my_id")
-                        .startObject(MODEL_SETTINGS_FIELD.getPreferredName())
+                        .startObject(INFERENCE_FIELD)
+                        .field(INFERENCE_ID_FIELD, "my_id")
+                        .startObject(MODEL_SETTINGS_FIELD)
                         .endObject()
                         .endObject()
                         .endObject()

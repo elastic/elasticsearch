@@ -40,7 +40,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return n -> n.endsWith(CHUNKED_EMBEDDINGS_FIELD.getPreferredName());
+        return n -> n.endsWith(CHUNKED_EMBEDDINGS_FIELD);
     }
 
     @Override

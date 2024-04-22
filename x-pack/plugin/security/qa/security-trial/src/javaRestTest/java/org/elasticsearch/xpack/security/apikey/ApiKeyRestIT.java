@@ -94,7 +94,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createUser(MANAGE_API_KEY_USER, END_USER_PASSWORD, List.of("manage_api_key_role"));
         createRole("manage_api_key_role", Set.of("manage_api_key"));
         createUser(MANAGE_SECURITY_USER, END_USER_PASSWORD, List.of("manage_security_role"));
-        createRole("manage_security_role", Set.of("manage_security"));
+        createRole("manage_security_role", Set.of("manage_security"), "Allows all security-related operations!");
     }
 
     @After
@@ -1531,6 +1531,59 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
         final ObjectPath updateResponse4 = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
         assertThat(updateResponse4.evaluate("updated"), is(false));
+    }
+
+    public void testUserRoleDescriptionsGetFiltered() throws IOException {
+        // Creating API key whose owner's role has description should succeed.
+        // Limited-by role descriptor should be filtered to remove description.
+        final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
+        setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        createRestApiKeyRequest.setJsonEntity("""
+            {
+                 "name": "my-api-key"
+            }
+            """);
+        final ObjectPath createRestApiKeyResponse = assertOKAndCreateObjectPath(client().performRequest(createRestApiKeyRequest));
+        String apiKeyId = createRestApiKeyResponse.evaluate("id");
+
+        final Request fetchRequest;
+        if (randomBoolean()) {
+            fetchRequest = new Request("GET", "/_security/api_key");
+            fetchRequest.addParameter("id", apiKeyId);
+            fetchRequest.addParameter("with_limited_by", String.valueOf(true));
+        } else {
+            fetchRequest = new Request("GET", "/_security/_query/api_key");
+            fetchRequest.addParameter("with_limited_by", String.valueOf(true));
+            fetchRequest.setJsonEntity(Strings.format("""
+                { "query": { "ids": { "values": ["%s"] } } }""", apiKeyId));
+        }
+
+        setUserForRequest(fetchRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath fetchResponse = assertOKAndCreateObjectPath(client().performRequest(fetchRequest));
+
+        assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
+        assertThat(fetchResponse.evaluate("api_keys.0.type"), equalTo("rest"));
+        assertThat(fetchResponse.evaluate("api_keys.0.role_descriptors"), equalTo(Map.of()));
+        // User's role description should not be persisted.
+        assertThat(fetchResponse.evaluate("api_keys.0.limited_by.0.manage_security_role.description"), is(nullValue()));
+    }
+
+    public void testCreatingApiKeyWithRoleDescriptionFails() throws IOException {
+        final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
+        setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        createRestApiKeyRequest.setJsonEntity("""
+            {
+                 "name": "my-api-key",
+                 "role_descriptors":{
+                    "my-role": {
+                        "description": "This description should not be allowed!"
+                    }
+                }
+            }
+            """);
+
+        var e = expectThrows(ResponseException.class, () -> client().performRequest(createRestApiKeyRequest));
+        assertThat(e.getMessage(), containsString("failed to parse role [my-role]. unexpected field [description]"));
     }
 
     public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {

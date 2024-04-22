@@ -39,7 +39,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -1436,12 +1435,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static Map<String, Object> runEsql(String query) throws IOException {
-        String versionString = null;
-        Set<EsqlVersion> versions = EsqlSpecTestCase.availableVersions();
-        if (versions.isEmpty() == false) {
-            // Use the latest released version or SNAPSHOT, if available.
-            versionString = versions.stream().max(Comparator.comparingInt(EsqlVersion::id)).toString();
-        }
+        // Use the latest released version or SNAPSHOT, if available.
+        String versionString = EsqlSpecTestCase.availableVersions()
+            .stream()
+            .max(Comparator.comparingInt(EsqlVersion::id))
+            .map(EsqlVersion::toString)
+            .orElse(null);
 
         return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(query).version(versionString));
     }

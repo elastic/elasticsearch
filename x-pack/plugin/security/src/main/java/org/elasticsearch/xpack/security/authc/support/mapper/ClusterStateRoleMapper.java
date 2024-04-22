@@ -15,16 +15,13 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 
-public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListener {
+public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
 
     // TODO Is this a good name??
     public static final String CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = "xpack.security.authc.cluster_state_role_mappings.enabled";
@@ -33,7 +30,6 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final boolean enabled;
-    private final CopyOnWriteArrayList<Runnable> clearCacheListeners = new CopyOnWriteArrayList<>();
 
     public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
@@ -50,11 +46,6 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
     }
 
     @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
-        clearCacheListeners.add(realm::expireAll);
-    }
-
-    @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // Here, it's just simpler to also trigger a realm cache clear when only disabled role mapping expressions changed,
         // even though disable role mapping expressions are ultimately ignored.
@@ -64,7 +55,7 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
                 RoleMappingMetadata.getFromClusterState(event.previousState()),
                 RoleMappingMetadata.getFromClusterState(event.state())
             )) {
-            notifyClearCache();
+            clearRealmCachesOnLocalNode();
         }
     }
 
@@ -74,9 +65,5 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
         } else {
             return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
         }
-    }
-
-    private void notifyClearCache() {
-        clearCacheListeners.forEach(Runnable::run);
     }
 }

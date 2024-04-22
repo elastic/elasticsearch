@@ -39,7 +39,11 @@ import java.util.stream.Stream;
  */
 public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
 
-    private static final int OFFSET_IN_NAME = 100_000;
+    // This factor is used to combine two offsets within the same integer:
+    // - the offset of the end of the parent field within the field name (N / PARENT_OFFSET_IN_NAME_OFFSET)
+    // - the offset of the field value within the encoding string containing the offset (first 4 bytes), the field name and value
+    // (N % PARENT_OFFSET_IN_NAME_OFFSET)
+    private static final int PARENT_OFFSET_IN_NAME_OFFSET = 1 << 16;
 
     public static final String NAME = "_ignored_values";
 
@@ -94,12 +98,12 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
     }
 
     static String encode(Values values) {
-        assert values.parentOffset < OFFSET_IN_NAME;
-        assert values.parentOffset * (long) OFFSET_IN_NAME < Integer.MAX_VALUE;
+        assert values.parentOffset < PARENT_OFFSET_IN_NAME_OFFSET;
+        assert values.parentOffset * (long) PARENT_OFFSET_IN_NAME_OFFSET < Integer.MAX_VALUE;
 
         byte[] nameBytes = values.name.getBytes(StandardCharsets.UTF_8);
         byte[] bytes = new byte[4 + nameBytes.length + values.value.length];
-        ByteUtils.writeIntLE(values.name.length() + OFFSET_IN_NAME * values.parentOffset, bytes, 0);
+        ByteUtils.writeIntLE(values.name.length() + PARENT_OFFSET_IN_NAME_OFFSET * values.parentOffset, bytes, 0);
         System.arraycopy(nameBytes, 0, bytes, 4, nameBytes.length);
         System.arraycopy(values.value.bytes, values.value.offset, bytes, 4 + nameBytes.length, values.value.length);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
@@ -108,8 +112,8 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
     static Values decode(Object field) {
         byte[] bytes = Base64.getUrlDecoder().decode((String) field);
         int encodedSize = ByteUtils.readIntLE(bytes, 0);
-        int nameSize = encodedSize % OFFSET_IN_NAME;
-        int parentOffset = encodedSize / OFFSET_IN_NAME;
+        int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
+        int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
         String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
         BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
         return new Values(name, parentOffset, value);

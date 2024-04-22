@@ -112,7 +112,7 @@ public class InternalRealmsTests extends ESTestCase {
             final ThreadContext threadContext = new ThreadContext(settings);
             assertThat(factories, hasEntry(is(LdapRealmSettings.AD_TYPE), any(Realm.Factory.class)));
             var realm = factories.get(LdapRealmSettings.AD_TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-            verify(userRoleMapper, times(1)).refreshRealmOnChange(same((CachingRealm) realm));
+            verify(userRoleMapper, times(1)).clearRealmCacheOnChange(same((CachingRealm) realm));
         }
         {
             RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "test");
@@ -127,7 +127,7 @@ public class InternalRealmsTests extends ESTestCase {
             final ThreadContext threadContext = new ThreadContext(settings);
             assertThat(factories, hasEntry(is(LdapRealmSettings.LDAP_TYPE), any(Realm.Factory.class)));
             var realm = factories.get(LdapRealmSettings.LDAP_TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-            verify(userRoleMapper, times(1)).refreshRealmOnChange(same((CachingRealm) realm));
+            verify(userRoleMapper, times(1)).clearRealmCacheOnChange(same((CachingRealm) realm));
         }
         {
             RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, "test");
@@ -139,7 +139,7 @@ public class InternalRealmsTests extends ESTestCase {
             final ThreadContext threadContext = new ThreadContext(settings);
             assertThat(factories, hasEntry(is(PkiRealmSettings.TYPE), any(Realm.Factory.class)));
             var realm = factories.get(PkiRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-            verify(userRoleMapper, times(1)).refreshRealmOnChange(same((CachingRealm) realm));
+            verify(userRoleMapper, times(1)).clearRealmCacheOnChange(same((CachingRealm) realm));
         }
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         {
@@ -153,7 +153,7 @@ public class InternalRealmsTests extends ESTestCase {
             final ThreadContext threadContext = new ThreadContext(settings);
             assertThat(factories, hasEntry(is(KerberosRealmSettings.TYPE), any(Realm.Factory.class)));
             var realm = factories.get(KerberosRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-            verify(userRoleMapper, times(1)).refreshRealmOnChange(same((CachingRealm) realm));
+            verify(userRoleMapper, times(1)).clearRealmCacheOnChange(same((CachingRealm) realm));
         }
         {
             RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, "test");
@@ -177,7 +177,7 @@ public class InternalRealmsTests extends ESTestCase {
             final ThreadContext threadContext = new ThreadContext(settings);
             assertThat(factories, hasEntry(is(JwtRealmSettings.TYPE), any(Realm.Factory.class)));
             var realm = factories.get(JwtRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-            verify(userRoleMapper, times(1)).refreshRealmOnChange(same((CachingRealm) realm));
+            verify(userRoleMapper, times(1)).clearRealmCacheOnChange(same((CachingRealm) realm));
         }
         {
             RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, "test");

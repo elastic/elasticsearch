@@ -114,7 +114,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
     public void testRoleMappingChangesTriggerRealmCacheClear() {
         CachingRealm mockRealm = mock(CachingRealm.class);
         ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
-        roleMapper.refreshRealmOnChange(mockRealm);
+        roleMapper.clearRealmCacheOnChange(mockRealm);
         ExpressionRoleMapping mapping1 = mockExpressionRoleMapping(true, Set.of("role"), mock(ExpressionModel.class));
         ExpressionModel model2 = mock(ExpressionModel.class);
         ExpressionRoleMapping mapping2 = mockExpressionRoleMapping(true, Set.of("role"), model2);

@@ -26,7 +26,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -39,6 +39,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -1435,7 +1436,14 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static Map<String, Object> runEsql(String query) throws IOException {
-        return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(query).version(EsqlTestUtils.latestEsqlVersionOrSnapshot()));
+        String versionString = null;
+        Set<EsqlVersion> versions = EsqlSpecTestCase.availableVersions();
+        if (versions.isEmpty() == false) {
+            // Use the latest released version or SNAPSHOT, if available.
+            versionString = versions.stream().max(Comparator.comparingInt(EsqlVersion::id)).toString();
+        }
+
+        return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(query).version(versionString));
     }
 
 }

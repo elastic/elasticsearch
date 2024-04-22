@@ -1,0 +1,5 @@
+pr: 105660
+summary: "Ignore generated code in git"
+area: Build
+type: enhancement
+issues: []

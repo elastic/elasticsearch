@@ -11,34 +11,34 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class GetInferenceModelResponseTests extends AbstractWireSerializingTestCase<GetInferenceModelAction.Response> {
+public class GetInferenceEndpointResponseTests extends AbstractWireSerializingTestCase<GetInferenceEndpointAction.Response> {
     @Override
-    protected Writeable.Reader<GetInferenceModelAction.Response> instanceReader() {
-        return GetInferenceModelAction.Response::new;
+    protected Writeable.Reader<GetInferenceEndpointAction.Response> instanceReader() {
+        return GetInferenceEndpointAction.Response::new;
     }
 
     @Override
-    protected GetInferenceModelAction.Response createTestInstance() {
+    protected GetInferenceEndpointAction.Response createTestInstance() {
         int numModels = randomIntBetween(1, 5);
         var modelConfigs = new ArrayList<ModelConfigurations>();
         for (int i = 0; i < numModels; i++) {
             modelConfigs.add(ModelConfigurationsTests.createRandomInstance());
         }
-        return new GetInferenceModelAction.Response(modelConfigs);
+        return new GetInferenceEndpointAction.Response(modelConfigs);
     }
 
     @Override
-    protected GetInferenceModelAction.Response mutateInstance(GetInferenceModelAction.Response instance) throws IOException {
+    protected GetInferenceEndpointAction.Response mutateInstance(GetInferenceEndpointAction.Response instance) throws IOException {
         var modifiedConfigs = new ArrayList<>(instance.getModels());
         modifiedConfigs.add(ModelConfigurationsTests.createRandomInstance());
-        return new GetInferenceModelAction.Response(modifiedConfigs);
+        return new GetInferenceEndpointAction.Response(modifiedConfigs);
     }
 
     @Override

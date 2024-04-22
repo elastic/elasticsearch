@@ -25,16 +25,16 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
-public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
+public class TransportDeleteInferenceEndpointAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceEndpointAction.Request> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
 
     @Inject
-    public TransportDeleteInferenceModelAction(
+    public TransportDeleteInferenceEndpointAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -44,12 +44,12 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         InferenceServiceRegistry serviceRegistry
     ) {
         super(
-            DeleteInferenceModelAction.NAME,
+            DeleteInferenceEndpointAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            DeleteInferenceModelAction.Request::new,
+            DeleteInferenceEndpointAction.Request::new,
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -60,7 +60,7 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
     @Override
     protected void masterOperation(
         Task task,
-        DeleteInferenceModelAction.Request request,
+        DeleteInferenceEndpointAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -103,7 +103,7 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteInferenceModelAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteInferenceEndpointAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
     }
 

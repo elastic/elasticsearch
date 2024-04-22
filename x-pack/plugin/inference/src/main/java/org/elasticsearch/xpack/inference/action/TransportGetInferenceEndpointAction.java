@@ -22,7 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
@@ -30,16 +30,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-public class TransportGetInferenceModelAction extends HandledTransportAction<
-    GetInferenceModelAction.Request,
-    GetInferenceModelAction.Response> {
+public class TransportGetInferenceEndpointAction extends HandledTransportAction<
+    GetInferenceEndpointAction.Request,
+    GetInferenceEndpointAction.Response> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Executor executor;
 
     @Inject
-    public TransportGetInferenceModelAction(
+    public TransportGetInferenceEndpointAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
@@ -47,10 +47,10 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         InferenceServiceRegistry serviceRegistry
     ) {
         super(
-            GetInferenceModelAction.NAME,
+            GetInferenceEndpointAction.NAME,
             transportService,
             actionFilters,
-            GetInferenceModelAction.Request::new,
+            GetInferenceEndpointAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelRegistry = modelRegistry;
@@ -61,8 +61,8 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     @Override
     protected void doExecute(
         Task task,
-        GetInferenceModelAction.Request request,
-        ActionListener<GetInferenceModelAction.Response> listener
+        GetInferenceEndpointAction.Request request,
+        ActionListener<GetInferenceEndpointAction.Response> listener
     ) {
         boolean inferenceEntityIdIsWildCard = Strings.isAllOrWildcard(request.getInferenceEntityId());
 
@@ -78,7 +78,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     private void getSingleModel(
         String inferenceEntityId,
         TaskType requestedTaskType,
-        ActionListener<GetInferenceModelAction.Response> listener
+        ActionListener<GetInferenceEndpointAction.Response> listener
     ) {
         modelRegistry.getModel(inferenceEntityId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
@@ -108,24 +108,24 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
 
             var model = service.get()
                 .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
-            delegate.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
+            delegate.onResponse(new GetInferenceEndpointAction.Response(List.of(model.getConfigurations())));
         }));
     }
 
-    private void getAllModels(ActionListener<GetInferenceModelAction.Response> listener) {
+    private void getAllModels(ActionListener<GetInferenceEndpointAction.Response> listener) {
         modelRegistry.getAllModels(
             listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }
 
-    private void getModelsByTaskType(TaskType taskType, ActionListener<GetInferenceModelAction.Response> listener) {
+    private void getModelsByTaskType(TaskType taskType, ActionListener<GetInferenceEndpointAction.Response> listener) {
         modelRegistry.getModelsByTaskType(
             taskType,
             listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }
 
-    private GetInferenceModelAction.Response parseModels(List<ModelRegistry.UnparsedModel> unparsedModels) {
+    private GetInferenceEndpointAction.Response parseModels(List<ModelRegistry.UnparsedModel> unparsedModels) {
         var parsedModels = new ArrayList<ModelConfigurations>();
 
         for (var unparsedModel : unparsedModels) {
@@ -144,6 +144,6 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                     .getConfigurations()
             );
         }
-        return new GetInferenceModelAction.Response(parsedModels);
+        return new GetInferenceEndpointAction.Response(parsedModels);
     }
 }

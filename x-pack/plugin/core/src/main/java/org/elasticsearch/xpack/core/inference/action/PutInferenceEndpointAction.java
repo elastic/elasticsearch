@@ -26,12 +26,12 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
+public class PutInferenceEndpointAction extends ActionType<PutInferenceEndpointAction.Response> {
 
-    public static final PutInferenceModelAction INSTANCE = new PutInferenceModelAction();
+    public static final PutInferenceEndpointAction INSTANCE = new PutInferenceEndpointAction();
     public static final String NAME = "cluster:admin/xpack/inference/put";
 
-    public PutInferenceModelAction() {
+    public PutInferenceEndpointAction() {
         super(NAME);
     }
 

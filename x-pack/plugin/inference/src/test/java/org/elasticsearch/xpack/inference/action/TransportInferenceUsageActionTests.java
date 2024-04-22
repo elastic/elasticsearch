@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceEndpointAction;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.junit.After;
 import org.junit.Before;
@@ -77,9 +77,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
     public void test() throws Exception {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            var listener = (ActionListener<GetInferenceModelAction.Response>) invocation.getArguments()[2];
+            var listener = (ActionListener<GetInferenceEndpointAction.Response>) invocation.getArguments()[2];
             listener.onResponse(
-                new GetInferenceModelAction.Response(
+                new GetInferenceEndpointAction.Response(
                     List.of(
                         new ModelConfigurations("model-001", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
                         new ModelConfigurations("model-002", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
@@ -91,7 +91,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
                 )
             );
             return Void.TYPE;
-        }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
+        }).when(client).execute(any(GetInferenceEndpointAction.class), any(), any());
 
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         action.masterOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);

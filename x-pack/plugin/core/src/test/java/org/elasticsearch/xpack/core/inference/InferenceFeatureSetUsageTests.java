@@ -15,17 +15,17 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class InferenceFeatureSetUsageTests extends AbstractWireSerializingTestCase<InferenceFeatureSetUsage.ModelStats> {
+public class InferenceFeatureSetUsageTests extends AbstractWireSerializingTestCase<InferenceFeatureSetUsage.EndpointStats> {
 
     @Override
-    protected Writeable.Reader<InferenceFeatureSetUsage.ModelStats> instanceReader() {
-        return InferenceFeatureSetUsage.ModelStats::new;
+    protected Writeable.Reader<InferenceFeatureSetUsage.EndpointStats> instanceReader() {
+        return InferenceFeatureSetUsage.EndpointStats::new;
     }
 
     @Override
-    protected InferenceFeatureSetUsage.ModelStats createTestInstance() {
+    protected InferenceFeatureSetUsage.EndpointStats createTestInstance() {
         RandomStrings.randomAsciiLettersOfLength(random(), 10);
-        return new InferenceFeatureSetUsage.ModelStats(
+        return new InferenceFeatureSetUsage.EndpointStats(
             randomIdentifier(),
             TaskType.values()[randomInt(TaskType.values().length - 1)],
             randomInt(10)
@@ -33,8 +33,8 @@ public class InferenceFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected InferenceFeatureSetUsage.ModelStats mutateInstance(InferenceFeatureSetUsage.ModelStats modelStats) throws IOException {
-        InferenceFeatureSetUsage.ModelStats newModelStats = new InferenceFeatureSetUsage.ModelStats(modelStats);
+    protected InferenceFeatureSetUsage.EndpointStats mutateInstance(InferenceFeatureSetUsage.EndpointStats modelStats) throws IOException {
+        InferenceFeatureSetUsage.EndpointStats newModelStats = new InferenceFeatureSetUsage.EndpointStats(modelStats);
         newModelStats.add();
         return newModelStats;
     }

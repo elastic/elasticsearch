@@ -20,6 +20,12 @@ import java.util.Objects;
 
 public class ModelConfigurations implements ToFilteredXContentObject, VersionedNamedWriteable {
 
+    /**
+     * This field was not updated when inference models were renamed
+     * to inference endpoints as 'model_id' is the field used in the
+     * index mappings and cannot be changed without a mapping update.
+     * See InferenceIndex::mappings
+     */
     public static final String MODEL_ID = "model_id";
     public static final String SERVICE = "service";
     public static final String SERVICE_SETTINGS = "service_settings";

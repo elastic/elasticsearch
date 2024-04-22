@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceEndpointAction;
 
 import java.util.Map;
 import java.util.TreeMap;
@@ -63,19 +63,23 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY);
-        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, listener.delegateFailureAndWrap((delegate, response) -> {
-            Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
-            for (ModelConfigurations model : response.getModels()) {
-                String statKey = model.getService() + ":" + model.getTaskType().name();
-                InferenceFeatureSetUsage.ModelStats stat = stats.computeIfAbsent(
-                    statKey,
-                    key -> new InferenceFeatureSetUsage.ModelStats(model.getService(), model.getTaskType())
-                );
-                stat.add();
-            }
-            InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
-            delegate.onResponse(new XPackUsageFeatureResponse(usage));
-        }));
+        GetInferenceEndpointAction.Request getInferenceModelAction = new GetInferenceEndpointAction.Request("_all", TaskType.ANY);
+        client.execute(
+            GetInferenceEndpointAction.INSTANCE,
+            getInferenceModelAction,
+            listener.delegateFailureAndWrap((delegate, response) -> {
+                Map<String, InferenceFeatureSetUsage.EndpointStats> stats = new TreeMap<>();
+                for (ModelConfigurations model : response.getModels()) {
+                    String statKey = model.getService() + ":" + model.getTaskType().name();
+                    InferenceFeatureSetUsage.EndpointStats stat = stats.computeIfAbsent(
+                        statKey,
+                        key -> new InferenceFeatureSetUsage.EndpointStats(model.getService(), model.getTaskType())
+                    );
+                    stat.add();
+                }
+                InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
+                delegate.onResponse(new XPackUsageFeatureResponse(usage));
+            })
+        );
     }
 }

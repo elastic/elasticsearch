@@ -10,26 +10,26 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 
-public class PutInferenceModelResponseTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Response> {
+public class PutInferenceEndpointResponseTests extends AbstractWireSerializingTestCase<PutInferenceEndpointAction.Response> {
 
     @Override
-    protected PutInferenceModelAction.Response createTestInstance() {
-        return new PutInferenceModelAction.Response(ModelConfigurationsTests.createRandomInstance());
+    protected PutInferenceEndpointAction.Response createTestInstance() {
+        return new PutInferenceEndpointAction.Response(ModelConfigurationsTests.createRandomInstance());
     }
 
     @Override
-    protected PutInferenceModelAction.Response mutateInstance(PutInferenceModelAction.Response instance) {
+    protected PutInferenceEndpointAction.Response mutateInstance(PutInferenceEndpointAction.Response instance) {
         var mutatedModel = ModelConfigurationsTests.mutateTestInstance(instance.getModel());
-        return new PutInferenceModelAction.Response(mutatedModel);
+        return new PutInferenceEndpointAction.Response(mutatedModel);
     }
 
     @Override
-    protected Writeable.Reader<PutInferenceModelAction.Response> instanceReader() {
-        return PutInferenceModelAction.Response::new;
+    protected Writeable.Reader<PutInferenceEndpointAction.Response> instanceReader() {
+        return PutInferenceEndpointAction.Response::new;
     }
 
     @Override

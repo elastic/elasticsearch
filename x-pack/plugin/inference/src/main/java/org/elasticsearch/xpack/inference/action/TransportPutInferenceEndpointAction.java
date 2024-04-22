@@ -36,7 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceEndpointAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -51,11 +51,11 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
-    PutInferenceModelAction.Request,
-    PutInferenceModelAction.Response> {
+public class TransportPutInferenceEndpointAction extends TransportMasterNodeAction<
+    PutInferenceEndpointAction.Request,
+    PutInferenceEndpointAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportPutInferenceEndpointAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -63,7 +63,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private volatile boolean skipValidationAndStart;
 
     @Inject
-    public TransportPutInferenceModelAction(
+    public TransportPutInferenceEndpointAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -75,14 +75,14 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         Settings settings
     ) {
         super(
-            PutInferenceModelAction.NAME,
+            PutInferenceEndpointAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            PutInferenceModelAction.Request::new,
+            PutInferenceEndpointAction.Request::new,
             indexNameExpressionResolver,
-            PutInferenceModelAction.Response::new,
+            PutInferenceEndpointAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelRegistry = modelRegistry;
@@ -96,9 +96,9 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     @Override
     protected void masterOperation(
         Task task,
-        PutInferenceModelAction.Request request,
+        PutInferenceEndpointAction.Request request,
         ClusterState state,
-        ActionListener<PutInferenceModelAction.Response> listener
+        ActionListener<PutInferenceEndpointAction.Response> listener
     ) throws Exception {
         var requestAsMap = requestToMap(request);
         var resolvedTaskType = resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
@@ -193,7 +193,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures,
-        ActionListener<PutInferenceModelAction.Response> listener
+        ActionListener<PutInferenceEndpointAction.Response> listener
     ) {
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
@@ -214,7 +214,11 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     }
 
-    private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+    private void putAndStartModel(
+        InferenceService service,
+        Model model,
+        ActionListener<PutInferenceEndpointAction.Response> finalListener
+    ) {
         SubscribableListener.<Boolean>newForked(listener -> {
             var errorCatchingListener = ActionListener.<Boolean>wrap(listener::onResponse, e -> { listener.onResponse(false); });
             service.isModelDownloaded(model, errorCatchingListener);
@@ -224,15 +228,15 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             } else {
                 listener.onResponse(true);
             }
-        }).<PutInferenceModelAction.Response>andThen((listener, modelDidPut) -> {
+        }).<PutInferenceEndpointAction.Response>andThen((listener, modelDidPut) -> {
             if (modelDidPut) {
                 if (skipValidationAndStart) {
-                    listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
+                    listener.onResponse(new PutInferenceEndpointAction.Response(model.getConfigurations()));
                 } else {
                     service.start(
                         model,
                         listener.delegateFailureAndWrap(
-                            (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
+                            (l3, ok) -> l3.onResponse(new PutInferenceEndpointAction.Response(model.getConfigurations()))
                         )
                     );
                 }
@@ -242,7 +246,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         }).addListener(finalListener);
     }
 
-    private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {
+    private Map<String, Object> requestToMap(PutInferenceEndpointAction.Request request) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,
@@ -259,7 +263,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutInferenceModelAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutInferenceEndpointAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 

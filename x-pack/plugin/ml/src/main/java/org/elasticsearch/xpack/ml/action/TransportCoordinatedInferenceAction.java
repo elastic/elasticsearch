@@ -25,7 +25,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -182,8 +182,8 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                 executeAsyncWithOrigin(
                     client,
                     INFERENCE_ORIGIN,
-                    GetInferenceModelAction.INSTANCE,
-                    new GetInferenceModelAction.Request(modelId, TaskType.ANY),
+                    GetInferenceEndpointAction.INSTANCE,
+                    new GetInferenceEndpointAction.Request(modelId, TaskType.ANY),
                     ActionListener.wrap(
                         model -> listener.onFailure(
                             new ElasticsearchStatusException(

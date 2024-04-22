@@ -13,31 +13,31 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class TransportPutInferenceModelActionTests extends ESTestCase {
+public class TransportPutInferenceEndpointActionTests extends ESTestCase {
 
     public void testResolveTaskType() {
 
-        assertEquals(TaskType.SPARSE_EMBEDDING, TransportPutInferenceModelAction.resolveTaskType(TaskType.SPARSE_EMBEDDING, null));
+        assertEquals(TaskType.SPARSE_EMBEDDING, TransportPutInferenceEndpointAction.resolveTaskType(TaskType.SPARSE_EMBEDDING, null));
         assertEquals(
             TaskType.SPARSE_EMBEDDING,
-            TransportPutInferenceModelAction.resolveTaskType(TaskType.ANY, TaskType.SPARSE_EMBEDDING.toString())
+            TransportPutInferenceEndpointAction.resolveTaskType(TaskType.ANY, TaskType.SPARSE_EMBEDDING.toString())
         );
 
         var e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportPutInferenceModelAction.resolveTaskType(TaskType.ANY, null)
+            () -> TransportPutInferenceEndpointAction.resolveTaskType(TaskType.ANY, null)
         );
         assertThat(e.getMessage(), containsString("model is missing required setting [task_type]"));
 
         e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportPutInferenceModelAction.resolveTaskType(TaskType.ANY, TaskType.ANY.toString())
+            () -> TransportPutInferenceEndpointAction.resolveTaskType(TaskType.ANY, TaskType.ANY.toString())
         );
         assertThat(e.getMessage(), containsString("task_type [any] is not valid type for inference"));
 
         e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportPutInferenceModelAction.resolveTaskType(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING.toString())
+            () -> TransportPutInferenceEndpointAction.resolveTaskType(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING.toString())
         );
         assertThat(
             e.getMessage(),

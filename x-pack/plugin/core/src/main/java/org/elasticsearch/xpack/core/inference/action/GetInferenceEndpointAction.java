@@ -23,16 +23,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.Response> {
+public class GetInferenceEndpointAction extends ActionType<GetInferenceEndpointAction.Response> {
 
-    public static final GetInferenceModelAction INSTANCE = new GetInferenceModelAction();
+    public static final GetInferenceEndpointAction INSTANCE = new GetInferenceEndpointAction();
     public static final String NAME = "cluster:monitor/xpack/inference/get";
 
-    public GetInferenceModelAction() {
+    public GetInferenceEndpointAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<GetInferenceModelAction.Request> {
+    public static class Request extends AcknowledgedRequest<GetInferenceEndpointAction.Request> {
 
         private final String inferenceEntityId;
         private final TaskType taskType;
@@ -126,7 +126,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            GetInferenceModelAction.Response response = (GetInferenceModelAction.Response) o;
+            GetInferenceEndpointAction.Response response = (GetInferenceEndpointAction.Response) o;
             return Objects.equals(models, response.models);
         }
 

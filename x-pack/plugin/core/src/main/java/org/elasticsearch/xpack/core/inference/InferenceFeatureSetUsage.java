@@ -24,27 +24,27 @@ import java.util.Objects;
 
 public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
 
-    public static class ModelStats implements ToXContentObject, Writeable {
+    public static class EndpointStats implements ToXContentObject, Writeable {
 
         private final String service;
         private final TaskType taskType;
         private long count;
 
-        public ModelStats(String service, TaskType taskType) {
+        public EndpointStats(String service, TaskType taskType) {
             this(service, taskType, 0L);
         }
 
-        public ModelStats(String service, TaskType taskType, long count) {
+        public EndpointStats(String service, TaskType taskType, long count) {
             this.service = service;
             this.taskType = taskType;
             this.count = count;
         }
 
-        public ModelStats(ModelStats stats) {
+        public EndpointStats(EndpointStats stats) {
             this(stats.service, stats.taskType, stats.count);
         }
 
-        public ModelStats(StreamInput in) throws IOException {
+        public EndpointStats(StreamInput in) throws IOException {
             this.service = in.readString();
             this.taskType = in.readEnum(TaskType.class);
             this.count = in.readLong();
@@ -75,7 +75,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ModelStats that = (ModelStats) o;
+            EndpointStats that = (EndpointStats) o;
             return count == that.count && Objects.equals(service, that.service) && taskType == that.taskType;
         }
 
@@ -85,16 +85,16 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    private final Collection<ModelStats> modelStats;
+    private final Collection<EndpointStats> modelStats;
 
-    public InferenceFeatureSetUsage(Collection<ModelStats> modelStats) {
+    public InferenceFeatureSetUsage(Collection<EndpointStats> modelStats) {
         super(XPackField.INFERENCE, true, true);
         this.modelStats = modelStats;
     }
 
     public InferenceFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.modelStats = in.readCollectionAsList(ModelStats::new);
+        this.modelStats = in.readCollectionAsList(EndpointStats::new);
     }
 
     @Override

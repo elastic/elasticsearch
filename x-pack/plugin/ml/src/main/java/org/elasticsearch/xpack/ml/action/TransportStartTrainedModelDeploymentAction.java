@@ -45,7 +45,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceEndpointAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -285,7 +285,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
         }, listener::onFailure);
 
-        ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
+        ActionListener<GetInferenceEndpointAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
             if (getInferenceModelResponse.getModels().isEmpty() == false) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
@@ -302,8 +302,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
         });
 
-        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(request.getModelId(), TaskType.ANY);
-        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, getInferenceModelListener);
+        GetInferenceEndpointAction.Request getModelRequest = new GetInferenceEndpointAction.Request(request.getModelId(), TaskType.ANY);
+        client.execute(GetInferenceEndpointAction.INSTANCE, getModelRequest, getInferenceModelListener);
     }
 
     private void getTrainedModelRequestExecution(

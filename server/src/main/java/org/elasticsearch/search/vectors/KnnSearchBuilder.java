@@ -372,7 +372,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 }
                 ll.onResponse(null);
             })));
-            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost).queryName(queryName).innerHit(innerHitBuilder);
+            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost)
+                .queryName(queryName)
+                .innerHit(innerHitBuilder);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -396,8 +398,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity)
-            .boost(boost).queryName(queryName).addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity).boost(boost)
+            .queryName(queryName)
+            .addFilterQueries(filterQueries);
     }
 
     @Override
@@ -535,6 +538,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             this.field = field;
             return this;
         }
+
         public Builder queryName(String queryName) {
             this.queryName = queryName;
             return this;

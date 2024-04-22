@@ -27,6 +27,7 @@ restResources {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'cluster.deprecation_indexing.enabled', 'true'
+  setting 'cluster.deprecation_indexing.flush_interval', '100ms'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }

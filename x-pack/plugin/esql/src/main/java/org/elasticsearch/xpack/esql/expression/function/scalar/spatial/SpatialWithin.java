@@ -66,7 +66,9 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = "Returns whether the first geometry is within the second geometry.",
+        description = """
+            Returns whether the first geometry is within the second geometry.
+            This is the inverse of the <<esql-st_contains,ST_CONTAINS>> function.""",
         examples = @Example(file = "spatial_shapes", tag = "st_within-airport_city_boundaries")
     )
     public SpatialWithin(
@@ -74,12 +76,16 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         @Param(
             name = "geomA",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`."
         ) Expression left,
         @Param(
             name = "geomB",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`.\n"
+                + "The second parameter must also have the same coordinate system as the first.\n"
+                + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         ) Expression right
     ) {
         this(source, left, right, false, false);

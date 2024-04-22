@@ -21,7 +21,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.MockBlockFactory;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -197,9 +196,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types) {
-        List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(types.size());
         for (int c = 0; c < types.size(); c++) {
-            specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
+            specs.add(new BlockHash.GroupSpec(c, types.get(c)));
         }
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)

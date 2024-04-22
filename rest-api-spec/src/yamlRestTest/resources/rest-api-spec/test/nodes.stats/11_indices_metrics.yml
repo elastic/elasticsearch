@@ -417,8 +417,8 @@
 
   - requires:
       test_runner_features: [arbitrary_key]
-      cluster_features: ["gte_v8.5.0"]
-      reason:  "mappings added in version 8.5.0"
+      cluster_features: ["mapper.track_ignored_values"]
+      reason:  "_ignored_values added to mappings"
 
   - do:
       indices.create:

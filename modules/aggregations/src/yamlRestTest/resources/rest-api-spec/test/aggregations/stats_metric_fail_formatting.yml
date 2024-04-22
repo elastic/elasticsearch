@@ -27,8 +27,8 @@ setup:
 "fail formatting":
 
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: "bug fixed in 8.5.0"
+      cluster_features: ["gte_v8.15.0"]
+      reason: "bug fixed in 8.15.0"
   - do:
       catch: /Cannot format stat \[sum\] with format \[DocValueFormat.DateTime\(format\[date_hour_minute_second_millis\] locale\[\], Z, MILLISECONDS\)\]/
       search:

@@ -1041,3 +1041,19 @@ required_feature: esql.agg_values
                       [1953-04-20T00:00:00Z, 1954-05-01T00:00:00Z] | Tech Lead
 [1955-01-21T00:00:00Z, 1957-05-23T00:00:00Z, 1959-12-03T00:00:00Z] | null
 ;
+
+
+mvAppendDates
+required_feature: esql.mv_append
+
+FROM employees
+| WHERE emp_no == 10039 OR emp_no == 10040
+| SORT emp_no
+| EVAL dates = mv_append(birth_date, hire_date)
+| KEEP emp_no, birth_date, hire_date, dates
+;
+
+emp_no:integer | birth_date:date      | hire_date:date       | dates:date
+10039          | 1959-10-01T00:00:00Z | 1988-01-19T00:00:00Z | [1959-10-01T00:00:00Z, 1988-01-19T00:00:00Z]
+10040          | null                 | 1993-02-14T00:00:00Z | 1993-02-14T00:00:00Z 
+;

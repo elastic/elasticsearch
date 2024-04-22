@@ -28,13 +28,9 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Sqrt extends UnaryScalarFunction {
-    @FunctionInfo(
-        returnType = "double",
-        description = """
-            Returns the square root of a number. The input can be any numeric value, the return value is always a double.
-            Square roots of negative numbers are NaN. Square roots of infinites are infinite.""",
-        examples = @Example(file = "math", tag = "sqrt")
-    )
+    @FunctionInfo(returnType = "double", description = """
+        Returns the square root of a number. The input can be any numeric value, the return value is always a double.
+        Square roots of negative numbers and infinites are null.""", examples = @Example(file = "math", tag = "sqrt"))
     public Sqrt(
         Source source,
         @Param(

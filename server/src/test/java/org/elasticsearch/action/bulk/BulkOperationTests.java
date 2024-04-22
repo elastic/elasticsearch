@@ -788,7 +788,7 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     /**
-     * Maps an entire shard id to an exception to throw when it is encountered in the mock shard bulk action
+     * Maps an entire shard id to a consumer when it is encountered in the mock shard bulk action
      */
     private BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> shardSpecificResponse(
         Map<ShardId, BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>>> shardsToResponders

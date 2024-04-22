@@ -15,12 +15,7 @@ public class UpgradeJobModelSnapshotRequestTests extends AbstractXContentSeriali
 
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : randomTimeValue(),
-            randomBoolean() ? null : randomBoolean()
-        );
+        return new Request(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean() ? null : randomTimeValue(), randomBoolean());
     }
 
     @Override

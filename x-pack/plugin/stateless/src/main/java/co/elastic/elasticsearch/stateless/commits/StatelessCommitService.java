@@ -932,7 +932,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var referencedBCCGenerationsByRecoveredCommit = BatchedCompoundCommit.computeReferencedBCCGenerations(recoveredCommit);
             commitReferencesInfos.put(
                 recoveredCommit.primaryTermAndGeneration(),
-                new CommitReferencesInfo(recoveredCommit.primaryTermAndGeneration(), referencedBCCGenerationsByRecoveredCommit)
+                new CommitReferencesInfo(recoveredBcc.primaryTermAndGeneration(), referencedBCCGenerationsByRecoveredCommit)
             );
 
             primaryTermAndGenToBlobReference.put(recoveryBCCBlob.getPrimaryTermAndGeneration(), recoveryBCCBlob);

@@ -300,7 +300,7 @@ public class SamlRealmTests extends SamlTestCase {
             throwableWithMessage(
                 containsString(
                     "greater than the value ("
-                        + refresh
+                        + refresh.getStringRep()
                         + ") for ["
                         + RealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH)
                         + "]"

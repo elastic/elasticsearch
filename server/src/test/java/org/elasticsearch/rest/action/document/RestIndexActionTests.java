@@ -46,7 +46,7 @@ public final class RestIndexActionTests extends RestActionTestCase {
     public void setUpAction() {
         controller().registerHandler(new RestIndexAction());
         controller().registerHandler(new CreateHandler());
-        controller().registerHandler(new AutoIdHandler(() -> clusterStateSupplier.get().nodes()));
+        controller().registerHandler(new AutoIdHandler());
     }
 
     public void testCreateOpTypeValidation() {

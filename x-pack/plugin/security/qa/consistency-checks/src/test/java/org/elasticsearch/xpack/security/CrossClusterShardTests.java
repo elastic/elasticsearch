@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -61,7 +61,7 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
         DownsampleShardPersistentTaskExecutor.DelegatingAction.NAME,
 
         // These actions do not have any references to shard IDs in their requests.
-        ClusterSearchShardsAction.NAME
+        TransportClusterSearchShardsAction.TYPE.name()
     );
 
     Set<Class<?>> CHECKED_ABSTRACT_CLASSES = Set.of(

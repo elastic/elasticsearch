@@ -35,6 +35,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -103,11 +105,14 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.never;
@@ -1864,7 +1869,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
         }) {
             for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
-                assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRef));
+                testHarness.commitService.onCommitCreation(commitRef);
+                assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
+                assertBusy(
+                    () -> assertTrue(
+                        testHarness.getShardContainer()
+                            .blobExists(OperationPurpose.INDICES, StatelessCompoundCommit.blobNameFromGeneration(commitRef.getGeneration()))
+                    )
+                );
             }
         }
     }
@@ -1877,7 +1889,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         }) {
             for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
-                assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRef));
+                testHarness.commitService.onCommitCreation(commitRef);
+                assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
+                assertBusy(
+                    () -> assertTrue(
+                        testHarness.getShardContainer()
+                            .blobExists(OperationPurpose.INDICES, StatelessCompoundCommit.blobNameFromGeneration(commitRef.getGeneration()))
+                    )
+                );
             }
         }
     }
@@ -1893,11 +1912,21 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     .build();
             }
         }) {
-            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
-            assertFalse(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(0)));
-            // TODO This is assertTrue only in a simulated scenario where we append a commit before testing
-            assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(1)));
-            assertTrue(testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(2)));
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
+            // First commit
+            testHarness.commitService.onCommitCreation(commitRefs.get(0));
+            final var currentVirtualBcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            assertThat(currentVirtualBcc, notNullValue());
+            assertThat(currentVirtualBcc.isFrozen(), is(false));
+
+            // Second commit
+            testHarness.commitService.onCommitCreation(commitRefs.get(1));
+            assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
+            getAndAssertBccWithGenerations(
+                testHarness.getShardContainer(),
+                commitRefs.get(0).getGeneration(),
+                commitRefs.stream().map(StatelessCommitRef::getGeneration).toList()
+            );
         }
     }
 
@@ -1914,20 +1943,53 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     .build();
             }
         }) {
-            while (true) {
-                List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(1);
-                boolean shouldUpload = testHarness.commitService.simulateAppendAndShouldUploadVirtualBccForTesting(commitRefs.get(0));
-                VirtualBatchedCompoundCommit currentVirtualBcc = testHarness.commitService.getCurrentVirtualBcc(
-                    commitRefs.get(0).getShardId()
-                );
-                if (currentVirtualBcc.getTotalSizeInBytes() > uploadMaxSize) {
-                    assertTrue(shouldUpload);
-                    break;
-                } else {
-                    assertFalse(shouldUpload);
-                }
-            }
+            final List<StatelessCommitRef> allCommitRefs = new ArrayList<>();
+            do {
+                StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
+                allCommitRefs.add(commitRef);
+                testHarness.commitService.onCommitCreation(commitRef);
+            } while (testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId) != null);
+
+            final var batchedCompoundCommit = getAndAssertBccWithGenerations(
+                testHarness.getShardContainer(),
+                allCommitRefs.get(0).getGeneration(),
+                allCommitRefs.stream().map(StatelessCommitRef::getGeneration).toList()
+            );
+            final long bccSizeInBytes = batchedCompoundCommit.compoundCommits()
+                .stream()
+                .mapToLong(cc -> BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes()))
+                .sum();
+            assertThat(bccSizeInBytes, greaterThanOrEqualTo(uploadMaxSize));
+            assertThat(bccSizeInBytes - batchedCompoundCommit.last().sizeInBytes(), lessThan(uploadMaxSize));
         }
+    }
+
+    private BatchedCompoundCommit getAndAssertBccWithGenerations(BlobContainer shardContainer, long bccGeneration, List<Long> ccGenerations)
+        throws Exception {
+        assert bccGeneration == ccGenerations.get(0);
+        final AtomicReference<BatchedCompoundCommit> bccRef = new AtomicReference<>();
+        assertBusy(() -> {
+            final String expectedBccBlobName = blobNameFromGeneration(bccGeneration);
+            final BlobMetadata blobMedata = shardContainer.listBlobs(OperationPurpose.INDICES)
+                .values()
+                .stream()
+                .filter(blobMetadata -> blobMetadata.name().equals(expectedBccBlobName))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("commit blob not found"));
+            final var batchedCompoundCommit = BatchedCompoundCommit.readFromStore(
+                expectedBccBlobName,
+                blobMedata.length(),
+                (blobName, offset, length) -> new InputStreamStreamInput(
+                    shardContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
+                )
+            );
+            assertThat(
+                batchedCompoundCommit.compoundCommits().stream().map(StatelessCompoundCommit::generation).toList(),
+                equalTo(ccGenerations)
+            );
+            bccRef.set(batchedCompoundCommit);
+        });
+        return bccRef.get();
     }
 
     public void testMarkCommitDeletedIsIdempotent() throws Exception {

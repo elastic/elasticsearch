@@ -51,7 +51,7 @@ public class RestPutRepositoryAction extends BaseRestHandler {
         }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
         putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
-        putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
+        putRepositoryRequest.ackTimeout(request.paramAsTime("timeout", putRepositoryRequest.ackTimeout()));
         return channel -> client.admin()
             .cluster()
             .putRepository(

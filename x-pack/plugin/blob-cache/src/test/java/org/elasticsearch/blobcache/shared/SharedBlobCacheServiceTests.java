@@ -39,11 +39,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -513,24 +511,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
 
-        AtomicInteger bulkTaskCount = new AtomicInteger(0);
-        ThreadPool threadPool = new TestThreadPool("test") {
+        final var bulkTaskCount = new AtomicInteger(0);
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic()) {
             @Override
-            public ExecutorService executor(String name) {
-                ExecutorService generic = super.executor(Names.GENERIC);
-                if (Objects.equals(name, "bulk")) {
-                    return new StoppableExecutorServiceWrapper(generic) {
-                        @Override
-                        public void execute(Runnable command) {
-                            super.execute(command);
-                            bulkTaskCount.incrementAndGet();
-                        }
-                    };
-                }
-                return generic;
+            public void execute(Runnable command) {
+                super.execute(command);
+                bulkTaskCount.incrementAndGet();
             }
         };
-        final var bulkExecutor = threadPool.executor("bulk");
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -539,7 +528,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 ThreadPool.Names.GENERIC,
-                "bulk",
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -582,17 +570,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
 
-        ThreadPool threadPool = new TestThreadPool("test") {
-            @Override
-            public ExecutorService executor(String name) {
-                ExecutorService generic = super.executor(Names.GENERIC);
-                if (Objects.equals(name, "bulk")) {
-                    return new StoppableExecutorServiceWrapper(generic);
-                }
-                return generic;
-            }
-        };
-        final var bulkExecutor = threadPool.executor("bulk");
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic());
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -601,7 +580,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 ThreadPool.Names.GENERIC,
-                "bulk",
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -842,7 +820,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
 
-        final AtomicLong relativeTimeInMillis = new AtomicLong(0L);
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -851,7 +828,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                "bulk",
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -930,24 +906,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
 
-        AtomicInteger bulkTaskCount = new AtomicInteger(0);
-        ThreadPool threadPool = new TestThreadPool("test") {
+        final var bulkTaskCount = new AtomicInteger(0);
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic()) {
             @Override
-            public ExecutorService executor(String name) {
-                ExecutorService generic = super.executor(Names.GENERIC);
-                if (Objects.equals(name, "bulk")) {
-                    return new StoppableExecutorServiceWrapper(generic) {
-                        @Override
-                        public void execute(Runnable command) {
-                            super.execute(command);
-                            bulkTaskCount.incrementAndGet();
-                        }
-                    };
-                }
-                return generic;
+            public void execute(Runnable command) {
+                super.execute(command);
+                bulkTaskCount.incrementAndGet();
             }
         };
-        final var bulkExecutor = threadPool.executor("bulk");
+
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<>(
@@ -955,7 +923,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 ThreadPool.Names.GENERIC,
-                "bulk",
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1067,7 +1034,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                ThreadPool.Names.GENERIC,
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1159,7 +1125,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
                 ThreadPool.Names.GENERIC,
                 BlobCacheMetrics.NOOP
             ) {

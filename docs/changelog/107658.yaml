@@ -1,5 +1,5 @@
 pr: 105660
 summary: "Ignore generated code in git"
-area: Build
+area: Delivery/Build
 type: enhancement
 issues: []

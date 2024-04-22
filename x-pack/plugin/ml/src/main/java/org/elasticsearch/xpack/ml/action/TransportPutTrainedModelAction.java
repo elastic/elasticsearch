@@ -329,7 +329,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             request.isWaitForCompletion(),
             finalResponseListener,
             handlePackageAndTagsListener,
-            request.timeout()
+            request.ackTimeout()
         );
     }
 

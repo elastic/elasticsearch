@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -514,7 +514,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         restoreReq.renamePattern("(.+)");
         restoreReq.renameReplacement("restored_$1");
         restoreReq.waitForCompletion(true);
-        RestoreSnapshotResponse resp = client().execute(RestoreSnapshotAction.INSTANCE, restoreReq).get();
+        RestoreSnapshotResponse resp = client().execute(TransportRestoreSnapshotAction.TYPE, restoreReq).get();
         assertThat(resp.status(), equalTo(RestStatus.OK));
 
         logger.info("--> executing SLM retention");

@@ -84,7 +84,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private final Integer ignoreAbove;
         private final KeywordFieldSyntheticSourceSupport keywordSupport;
 
-        public TextFieldFamilySyntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
+        TextFieldFamilySyntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
             this.fieldType = fieldType;
             this.storeTextField = randomBoolean();
             this.storedKeywordField = storeTextField || randomBoolean();

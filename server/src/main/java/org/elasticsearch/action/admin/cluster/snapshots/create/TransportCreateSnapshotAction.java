@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
  * Transport action for create snapshot operation
  */
 public class TransportCreateSnapshotAction extends TransportMasterNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
+    public static final ActionType<CreateSnapshotResponse> TYPE = new ActionType<>("cluster:admin/snapshot/create");
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -39,7 +42,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            CreateSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -68,7 +71,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         if (request.waitForCompletion()) {
             snapshotsService.executeSnapshot(request, listener.map(CreateSnapshotResponse::new));
         } else {
-            snapshotsService.createSnapshot(request, listener.map(snapshot -> new CreateSnapshotResponse()));
+            snapshotsService.createSnapshot(request, listener.map(snapshot -> new CreateSnapshotResponse((SnapshotInfo) null)));
         }
     }
 }

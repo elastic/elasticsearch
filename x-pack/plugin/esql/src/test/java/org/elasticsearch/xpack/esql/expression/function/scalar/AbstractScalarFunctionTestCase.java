@@ -165,7 +165,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (withoutNull.equals(Arrays.asList(strings()))) {
             return "string";
         }
-        if (withoutNull.equals(Arrays.asList(integers()))) {
+        if (withoutNull.equals(Arrays.asList(integers())) || withoutNull.equals(List.of(DataTypes.INTEGER))) {
             return "integer";
         }
         if (withoutNull.equals(Arrays.asList(rationals()))) {
@@ -176,6 +176,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
         if (withoutNull.equals(List.of(DataTypes.DATETIME))) {
             return "datetime";
+        }
+        if (withoutNull.equals(List.of(DataTypes.IP))) {
+            return "ip";
         }
         List<DataType> negations = Stream.concat(Stream.of(numerics()), Stream.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION))
             .sorted(Comparator.comparing(DataType::name))

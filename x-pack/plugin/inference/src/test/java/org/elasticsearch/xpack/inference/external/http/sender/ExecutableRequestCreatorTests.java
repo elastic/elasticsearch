@@ -22,23 +22,23 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ExecutableRequestCreatorTests {
-    public static ExecutableRequestCreator createMock() {
-        var mockCreator = mock(ExecutableRequestCreator.class);
-        when(mockCreator.create(anyList(), any(), any(), any(), any())).thenReturn(() -> {});
+    public static RequestManager createMock() {
+        var mockCreator = mock(RequestManager.class);
+        when(mockCreator.create(any(), anyList(), any(), any(), any(), any())).thenReturn(() -> {});
 
         return mockCreator;
     }
 
-    public static ExecutableRequestCreator createMock(RequestSender requestSender) {
+    public static RequestManager createMock(RequestSender requestSender) {
         return createMock(requestSender, "id");
     }
 
-    public static ExecutableRequestCreator createMock(RequestSender requestSender, String modelId) {
-        var mockCreator = mock(ExecutableRequestCreator.class);
+    public static RequestManager createMock(RequestSender requestSender, String modelId) {
+        var mockCreator = mock(RequestManager.class);
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[5];
             return (Runnable) () -> requestSender.send(
                 mock(Logger.class),
                 RequestTests.mockRequest(modelId),
@@ -47,7 +47,7 @@ public class ExecutableRequestCreatorTests {
                 mock(ResponseHandler.class),
                 listener
             );
-        }).when(mockCreator).create(anyList(), any(), any(), any(), any());
+        }).when(mockCreator).create(any(), anyList(), any(), any(), any(), any());
 
         return mockCreator;
     }

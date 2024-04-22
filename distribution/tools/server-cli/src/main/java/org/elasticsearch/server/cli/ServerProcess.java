@@ -90,6 +90,15 @@ public class ServerProcess {
         waitFor(); // ignore exit code, we are already shutting down
     }
 
+    /**
+     * Stop the subprocess, sending a SIGKILL.
+     */
+    public void forceStop() {
+        assert detached == false;
+        jvmProcess.destroyForcibly();
+        waitFor();
+    }
+
     private void sendShutdownMarker() {
         try {
             OutputStream os = jvmProcess.getOutputStream();

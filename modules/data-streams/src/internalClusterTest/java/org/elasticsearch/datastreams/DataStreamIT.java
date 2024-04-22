@@ -1778,21 +1778,9 @@ public class DataStreamIT extends ESIntegTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
-                    DataStream broken = new DataStream(
-                        original.getName(),
-                        List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
-                        original.getGeneration(),
-                        original.getMetadata(),
-                        original.isHidden(),
-                        original.isReplicated(),
-                        original.isSystem(),
-                        original.isAllowCustomRouting(),
-                        original.getIndexMode(),
-                        original.getLifecycle(),
-                        original.isFailureStore(),
-                        original.getFailureIndices(),
-                        null
-                    );
+                    DataStream broken = original.copy()
+                        .setIndices(List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)))
+                        .build();
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
                         .metadata(Metadata.builder(currentState.getMetadata()).put(broken).build())

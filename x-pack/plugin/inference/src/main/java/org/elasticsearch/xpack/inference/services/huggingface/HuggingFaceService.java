@@ -61,9 +61,10 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     private static HuggingFaceEmbeddingsModel updateModelWithEmbeddingDetails(HuggingFaceEmbeddingsModel model, int embeddingSize) {
         var serviceSettings = new HuggingFaceServiceSettings(
             model.getServiceSettings().uri(),
-            null, // Similarity measure is unknown
+            model.getServiceSettings().similarity(), // we don't know the similarity but use whatever the user specified
             embeddingSize,
-            model.getTokenLimit()
+            model.getTokenLimit(),
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new HuggingFaceEmbeddingsModel(model, serviceSettings);
@@ -76,6 +77,6 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

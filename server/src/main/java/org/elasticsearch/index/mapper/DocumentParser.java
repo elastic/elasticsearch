@@ -99,7 +99,7 @@ public final class DocumentParser {
             context.version(),
             context.seqID(),
             context.id(),
-            source.routing(),
+            context.routing(),
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),

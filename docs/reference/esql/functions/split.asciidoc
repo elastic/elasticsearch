@@ -17,8 +17,6 @@ Delimiter. Only single byte delimiters are currently supported.
 
 Splits a single valued string into multiple strings.
 
-*Supported types*
-
 include::types/split.asciidoc[]
 
 *Example*

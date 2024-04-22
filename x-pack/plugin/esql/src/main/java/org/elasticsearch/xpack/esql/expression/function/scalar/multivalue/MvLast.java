@@ -54,7 +54,7 @@ public class MvLast extends AbstractMultivalueFunction {
     public MvLast(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",

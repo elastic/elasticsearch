@@ -175,8 +175,7 @@ public class MasterServiceTests extends ESTestCase {
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
-                .execute(() -> publishListener.onResponse(null));
+            randomExecutor(threadPool).execute(() -> publishListener.onResponse(null));
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
@@ -1337,7 +1336,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    public void testAcking() throws InterruptedException {
+    public void testAcking() {
         final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         final DiscoveryNode node3 = DiscoveryNodeUtils.builder("node3").roles(emptySet()).build();
@@ -1345,12 +1344,15 @@ public class MasterServiceTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
             .build();
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        threadPool.getThreadContext().markAsSystemContext();
         try (
-            MasterService masterService = new MasterService(
-                settings,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            var masterService = createMasterService(
+                true,
+                new TaskManager(settings, threadPool, emptySet()),
                 threadPool,
-                new TaskManager(settings, threadPool, emptySet())
+                new StoppableExecutorServiceWrapper(threadPool.generic())
             )
         ) {
 
@@ -1366,7 +1368,6 @@ public class MasterServiceTests extends ESTestCase {
                 publisherRef.get().publish(e, pl, al);
             });
             masterService.setClusterStateSupplier(() -> initialClusterState);
-            masterService.start();
 
             class LatchAckListener implements ClusterStateAckListener {
                 private final CountDownLatch latch;
@@ -1443,7 +1444,8 @@ public class MasterServiceTests extends ESTestCase {
                         : ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("success-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we complete a dynamic ack listener supplied by the task
@@ -1474,7 +1476,8 @@ public class MasterServiceTests extends ESTestCase {
                         : ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("success-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we supply a no-op publish listener if we only care about acking
@@ -1505,7 +1508,8 @@ public class MasterServiceTests extends ESTestCase {
                         : ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("success-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that exception from acking is passed to listener
@@ -1554,7 +1558,8 @@ public class MasterServiceTests extends ESTestCase {
                     return ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("node-ack-fail-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we don't time out before even committing the cluster state
@@ -1588,6 +1593,7 @@ public class MasterServiceTests extends ESTestCase {
 
                         @Override
                         public void onFailure(Exception e) {
+                            assertEquals("mock exception", asInstanceOf(FailedToCommitClusterStateException.class, e).getMessage());
                             latch.countDown();
                         }
 
@@ -1598,14 +1604,15 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 );
 
-                latch.await();
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we timeout if commit took too long
             {
                 final CountDownLatch latch = new CountDownLatch(2);
 
-                final TimeValue ackTimeout = TimeValue.timeValueMillis(randomInt(100));
+                final TimeValue ackTimeout = TimeValue.timeValueMillis(scaledRandomIntBetween(0, 100000));
 
                 publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
                     publishListener.onResponse(null);
@@ -1653,7 +1660,8 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 );
 
-                latch.await();
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
         }
     }

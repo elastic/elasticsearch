@@ -4,8 +4,6 @@
 <titleabbrev>Explain Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview::[]
-
 Retrieves the current data stream lifecycle status for one or more data stream backing indices.
 
 [[explain-lifecycle-api-prereqs]]
@@ -40,7 +38,7 @@ execution.
   (Optional, Boolean) Includes default configurations related to the lifecycle of the target.
   Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[data-streams-explain-lifecycle-example]]
 ==== {api-examples-title}

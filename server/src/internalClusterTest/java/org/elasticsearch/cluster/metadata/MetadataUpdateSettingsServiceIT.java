@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -40,7 +41,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         MetadataUpdateSettingsService metadataUpdateSettingsService = internalCluster().getCurrentMasterNodeInstance(
             MetadataUpdateSettingsService.class
         );
-        UpdateSettingsClusterStateUpdateRequest request = new UpdateSettingsClusterStateUpdateRequest();
+        UpdateSettingsClusterStateUpdateRequest request = new UpdateSettingsClusterStateUpdateRequest().ackTimeout(TimeValue.ZERO);
         List<Index> indices = new ArrayList<>();
         for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             for (IndexService indexService : indicesService) {
@@ -108,7 +109,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         MetadataUpdateSettingsService metadataUpdateSettingsService = internalCluster().getCurrentMasterNodeInstance(
             MetadataUpdateSettingsService.class
         );
-        UpdateSettingsClusterStateUpdateRequest request = new UpdateSettingsClusterStateUpdateRequest();
+        UpdateSettingsClusterStateUpdateRequest request = new UpdateSettingsClusterStateUpdateRequest().ackTimeout(TimeValue.ZERO);
         List<Index> indices = new ArrayList<>();
         for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             for (IndexService indexService : indicesService) {

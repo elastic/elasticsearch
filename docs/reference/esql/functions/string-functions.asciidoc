@@ -11,6 +11,7 @@
 * <<esql-concat>>
 * <<esql-left>>
 * <<esql-length>>
+* <<esql-locate>>
 * <<esql-ltrim>>
 * <<esql-replace>>
 * <<esql-right>>
@@ -23,8 +24,9 @@
 // end::string_list[]
 
 include::concat.asciidoc[]
-include::left.asciidoc[]
+include::layout/left.asciidoc[]
 include::length.asciidoc[]
+include::layout/locate.asciidoc[]
 include::ltrim.asciidoc[]
 include::replace.asciidoc[]
 include::right.asciidoc[]

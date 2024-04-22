@@ -129,7 +129,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             .settings(requestSettings)
             .setPreserveExisting(request.isPreserveExisting())
             .reopenShards(request.reopen())
-            .ackTimeout(request.timeout())
+            .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {

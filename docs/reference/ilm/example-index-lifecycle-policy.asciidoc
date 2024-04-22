@@ -1,5 +1,3 @@
-[role="xpack"]
-
 [[example-using-index-lifecycle-policy]]
 === Tutorial: Customize built-in {ilm-init} policies
 
@@ -9,9 +7,9 @@
 
 {es} includes the following built-in {ilm-init} policies:
 
-- `logs`
-- `metrics`
-- `synthetics`
+- `logs@lifecycle`
+- `metrics@lifecycle`
+- `synthetics@lifecycle`
 
 {agent} uses these policies to manage backing indices for its data streams.
 This tutorial shows you how to use {kib}’s **Index Lifecycle Policies** to
@@ -67,20 +65,25 @@ node.roles: [ data_warm ]
 cluster.
 
 [discrete]
-[[example-using-index-lifecycle-policy-view-ilm-policy]]
-==== View the policy
+[[example-using-index-lifecycle-policy-duplicate-ilm-policy]]
+==== Duplicate the policy
 
 {agent} uses data streams with an index pattern of `logs-*-*` to store log
-monitoring data. The built-in `logs` {ilm-init} policy automatically manages
-backing indices for these data streams.
+monitoring data. The managed `logs@lifecycle` {ilm-init} policy automatically manages
+backing indices for these data streams. 
 
-To view the `logs` policy in {kib}:
+If you don't want to use the policy defaults, then you can customize the managed policy and then save it as a new policy. You can then use the new policy in related component templates and index templates.
 
-. Open the menu and go to **Stack Management > Index Lifecycle Policies**.
-. Select **Include managed system policies**.
-. Select the `logs` policy.
+CAUTION: You should never edit managed policies directly. Changes to managed policies might be rolled back or overwritten.
 
-The `logs` policy uses the recommended rollover defaults: Start writing to a new
+To save the `logs@lifecycle` policy as a new policy in {kib}:
+
+. Open the menu and go to **Stack Management** > **Index Lifecycle Policies**.
+. Toggle **Include managed system policies**.
+. Select the `logs@lifecycle` policy.
+. On the **Edit policy logs** page, toggle **Save as new policy**, and then provide a new name for the policy, for example, `logs-custom`.
+
+The `logs@lifecycle` policy uses the recommended rollover defaults: Start writing to a new
 index when the current write index reaches 50GB or becomes 30 days old.
 
 To view or change the rollover settings, click **Advanced settings** for the hot
@@ -90,16 +93,12 @@ settings.
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-hotphaserollover-default.png[View rollover defaults]
 
-Note that {kib} displays a warning that editing a managed policy can break
-Kibana. For this tutorial, you can ignore that warning and proceed with
-modifying the policy.
-
 [discrete]
 [[ilm-ex-modify-policy]]
 ==== Modify the policy
 
-The default `logs` policy is designed to prevent the creation of many tiny daily
-indices. You can modify the policy to meet your performance requirements and
+The default `logs@lifecycle` policy is designed to prevent the creation of many tiny daily
+indices. You can modify your copy of the policy to meet your performance requirements and
 manage resource usage.
 
 . Activate the warm phase and click **Advanced settings**.
@@ -127,4 +126,33 @@ deletes indices 90 days after rollover.
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-delete-rollover.png[Add a delete phase]
 
-. Click **Save Policy**.
+. Click **Save as new policy**.
+
+TIP:  Copies of managed {ilm-init} policies are also marked as **Managed**. You can use the <<ilm-put-lifecycle,Create or update lifecycle policy API>> to update the `_meta.managed` parameter to `false`.
+
+[discrete]
+[[example-using-index-lifecycle-policy-apply-policy]]
+==== Apply the policy
+
+To apply your new {ilm-init} policy to the `logs` index template, create or edit the `logs@custom` component template. 
+
+A `*@custom` component template allows you to customize the mappings and settings of managed index templates, without having to override managed index templates or component templates. This type of component template is automatically picked up by the index template. <<put-component-template-api-path-params,Learn more>>.
+
+. Click on the **Component Template** tab and click **Create component template**.
+. Under **Logistics**, name the component template `logs@custom`.
+. Under **Index settings**, set the {ilm-init} policy name created in the previous step:
++
+[source,JSON]
+--------------------------------------------------
+{
+    "index": {
+        "lifecycle": {
+            "name": "logs-custom"
+        }
+    }
+}
+--------------------------------------------------
++
+. Continue to **Review**, and then click **Save component template**.
+. Click the **Index Templates**, tab, and then select the `logs` index template.
+. In the summary, view the **Component templates** list. `logs@custom` should be listed.

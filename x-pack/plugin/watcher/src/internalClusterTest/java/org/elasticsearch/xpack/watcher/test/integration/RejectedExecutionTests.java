@@ -37,7 +37,6 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105951")
     public void testHistoryOnRejection() throws Exception {
         createIndex("idx");
         prepareIndex("idx").setSource("field", "a").get();
@@ -73,11 +72,11 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put("xpack.watcher.thread_pool.size", 1)
             .put("xpack.watcher.thread_pool.queue_size", 0)
             .build();
     }

@@ -110,7 +110,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         // <4> Reset transform
         ActionListener<TransformUpdater.UpdateResult> updateTransformListener = ActionListener.wrap(
             unusedUpdateResult -> transformConfigManager.resetTransform(request.getId(), ActionListener.wrap(resetResponse -> {
-                logger.debug("[{}] reset transform", request.getId());
+                logger.info("[{}] reset transform", request.getId());
                 auditor.info(request.getId(), "Reset transform.");
                 listener.onResponse(AcknowledgedResponse.of(resetResponse));
             }, listener::onFailure)),
@@ -135,7 +135,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
-                    request.timeout(),
+                    request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener
                 );
@@ -154,7 +154,14 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             stopTransformActionListener.onResponse(null);
             return;
         }
-        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, false, null, true, false);
+        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(
+            request.getId(),
+            true,
+            request.isForce(),
+            null,
+            true,
+            false
+        );
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
     }
 

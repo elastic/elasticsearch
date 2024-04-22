@@ -17,8 +17,6 @@ Multivalue expression.
 Converts a multivalued column into a single valued column containing the median
 value.
 
-*Supported types*
-
 include::types/mv_median.asciidoc[]
 
 *Examples*

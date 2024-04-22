@@ -101,7 +101,7 @@ can also request the metric `_all` to retrieve all metrics, or you can request
 the metric `_none` to suppress all metrics and retrieve only the identity of
 the node.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 [[cluster-nodes-info-api-response-body]]
 ==== {api-response-body-title}
@@ -182,9 +182,9 @@ running process:
 [[cluster-nodes-info-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[cluster-nodes-info-api-example]]

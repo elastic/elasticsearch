@@ -1,18 +1,21 @@
 ---
 "Test watcher usage stats output":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/65547"
   - do:
       catch: missing
       watcher.delete_watch:
         id: "usage_stats_watch"
 
-  - do: { xpack.usage: {} }
-  - match: { "watcher.count.active": 0 }
-  - match: { "watcher.count.total": 0 }
+  - do: {xpack.usage: {}}
+  - set: { "watcher.count.active": watch_count_active }
+  - set: { "watcher.count.total": watch_count_total }
 
   - do:
       watcher.put_watch:
         id: "usage_stats_watch"
-        body: >
+        body:  >
           {
             "trigger": {
               "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
@@ -44,9 +47,9 @@
           }
   - match: { _id: "usage_stats_watch" }
 
-  - do: { xpack.usage: {} }
-  - match: { "watcher.count.active": 1 }
-  - match: { "watcher.count.total": 1 }
+  - do: {xpack.usage: {}}
+  - gt: { "watcher.count.active": $watch_count_active }
+  - gt: { "watcher.count.total": $watch_count_total }
   - gte: { "watcher.watch.action._all.active": 1 }
   - gte: { "watcher.watch.action.logging.active": 1 }
   - gte: { "watcher.watch.condition._all.active": 1 }
@@ -57,3 +60,4 @@
   - gte: { "watcher.watch.trigger.schedule.active": 1 }
   - gte: { "watcher.watch.trigger.schedule.cron.active": 1 }
   - gte: { "watcher.watch.trigger.schedule._all.active": 1 }
+

@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.lifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -111,7 +113,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         listener.onResponse(
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
-                request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null
+                request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
+                DataStreamGlobalRetention.getFromClusterState(state)
             )
         );
     }

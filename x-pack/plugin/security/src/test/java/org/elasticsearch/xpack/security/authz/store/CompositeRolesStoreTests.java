@@ -16,8 +16,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -2132,7 +2132,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             is(false == emptyRemoteRole)
         );
         assertThat(
-            role.authorize(CreateIndexAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
+                .isGranted(),
             is(false)
         );
         assertThat(
@@ -2718,7 +2719,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (String action : Arrays.asList(
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(
@@ -2732,7 +2733,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (String action : Arrays.asList(
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(

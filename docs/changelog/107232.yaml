@@ -1,0 +1,6 @@
+pr: 107232
+summary: Only trigger action once per thread
+area: Transform
+type: bug
+issues:
+ - 107215

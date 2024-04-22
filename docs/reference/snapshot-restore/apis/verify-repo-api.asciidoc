@@ -47,10 +47,7 @@ Name of the snapshot repository to verify.
 [[verify-snapshot-repo-api-query-params]]
 ==== {api-query-parms-title}
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for

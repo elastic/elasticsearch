@@ -95,7 +95,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         // <3> Delete transform config
         ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(
             unusedAcknowledgedResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
-                logger.debug("[{}] deleted transform", request.getId());
+                logger.info("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
             }, listener::onFailure)),
@@ -105,14 +105,14 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         // <2> Delete destination index if requested
         ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(unusedStopResponse -> {
             if (request.isDeleteDestIndex()) {
-                deleteDestinationIndex(parentTaskId, request.getId(), request.timeout(), deleteDestIndexListener);
+                deleteDestinationIndex(parentTaskId, request.getId(), request.ackTimeout(), deleteDestIndexListener);
             } else {
                 deleteDestIndexListener.onResponse(null);
             }
         }, listener::onFailure);
 
         // <1> Stop transform if it's currently running
-        stopTransform(transformIsRunning, parentTaskId, request.getId(), request.timeout(), stopTransformActionListener);
+        stopTransform(transformIsRunning, parentTaskId, request.getId(), request.ackTimeout(), stopTransformActionListener);
     }
 
     private void stopTransform(
@@ -152,7 +152,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
                 TransformConfig config = transformConfigAndVersion.v1();
                 String destIndex = config.getDestination().getIndex();
                 DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
-                deleteDestIndexRequest.timeout(timeout);
+                deleteDestIndexRequest.ackTimeout(timeout);
                 deleteDestIndexRequest.setParentTask(parentTaskId);
                 executeWithHeadersAsync(
                     config.getHeaders(),

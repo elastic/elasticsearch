@@ -7,6 +7,9 @@ setup:
       indices.create:
         index: store
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               features:
@@ -55,6 +58,9 @@ setup:
       indices.create:
         index: store-flattened
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               data:
@@ -432,6 +438,7 @@ setup:
 
 ---
 "Test frequent item sets unsupported types":
+
   - do:
       catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_item_sets\]/
       search:
@@ -552,6 +559,9 @@ setup:
       indices.create:
         index: unavailable-data
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               features:

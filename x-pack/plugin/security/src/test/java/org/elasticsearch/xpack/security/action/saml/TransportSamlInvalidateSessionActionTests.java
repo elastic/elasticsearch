@@ -16,10 +16,10 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -174,7 +174,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     indexRequests.add(indexRequest);
                     final IndexResponse response = new IndexResponse(new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
                     listener.onResponse((Response) response);
-                } else if (BulkAction.NAME.equals(action.name())) {
+                } else if (TransportBulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));
                     BulkRequest bulkRequest = (BulkRequest) request;
                     bulkRequests.add(bulkRequest);

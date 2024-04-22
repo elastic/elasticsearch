@@ -33,7 +33,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
         List<Runnable> mutators = new ArrayList<>();
         Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(ESTestCase.randomTimeValue(), "_setting");
         mutators.add(() -> mutation.masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
-        mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout(), timeValueSupplier)));
+        mutators.add(() -> mutation.ackTimeout(randomValueOtherThan(request.ackTimeout(), timeValueSupplier)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
         mutators.add(
@@ -65,7 +65,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
             ? new UpdateSettingsRequest(randomSettings(0, 2))
             : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
         request.masterNodeTimeout(randomTimeValue());
-        request.timeout(randomTimeValue());
+        request.ackTimeout(randomTimeValue());
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());
         request.reopen(randomBoolean());
@@ -75,7 +75,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
     private static UpdateSettingsRequest copyRequest(UpdateSettingsRequest request) {
         UpdateSettingsRequest result = new UpdateSettingsRequest(request.settings(), request.indices());
         result.masterNodeTimeout(request.masterNodeTimeout());
-        result.timeout(request.timeout());
+        result.ackTimeout(request.ackTimeout());
         result.indicesOptions(request.indicesOptions());
         result.setPreserveExisting(request.isPreserveExisting());
         return result;

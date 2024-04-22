@@ -144,11 +144,18 @@ public class MockBigArrays extends BigArrays {
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new LimitedBreaker(CircuitBreaker.REQUEST, limit));
     }
 
+    /**
+     * Create {@linkplain BigArrays} with a provided breaker service. The breaker is not enable by default.
+     */
     public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
         this(recycler, breakerService, false);
     }
 
-    private MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+    /**
+     * Create {@linkplain BigArrays} with a provided breaker service. The breaker can be enabled with the
+     * {@code checkBreaker} flag.
+     */
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
         super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
@@ -476,6 +483,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             in.set(index, buf, offset, len);
         }
@@ -538,6 +550,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             in.writeTo(out);
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
         }
     }
 
@@ -623,6 +640,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void fill(long fromIndex, long toIndex, double value) {
             in.fill(fromIndex, toIndex, value);
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
         }
 
         @Override

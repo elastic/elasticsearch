@@ -20,6 +20,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.List;
@@ -84,9 +85,9 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
             assertThat((String) nodesArray.get(0).get("type"), equalToIgnoringCase(type));
             assertThat(nodesArray.get(0).get("reason"), equalTo(this.getTestName()));
-            assertThat(nodesArray.get(0).get("allocation_delay"), equalTo(allocationDelay));
+            assertThat(nodesArray.get(0).get("allocation_delay"), equalsOptionalTimeValue(allocationDelay));
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
-            assertThat(nodesArray.get(0).get("grace_period"), equalTo(grace));
+            assertThat(nodesArray.get(0).get("grace_period"), equalsOptionalTimeValue(grace));
         }
 
         if (delete) {
@@ -95,6 +96,10 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertOK(client().performRequest(deleteRequest));
             assertNoShuttingDownNodes(nodeIdToShutdown);
         }
+    }
+
+    private static Matcher<Object> equalsOptionalTimeValue(TimeValue timeValue) {
+        return timeValue == null ? nullValue() : equalTo(timeValue.getStringRep());
     }
 
     public void testPutShutdownIsIdempotentForRestart() throws Exception {
@@ -437,7 +442,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 {
                     putBody.field("type", type);
                     putBody.field("reason", reason);
-                    putBody.field("allocation_delay", allocationDelay);
+                    putBody.field("allocation_delay", allocationDelay.getStringRep());
                 }
                 putBody.endObject();
                 putShutdown.setJsonEntity(Strings.toString(putBody));

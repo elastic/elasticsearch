@@ -37,7 +37,7 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
     protected Request mutateInstance(Request instance) {
         TransformConfig config = instance.getConfig();
         boolean deferValidation = instance.isDeferValidation();
-        TimeValue timeout = instance.timeout();
+        TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 2)) {
             case 0 -> config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();

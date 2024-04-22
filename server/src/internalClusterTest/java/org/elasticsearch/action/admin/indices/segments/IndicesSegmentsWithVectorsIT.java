@@ -113,6 +113,7 @@ public class IndicesSegmentsWithVectorsIT extends ESIntegTestCase {
         indicesAdmin().prepareFlush(indexName).get();
     }
 
+    @Monster("opens many files")
     public void testManyIndicesSegmentsWithVectorsIncluded() {
         String indexName = "test-vectors";
         createIndex(indexName);

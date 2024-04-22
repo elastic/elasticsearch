@@ -5,17 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.huggingface;
+package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URI;
-
-/**
- * The service setting fields for hugging face that determine how to rate limit requests.
- */
-public interface HuggingFaceRateLimitServiceSettings {
-    URI uri();
-
+public interface CohereRateLimitServiceSettings {
     RateLimitSettings rateLimitSettings();
+
 }

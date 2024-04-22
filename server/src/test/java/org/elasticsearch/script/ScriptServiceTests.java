@@ -555,23 +555,23 @@ public class ScriptServiceTests extends ESTestCase {
         int cacheSizeBackup = randomIntBetween(0, 1024);
         int cacheSizeFoo = randomValueOtherThan(cacheSizeBackup, () -> randomIntBetween(0, 1024));
 
-        TimeValue cacheExpireBackupParsed = randomTimeValue(1, 1000, TimeUnit.HOURS);
-        TimeValue cacheExpireFooParsed = randomValueOtherThan(cacheExpireBackupParsed, () -> randomTimeValue(1, 1000, TimeUnit.HOURS));
+        var cacheExpireBackupTimeValue = randomTimeValue(1, 1000, TimeUnit.HOURS);
+        var cacheExpireFooTimeValue = randomValueOtherThan(cacheExpireBackupTimeValue, () -> randomTimeValue(1, 1000, TimeUnit.HOURS));
 
         Setting<?> cacheSizeSetting = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("foo");
         Setting<?> cacheExpireSetting = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo");
         Settings s = Settings.builder()
             .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), cacheSizeBackup)
             .put(cacheSizeSetting.getKey(), cacheSizeFoo)
-            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackupParsed)
-            .put(cacheExpireSetting.getKey(), cacheExpireFooParsed)
+            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackupTimeValue)
+            .put(cacheExpireSetting.getKey(), cacheExpireFooTimeValue)
             .build();
 
         assertEquals(cacheSizeFoo, ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("foo").get(s).intValue());
         assertEquals(cacheSizeBackup, ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("bar").get(s).intValue());
 
-        assertEquals(cacheExpireFooParsed, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").get(s));
-        assertEquals(cacheExpireBackupParsed, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("bar").get(s));
+        assertEquals(cacheExpireFooTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").get(s));
+        assertEquals(cacheExpireBackupTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("bar").get(s));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { cacheExpireSetting, cacheExpireSetting });
     }
 

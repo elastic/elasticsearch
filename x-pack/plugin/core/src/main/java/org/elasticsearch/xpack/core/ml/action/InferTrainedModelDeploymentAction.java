@@ -267,33 +267,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", this.id), parentTaskId, headers);
         }
 
-        public static class Builder {
-
-            private String id;
-            private List<Map<String, Object>> docs;
-            private InferenceConfigUpdate update;
-
-            private Builder() {}
-
-            public Builder setId(String id) {
-                this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
-                return this;
-            }
-
-            public Builder setDocs(List<Map<String, Object>> docs) {
-                this.docs = ExceptionsHelper.requireNonNull(docs, DOCS);
-                return this;
-            }
-
-            public Builder setUpdate(InferenceConfigUpdate update) {
-                this.update = update;
-                return this;
-            }
-
-            public Request build() {
-                return new Request(id, update, docs, null, null);
-            }
-        }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {

@@ -376,6 +376,10 @@ public class SecuritySystemIndices {
                     builder.field("type", "keyword");
                     builder.endObject();
 
+                    builder.startObject("description");
+                    builder.field("type", "text");
+                    builder.endObject();
+
                     builder.startObject("run_as");
                     builder.field("type", "keyword");
                     builder.endObject();

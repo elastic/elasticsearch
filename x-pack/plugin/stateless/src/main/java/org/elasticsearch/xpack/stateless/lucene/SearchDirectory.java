@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
@@ -423,7 +424,7 @@ public class SearchDirectory extends ByteSizeDirectory {
         throw e;
     }
 
-    public void downloadCommit(StatelessCompoundCommit commit, ActionListener<Void> listener) {
+    public void downloadCommit(StatelessCompoundCommit commit, Executor fetchExecutor, ActionListener<Void> listener) {
         assert false : "this method requires fixes, see https://elasticco.atlassian.net/browse/ES-8140";
         try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
             final String latestCompoundCommitLocation = StatelessCompoundCommit.blobNameFromGeneration(commit.generation());
@@ -463,7 +464,7 @@ public class SearchDirectory extends ByteSizeDirectory {
                             writeBuffer.get().clear()
                         );
                     }
-                }, refCountingListener.acquire());
+                }, fetchExecutor, refCountingListener.acquire());
             });
         }
     }

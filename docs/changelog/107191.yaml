@@ -1,7 +1,7 @@
 pr: 107191
 summary: Stricter failure handling in `TransportGetSnapshotsAction`
 area: Snapshot/Restore
-type: "breaking, bug"
+type: breaking
 issues: []
 breaking:
   title: Stricter failure handling in `TransportGetSnapshotsAction`

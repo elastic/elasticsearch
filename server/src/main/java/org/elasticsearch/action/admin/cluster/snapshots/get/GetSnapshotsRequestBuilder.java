@@ -26,7 +26,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * Constructs the new get snapshot request with specified repositories
      */
     public GetSnapshotsRequestBuilder(ElasticsearchClient client, String... repositories) {
-        super(client, GetSnapshotsAction.INSTANCE, new GetSnapshotsRequest(repositories));
+        super(client, TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(repositories));
     }
 
     /**

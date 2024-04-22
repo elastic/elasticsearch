@@ -124,24 +124,21 @@ public class AggregatorBenchmark {
                 driverContext
             );
         }
-        List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
-            case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));
-            case INTS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.INT));
-            case DOUBLES -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.DOUBLE));
-            case BOOLEANS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BOOLEAN));
-            case BYTES_REFS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF));
-            case TWO_LONGS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.LONG)
-            );
+        List<BlockHash.GroupSpec> groups = switch (grouping) {
+            case LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
+            case INTS -> List.of(new BlockHash.GroupSpec(0, ElementType.INT));
+            case DOUBLES -> List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE));
+            case BOOLEANS -> List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN));
+            case BYTES_REFS -> List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
+            case TWO_LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG));
             case LONGS_AND_BYTES_REFS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.BYTES_REF)
+                new BlockHash.GroupSpec(0, ElementType.LONG),
+                new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
             );
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(2, ElementType.BYTES_REF)
+                new BlockHash.GroupSpec(0, ElementType.LONG),
+                new BlockHash.GroupSpec(1, ElementType.LONG),
+                new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };

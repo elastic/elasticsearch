@@ -57,7 +57,7 @@ public class TransportFlushTrainedModelCacheAction extends AcknowledgedTransport
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        modelCacheMetadataService.refreshCacheVersion(listener);
+        modelCacheMetadataService.updateCacheVersion(listener);
     }
 
     @Override

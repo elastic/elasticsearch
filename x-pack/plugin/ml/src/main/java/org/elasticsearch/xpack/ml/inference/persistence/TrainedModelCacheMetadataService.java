@@ -44,7 +44,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
-    public void refreshCacheVersion(ActionListener<AcknowledgedResponse> listener) {
+    public void updateCacheVersion(ActionListener<AcknowledgedResponse> listener) {
         if (this.isMasterNode == false) {
             client.execute(FlushTrainedModelCacheAction.INSTANCE, new FlushTrainedModelCacheAction.Request(), listener);
             return;

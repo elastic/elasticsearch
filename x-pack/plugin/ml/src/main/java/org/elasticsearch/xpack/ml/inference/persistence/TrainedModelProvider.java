@@ -108,7 +108,6 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FAILED_TO_DESERIALIZE;
@@ -1387,7 +1386,7 @@ public class TrainedModelProvider {
     }
 
     private void refreshCacheVersion(ActionListener<Boolean> listener) {
-        modelCacheMetadataService.refreshCacheVersion(ActionListener.wrap(resp -> {
+        modelCacheMetadataService.updateCacheVersion(ActionListener.wrap(resp -> {
             // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
             // Errors should be reported through the onFailure method of the listener.
             assert resp.equals(AcknowledgedResponse.TRUE);

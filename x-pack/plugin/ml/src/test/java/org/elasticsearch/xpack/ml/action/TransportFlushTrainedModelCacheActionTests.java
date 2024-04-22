@@ -45,7 +45,7 @@ public class TransportFlushTrainedModelCacheActionTests extends ESTestCase {
             ActionListener listener = invocationOnMock.getArgument(0, ActionListener.class);
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(modelCacheMetadataService).refreshCacheVersion(any(ActionListener.class));
+        }).when(modelCacheMetadataService).updateCacheVersion(any(ActionListener.class));
     }
 
     @After
@@ -69,7 +69,7 @@ public class TransportFlushTrainedModelCacheActionTests extends ESTestCase {
         action.masterOperation(null, request, clusterState, listener);
 
         assertTrue(ack.get().isAcknowledged());
-        verify(modelCacheMetadataService).refreshCacheVersion(listener);
+        verify(modelCacheMetadataService).updateCacheVersion(listener);
     }
 
     private TransportFlushTrainedModelCacheAction createAction(ClusterService clusterService) {

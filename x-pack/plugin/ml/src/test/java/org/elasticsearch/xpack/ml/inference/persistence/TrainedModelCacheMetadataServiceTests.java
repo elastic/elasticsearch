@@ -79,7 +79,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         final ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
-        modelCacheMetadataService.refreshCacheVersion(listener);
+        modelCacheMetadataService.updateCacheVersion(listener);
 
         // Verify a cluster state update task were submitted.
         ArgumentCaptor<CacheMetadataUpdateTask> updateTaskCaptor = ArgumentCaptor.forClass(RefreshCacheMetadataVersionTask.class);
@@ -103,7 +103,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         final ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
-        modelCacheMetadataService.refreshCacheVersion(listener);
+        modelCacheMetadataService.updateCacheVersion(listener);
 
         // Check a FlushTrainedModelCacheAction request is emitted to the master node, that will flush the cache.
         verify(client).execute(

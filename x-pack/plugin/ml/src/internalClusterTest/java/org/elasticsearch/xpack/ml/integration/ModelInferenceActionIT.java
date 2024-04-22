@@ -70,7 +70,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(0, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
             return Void.TYPE;
-        }).when(modelCacheMetadataService).refreshCacheVersion(any(ActionListener.class));
+        }).when(modelCacheMetadataService).updateCacheVersion(any(ActionListener.class));
         trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -234,7 +235,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 return child;
             } catch (AccessControlException e) {
                 // don't have permissions, use a placeholder
-                logger.debug("Don't have permissions to watch path [{}]", file, e);
+                logger.debug(() -> Strings.format("Don't have permissions to watch path [%s]", file), e);
                 return new DeniedObserver(file);
             }
         }

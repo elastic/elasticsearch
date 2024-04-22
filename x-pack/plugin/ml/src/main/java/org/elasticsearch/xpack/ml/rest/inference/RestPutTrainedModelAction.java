@@ -52,7 +52,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
             waitForCompletion,
             parser
         );
-        putRequest.timeout(restRequest.paramAsTime("timeout", putRequest.timeout()));
+        putRequest.ackTimeout(restRequest.paramAsTime("timeout", putRequest.ackTimeout()));
         return channel -> client.execute(PutTrainedModelAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 }

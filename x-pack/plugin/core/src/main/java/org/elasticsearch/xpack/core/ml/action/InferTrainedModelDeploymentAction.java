@@ -75,7 +75,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
-        private boolean highPriority = false;
+        private boolean highPriority;
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
@@ -89,7 +89,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                false,
                 inferenceTimeout
             );
         }
@@ -100,7 +99,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                false,
                 inferenceTimeout
             );
         }
@@ -111,7 +109,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
             List<String> textInput,
-            boolean highPriority,
             TimeValue inferenceTimeout
         ) {
             this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
@@ -119,7 +116,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             this.textInput = textInput;
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
-            this.highPriority = highPriority;
+            this.highPriority = false;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -294,7 +291,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             }
 
             public Request build() {
-                return new Request(id, update, docs, null, false, null);
+                return new Request(id, update, docs, null, null);
             }
         }
     }

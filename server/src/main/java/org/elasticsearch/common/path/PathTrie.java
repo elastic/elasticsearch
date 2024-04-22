@@ -205,7 +205,7 @@ public class PathTrie<T> {
 
         private TrieNode getWildcardNodeForToken(String token) {
             TrieNode wildcard = children.get(WILDCARD);
-            // check the wildcard match predicate too, if the token itself is not a wildcard
+            // check the wildcard regex too, if the token itself is not a wildcard
             if (token.equals(WILDCARD) == false
                 && wildcard != null
                 && wildcard.wildcardRegex != null

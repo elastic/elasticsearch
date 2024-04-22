@@ -275,6 +275,7 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("/{m|n|test2}", "test6");
         assertThat(trie.retrieve("/m"), equalTo("test6"));
         assertThat(trie.retrieve("/n"), equalTo("test6"));
+        assertThat(trie.retrieve("/o"), nullValue());
     }
 
     public void testUpdateRegexes() {

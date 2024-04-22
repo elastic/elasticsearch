@@ -18,12 +18,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -326,8 +328,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             null,
             createRequestExecutorServiceSettingsEmpty(),
             requestSender,
-            null,
-            Duration.ofDays(2),
             Clock.systemUTC(),
             RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
@@ -358,8 +358,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             null,
             createRequestExecutorServiceSettingsEmpty(),
             mock(RetryingHttpSender.class),
-            null,
-            Duration.ofDays(2),
             Clock.systemUTC(),
             sleeper,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
@@ -540,8 +538,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             null,
             settings,
             requestSender,
-            null,
-            Duration.ofDays(1),
             Clock.systemUTC(),
             RequestExecutorService.DEFAULT_SLEEPER,
             rateLimiterCreator
@@ -575,8 +571,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             null,
             settings,
             requestSender,
-            null,
-            Duration.ofDays(1),
             Clock.systemUTC(),
             RequestExecutorService.DEFAULT_SLEEPER,
             rateLimiterCreator
@@ -604,15 +598,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(clock.instant()).thenReturn(now);
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2);
+        var settings = createRequestExecutorServiceSettings(2, null, TimeValue.timeValueDays(1));
         var service = new RequestExecutorService(
             threadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
             null,
             settings,
             requestSender,
-            null,
-            Duration.ofDays(1),
             clock,
             RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
@@ -632,6 +624,90 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.execute(requestManager2, new DocumentsOnlyInput(List.of()), null, listener);
 
         assertThat(service.numberOfRateLimitGroups(), is(1));
+    }
+
+    public void testStartsCleanupThread() {
+        var mockThreadPool = mock(ThreadPool.class);
+
+        when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
+
+        var requestSender = mock(RetryingHttpSender.class);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueSeconds(1), TimeValue.timeValueDays(1));
+        var service = new RequestExecutorService(
+            mockThreadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_SLEEPER,
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
+        );
+
+        service.shutdown();
+        service.start();
+
+        ArgumentCaptor<TimeValue> argument = ArgumentCaptor.forClass(TimeValue.class);
+        verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), argument.capture(), any());
+        assertThat(argument.getValue(), is(TimeValue.timeValueSeconds(1)));
+    }
+
+    public void testChangingIntervalBeforeStartup_DoesNotStartCleanupThread() {
+        var mockThreadPool = mock(ThreadPool.class);
+
+        when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
+
+        var requestSender = mock(RetryingHttpSender.class);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueSeconds(1), TimeValue.timeValueDays(1));
+        new RequestExecutorService(
+            mockThreadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_SLEEPER,
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
+        );
+
+        settings.setRateLimitGroupCleanupInterval(TimeValue.timeValueSeconds(2));
+        verifyNoInteractions(mockThreadPool);
+    }
+
+    public void testChangingIntervalAfterStartup_RestartsCleanupThread() throws InterruptedException {
+        var mockThreadPool = mock(ThreadPool.class);
+
+        when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
+
+        var startUpLatch = new CountDownLatch(1);
+        var requestSender = mock(RetryingHttpSender.class);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueSeconds(1), TimeValue.timeValueDays(1));
+        var service = new RequestExecutorService(
+            mockThreadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            startUpLatch,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_SLEEPER,
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
+        );
+
+        threadPool.generic().execute(service::start);
+        startUpLatch.await(TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+
+        ArgumentCaptor<TimeValue> argument = ArgumentCaptor.forClass(TimeValue.class);
+        verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), argument.capture(), any());
+        assertThat(argument.getValue(), is(TimeValue.timeValueSeconds(1)));
+
+        settings.setRateLimitGroupCleanupInterval(TimeValue.timeValueSeconds(2));
+
+        ArgumentCaptor<TimeValue> argumentSecondCall = ArgumentCaptor.forClass(TimeValue.class);
+        verify(mockThreadPool, times(2)).scheduleWithFixedDelay(any(Runnable.class), argumentSecondCall.capture(), any());
+        assertThat(argumentSecondCall.getValue(), is(TimeValue.timeValueSeconds(2)));
+
+        service.shutdown();
+        service.awaitTermination(TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
     }
 
     private Future<?> submitShutdownRequest(

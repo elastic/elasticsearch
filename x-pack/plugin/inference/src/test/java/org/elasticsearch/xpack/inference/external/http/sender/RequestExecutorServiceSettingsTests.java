@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 
@@ -18,10 +19,26 @@ public class RequestExecutorServiceSettingsTests {
     }
 
     public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(@Nullable Integer queueCapacity) {
+        return createRequestExecutorServiceSettings(queueCapacity, null, null);
+    }
+
+    public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(
+        @Nullable Integer queueCapacity,
+        @Nullable TimeValue cleanupInterval,
+        @Nullable TimeValue staleDuration
+    ) {
         var settingsBuilder = Settings.builder();
 
         if (queueCapacity != null) {
             settingsBuilder.put(RequestExecutorServiceSettings.TASK_QUEUE_CAPACITY_SETTING.getKey(), queueCapacity);
+        }
+
+        if (cleanupInterval != null) {
+            settingsBuilder.put(RequestExecutorServiceSettings.RATE_LIMIT_GROUP_CLEANUP_INTERVAL_SETTING.getKey(), cleanupInterval);
+        }
+
+        if (staleDuration != null) {
+            settingsBuilder.put(RequestExecutorServiceSettings.RATE_LIMIT_GROUP_STALE_DURATION_SETTING.getKey(), staleDuration);
         }
 
         return createRequestExecutorServiceSettings(settingsBuilder.build());

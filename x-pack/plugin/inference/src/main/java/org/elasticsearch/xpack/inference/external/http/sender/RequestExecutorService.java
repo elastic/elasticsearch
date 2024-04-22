@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,15 +42,31 @@ import java.util.function.Supplier;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
+/**
+ * A service for queuing and executing {@link RequestTask}. This class is useful because the
+ * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager} will block when leasing a connection if no
+ * connections are available. To avoid blocking the inference transport threads, this executor will queue up the
+ * requests until connections are available.
+ *
+ * <b>NOTE:</b> It is the responsibility of the class constructing the
+ * {@link org.apache.http.client.methods.HttpUriRequest} to set a timeout for how long this executor will wait
+ * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
+ * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
+ */
 class RequestExecutorService implements RequestExecutor {
 
+    private static final String NAME = "executor";
+
+    /**
+     * Provides dependency injection mainly for testing
+     */
     interface Sleeper {
         void sleep(TimeValue sleepTime) throws InterruptedException;
     }
 
     // default for tests
     static final Sleeper DEFAULT_SLEEPER = sleepTime -> sleepTime.timeUnit().sleep(sleepTime.duration());
-    // d efault for tests
+    // default for tests
     static final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> DEFAULT_QUEUE_CREATOR =
         new AdjustableCapacityBlockingQueue.QueueCreator<>() {
             @Override
@@ -72,15 +87,15 @@ class RequestExecutorService implements RequestExecutor {
             }
         };
 
+    /**
+     * Provides dependency injection mainly for testing
+     */
     interface RateLimiterCreator {
         RateLimiter create(double accumulatedTokensLimit, double tokensPerTimeUnit, TimeUnit unit);
     }
 
     // default for testing
     static final RateLimiterCreator DEFAULT_RATE_LIMIT_CREATOR = RateLimiter::new;
-    private static final TimeValue DEFAULT_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
-    private static final Duration DEFAULT_STALE_DURATION = Duration.ofDays(10);
-
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
 
     private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
@@ -89,14 +104,12 @@ class RequestExecutorService implements RequestExecutor {
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final RequestSender requestSender;
     private final RequestExecutorServiceSettings settings;
-    private final TimeValue cleanUpInterval;
-    private final Duration staleEndpointDuration;
     private final Clock clock;
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
     private final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> queueCreator;
     private final Sleeper sleeper;
     private final RateLimiterCreator rateLimiterCreator;
-    private final AtomicReference<Scheduler.Cancellable> cancellableCleanUpTask = new AtomicReference<>();
+    private final AtomicReference<Scheduler.Cancellable> cancellableCleanupTask = new AtomicReference<>();
 
     RequestExecutorService(
         ThreadPool threadPool,
@@ -110,8 +123,6 @@ class RequestExecutorService implements RequestExecutor {
             startupLatch,
             settings,
             requestSender,
-            DEFAULT_CLEANUP_INTERVAL,
-            DEFAULT_STALE_DURATION,
             Clock.systemUTC(),
             DEFAULT_SLEEPER,
             DEFAULT_RATE_LIMIT_CREATOR
@@ -124,8 +135,6 @@ class RequestExecutorService implements RequestExecutor {
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
         RequestSender requestSender,
-        @Nullable TimeValue cleanUpInterval,
-        Duration staleEndpointDuration,
         Clock clock,
         Sleeper sleeper,
         RateLimiterCreator rateLimiterCreator
@@ -135,18 +144,18 @@ class RequestExecutorService implements RequestExecutor {
         this.startupLatch = startupLatch;
         this.requestSender = Objects.requireNonNull(requestSender);
         this.settings = Objects.requireNonNull(settings);
-        this.cleanUpInterval = cleanUpInterval;
-        this.staleEndpointDuration = Objects.requireNonNull(staleEndpointDuration);
         this.clock = Objects.requireNonNull(clock);
         this.sleeper = Objects.requireNonNull(sleeper);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
+
+        settings.registerRateLimitGroupIntervalCallback(NAME, this::onCleanupIntervalChanged);
     }
 
     public void shutdown() {
-        shutdown.set(true);
-        if (cancellableCleanUpTask.get() != null) {
+        if (shutdown.compareAndSet(false, true) && cancellableCleanupTask.get() != null) {
+            settings.deregisterRateLimitGroupIntervalCallback(NAME);
             logger.debug(() -> "Stopping clean up thread");
-            cancellableCleanUpTask.get().cancel();
+            cancellableCleanupTask.get().cancel();
         }
     }
 
@@ -168,8 +177,8 @@ class RequestExecutorService implements RequestExecutor {
 
     public void start() {
         try {
+            startCleanupTask();
             signalStartInitiated();
-            startCleanUpTask();
 
             while (isShutdown() == false) {
                 handleTasks();
@@ -189,28 +198,39 @@ class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void startCleanUpTask() {
-        if (cleanUpInterval != null) {
-            cancellableCleanUpTask.updateAndGet(currentTask -> Objects.requireNonNullElseGet(currentTask, this::startCleanUpThread));
+    private void startCleanupTask() {
+        cancellableCleanupTask.updateAndGet(
+            currentTask -> Objects.requireNonNullElseGet(currentTask, () -> startCleanupThread(settings.getRateLimitGroupCleanupInterval()))
+        );
+    }
+
+    private void onCleanupIntervalChanged(TimeValue interval) {
+        if (cancellableCleanupTask.get() != null) {
+            cancellableCleanupTask.updateAndGet(currentTask -> {
+                cancellableCleanupTask.get().cancel();
+                return startCleanupThread(interval);
+            });
         }
     }
 
-    private Scheduler.Cancellable startCleanUpThread() {
-        logger.debug(() -> Strings.format("Clean up task scheduled with interval [%s]", cleanUpInterval));
+    private Scheduler.Cancellable startCleanupThread(TimeValue interval) {
+        logger.debug(() -> Strings.format("Clean up task scheduled with interval [%s]", interval));
 
-        return threadPool.scheduleWithFixedDelay(
-            this::removeStaleGroupings,
-            cleanUpInterval,
-            threadPool.executor(UTILITY_THREAD_POOL_NAME)
-        );
+        return threadPool.scheduleWithFixedDelay(this::removeStaleGroupings, interval, threadPool.executor(UTILITY_THREAD_POOL_NAME));
     }
 
     // default for testing
     void removeStaleGroupings() {
         var now = Instant.now(clock);
-        // if the current time is after the last time the endpoint received a request + allowed stale period then we'll remove it
-        rateLimitGroupings.entrySet()
-            .removeIf(endpoint -> now.isAfter(endpoint.getValue().timeOfLastEnqueue().plus(staleEndpointDuration)));
+        for (var iter = rateLimitGroupings.values().iterator(); iter.hasNext();) {
+            var endpoint = iter.next();
+
+            // if the current time is after the last time the endpoint enqueued a request + allowed stale period then we'll remove it
+            if (now.isAfter(endpoint.timeOfLastEnqueue().plus(settings.getRateLimitGroupStaleDuration()))) {
+                endpoint.close();
+                iter.remove();
+            }
+        }
     }
 
     private void handleTasks() throws InterruptedException {
@@ -292,9 +312,10 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     /**
-     * Provides a mechanism for ensuring that only a single thread is processing tasks from the queue at a time.
-     * As tasks are enqueued for execution, if a thread executing (or scheduled to execute a task in the future),
-     * a new one will not be started.
+     * Provides rate limiting functionality for requests. A single {@link RateLimitingEndpointHandler} governs a group of requests.
+     * This allows many requests to be serialized if they are being sent too fast. If the rate limit has not been met they will be sent
+     * as soon as a thread is available.
+     *
      */
     private static class RateLimitingEndpointHandler {
 
@@ -307,6 +328,7 @@ class RequestExecutorService implements RequestExecutor {
         private Instant timeOfLastEnqueue;
         private final Clock clock;
         private final RateLimiter rateLimiter;
+        private final RequestExecutorServiceSettings requestExecutorServiceSettings;
 
         RateLimitingEndpointHandler(
             String id,
@@ -318,6 +340,7 @@ class RequestExecutorService implements RequestExecutor {
             Supplier<Boolean> isShutdownMethod,
             RateLimiterCreator rateLimiterCreator
         ) {
+            this.requestExecutorServiceSettings = Objects.requireNonNull(settings);
             this.id = Objects.requireNonNull(id);
             this.queue = new AdjustableCapacityBlockingQueue<>(createQueue, settings.getQueueCapacity());
             this.requestSender = Objects.requireNonNull(requestSender);
@@ -329,7 +352,7 @@ class RequestExecutorService implements RequestExecutor {
             // TODO figure out a good accumulatedTokensLimit
             rateLimiter = rateLimiterCreator.create(1, rateLimitSettings.requestsPerTimeUnit(), rateLimitSettings.timeUnit());
 
-            settings.registerQueueCapacityCallback(this::onCapacityChange);
+            settings.registerQueueCapacityCallback(id, this::onCapacityChange);
         }
 
         private void onCapacityChange(int capacity) {
@@ -373,7 +396,7 @@ class RequestExecutorService implements RequestExecutor {
             var task = queue.poll();
 
             // TODO Batching - in a situation where no new tasks are queued we'll want to execute any prepared tasks
-            // check for null and call a helper method executePreparedTasks()
+            // So we'll need to check for null and call a helper method executePreparedTasks()
 
             if (shouldExecuteTask(task) == false) {
                 return false;
@@ -481,6 +504,10 @@ class RequestExecutorService implements RequestExecutor {
 
         public int remainingCapacity() {
             return queue.remainingCapacity();
+        }
+
+        public void close() {
+            requestExecutorServiceSettings.deregisterQueueCapacityCallback(id);
         }
     }
 }

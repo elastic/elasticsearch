@@ -175,7 +175,8 @@ public class BootstrapForTesting {
                     getPluginPermissions(),
                     true,
                     Security.toFilePermissions(fastPathPermissions),
-                    List.of()
+                    List.of(),
+                    Map.of()
                 );
                 Policy.setPolicy(new Policy() {
                     @Override

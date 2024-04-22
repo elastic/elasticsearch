@@ -15,6 +15,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugins.PluginExclusiveFileAccessPermission;
 import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
@@ -119,14 +120,16 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
+        Map<String, Policy> pluginPolicies = getPluginAndModulePermissions(environment);
         Policy.setPolicy(
             new ESPolicy(
                 codebases,
                 createPermissions(environment, pidFile),
-                getPluginAndModulePermissions(environment),
+                pluginPolicies,
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment),
-                createForbiddenFilePermissions(environment)
+                createForbiddenFilePermissions(environment),
+                createPluginExclusiveFiles(environment, pluginPolicies)
             )
         );
 
@@ -194,6 +197,21 @@ final class Security {
         addSingleFilePath(policy, environment.configFile().resolve("elasticsearch.yml"), "read,readlink");
         addSingleFilePath(policy, environment.configFile().resolve("jvm.options"), "read,readlink");
         return toFilePermissions(policy);
+    }
+
+    private static Map<String, Set<String>> createPluginExclusiveFiles(Environment environment, Map<String, Policy> pluginPolicies)
+        throws IOException {
+        Map<String, Set<String>> exclusiveFiles = new HashMap<>();
+
+        for (var pp : pluginPolicies.entrySet()) {
+            var permissions = PolicyUtil.getPolicyPermissions(new URL(pp.getKey()), pp.getValue(), environment.tmpFile());
+            permissions.stream()
+                .filter(p -> p instanceof PluginExclusiveFileAccessPermission)
+                .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(pp.getKey()));
+        }
+
+        exclusiveFiles.replaceAll((k, v) -> Set.copyOf(v));
+        return Collections.unmodifiableMap(exclusiveFiles);
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */

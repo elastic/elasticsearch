@@ -21,10 +21,13 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
@@ -41,14 +44,18 @@ final class ESPolicy extends Policy {
     final PermissionCollection dataPathPermission;
     final PermissionCollection forbiddenFilePermission;
     final Map<String, Policy> plugins;
+    final PermissionCollection allExclusiveFiles;
+    final Map<FilePermission, Set<String>> pluginExclusiveFiles;
 
+    @SuppressForbidden(reason = "Need to access and check file permissions directly")
     ESPolicy(
         Map<String, URL> codebases,
         PermissionCollection dynamic,
         Map<String, Policy> plugins,
         boolean filterBadDefaults,
         List<FilePermission> dataPathPermissions,
-        List<FilePermission> forbiddenFilePermissions
+        List<FilePermission> forbiddenFilePermissions,
+        Map<String, Set<String>> pluginExclusiveFiles
     ) {
         this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
         this.dataPathPermission = createPermission(dataPathPermissions);
@@ -61,19 +68,24 @@ final class ESPolicy extends Policy {
         }
         this.dynamic = dynamic;
         this.plugins = plugins;
+        this.pluginExclusiveFiles = pluginExclusiveFiles.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(e -> new FilePermission(e.getKey(), "read"), e -> Set.copyOf(e.getValue())));
+        this.allExclusiveFiles = createPermission(this.pluginExclusiveFiles.keySet());
     }
 
-    private static PermissionCollection createPermission(List<FilePermission> permissions) {
-        PermissionCollection coll = null;
-        for (FilePermission permission : permissions) {
-            if (coll == null) {
-                coll = permission.newPermissionCollection();
-            }
-            coll.add(permission);
-        }
-        if (coll == null) {
+    private static PermissionCollection createPermission(Collection<FilePermission> permissions) {
+        PermissionCollection coll;
+        var it = permissions.iterator();
+        if (it.hasNext() == false) {
             coll = new Permissions();
+        } else {
+            Permission p = it.next();
+            coll = p.newPermissionCollection();
+            coll.add(p);
+            it.forEachRemaining(coll::add);
         }
+
         coll.setReadOnly();
         return coll;
     }
@@ -111,6 +123,26 @@ final class ESPolicy extends Policy {
             // completely deny access to specific files that are forbidden
             if (forbiddenFilePermission.implies(permission)) {
                 return false;
+            }
+
+            // check if this is an access to a plugin-exclusive file
+            if (allExclusiveFiles.implies(permission)) {
+                if (location == null) {
+                    return false;
+                }
+                // check the plugin source
+                Set<String> accessibleSources = pluginExclusiveFiles.get(permission);
+                if (accessibleSources != null) {
+                    return accessibleSources.contains(location.getFile());
+                } else {
+                    // there's a directory reference in there somewhere
+                    // do a manual search :(
+                    // there may be several permissions that potentially match
+                    return pluginExclusiveFiles.entrySet()
+                        .stream()
+                        .filter(e -> e.getKey().implies(permission))
+                        .anyMatch(e -> e.getValue().contains(location.getFile()));
+                }
             }
 
             // Special handling for broken Hadoop code: "let me execute or my classes will not load"

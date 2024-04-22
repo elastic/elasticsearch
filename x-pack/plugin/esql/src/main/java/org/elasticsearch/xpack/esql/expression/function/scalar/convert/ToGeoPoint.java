@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -32,8 +33,22 @@ public class ToGeoPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geo_point", description = "Converts an input value to a geo_point value.")
-    public ToGeoPoint(Source source, @Param(name = "field", type = { "geo_point", "keyword", "text" }) Expression field) {
+    @FunctionInfo(
+        returnType = "geo_point",
+        description = """
+            Converts an input value to a `geo_point` value.
+            A string will only be successfully converted if it respects the
+            {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.""",
+        examples = @Example(file = "spatial", tag = "to_geopoint-str")
+    )
+    public ToGeoPoint(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "geo_point", "keyword", "text" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

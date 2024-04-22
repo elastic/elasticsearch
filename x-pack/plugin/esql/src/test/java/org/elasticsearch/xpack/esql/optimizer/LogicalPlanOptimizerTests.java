@@ -3348,6 +3348,44 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    /*
+     * Project[[bucket(salary, 1000.) + 1{r}#3, bucket(salary, 1000.){r}#5]]
+        \_Eval[[bucket(salary, 1000.){r}#5 + 1[INTEGER] AS bucket(salary, 1000.) + 1]]
+          \_Limit[1000[INTEGER]]
+            \_Aggregate[[bucket(salary, 1000.){r}#5],[bucket(salary, 1000.){r}#5]]
+              \_Eval[[BUCKET(salary{f}#12,1000.0[DOUBLE]) AS bucket(salary, 1000.)]]
+                \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testBucketWithAggExpression() {
+        var plan = plan("""
+            from test
+            | stats bucket(salary, 1000.) + 1 by bucket(salary, 1000.)
+            """);
+        var project = as(plan, Project.class);
+        var evalTop = as(project.child(), Eval.class);
+        var limit = as(evalTop.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var evalBottom = as(agg.child(), Eval.class);
+        var relation = as(evalBottom.child(), EsRelation.class);
+
+        assertThat(evalTop.fields().size(), is(1));
+        assertThat(evalTop.fields().get(0), instanceOf(Alias.class));
+        assertThat(evalTop.fields().get(0).child(), instanceOf(Add.class));
+        var add = (Add) evalTop.fields().get(0).child();
+        assertThat(add.left(), instanceOf(ReferenceAttribute.class));
+        var ref = (ReferenceAttribute) add.left();
+
+        assertThat(evalBottom.fields().size(), is(1));
+        assertThat(evalBottom.fields().get(0), instanceOf(Alias.class));
+        var alias = evalBottom.fields().get(0);
+        assertEquals(ref, alias.toAttribute());
+
+        assertThat(agg.aggregates().size(), is(1));
+        assertThat(agg.aggregates().get(0), is(ref));
+        assertThat(agg.groupings().size(), is(1));
+        assertThat(agg.groupings().get(0), is(ref));
+    }
+
     /**
      * Expects
      * Project[[x{r}#5]]

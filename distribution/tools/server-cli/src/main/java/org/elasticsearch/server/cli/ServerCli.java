@@ -237,6 +237,11 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
+    // allow subclasses to access the started process
+    protected ServerProcess getServer() {
+        return server;
+    }
+
     // protected to allow tests to override
     protected Command loadTool(String toolname, String libs) {
         return CliToolProvider.load(toolname, libs).create();

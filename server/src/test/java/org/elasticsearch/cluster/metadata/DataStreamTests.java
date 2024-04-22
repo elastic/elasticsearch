@@ -94,7 +94,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var indexMode = instance.getIndexMode();
         var lifecycle = instance.getLifecycle();
         var failureStore = instance.isFailureStoreEnabled();
-        var failureIndices = instance.getFailureIndices().indices();
+        var failureIndices = instance.getFailureIndices().getIndices();
         var rolloverOnWrite = instance.rolloverOnWrite();
         var autoShardingEvent = instance.getAutoShardingEvent();
         switch (between(0, 12)) {
@@ -245,11 +245,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size()));
         // Ensure that the rolloverOnWrite flag hasn't changed when rolling over a failure store.
         assertThat(rolledDs.rolloverOnWrite(), equalTo(ds.rolloverOnWrite()));
-        assertThat(rolledDs.getFailureIndices().indices().size(), equalTo(ds.getFailureIndices().indices().size() + 1));
+        assertThat(rolledDs.getFailureIndices().getIndices().size(), equalTo(ds.getFailureIndices().getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertTrue(rolledDs.getFailureIndices().indices().containsAll(ds.getFailureIndices().indices()));
-        assertTrue(rolledDs.getFailureIndices().indices().contains(rolledDs.getFailureStoreWriteIndex()));
+        assertTrue(rolledDs.getFailureIndices().getIndices().containsAll(ds.getFailureIndices().getIndices()));
+        assertTrue(rolledDs.getFailureIndices().getIndices().contains(rolledDs.getFailureStoreWriteIndex()));
     }
 
     public void testRemoveBackingIndex() {
@@ -298,17 +298,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRemoveFailureStoreIndex() {
         DataStream original = createRandomDataStream();
-        int indexToRemove = randomIntBetween(1, original.getFailureIndices().indices().size() - 1);
+        int indexToRemove = randomIntBetween(1, original.getFailureIndices().getIndices().size() - 1);
 
-        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().indices().get(indexToRemove - 1));
+        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().getIndices().get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
-        assertThat(updated.getFailureIndices().indices().size(), equalTo(original.getFailureIndices().indices().size() - 1));
-        for (int k = 0; k < (original.getFailureIndices().indices().size() - 1); k++) {
+        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() - 1));
+        for (int k = 0; k < (original.getFailureIndices().getIndices().size() - 1); k++) {
             assertThat(
-                updated.getFailureIndices().indices().get(k),
-                equalTo(original.getFailureIndices().indices().get(k < (indexToRemove - 1) ? k : k + 1))
+                updated.getFailureIndices().getIndices().get(k),
+                equalTo(original.getFailureIndices().getIndices().get(k < (indexToRemove - 1) ? k : k + 1))
             );
         }
     }
@@ -330,7 +330,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> original.removeFailureStoreIndex(
-                original.getFailureIndices().indices().get(original.getFailureIndices().indices().size() - 1)
+                original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1)
             )
         );
         assertThat(
@@ -339,7 +339,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 String.format(
                     Locale.ROOT,
                     "cannot remove backing index [%s] of data stream [%s] because it is the write index",
-                    original.getFailureIndices().indices().get(original.getFailureIndices().indices().size() - 1).getName(),
+                    original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1).getName(),
                     original.getName()
                 )
             )
@@ -384,9 +384,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
 
         Index indexToAdd = randomFrom(ds2.getIndices().toArray(Index.EMPTY_ARRAY));
 
@@ -414,11 +414,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
 
-        Index indexToAdd = randomFrom(ds2.getFailureIndices().indices().toArray(Index.EMPTY_ARRAY));
+        Index indexToAdd = randomFrom(ds2.getFailureIndices().getIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ds1.addBackingIndex(builder.build(), indexToAdd));
         assertThat(
@@ -503,7 +503,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(original);
 
         createMetadataForIndices(builder, original.getIndices());
-        createMetadataForIndices(builder, original.getFailureIndices().indices());
+        createMetadataForIndices(builder, original.getFailureIndices().getIndices());
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         builder.put(
@@ -519,11 +519,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
-        assertThat(updated.getFailureIndices().indices().size(), equalTo(original.getFailureIndices().indices().size() + 1));
-        for (int k = 1; k <= original.getFailureIndices().indices().size(); k++) {
-            assertThat(updated.getFailureIndices().indices().get(k), equalTo(original.getFailureIndices().indices().get(k - 1)));
+        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() + 1));
+        for (int k = 1; k <= original.getFailureIndices().getIndices().size(); k++) {
+            assertThat(updated.getFailureIndices().getIndices().get(k), equalTo(original.getFailureIndices().getIndices().get(k - 1)));
         }
-        assertThat(updated.getFailureIndices().indices().get(0), equalTo(indexToAdd));
+        assertThat(updated.getFailureIndices().getIndices().get(0), equalTo(indexToAdd));
     }
 
     public void testAddFailureStoreIndexThatIsPartOfAnotherDataStream() {
@@ -535,11 +535,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
 
-        Index indexToAdd = randomFrom(ds2.getFailureIndices().indices().toArray(Index.EMPTY_ARRAY));
+        Index indexToAdd = randomFrom(ds2.getFailureIndices().getIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -568,9 +568,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().indices());
+        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
 
         Index indexToAdd = randomFrom(ds2.getIndices().toArray(Index.EMPTY_ARRAY));
 
@@ -599,16 +599,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(original);
 
         createMetadataForIndices(builder, original.getIndices());
-        createMetadataForIndices(builder, original.getFailureIndices().indices());
+        createMetadataForIndices(builder, original.getFailureIndices().getIndices());
 
-        Index indexToAdd = randomFrom(original.getFailureIndices().indices().toArray(Index.EMPTY_ARRAY));
+        Index indexToAdd = randomFrom(original.getFailureIndices().getIndices().toArray(Index.EMPTY_ARRAY));
 
         DataStream updated = original.addFailureStoreIndex(builder.build(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
-        assertThat(updated.getFailureIndices().indices().size(), equalTo(original.getFailureIndices().indices().size()));
-        assertThat(updated.getFailureIndices().indices(), equalTo(original.getFailureIndices().indices()));
+        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size()));
+        assertThat(updated.getFailureIndices().getIndices(), equalTo(original.getFailureIndices().getIndices()));
     }
 
     public void testAddFailureStoreIndexWithAliases() {
@@ -618,7 +618,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(original);
 
         createMetadataForIndices(builder, original.getIndices());
-        createMetadataForIndices(builder, original.getFailureIndices().indices());
+        createMetadataForIndices(builder, original.getFailureIndices().getIndices());
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         IndexMetadata.Builder b = IndexMetadata.builder(indexToAdd.getName())

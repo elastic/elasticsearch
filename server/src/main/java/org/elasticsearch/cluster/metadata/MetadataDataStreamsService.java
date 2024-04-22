@@ -238,7 +238,7 @@ public class MetadataDataStreamsService {
         Metadata metadata = currentState.metadata();
         var dataStream = validateDataStream(metadata, dataStreamName);
         var indices = dataStream.getDataStreamIndices(targetFailureStore);
-        if (indices.rolloverOnWrite() == rolloverOnWrite) {
+        if (indices.isRolloverOnWrite() == rolloverOnWrite) {
             return currentState;
         }
         Metadata.Builder builder = Metadata.builder(metadata);
@@ -291,7 +291,7 @@ public class MetadataDataStreamsService {
     ) {
         boolean indexNotRemoved = true;
         DataStream dataStream = validateDataStream(metadata, dataStreamName);
-        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices().indices() : dataStream.getIndices();
+        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices().getIndices() : dataStream.getIndices();
         for (Index backingIndex : targetIndices) {
             if (backingIndex.getName().equals(indexName)) {
                 if (failureStore) {

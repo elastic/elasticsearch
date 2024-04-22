@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -113,7 +112,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Nullable
     private final DataStreamLifecycle lifecycle;
     private final boolean failureStoreEnabled;
-    private volatile Set<String> failureStoreLookup;
 
     private final DataStreamIndices backingIndices;
     private final DataStreamIndices failureIndices;
@@ -272,21 +270,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Returns true if the index name provided belongs to a failure store index.
-     * This method builds a local Set with all the failure store index names and then checks if it contains the name.
-     * This will perform better if there are multiple indices of this data stream checked.
      */
     public boolean isFailureStoreIndex(String indexName) {
-        var failureIndices = this.failureIndices.indices;
-        if (failureStoreLookup == null) {
-            // There is a chance this will be calculated twice, but it's a relatively cheap action,
-            // so it's not worth synchronising
-            if (failureIndices == null || failureIndices.isEmpty()) {
-                failureStoreLookup = Set.of();
-            } else {
-                failureStoreLookup = failureIndices.stream().map(Index::getName).collect(Collectors.toSet());
-            }
-        }
-        return failureStoreLookup.contains(indexName);
+        return failureIndices.containsIndex(indexName);
     }
 
     public boolean rolloverOnWrite() {
@@ -1365,15 +1351,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return new Builder(this);
     }
 
-    public record DataStreamIndices(
-        String namePrefix,
-        List<Index> indices,
-        boolean rolloverOnWrite,
-        @Nullable DataStreamAutoShardingEvent autoShardingEvent
-    ) {
+    public static class DataStreamIndices {
+        private final String namePrefix;
+        private final List<Index> indices;
+        private final boolean rolloverOnWrite;
+        @Nullable
+        private final DataStreamAutoShardingEvent autoShardingEvent;
+        private final Set<String> lookup;
+
+        public DataStreamIndices(
+            String namePrefix,
+            List<Index> indices,
+            boolean rolloverOnWrite,
+            DataStreamAutoShardingEvent autoShardingEvent
+        ) {
+            this.namePrefix = namePrefix;
+            this.indices = indices;
+            this.rolloverOnWrite = rolloverOnWrite;
+            this.autoShardingEvent = autoShardingEvent;
+
+            lookup = indices.stream().map(Index::getName).collect(Collectors.toSet());
+        }
 
         public Index getWriteIndex() {
             return indices.get(indices.size() - 1);
+        }
+
+        public boolean containsIndex(String index) {
+            return lookup.contains(index);
         }
 
         public String provideName(String dataStreamName, long generation, long epochMillis) {
@@ -1390,6 +1395,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         public Builder copy() {
             return new Builder(this);
+        }
+
+        public List<Index> getIndices() {
+            return indices;
+        }
+
+        public boolean isRolloverOnWrite() {
+            return rolloverOnWrite;
+        }
+
+        public DataStreamAutoShardingEvent getAutoShardingEvent() {
+            return autoShardingEvent;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DataStreamIndices that = (DataStreamIndices) o;
+            return rolloverOnWrite == that.rolloverOnWrite
+                && Objects.equals(namePrefix, that.namePrefix)
+                && Objects.equals(indices, that.indices)
+                && Objects.equals(autoShardingEvent, that.autoShardingEvent);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(namePrefix, indices, rolloverOnWrite, autoShardingEvent);
         }
 
         public static class Builder {

@@ -2601,7 +2601,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 || (DataStream.isFailureStoreFeatureFlagEnabled()
                     && parent.isFailureStoreEnabled()
                     && parent.getFailureIndices()
-                        .indices()
+                        .getIndices()
                         .stream()
                         .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
@@ -2626,7 +2626,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
                 if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
-                    for (Index i : dataStream.getFailureIndices().indices()) {
+                    for (Index i : dataStream.getFailureIndices().getIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }

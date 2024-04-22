@@ -121,7 +121,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 THROTTLE_SERVICE_NAME,
                 TestClustersThrottle.class,
                 spec -> spec.getMaxParallelUsages()
-                    .set(Math.max(1, Math.round(project.getGradle().getStartParameter().getMaxWorkerCount() * 3 / 4)))
+                    .set(Math.max(1, Math.round(project.getGradle().getStartParameter().getMaxWorkerCount() / 2)))
             );
 
         project.getTasks().withType(TestClustersAware.class).configureEach(task -> { task.usesService(testClustersThrottleProvider); });

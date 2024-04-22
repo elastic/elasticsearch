@@ -67,7 +67,7 @@ setup:
 "terms aggregation on _ignored metadata field":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
   - do:
       search:
         body:
@@ -102,7 +102,7 @@ setup:
 "terms aggregation on _ignored metadata field with top hits":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
   - do:
       search:
         body:
@@ -138,7 +138,7 @@ setup:
 "date histogram aggregation with terms on _ignored metadata field":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
   - do:
       search:
         body:
@@ -174,7 +174,7 @@ setup:
 "cardinality aggregation on _ignored metadata field":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
   - do:
       search:
         body:
@@ -191,7 +191,7 @@ setup:
 "value count aggregation on _ignored metadata field":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
   - do:
       search:
         body:
@@ -208,7 +208,7 @@ setup:
 "date range aggregation with terms on _ignored metadata field":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
   - do:
       search:
         body:
@@ -251,7 +251,7 @@ setup:
 "random sampler aggregation with terms on _ignored metadata field":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
   - do:
       search:
         body:
@@ -282,7 +282,7 @@ setup:
 "filter aggregation on _ignored metadata field":
   - skip:
       version: " - 8.14.99"
-      reason: "_ignored metadata field aggregation support added in 8.14"
+      reason: "_ignored metadata field aggregation support added in 8.15"
       features: close_to
   - do:
       search:

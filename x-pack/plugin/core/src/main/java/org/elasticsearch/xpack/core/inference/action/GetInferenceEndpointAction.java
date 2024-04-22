@@ -111,7 +111,7 @@ public class GetInferenceEndpointAction extends ActionType<GetInferenceEndpointA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startArray("models");
+            builder.startArray("endpoints");
             for (var model : models) {
                 if (model != null) {
                     model.toFilteredXContent(builder, params);

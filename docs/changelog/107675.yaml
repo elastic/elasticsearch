@@ -1,0 +1,12 @@
+pr: 107675
+summary: Interpret `?timeout=-1` as infinite ack timeout
+area: Cluster Coordination
+type: "breaking, enhancement"
+issues: []
+breaking:
+  title: Interpret `?timeout=-1` as infinite ack timeout
+  area: Cluster Coordination
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

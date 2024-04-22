@@ -214,21 +214,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.lifecycle = lifecycle;
         this.failureStoreEnabled = failureStoreEnabled;
         assert backingIndices.indices.isEmpty() == false;
-        assert assertConsistent(backingIndices.indices);
-        assert replicated == false || backingIndices.rolloverOnWrite == false
+        assert replicated == false || backingIndices.rolloverOnWrite == false || failureIndices.rolloverOnWrite == false
             : "replicated data streams cannot be marked for lazy rollover";
         this.backingIndices = backingIndices;
         this.failureIndices = failureIndices;
-    }
-
-    private static boolean assertConsistent(List<Index> indices) {
-        assert indices.size() > 0;
-        final Set<String> indexNames = new HashSet<>();
-        for (Index index : indices) {
-            final boolean added = indexNames.add(index.getName());
-            assert added : "found duplicate index entries in " + indices;
-        }
-        return true;
     }
 
     @Override
@@ -1371,6 +1360,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             this.autoShardingEvent = autoShardingEvent;
 
             lookup = indices.stream().map(Index::getName).collect(Collectors.toSet());
+            assert lookup.size() == indices.size() : "found duplicate index entries in " + indices;
         }
 
         public Index getWriteIndex() {

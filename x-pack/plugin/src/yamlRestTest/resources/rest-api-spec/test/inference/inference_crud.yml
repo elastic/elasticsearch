@@ -38,3 +38,21 @@
             "input": "important text"
           }
   - match: { error.reason: "Unknown task_type [bad]" }
+
+---
+"Test get all":
+  - do:
+      inference.get_model:
+        inference_id: "*"
+  - length: { models: 0}
+
+  - do:
+      inference.get_model:
+        inference_id: _all
+  - length: { models: 0}
+
+  - do:
+      inference.get_model:
+        inference_id: ""
+  - length: { models: 0}
+

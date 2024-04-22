@@ -51,8 +51,8 @@
 
 ---
 "Translog retention settings are no long supported":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "translog retention settings are no longer supported in 8.0"
   - do:
       catch: /illegal_argument_exception/

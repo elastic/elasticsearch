@@ -72,8 +72,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         this(nameFromTypes(types), types, supplier);
     }
 
-    static String nameFromTypes(List<DataType> types) {
+    public static String nameFromTypes(List<DataType> types) {
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
+    }
+
+    public static List<TestCaseSupplier> stringCases(
+        BinaryOperator<Object> expected,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        List<String> warnings,
+        DataType expectedType
+    ) {
+        List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
+        List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
+            lhsSuppliers.addAll(stringCases(type));
+            rhsSuppliers.addAll(stringCases(type));
+            casesCrossProduct(
+                expected,
+                lhsSuppliers,
+                rhsSuppliers,
+                evaluatorToString,
+                (lhs, rhs) -> warnings,
+                suppliers,
+                expectedType,
+                true
+            );
+        }
+        return suppliers;
     }
 
     @Override
@@ -186,7 +212,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 + "="
                 + castToDoubleEvaluator("Attribute[channel=1]", rhsType)
                 + "]",
-            warnings,
+            (lhs, rhs) -> warnings,
             suppliers,
             DataTypes.DOUBLE,
             false
@@ -194,12 +220,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    private static void casesCrossProduct(
+    public static void casesCrossProduct(
         BinaryOperator<Object> expected,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
         BiFunction<DataType, DataType, String> evaluatorToString,
-        List<String> warnings,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
         List<TestCaseSupplier> suppliers,
         DataType expectedType,
         boolean symmetric
@@ -221,7 +247,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         BinaryOperator<Object> expectedValue
     ) {
-        return testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expectedValue, List.of());
+        return testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expectedValue, (lhs, rhs) -> List.of());
     }
 
     private static TestCaseSupplier testCaseSupplier(
@@ -230,7 +256,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<DataType, DataType, String> evaluatorToString,
         DataType expectedType,
         BinaryOperator<Object> expectedValue,
-        List<String> warnings
+        BiFunction<TypedData, TypedData, List<String>> warnings
     ) {
         String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
         return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
@@ -242,7 +268,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 expectedType,
                 equalTo(expectedValue.apply(lhsTyped.getValue(), rhsTyped.getValue()))
             );
-            for (String warning : warnings) {
+            for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
             }
             return testCase;
@@ -251,21 +277,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
         List<TypedDataSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(intCases(Min.intValue(), Max.intValue()));
-        suppliers.addAll(longCases(Min.longValue(), Max.longValue()));
-        suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max))));
-        suppliers.addAll(doubleCases(Min, Max));
+        suppliers.addAll(intCases(Min.intValue(), Max.intValue(), true));
+        suppliers.addAll(longCases(Min.longValue(), Max.longValue(), true));
+        suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max)), true));
+        suppliers.addAll(doubleCases(Min, Max, true));
         return suppliers;
     }
 
-    public record NumericTypeTestConfig(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
+    public record NumericTypeTestConfig<T>(Number min, Number max, BiFunction<Number, Number, T> expected, String evaluatorName) {}
 
-    public record NumericTypeTestConfigs(
-        NumericTypeTestConfig intStuff,
-        NumericTypeTestConfig longStuff,
-        NumericTypeTestConfig doubleStuff
+    public record NumericTypeTestConfigs<T>(
+        NumericTypeTestConfig<T> intStuff,
+        NumericTypeTestConfig<T> longStuff,
+        NumericTypeTestConfig<T> doubleStuff
     ) {
-        public NumericTypeTestConfig get(DataType type) {
+        public NumericTypeTestConfig<T> get(DataType type) {
             if (type == DataTypes.INTEGER) {
                 return intStuff;
             }
@@ -279,7 +305,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
     }
 
-    private static DataType widen(DataType lhs, DataType rhs) {
+    public static DataType widen(DataType lhs, DataType rhs) {
         if (lhs == rhs) {
             return lhs;
         }
@@ -292,30 +318,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new IllegalArgumentException("Invalid numeric widening lhs: [" + lhs + "] rhs: [" + rhs + "]");
     }
 
-    private static List<TypedDataSupplier> getSuppliersForNumericType(DataType type, Number min, Number max) {
+    public static List<TypedDataSupplier> getSuppliersForNumericType(DataType type, Number min, Number max, boolean includeZero) {
         if (type == DataTypes.INTEGER) {
-            return intCases(NumericUtils.saturatingIntValue(min), NumericUtils.saturatingIntValue(max));
+            return intCases(NumericUtils.saturatingIntValue(min), NumericUtils.saturatingIntValue(max), includeZero);
         }
         if (type == DataTypes.LONG) {
-            return longCases(min.longValue(), max.longValue());
+            return longCases(min.longValue(), max.longValue(), includeZero);
         }
         if (type == DataTypes.UNSIGNED_LONG) {
             return ulongCases(
                 min instanceof BigInteger ? (BigInteger) min : BigInteger.valueOf(Math.max(min.longValue(), 0L)),
-                max instanceof BigInteger ? (BigInteger) max : BigInteger.valueOf(Math.max(max.longValue(), 0L))
+                max instanceof BigInteger ? (BigInteger) max : BigInteger.valueOf(Math.max(max.longValue(), 0L)),
+                includeZero
             );
         }
         if (type == DataTypes.DOUBLE) {
-            return doubleCases(min.doubleValue(), max.doubleValue());
+            return doubleCases(min.doubleValue(), max.doubleValue(), includeZero);
         }
         throw new IllegalArgumentException("bogus numeric type [" + type + "]");
     }
 
-    public static List<TestCaseSupplier> forBinaryWithWidening(
-        NumericTypeTestConfigs typeStuff,
+    public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
+        NumericTypeTestConfigs<Boolean> typeStuff,
         String lhsName,
         String rhsName,
-        List<String> warnings
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean allowRhsZero
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
@@ -323,7 +351,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
-                NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
+                NumericTypeTestConfig<Boolean> expectedTypeStuff = typeStuff.get(expected);
                 BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
                     + "["
                     + lhsName
@@ -336,13 +364,52 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "]";
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
-                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
+                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
+                    evaluatorToString,
+                    warnings,
+                    suppliers,
+                    DataTypes.BOOLEAN,
+                    true
+                );
+            }
+        }
+        return suppliers;
+    }
+
+    public static List<TestCaseSupplier> forBinaryWithWidening(
+        NumericTypeTestConfigs<Number> typeStuff,
+        String lhsName,
+        String rhsName,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean allowRhsZero
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
+
+        for (DataType lhsType : numericTypes) {
+            for (DataType rhsType : numericTypes) {
+                DataType expected = widen(lhsType, rhsType);
+                NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
+                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
+                    + "["
+                    + lhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                    + ", "
+                    + rhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                    + "]";
+                casesCrossProduct(
+                    (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
+                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
+                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
                     evaluatorToString,
                     warnings,
                     suppliers,
                     expected,
-                    true
+                    false
                 );
             }
         }
@@ -358,7 +425,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings
+        List<String> warnings,
+        boolean symmetric
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         casesCrossProduct(
@@ -366,10 +434,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             lhsSuppliers,
             rhsSuppliers,
             (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
-            warnings,
+            (lhs, rhs) -> warnings,
             suppliers,
             expectedType,
-            true
+            symmetric
         );
         return suppliers;
     }
@@ -389,7 +457,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            intCases(lowerBound, upperBound),
+            intCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.intValue()),
             n -> expectedWarnings.apply(n.intValue())
@@ -423,7 +491,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            longCases(lowerBound, upperBound),
+            longCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.longValue()),
             expectedWarnings
@@ -457,7 +525,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            ulongCases(lowerBound, upperBound),
+            ulongCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply((BigInteger) n),
             n -> expectedWarnings.apply((BigInteger) n)
@@ -503,7 +571,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            doubleCases(lowerBound, upperBound),
+            doubleCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.doubleValue()),
             n -> expectedWarnings.apply(n.doubleValue())
@@ -729,9 +797,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
-    public static List<TypedDataSupplier> intCases(int min, int max) {
+    public static List<TypedDataSupplier> intCases(int min, int max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (0 <= max && 0 >= min) {
+        if (0 <= max && 0 >= min && includeZero) {
             cases.add(new TypedDataSupplier("<0 int>", () -> 0, DataTypes.INTEGER));
         }
 
@@ -753,9 +821,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    public static List<TypedDataSupplier> longCases(long min, long max) {
+    public static List<TypedDataSupplier> longCases(long min, long max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (0L <= max && 0L >= min) {
+        if (0L <= max && 0L >= min && includeZero) {
             cases.add(new TypedDataSupplier("<0 long>", () -> 0L, DataTypes.LONG));
         }
 
@@ -778,11 +846,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
+    public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zero
-        if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0) {
+        if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0 && includeZero) {
             cases.add(new TypedDataSupplier("<0 unsigned long>", () -> BigInteger.ZERO, DataTypes.UNSIGNED_LONG));
         }
 
@@ -818,11 +886,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    public static List<TypedDataSupplier> doubleCases(double min, double max) {
+    public static List<TypedDataSupplier> doubleCases(double min, double max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zeros
-        if (0d <= max && 0d >= min) {
+        if (0d <= max && 0d >= min && includeZero) {
             cases.add(new TypedDataSupplier("<0 double>", () -> 0.0d, DataTypes.DOUBLE));
             cases.add(new TypedDataSupplier("<-0 double>", () -> -0.0d, DataTypes.DOUBLE));
         }
@@ -882,7 +950,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> booleanCases() {
+    public static List<TypedDataSupplier> booleanCases() {
         return List.of(
             new TypedDataSupplier("<true>", () -> true, DataTypes.BOOLEAN),
             new TypedDataSupplier("<false>", () -> false, DataTypes.BOOLEAN)
@@ -1046,7 +1114,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static String getCastEvaluator(String original, DataType current, DataType target) {
+    public static String getCastEvaluator(String original, DataType current, DataType target) {
         if (current == target) {
             return original;
         }
@@ -1264,9 +1332,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
+    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
+
+        public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
+            this(name, supplier, type, false);
+        }
+
         public TypedData get() {
-            return new TypedData(supplier.get(), type, name);
+            return new TypedData(supplier.get(), type, name, forceLiteral);
         }
     }
 
@@ -1323,6 +1396,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TypedData forceLiteral() {
             return new TypedData(data, type, name, true);
+        }
+
+        /**
+         * Return a {@link TypedData} that always returns {@code null} for it's
+         * value without modifying anything else in the supplier.
+         */
+        public TypedData forceValueToNull() {
+            return new TypedData(null, type, name, forceLiteral);
         }
 
         @Override

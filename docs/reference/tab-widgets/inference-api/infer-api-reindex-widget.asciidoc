@@ -8,10 +8,22 @@
       Cohere
     </button>
     <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-reindex-hf-tab"
+            id="infer-api-reindex-hf">
+      HuggingFace
+    </button>
+    <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-reindex-openai-tab"
             id="infer-api-reindex-openai">
       OpenAI
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-reindex-azure-openai-tab"
+            id="infer-api-reindex-azure-openai">
+      Azure OpenAI
     </button>
   </div>
   <div tabindex="0"
@@ -26,12 +38,35 @@ include::infer-api-reindex.asciidoc[tag=cohere]
   </div>
   <div tabindex="0"
        role="tabpanel"
+       id="infer-api-reindex-hf-tab"
+       aria-labelledby="infer-api-reindex-hf"
+       hidden="">
+++++
+
+include::infer-api-reindex.asciidoc[tag=hugging-face]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
        id="infer-api-reindex-openai-tab"
        aria-labelledby="infer-api-reindex-openai"
        hidden="">
 ++++
 
 include::infer-api-reindex.asciidoc[tag=openai]
+
+++++
+  </div>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-reindex-azure-openai-tab"
+       aria-labelledby="infer-api-reindex-azure-openai"
+       hidden="">
+++++
+
+include::infer-api-reindex.asciidoc[tag=azure-openai]
 
 ++++
   </div>

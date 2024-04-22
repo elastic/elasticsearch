@@ -18,9 +18,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -48,7 +51,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -102,19 +104,70 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
+    private static final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversion = new LinkedHashMap<>();
+
+    private static final Map<DataType, Integer> dataTypeCastingPriority;
+
+    static {
+        List<DataType> typePriorityList = Arrays.asList(
+            DATETIME,
+            DOUBLE,
+            LONG,
+            INTEGER,
+            IP,
+            VERSION,
+            GEO_POINT,
+            GEO_SHAPE,
+            CARTESIAN_POINT,
+            CARTESIAN_SHAPE,
+            BOOLEAN,
+            UNSIGNED_LONG,
+            UNSUPPORTED
+        );
+        dataTypeCastingPriority = new HashMap<>();
+        for (int i = 0; i < typePriorityList.size(); i++) {
+            dataTypeCastingPriority.put(typePriorityList.get(i), i);
+        }
+    }
+
     public EsqlFunctionRegistry() {
         register(functions());
+        buildDataTypesForStringLiteralConversion(functions());
     }
 
     EsqlFunctionRegistry(FunctionDefinition... functions) {
@@ -123,6 +176,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
+            // grouping functions
+            new FunctionDefinition[] { def(Bucket.class, Bucket::new, "bucket", "bin"), },
             // aggregate functions
             new FunctionDefinition[] {
                 def(Avg.class, Avg::new, "avg"),
@@ -142,7 +197,6 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Asin.class, Asin::new, "asin"),
                 def(Atan.class, Atan::new, "atan"),
                 def(Atan2.class, Atan2::new, "atan2"),
-                def(AutoBucket.class, AutoBucket::new, "auto_bucket"),
                 def(Ceil.class, Ceil::new, "ceil"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
@@ -188,7 +242,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Now.class, Now::new, "now") },
             // spatial
             new FunctionDefinition[] {
-                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid"),
+                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
                 def(SpatialContains.class, SpatialContains::new, "st_contains"),
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
@@ -203,6 +257,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions
             new FunctionDefinition[] {
+                def(FromBase64.class, FromBase64::new, "from_base64"),
+                def(ToBase64.class, ToBase64::new, "to_base64"),
                 def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),
                 def(ToCartesianPoint.class, ToCartesianPoint::new, "to_cartesianpoint"),
                 def(ToCartesianShape.class, ToCartesianShape::new, "to_cartesianshape"),
@@ -245,7 +301,23 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional) {}
+    public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+        @Override
+        public String toString() {
+            return "ArgSignature{"
+                + "name='"
+                + name
+                + "', type="
+                + Arrays.toString(type)
+                + ", description='"
+                + description
+                + "', optional="
+                + optional
+                + ", targetDataType="
+                + targetDataType
+                + '}';
+        }
+    }
 
     public record FunctionDescription(
         String name,
@@ -295,6 +367,20 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
     }
 
+    public static DataType getTargetType(String[] names) {
+        List<DataType> types = new ArrayList<>();
+        for (String name : names) {
+            types.add(DataTypes.fromEs(name));
+        }
+        if (types.contains(KEYWORD) || types.contains(TEXT)) {
+            return UNSUPPORTED;
+        }
+
+        return types.stream()
+            .min((dt1, dt2) -> dataTypeCastingPriority.get(dt1).compareTo(dataTypeCastingPriority.get(dt2)))
+            .orElse(UNSUPPORTED);
+    }
+
     public static FunctionDescription description(FunctionDefinition def) {
         var constructors = def.clazz().getConstructors();
         if (constructors.length == 0) {
@@ -317,8 +403,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
-
-                args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional));
+                DataType targetDataType = getTargetType(type);
+                args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
@@ -331,5 +417,21 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
         Constructor<?> constructor = constructors[0];
         return constructor.getAnnotation(FunctionInfo.class);
+    }
+
+    private void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {
+        for (FunctionDefinition[] group : groupFunctions) {
+            for (FunctionDefinition def : group) {
+                FunctionDescription signature = description(def);
+                dataTypesForStringLiteralConversion.put(
+                    def.clazz(),
+                    signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList())
+                );
+            }
+        }
+    }
+
+    public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
+        return dataTypesForStringLiteralConversion.get(clazz);
     }
 }

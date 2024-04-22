@@ -125,7 +125,8 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                 null,
                 request.getInputs(),
                 request.getTaskSettings(),
-                inputType
+                inputType,
+                request.getInferenceTimeout()
             ),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(translateInferenceServiceResponse(r.getResults())))
         );

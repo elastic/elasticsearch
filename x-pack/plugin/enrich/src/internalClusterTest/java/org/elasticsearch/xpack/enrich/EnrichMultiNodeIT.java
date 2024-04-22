@@ -20,7 +20,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -268,13 +267,13 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
-        String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
-        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.getNodeId().equals(nodeId)).findAny().get();
-        assertThat(stats.getNodeId(), equalTo(nodeId));
-        assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        String nodeId = getNodeId(coordinatingNode);
+        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.nodeId().equals(nodeId)).findAny().get();
+        assertThat(stats.nodeId(), equalTo(nodeId));
+        assertThat(stats.remoteRequestsTotal(), greaterThanOrEqualTo(1L));
         // 'numDocs' lookups are done, but not 'numDocs' searches, because searches may get cached:
         // and not all enrichments may happen via the same node.
-        assertThat(stats.getExecutedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
+        assertThat(stats.executedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
     }
 
     private static List<String> createSourceIndex(int numDocs) {

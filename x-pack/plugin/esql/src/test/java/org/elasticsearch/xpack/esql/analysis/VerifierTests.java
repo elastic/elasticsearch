@@ -57,8 +57,8 @@ public class VerifierTests extends ESTestCase {
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
         assertEquals(
-            "1:9: second argument of [round(123.45, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
-            error("row a = round(123.45, \"1\")")
+            "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
+            error("row a = round(123.45, \"c\")")
         );
     }
 
@@ -121,6 +121,59 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testGroupingInsideAggsAsAgg() {
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+        );
+        assertEquals(
+            "1:22: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+        );
+    }
+
+    public void testGroupingInsideAggsAsGrouping() {
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no, bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats y = bucket(emp_no, 5.) by y = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+    }
+
+    public void testGroupingInsideGrouping() {
+        assertEquals(
+            "1:40: cannot nest grouping functions; found [bucket(emp_no, 5.)] inside [bucket(bucket(emp_no, 5.), 6.)]",
+            error("from test| stats max(emp_no) by bucket(bucket(emp_no, 5.), 6.)")
+        );
+    }
+
     public void testAggsWithInvalidGrouping() {
         assertEquals(
             "1:35: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
@@ -175,6 +228,21 @@ public class VerifierTests extends ESTestCase {
              from test
             |stats e = salary + max(salary) by languages
             """));
+    }
+
+    public void testBucketOnlyInAggs() {
+        assertEquals(
+            "1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0")
+        );
+        assertEquals(
+            "1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | EVAL 3 + BUCKET(emp_no, 100.)")
+        );
+        assertEquals(
+            "1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | SORT BUCKET(emp_no, 100.)")
+        );
     }
 
     public void testDoubleRenamingField() {
@@ -317,7 +385,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testWrongInputParam() {
         assertEquals(
-            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
+            "1:29: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]",
             error("from test | where emp_no == ?", "foo")
         );
 
@@ -406,6 +474,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
         assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+    }
+
+    public void testInlineImpossibleConvert() {
+        assertEquals("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]", error("ROW false::ip"));
     }
 
     private String error(String query) {

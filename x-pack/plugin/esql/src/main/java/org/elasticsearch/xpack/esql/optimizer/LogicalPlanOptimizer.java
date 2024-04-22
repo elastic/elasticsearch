@@ -84,6 +84,7 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
@@ -125,7 +126,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
-            new SubstituteSpatialSurrogates()
+            new SubstituteSpatialSurrogates(),
+            new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
@@ -321,6 +323,35 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    static class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
+        private static int counter = 0;
+
+        @Override
+        protected LogicalPlan rule(OrderBy orderBy) {
+            int size = orderBy.order().size();
+            List<Alias> evals = new ArrayList<>(size);
+            List<Order> newOrders = new ArrayList<>(size);
+
+            for (int i = 0; i < size; i++) {
+                var order = orderBy.order().get(i);
+                if (order.child() instanceof Attribute == false) {
+                    var name = rawTemporaryName("order_by", String.valueOf(i), String.valueOf(counter++));
+                    var eval = new Alias(order.child().source(), name, order.child());
+                    newOrders.add(order.replaceChildren(List.of(eval.toAttribute())));
+                    evals.add(eval);
+                } else {
+                    newOrders.add(order);
+                }
+            }
+            if (evals.isEmpty()) {
+                return orderBy;
+            } else {
+                var newOrderBy = new OrderBy(orderBy.source(), new Eval(orderBy.source(), orderBy.child(), evals), newOrders);
+                return new Project(orderBy.source(), newOrderBy, orderBy.output());
+            }
+        }
+    }
+
     static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
 
         ConvertStringToByteRef() {
@@ -358,6 +389,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         protected LogicalPlan rule(UnaryPlan plan) {
             LogicalPlan child = plan.child();
 
@@ -388,7 +420,22 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Agg with underlying Project (group by on sub-queries)
             if (plan instanceof Aggregate a) {
                 if (child instanceof Project p) {
-                    plan = new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
+                    var groupings = a.groupings();
+                    List<Attribute> groupingAttrs = new ArrayList<>(a.groupings().size());
+                    for (Expression grouping : groupings) {
+                        if (grouping instanceof Attribute attribute) {
+                            groupingAttrs.add(attribute);
+                        } else {
+                            // After applying ReplaceStatsNestedExpressionWithEval, groupings can only contain attributes.
+                            throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
+                        }
+                    }
+                    plan = new Aggregate(
+                        a.source(),
+                        p.child(),
+                        combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections()),
+                        combineProjections(a.aggregates(), p.projections())
+                    );
                 }
             }
 
@@ -449,6 +496,26 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
+        }
+
+        private static List<Expression> combineUpperGroupingsAndLowerProjections(
+            List<? extends Attribute> upperGroupings,
+            List<? extends NamedExpression> lowerProjections
+        ) {
+            // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
+            AttributeMap<Attribute> aliases = new AttributeMap<>();
+            for (NamedExpression ne : lowerProjections) {
+                // Projections are just aliases for attributes, so casting is safe.
+                aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+            }
+
+            // Replace any matching attribute directly with the aliased attribute from the projection.
+            AttributeSet replaced = new AttributeSet();
+            for (Attribute attr : upperGroupings) {
+                // All substitutions happen before; groupings must be attributes at this point.
+                replaced.add(aliases.resolve(attr, attr));
+            }
+            return new ArrayList<>(replaced);
         }
 
         /**

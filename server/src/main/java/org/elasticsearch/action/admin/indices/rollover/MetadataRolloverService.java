@@ -523,7 +523,9 @@ public class MetadataRolloverService {
         if (settings != null) {
             b.put(settings);
         }
-        return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).ackTimeout(createIndexRequest.timeout())
+        return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).ackTimeout(
+            createIndexRequest.ackTimeout()
+        )
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
             .settings(b.build())
             .aliases(createIndexRequest.aliases())
@@ -640,7 +642,7 @@ public class MetadataRolloverService {
                 );
             }
             var dataStream = (DataStream) indexAbstraction;
-            if (isFailureStoreRollover && dataStream.isFailureStore() == false) {
+            if (isFailureStoreRollover && dataStream.isFailureStoreEnabled() == false) {
                 throw new IllegalArgumentException(
                     "unable to roll over failure store because [" + indexAbstraction.getName() + "] does not have the failure store enabled"
                 );

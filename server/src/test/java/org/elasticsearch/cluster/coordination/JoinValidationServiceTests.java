@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistryTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -306,7 +307,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                     }
                 };
 
-                try (var out = new BytesStreamOutput()) {
+                try (var ignored = NamedWriteableRegistryTests.ignoringUnknownNamedWriteables(); var out = new BytesStreamOutput()) {
                     request.writeTo(out);
                     out.flush();
                     final var handler = joiningNodeTransport.getRequestHandlers().getHandler(action);

@@ -50,7 +50,7 @@ No error is thrown if you specify an invalid node ID.
 [[put-shutdown-api-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[put-shutdown-api-request-body]]

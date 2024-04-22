@@ -1,0 +1,5 @@
+pr: 107709
+summary: "Example line wrap is incorrect"
+area: analysis|index-search-time.asciidoc
+type: enhancement
+issues: []

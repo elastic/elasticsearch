@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -31,8 +29,6 @@ import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
-
-    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceModelAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;

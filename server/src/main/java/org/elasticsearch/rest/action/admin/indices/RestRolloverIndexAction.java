@@ -51,9 +51,9 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(includeTypeName, parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
-        rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
+        rolloverIndexRequest.ackTimeout(request.paramAsTime("timeout", rolloverIndexRequest.ackTimeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
-        if (DataStream.isFailureStoreEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             boolean failureStore = request.paramAsBoolean("target_failure_store", false);
             if (failureStore) {
                 rolloverIndexRequest.setIndicesOptions(

@@ -100,7 +100,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     protected final IOContext context;
     protected final IndexInputStats stats;
     private final long offset;
-    private final long length;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     private volatile boolean isClone;
@@ -122,7 +121,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(name, context);
+        super(name, context, length);
         this.isCfs = IndexFileNames.matchesExtension(name, "cfs");
         this.logger = Objects.requireNonNull(logger);
         this.fileInfo = Objects.requireNonNull(fileInfo);
@@ -131,7 +130,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
-        this.length = length;
         this.closed = new AtomicBoolean(false);
         this.isClone = false;
         this.directory = Objects.requireNonNull(directory);
@@ -160,7 +158,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             input.stats,
             input.offset,
             input.compoundFileOffset,
-            input.length,
+            input.length(),
             input.cacheFileReference,
             input.defaultRangeSize,
             input.recoveryRangeSize,
@@ -643,11 +641,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             stats.incrementCloseCount();
             cacheFileReference.releaseOnClose();
         }
-    }
-
-    @Override
-    public final long length() {
-        return length;
     }
 
     @Override

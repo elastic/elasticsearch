@@ -564,7 +564,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             configManager,
             mockAuditor
         );
-        return new TransformServices(configManager, transformCheckpointService, mockAuditor, scheduler);
+        return new TransformServices(configManager, transformCheckpointService, mockAuditor, scheduler, null);
     }
 
     private TransformPersistentTasksExecutor buildTaskExecutor(TransformServices transformServices) {

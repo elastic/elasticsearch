@@ -21,16 +21,13 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
@@ -2121,19 +2118,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService,
                     Collections.singletonMap(
                         FsRepository.TYPE,
-                        metadata -> new FsRepository(
-                            metadata,
-                            environment,
-                            xContentRegistry(),
-                            clusterService,
-                            bigArrays,
-                            recoverySettings
-                        ) {
-                            @Override
-                            protected void assertSnapshotOrStatelessPermittedThreadPool() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        }
+                        metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays, recoverySettings)
                     ),
                     emptyMap(),
                     threadPool,
@@ -2440,7 +2425,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    RestoreSnapshotAction.INSTANCE,
+                    TransportRestoreSnapshotAction.TYPE,
                     new TransportRestoreSnapshotAction(
                         transportService,
                         clusterService,
@@ -2485,7 +2470,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    CreateSnapshotAction.INSTANCE,
+                    TransportCreateSnapshotAction.TYPE,
                     new TransportCreateSnapshotAction(
                         transportService,
                         clusterService,
@@ -2507,7 +2492,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    ClusterRerouteAction.INSTANCE,
+                    TransportClusterRerouteAction.TYPE,
                     new TransportClusterRerouteAction(
                         transportService,
                         clusterService,

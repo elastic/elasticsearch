@@ -1,0 +1,6 @@
+pr: 107355
+summary: Handle exceptions thrown by HTTP header validation
+area: Network
+type: bug
+issues:
+ - 107338

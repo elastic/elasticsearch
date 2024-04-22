@@ -237,11 +237,13 @@ public class IndexEngine extends InternalEngine {
         // Note the behaviour is still same if we just check `IS_FLUSH_BY_REFRESH.get() == false`.
         // However this may in some cases trigger more than one uploads, e.g. another thread may see the flag and
         // trigger upload immediately while this thread creates a new commit and should also upload.
-        if (IS_FLUSH_BY_REFRESH.get() == false && force == false && waitIfOngoing == false) {
-            logger.trace("flush for {}", shardId);
-            ongoingFlushMustUpload.set(true);
-        } else {
+        if (IS_FLUSH_BY_REFRESH.get()) {
             logger.trace("flush-by-refresh for {}", shardId);
+        } else {
+            logger.trace("flush for {}", shardId);
+            if (force == false && waitIfOngoing == false) {
+                ongoingFlushMustUpload.set(true);
+            }
         }
         super.flushHoldingLock(force, waitIfOngoing, listener);
     }

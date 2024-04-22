@@ -180,7 +180,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED = def(8_639_00_0);
     public static final TransportVersion TOP_LEVEL_KNN_SUPPORT_QUERY_NAME = def(8_640_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

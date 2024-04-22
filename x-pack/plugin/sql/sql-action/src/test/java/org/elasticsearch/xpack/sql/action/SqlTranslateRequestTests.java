@@ -63,7 +63,7 @@ public class SqlTranslateRequestTests extends AbstractXContentSerializingTestCas
     }
 
     private TimeValue randomTV() {
-        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
+        return randomTimeValue();
     }
 
     @Override

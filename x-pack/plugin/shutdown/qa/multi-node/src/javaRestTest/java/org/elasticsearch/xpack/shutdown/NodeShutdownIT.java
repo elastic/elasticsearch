@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -54,7 +55,7 @@ public class NodeShutdownIT extends ESRestTestCase {
         checkCRUD(randomFrom("sigterm", "SIGTERM"), null, null, randomPositiveTimeValue());
     }
 
-    public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName, @Nullable String grace)
+    public void checkCRUD(String type, @Nullable TimeValue allocationDelay, @Nullable String targetNodeName, @Nullable TimeValue grace)
         throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
         checkCRUD(nodeIdToShutdown, type, allocationDelay, targetNodeName, true, grace);
@@ -64,10 +65,10 @@ public class NodeShutdownIT extends ESRestTestCase {
     public void checkCRUD(
         String nodeIdToShutdown,
         String type,
-        @Nullable String allocationDelay,
+        @Nullable TimeValue allocationDelay,
         @Nullable String targetNodeName,
         boolean delete,
-        @Nullable String grace
+        @Nullable TimeValue grace
     ) throws Exception {
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
@@ -396,9 +397,9 @@ public class NodeShutdownIT extends ESRestTestCase {
     private void putNodeShutdown(
         String nodeIdToShutdown,
         String type,
-        @Nullable String allocationDelay,
+        @Nullable TimeValue allocationDelay,
         @Nullable String targetNodeName,
-        @Nullable String grace
+        @Nullable TimeValue grace
     ) throws IOException {
         String reason = this.getTestName();
 
@@ -412,7 +413,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 putBody.field("reason", reason);
                 if (allocationDelay != null) {
                     assertThat("allocation delay parameter is only valid for RESTART-type shutdowns", type, equalToIgnoringCase("restart"));
-                    putBody.field("allocation_delay", allocationDelay);
+                    putBody.field("allocation_delay", allocationDelay.getStringRep());
                 }
                 if (targetNodeName != null) {
                     assertThat("target node name parameter is only valid for REPLACE-type shutdowns", type, equalToIgnoringCase("replace"));
@@ -422,7 +423,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 }
                 if (grace != null) {
                     assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));
-                    putBody.field("grace_period", grace);
+                    putBody.field("grace_period", grace.getStringRep());
                 }
             }
             putBody.endObject();
@@ -458,7 +459,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                     }
                     if (grace != null) {
                         assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));
-                        putBody.field("grace_period", grace);
+                        putBody.field("grace_period", grace.getStringRep());
                     }
                 }
                 putBody.endObject();

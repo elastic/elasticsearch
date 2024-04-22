@@ -172,7 +172,7 @@ public class SqlQueryRequestTests extends AbstractXContentSerializingTestCase<Te
     }
 
     private TimeValue randomTV() {
-        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
+        return randomTimeValue();
     }
 
     private TimeValue randomTVGreaterThan(TimeValue min) {

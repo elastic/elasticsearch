@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -554,18 +555,16 @@ public class ScriptServiceTests extends ESTestCase {
         int cacheSizeBackup = randomIntBetween(0, 1024);
         int cacheSizeFoo = randomValueOtherThan(cacheSizeBackup, () -> randomIntBetween(0, 1024));
 
-        String cacheExpireBackup = randomTimeValue(1, 1000, "h");
-        TimeValue cacheExpireBackupParsed = TimeValue.parseTimeValue(cacheExpireBackup, "");
-        String cacheExpireFoo = randomValueOtherThan(cacheExpireBackup, () -> randomTimeValue(1, 1000, "h"));
-        TimeValue cacheExpireFooParsed = TimeValue.parseTimeValue(cacheExpireFoo, "");
+        TimeValue cacheExpireBackupParsed = randomTimeValue(1, 1000, TimeUnit.HOURS);
+        TimeValue cacheExpireFooParsed = randomValueOtherThan(cacheExpireBackupParsed, () -> randomTimeValue(1, 1000, TimeUnit.HOURS));
 
         Setting<?> cacheSizeSetting = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("foo");
         Setting<?> cacheExpireSetting = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo");
         Settings s = Settings.builder()
             .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), cacheSizeBackup)
             .put(cacheSizeSetting.getKey(), cacheSizeFoo)
-            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackup)
-            .put(cacheExpireSetting.getKey(), cacheExpireFoo)
+            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackupParsed)
+            .put(cacheExpireSetting.getKey(), cacheExpireFooParsed)
             .build();
 
         assertEquals(cacheSizeFoo, ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("foo").get(s).intValue());

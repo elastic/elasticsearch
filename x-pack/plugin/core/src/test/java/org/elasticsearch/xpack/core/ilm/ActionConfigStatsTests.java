@@ -29,7 +29,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             builder.setForceMergeMaxNumberOfSegments(randomIntBetween(0, 10000));
         }
         if (randomBoolean()) {
-            TimeValue randomAge = TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests");
+            TimeValue randomAge = randomTimeValue();
             builder.setRolloverMaxAge(randomAge);
         }
         if (randomBoolean()) {
@@ -45,7 +45,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             builder.setRolloverMaxSize(randomByteSize());
         }
         if (randomBoolean()) {
-            TimeValue randomAge = TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests");
+            TimeValue randomAge = randomTimeValue();
             builder.setRolloverMinAge(randomAge);
         }
         if (randomBoolean()) {
@@ -90,10 +90,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
                 builder.setForceMergeMaxNumberOfSegments(numberOfSegments);
             }
             case 2 -> {
-                TimeValue randomAge = randomValueOtherThan(
-                    instance.getRolloverMaxAge(),
-                    () -> TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests")
-                );
+                TimeValue randomAge = randomValueOtherThan(instance.getRolloverMaxAge(), () -> randomTimeValue());
                 builder.setRolloverMaxAge(randomAge);
             }
             case 3 -> builder.setRolloverMaxDocs(randomLongBetween(0, Long.MAX_VALUE));
@@ -105,10 +102,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
                 builder.setRolloverMaxSize(randomByteSize());
             }
             case 7 -> {
-                TimeValue randomAge = randomValueOtherThan(
-                    instance.getRolloverMinAge(),
-                    () -> TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests")
-                );
+                TimeValue randomAge = randomValueOtherThan(instance.getRolloverMinAge(), () -> randomTimeValue());
                 builder.setRolloverMinAge(randomAge);
             }
             case 8 -> builder.setRolloverMinDocs(randomLongBetween(0, Long.MAX_VALUE));

@@ -97,7 +97,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     }
 
     private TimeValue randomTV() {
-        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
+        return randomTimeValue();
     }
 
     protected QueryBuilder parseFilter(String filter) throws IOException {

@@ -31,7 +31,7 @@ You can get a single filter or all filters. For more information, see
 
 `<filter_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-get-filter-query-parms]]
 == {api-query-parms-title}
@@ -54,7 +54,7 @@ properties:
 
 `filter_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter-id]
   
 `items`::
 (array of strings) An array of strings which is the filter item list.

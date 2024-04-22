@@ -588,9 +588,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
     private static void resetTelemetry() {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
             telemetryPlugin.resetMeter();
         }
     }
@@ -598,13 +596,12 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
     private static void assertTelemetry(String expectedEmittedMetric) {
         Map<String, List<Measurement>> measurements = new HashMap<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
 
             telemetryPlugin.collect();
 
-            List<String> autoShardingMetrics = telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_COUNTER).stream()
+            List<String> autoShardingMetrics = telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_COUNTER)
+                .stream()
                 .filter(metric -> metric.startsWith("es.auto_sharding."))
                 .sorted()
                 .toList();
@@ -618,7 +615,8 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         }
 
         // assert other metrics not emitted
-        MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.values().stream()
+        MetadataRolloverService.AUTO_SHARDING_METRIC_NAMES.values()
+            .stream()
             .filter(metric -> metric.equals(expectedEmittedMetric) == false)
             .forEach(metric -> assertThat(measurements.get(metric), empty()));
 

@@ -689,7 +689,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                     indicesMetricQuality.get(index)
                 );
             }
-        });
+        }, 30, TimeUnit.SECONDS);
 
         backgroundIndexer.join();
         disruption.stopDisrupting();

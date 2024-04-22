@@ -45,8 +45,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             builder.setRolloverMaxSize(randomByteSize());
         }
         if (randomBoolean()) {
-            TimeValue randomAge = randomTimeValue();
-            builder.setRolloverMinAge(randomAge);
+            builder.setRolloverMinAge(randomTimeValue());
         }
         if (randomBoolean()) {
             builder.setRolloverMinDocs(randomLongBetween(0, Long.MAX_VALUE));

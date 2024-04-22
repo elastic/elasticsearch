@@ -54,7 +54,6 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -441,19 +440,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(reference);
             }
         }
-    }
-
-    // Visible for testing
-    // TODO Remove this simulation and use `onCommitCreation` + `ShardCommitState#getMaxPendingUploadBcc`
-    // as soon as we remove "must contain a single CC till BCC is in full motion" assertions and fully support uploading
-    // batch commits.
-    boolean simulateAppendAndShouldUploadVirtualBccForTesting(StatelessCommitRef reference) {
-        if (Assertions.ENABLED) {
-            ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
-            VirtualBatchedCompoundCommit virtualBcc = commitState.appendCommit(reference);
-            return commitState.shouldUploadVirtualBcc(virtualBcc);
-        }
-        return false;
     }
 
     private void createAndRunCommitUpload(

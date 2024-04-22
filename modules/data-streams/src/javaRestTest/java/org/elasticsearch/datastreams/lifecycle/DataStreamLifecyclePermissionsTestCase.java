@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
  * This test case sets up users with different privileges respective to managing a data stream's lifecycle. Furthermore,
  * it provides some helper methods and sets up a data stream.
  */
-public class DataStreamLifecyclePermissionsTestCase extends ESRestTestCase {
+public abstract class DataStreamLifecyclePermissionsTestCase extends ESRestTestCase {
 
     private static final String PASSWORD = "secret-test-password";
     // Needs to match the pattern of the names in roles.yml

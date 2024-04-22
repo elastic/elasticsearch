@@ -672,7 +672,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         dataStream.getIndices().forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
-        dataStream.getFailureIndices().getIndices().forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
+        dataStream.getFailureIndices()
+            .getIndices()
+            .forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
 

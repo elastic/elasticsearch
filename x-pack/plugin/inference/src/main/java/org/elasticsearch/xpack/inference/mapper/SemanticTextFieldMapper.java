@@ -237,14 +237,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         var chunksField = mapper.fieldType().getChunksField();
         var embeddingsField = mapper.fieldType().getEmbeddingsField();
         for (var chunk : field.inference().chunks()) {
-            XContentParser subParser = XContentHelper.createParserNotCompressed(
-                XContentParserConfiguration.EMPTY,
-                chunk.rawEmbeddings(),
-                context.parser().contentType()
-            );
-            DocumentParserContext subContext = context.createNestedContext(chunksField).switchParser(subParser);
-            subParser.nextToken();
-            embeddingsField.parse(subContext);
+            try (
+                XContentParser subParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    chunk.rawEmbeddings(),
+                    context.parser().contentType()
+                )
+            ) {
+                DocumentParserContext subContext = context.createNestedContext(chunksField).switchParser(subParser);
+                subParser.nextToken();
+                embeddingsField.parse(subContext);
+            }
         }
     }
 

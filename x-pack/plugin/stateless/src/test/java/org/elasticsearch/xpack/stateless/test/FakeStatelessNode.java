@@ -433,6 +433,10 @@ public class FakeStatelessNode implements Closeable {
         return innerContainer;
     }
 
+    public BlobContainer getShardContainer() {
+        return objectStoreService.getBlobContainer(shardId, primaryTerm);
+    }
+
     @Override
     public void close() throws IOException {
         IOUtils.close(closeables);

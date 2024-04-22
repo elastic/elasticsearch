@@ -270,6 +270,11 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("aba/*/_endpoint", params), equalTo("test5"));
         assertThat(params, equalTo(Map.of("test", "*")));
         assertThat(trie.retrieve("/a/*/_endpoint"), nullValue());
+
+        trie = new PathTrie<>(NO_DECODER);
+        trie.insert("/{m|n|test2}", "test6");
+        assertThat(trie.retrieve("/m"), equalTo("test6"));
+        assertThat(trie.retrieve("/n"), equalTo("test6"));
     }
 
     public void testUpdateRegexes() {

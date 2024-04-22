@@ -86,7 +86,7 @@ public class PathTrie<T> {
 
             Pattern newWildcardRegex;
             String newNamedWildcard;
-            int regexIndex = key.indexOf(REGEX_SEPARATOR);
+            int regexIndex = key.lastIndexOf(REGEX_SEPARATOR);
             if (regexIndex >= 0) {
                 // first part is regex, second part is param id
                 // remember to strip off the { and }

@@ -46,7 +46,7 @@ public class SplitTests extends AbstractFunctionTestCase {
         List<DataType> supportedDataTyes = List.of(DataTypes.KEYWORD, DataTypes.TEXT);
         for (DataType sType : supportedDataTyes) {
             for (DataType dType : supportedDataTyes) {
-                suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), () -> {
+                suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {
                     String delimiter = randomAlphaOfLength(1);
                     List<BytesRef> strings = IntStream.range(0, between(1, 5))
                         .mapToObj(i -> randomValueOtherThanMany(s -> s.contains(delimiter), () -> randomAlphaOfLength(4)))
@@ -65,7 +65,7 @@ public class SplitTests extends AbstractFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

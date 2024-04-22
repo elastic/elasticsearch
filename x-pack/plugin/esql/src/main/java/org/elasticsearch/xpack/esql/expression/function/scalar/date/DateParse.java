@@ -76,15 +76,17 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isString(field, sourceText(), format != null ? SECOND : FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+        TypeResolution resolution;
         if (format != null) {
             resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
+        }
+
+        resolution = isString(field, sourceText(), format != null ? SECOND : FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
         return TypeResolution.TYPE_RESOLVED;

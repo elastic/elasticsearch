@@ -33,7 +33,7 @@ public class LengthTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        cases.addAll(List.of(new TestCaseSupplier("length basic test", () -> {
+        cases.addAll(List.of(new TestCaseSupplier("length basic test", List.of(DataTypes.KEYWORD), () -> {
             BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(value, DataTypes.KEYWORD, "f")),
@@ -49,13 +49,14 @@ public class LengthTests extends AbstractFunctionTestCase {
         cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
         cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
         cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
         return List.of(
             new TestCaseSupplier(
                 title + " with keyword",
+                List.of(DataTypes.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.KEYWORD, "f")),
                     "LengthEvaluator[val=Attribute[channel=0]]",
@@ -65,6 +66,7 @@ public class LengthTests extends AbstractFunctionTestCase {
             ),
             new TestCaseSupplier(
                 title + " with text",
+                List.of(DataTypes.TEXT),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.TEXT, "f")),
                     "LengthEvaluator[val=Attribute[channel=0]]",

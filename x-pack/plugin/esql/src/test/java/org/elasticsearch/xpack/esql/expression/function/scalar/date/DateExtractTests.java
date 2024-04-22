@@ -39,47 +39,53 @@ public class DateExtractTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataTypes.KEYWORD, "chrono"),
-                            new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(
+                    true,
+                    List.of(
+                        new TestCaseSupplier(
+                            List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataTypes.KEYWORD, "chrono"),
+                                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
+                                ),
+                                "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                                DataTypes.LONG,
+                                equalTo(2023L)
+                            )
                         ),
-                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                        DataTypes.LONG,
-                        equalTo(2023L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.TEXT, DataTypes.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataTypes.TEXT, "chrono"),
-                            new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
+                        new TestCaseSupplier(
+                            List.of(DataTypes.TEXT, DataTypes.DATETIME),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataTypes.TEXT, "chrono"),
+                                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
+                                ),
+                                "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                                DataTypes.LONG,
+                                equalTo(2023L)
+                            )
                         ),
-                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                        DataTypes.LONG,
-                        equalTo(2023L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("not a unit"), DataTypes.KEYWORD, "chrono"),
-                            new TestCaseSupplier.TypedData(0L, DataTypes.DATETIME, "date")
+                        new TestCaseSupplier(
+                            List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("not a unit"), DataTypes.KEYWORD, "chrono"),
+                                    new TestCaseSupplier.TypedData(0L, DataTypes.DATETIME, "date")
 
-                        ),
-                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                        DataTypes.LONG,
-                        is(nullValue())
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                        .withWarning(
-                            "Line -1:-1: java.lang.IllegalArgumentException: No enum constant java.time.temporal.ChronoField.NOT A UNIT"
+                                ),
+                                "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                                DataTypes.LONG,
+                                is(nullValue())
+                            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                                .withWarning(
+                                    "Line -1:-1: java.lang.IllegalArgumentException: "
+                                        + "No enum constant java.time.temporal.ChronoField.NOT A UNIT"
+                                )
+                                .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
                         )
-                        .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
+                    )
                 )
             )
         );

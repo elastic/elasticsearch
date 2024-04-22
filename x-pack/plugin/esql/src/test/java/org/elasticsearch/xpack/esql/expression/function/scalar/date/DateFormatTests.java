@@ -32,29 +32,34 @@ public class DateFormatTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy"), DataTypes.KEYWORD, "formatter"),
-                            new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "val")
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(
+                    true,
+                    List.of(
+                        new TestCaseSupplier(
+                            List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy"), DataTypes.KEYWORD, "formatter"),
+                                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "val")
+                                ),
+                                "DateFormatEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], locale=en_US]",
+                                DataTypes.KEYWORD,
+                                equalTo(BytesRefs.toBytesRef("2023"))
+                            )
                         ),
-                        "DateFormatEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], locale=en_US]",
-                        DataTypes.KEYWORD,
-                        equalTo(BytesRefs.toBytesRef("2023"))
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.TEXT, DataTypes.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy"), DataTypes.TEXT, "formatter"),
-                            new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "val")
-                        ),
-                        "DateFormatEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], locale=en_US]",
-                        DataTypes.KEYWORD,
-                        equalTo(BytesRefs.toBytesRef("2023"))
+                        new TestCaseSupplier(
+                            List.of(DataTypes.TEXT, DataTypes.DATETIME),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy"), DataTypes.TEXT, "formatter"),
+                                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "val")
+                                ),
+                                "DateFormatEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], locale=en_US]",
+                                DataTypes.KEYWORD,
+                                equalTo(BytesRefs.toBytesRef("2023"))
+                            )
+                        )
                     )
                 )
             )

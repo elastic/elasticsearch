@@ -71,15 +71,17 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+        TypeResolution resolution;
         if (format != null) {
             resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
+        }
+
+        resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
         return TypeResolution.TYPE_RESOLVED;

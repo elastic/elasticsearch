@@ -36,91 +36,101 @@ public class DateParseTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    "Basic Case",
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "second"),
-                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "first")
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(
+                    true,
+                    List.of(
+                        new TestCaseSupplier(
+                            "Basic Case",
+                            List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "second")
+                                ),
+                                "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                                DataTypes.DATETIME,
+                                equalTo(1683244800000L)
+                            )
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                        DataTypes.DATETIME,
-                        equalTo(1683244800000L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    "With Text",
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "second"),
-                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "first")
+                        new TestCaseSupplier(
+                            "With Text",
+                            List.of(DataTypes.KEYWORD, DataTypes.TEXT),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "second")
+                                ),
+                                "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                                DataTypes.DATETIME,
+                                equalTo(1683244800000L)
+                            )
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                        DataTypes.DATETIME,
-                        equalTo(1683244800000L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    "With Both Text",
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "second"),
-                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "first")
+                        new TestCaseSupplier(
+                            "With Both Text",
+                            List.of(DataTypes.TEXT, DataTypes.TEXT),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "second")
+                                ),
+                                "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                                DataTypes.DATETIME,
+                                equalTo(1683244800000L)
+                            )
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                        DataTypes.DATETIME,
-                        equalTo(1683244800000L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    "With keyword",
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "second"),
-                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "first")
+                        new TestCaseSupplier(
+                            "With keyword",
+                            List.of(DataTypes.TEXT, DataTypes.KEYWORD),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "second")
+                                ),
+                                "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                                DataTypes.DATETIME,
+                                equalTo(1683244800000L)
+                            )
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                        DataTypes.DATETIME,
-                        equalTo(1683244800000L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("not a format"), DataTypes.KEYWORD, "second"),
-                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "first")
+                        new TestCaseSupplier(
+                            List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("not a format"), DataTypes.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "second")
 
+                                ),
+                                "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                                DataTypes.DATETIME,
+                                is(nullValue())
+                            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                                .withWarning(
+                                    "Line -1:-1: java.lang.IllegalArgumentException: Invalid format: "
+                                        + "[not a format]: Unknown pattern letter: o"
+                                )
+                                .withFoldingException(
+                                    InvalidArgumentException.class,
+                                    "invalid date pattern for []: Invalid format: [not a format]: Unknown pattern letter: o"
+                                )
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                        DataTypes.DATETIME,
-                        is(nullValue())
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                        .withWarning(
-                            "Line -1:-1: java.lang.IllegalArgumentException: Invalid format: [not a format]: Unknown pattern letter: o"
-                        )
-                        .withFoldingException(
-                            InvalidArgumentException.class,
-                            "invalid date pattern for []: Invalid format: [not a format]: Unknown pattern letter: o"
-                        )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "second"),
-                            new TestCaseSupplier.TypedData(new BytesRef("not a date"), DataTypes.KEYWORD, "first")
+                        new TestCaseSupplier(
+                            List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                            () -> new TestCaseSupplier.TestCase(
+                                List.of(
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("not a date"), DataTypes.KEYWORD, "second")
 
-                        ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                        DataTypes.DATETIME,
-                        is(nullValue())
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                        .withWarning(
-                            "Line -1:-1: java.lang.IllegalArgumentException: "
-                                + "failed to parse date field [not a date] with format [yyyy-MM-dd]"
+                                ),
+                                "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                                DataTypes.DATETIME,
+                                is(nullValue())
+                            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                                .withWarning(
+                                    "Line -1:-1: java.lang.IllegalArgumentException: "
+                                        + "failed to parse date field [not a date] with format [yyyy-MM-dd]"
+                                )
                         )
+                    )
                 )
             )
         );

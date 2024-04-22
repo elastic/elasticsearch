@@ -37,7 +37,7 @@ public class RightTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        suppliers.add(new TestCaseSupplier("empty string", () -> {
+        suppliers.add(new TestCaseSupplier("empty string", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             int length = between(-64, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -50,7 +50,7 @@ public class RightTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("ascii", () -> {
+        suppliers.add(new TestCaseSupplier("ascii", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
@@ -63,7 +63,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii longer than string", () -> {
+        suppliers.add(new TestCaseSupplier("ascii longer than string", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
@@ -76,7 +76,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(text))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii zero length", () -> {
+        suppliers.add(new TestCaseSupplier("ascii zero length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -88,7 +88,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii negative length", () -> {
+        suppliers.add(new TestCaseSupplier("ascii negative length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
@@ -102,7 +102,7 @@ public class RightTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("unicode", () -> {
+        suppliers.add(new TestCaseSupplier("unicode", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
@@ -115,7 +115,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode longer than string", () -> {
+        suppliers.add(new TestCaseSupplier("unicode longer than string", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
@@ -128,7 +128,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(text))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode zero length", () -> {
+        suppliers.add(new TestCaseSupplier("unicode zero length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -140,7 +140,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode negative length", () -> {
+        suppliers.add(new TestCaseSupplier("unicode negative length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
@@ -153,7 +153,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii as text", () -> {
+        suppliers.add(new TestCaseSupplier("ascii as text", List.of(DataTypes.TEXT, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
@@ -166,7 +166,7 @@ public class RightTests extends AbstractFunctionTestCase {
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     private static String unicodeRightSubstring(String str, int length) {

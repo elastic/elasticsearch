@@ -1,4 +1,4 @@
-metaFunctionsSynopsis#[skip:-8.13.99]
+metaFunctionsSynopsis#[skip:-8.14.99]
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -110,7 +110,7 @@ double tau()
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 ;
 
-metaFunctionsArgs#[skip:-8.13.99]
+metaFunctionsArgs#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -224,7 +224,7 @@ trim          |string                              |"keyword|text"              
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 ;
 
-metaFunctionsDescription#[skip:-8.13.99]
+metaFunctionsDescription#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, description
@@ -339,7 +339,7 @@ trim          |Removes leading and trailing whitespaces from a string.
 values        |Collect values for a field.
 ;
 
-metaFunctionsRemaining#[skip:-8.13.99]
+metaFunctionsRemaining#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -467,7 +467,7 @@ sinh         |"double sinh(angle:double|integer|long|unsigned_long)"  |angle    
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.13.99, reason:BIN added]
+countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long

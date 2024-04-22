@@ -15,15 +15,35 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityComponents;
+
+/**
+ * A role mapper the reads the role mapping rules (i.e. {@link ExpressionRoleMapping}) from the cluster state (i.e. {@link RoleMappingMetadata}).
+ * This is not enabled by default.
+ */
 public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
 
-    // TODO Is this a good name??
+    /**
+     * This setting is never registered by the xpack security plugin - in order to enable the
+     * cluster-state based role mapper another plugin must register it as a boolean setting
+     * and set it to `true`.
+     * If this setting is set to <code>true</code> then:
+     * <ul>
+     *     <li>Realms that make use role mappings (all realms but file and native) will,
+     *          in addition, observe the role mappings set in the cluster state.</li>
+     *     <li>Similarly, xpack security's {@link SecurityComponents} extensions will,
+     *          additionally, observe the cluster state role mappings too.</li>
+     *     <li>{@link UserRoleMapper} class will be guice-bound to a {@link CompositeRoleMapper}
+     *          of the {@link NativeRoleMappingStore} and this mapper.</li>
+     * </ul>
+     */
     public static final String CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = "xpack.security.authc.cluster_state_role_mappings.enabled";
     private static final Logger logger = LogManager.getLogger(ClusterStateRoleMapper.class);
 
@@ -34,6 +54,7 @@ public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCa
     public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        // this role mapper is disabled by default and only code in other plugins can enable it
         this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, false);
         if (this.enabled) {
             clusterService.addListener(this);
@@ -47,14 +68,15 @@ public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCa
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // Here, it's just simpler to also trigger a realm cache clear when only disabled role mapping expressions changed,
-        // even though disable role mapping expressions are ultimately ignored.
-        // Instead, it's better to ensure disabled role mapping expressions are not published in the cluster state in the first place.
+        // The cluster state (which contains the new role mappings) is already applied when this listener is called,
+        // such that {@link #resolveRoles} will be returning the new role mappings when called after this is called
         if (enabled
             && false == Objects.equals(
                 RoleMappingMetadata.getFromClusterState(event.previousState()),
                 RoleMappingMetadata.getFromClusterState(event.state())
             )) {
+            // trigger realm cache clear, even if only disabled role mappings have changed
+            // ideally disabled role mappings should not be published in the cluster state
             clearRealmCachesOnLocalNode();
         }
     }

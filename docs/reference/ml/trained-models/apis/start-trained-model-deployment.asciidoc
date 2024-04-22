@@ -53,7 +53,7 @@ the node's allocated processors.
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [[start-trained-model-deployment-query-params]]
 == {api-query-parms-title}
@@ -67,7 +67,7 @@ cache, `0b` can be provided.
 
 `deployment_id`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 Defaults to `model_id`.
 
 `number_of_allocations`::

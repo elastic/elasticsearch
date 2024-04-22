@@ -41,6 +41,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort emp_no'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -66,6 +67,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag == "baz" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -87,6 +89,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag LIKE "*az" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -108,6 +111,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag RLIKE ".*az" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -133,6 +137,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag IN ("abc", "baz") | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -158,6 +163,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag IN ("abc", tag) | keep emp_no, name, job, tag | sort emp_no'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -184,6 +190,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag NOT IN ("abc", "baz") | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -205,6 +212,7 @@ setup:
       esql.query:
         body:
           query: 'from test | eval x = tag | where x == "baz" | keep emp_no, name, job, x'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -226,6 +234,7 @@ setup:
       esql.query:
         body:
           query: 'from test |  where job == "IT Director" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -247,6 +256,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where job LIKE "*Specialist" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -268,6 +278,7 @@ setup:
       esql.query:
         body:
           query: 'from test | where job RLIKE ".*Specialist" | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -290,6 +301,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort tag | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -313,6 +325,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort job | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -335,6 +348,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort job desc | keep emp_no, name, job, tag'
+          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -358,6 +372,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort name | eval description = concat(name, " - ", job) | keep description'
+          version: 2024.04.01
 
   - match: { columns.0.name: "description" }
   - match: { columns.0.type: "keyword" }
@@ -378,6 +393,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort emp_no | eval split = split(tag, " ") | keep split'
+          version: 2024.04.01
 
   - match: { columns.0.name: "split" }
   - match: { columns.0.type: "keyword" }
@@ -395,6 +411,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats jobs = count(job) | keep jobs'
+          version: 2024.04.01
 
   - match: { columns.0.name: "jobs" }
   - match: { columns.0.type: "long" }
@@ -411,6 +428,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats tags = count(tag) | keep tags'
+          version: 2024.04.01
 
   - match: { columns.0.name: "tags" }
   - match: { columns.0.type: "long" }
@@ -427,6 +445,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats names = count(name) by job | keep names'
+          version: 2024.04.01
 
   - match: { columns.0.name: "names" }
   - match: { columns.0.type: "long" }
@@ -444,6 +463,7 @@ setup:
       esql.query:
         body:
           query: 'from test | stats names = count(name) by tag | keep names'
+          version: 2024.04.01
 
   - match: { columns.0.name: "names" }
   - match: { columns.0.type: "long" }
@@ -488,6 +508,7 @@ setup:
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
+          version: 2024.04.01
 
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
@@ -531,6 +552,7 @@ setup:
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
+          version: 2024.04.01
 
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
@@ -549,6 +571,7 @@ values:
       esql.query:
         body:
           query: 'FROM test | STATS job = VALUES(job) | EVAL job = MV_SORT(job) | LIMIT 1'
+          version: 2024.04.01
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
   - length: { values: 1 }
@@ -566,6 +589,7 @@ values:
       esql.query:
         body:
           query: 'FROM test | STATS job = VALUES(job) BY tag | EVAL job = MV_SORT(job) | SORT tag | LIMIT 10'
+          version: 2024.04.01
   - match: { columns.0.name: "tag" }
   - match: { columns.0.type: "text" }
   - match: { columns.1.name: "job" }

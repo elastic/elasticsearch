@@ -632,7 +632,7 @@ public class RootObjectMapper extends ObjectMapper {
                 String templateName = entry.getKey();
                 Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                 DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                validateDynamicTemplate(parserContext, template);
+                validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
                 templates.add(template);
             }
             builder.dynamicTemplates(templates);

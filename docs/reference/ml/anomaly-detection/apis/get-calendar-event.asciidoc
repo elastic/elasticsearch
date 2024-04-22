@@ -31,7 +31,7 @@ For more information, see
 
 `<calendar_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 +
 You can get scheduled event information for multiple calendars in a single
 API request by using a comma-separated list of ids or a wildcard expression.
@@ -89,7 +89,7 @@ following properties:
 
 `calendar_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `description`::
 (string) A description of the scheduled event.

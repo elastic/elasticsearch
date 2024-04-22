@@ -76,7 +76,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     public static final String ACTION_NODE_NAME = NAME + "[n]";
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
-    private final ThreadPool threadPool;
     private final Executor searchCoordinationExecutor;
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -96,7 +95,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.threadPool = threadPool;
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
         this.clusterService = clusterService;

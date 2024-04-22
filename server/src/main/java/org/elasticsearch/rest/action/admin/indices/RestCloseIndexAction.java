@@ -48,7 +48,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
-        closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
+        closeIndexRequest.ackTimeout(request.paramAsTime("timeout", closeIndexRequest.ackTimeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {

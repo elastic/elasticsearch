@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
@@ -27,60 +28,102 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
-    protected TimeValue timeout;
+    /**
+     * Specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to the elected master.
+     */
+    private TimeValue ackTimeout;
 
+    /**
+     * Construct an {@link AcknowledgedRequest} with the default ack timeout of 30s.
+     */
     protected AcknowledgedRequest() {
         this(DEFAULT_ACK_TIMEOUT);
     }
 
-    protected AcknowledgedRequest(TimeValue timeout) {
-        this.timeout = timeout;
+    /**
+     * @param ackTimeout specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to the
+     *                   elected master.
+     */
+    protected AcknowledgedRequest(TimeValue ackTimeout) {
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
     }
 
     protected AcknowledgedRequest(StreamInput in) throws IOException {
         super(in);
-        this.timeout = in.readTimeValue();
+        this.ackTimeout = in.readTimeValue();
     }
 
     /**
-     * Allows to set the timeout
-     * @param timeout timeout as a string (e.g. 1s)
-     * @return the request itself
+     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
+     * this to the elected master.
+     *
+     * @param timeout timeout as a string
+     * @return this request, for method chaining.
+     * @deprecated use {@link #ackTimeout()} instead.
      */
-    @SuppressWarnings("unchecked")
+    @Deprecated(forRemoval = true)
     public final Request timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
-        return (Request) this;
+        return ackTimeout(timeout);
     }
 
     /**
-     * Allows to set the timeout
+     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
+     * this to the elected master.
+     *
+     * @param ackTimeout timeout as a string
+     * @return this request, for method chaining.
+     */
+    public final Request ackTimeout(String ackTimeout) {
+        return ackTimeout(TimeValue.parseTimeValue(ackTimeout, this.ackTimeout, getClass().getSimpleName() + ".ackTimeout"));
+    }
+
+    /**
+     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
+     * this to the elected master.
+     *
      * @param timeout timeout as a {@link TimeValue}
-     * @return the request itself
+     * @return this request, for method chaining.
+     * @deprecated use {@link #ackTimeout()} instead.
+     */
+    @Deprecated(forRemoval = true)
+    public final Request timeout(TimeValue timeout) {
+        return ackTimeout(timeout);
+    }
+
+    /**
+     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
+     * this to the elected master.
+     *
+     * @param ackTimeout timeout as a {@link TimeValue}
+     * @return this request, for method chaining.
      */
     @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
-        this.timeout = timeout;
+    public final Request ackTimeout(TimeValue ackTimeout) {
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
         return (Request) this;
     }
 
     /**
-     * Returns the current timeout
-     * @return the current timeout as a {@link TimeValue}
+     * @return the current ack timeout as a {@link TimeValue}
+     * @deprecated use {@link #ackTimeout()} instead.
      */
+    @Deprecated(forRemoval = true)
     public final TimeValue timeout() {
-        return timeout;
+        return ackTimeout();
     }
 
+    /**
+     * @return the current ack timeout as a {@link TimeValue}
+     */
     @Override
-    public TimeValue ackTimeout() {
-        return timeout;
+    public final TimeValue ackTimeout() {
+        return ackTimeout;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeTimeValue(timeout);
+        out.writeTimeValue(ackTimeout);
     }
 
     @Override
@@ -89,11 +132,10 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     }
 
     /**
-     * AcknowledgedRequest that does not have any additional fields. Should be used instead of implementing noop children for
-     * AcknowledgedRequest.
+     * {@link AcknowledgedRequest} that does not have any additional fields. Should be used instead of implementing noop subclasses of
+     * {@link AcknowledgedRequest}.
      */
     public static final class Plain extends AcknowledgedRequest<Plain> {
-
         public Plain(StreamInput in) throws IOException {
             super(in);
         }

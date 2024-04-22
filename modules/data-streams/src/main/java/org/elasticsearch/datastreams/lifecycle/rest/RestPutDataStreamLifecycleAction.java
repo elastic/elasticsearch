@@ -42,7 +42,7 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
             PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(parser);
             putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
             putLifecycleRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
-            putLifecycleRequest.timeout(request.paramAsTime("timeout", putLifecycleRequest.timeout()));
+            putLifecycleRequest.ackTimeout(request.paramAsTime("timeout", putLifecycleRequest.ackTimeout()));
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
             return channel -> client.execute(
                 PutDataStreamLifecycleAction.INSTANCE,

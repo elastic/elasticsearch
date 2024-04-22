@@ -90,7 +90,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm implements Rel
         this.roleMapper = roleMapper;
         this.threadPool = threadPool;
         this.executionTimeout = config.getSetting(LdapRealmSettings.EXECUTION_TIMEOUT);
-        roleMapper.refreshRealmOnChange(this);
+        roleMapper.clearRealmCacheOnChange(this);
     }
 
     static SessionFactory sessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {

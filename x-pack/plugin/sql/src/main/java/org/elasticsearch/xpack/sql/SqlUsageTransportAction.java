@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,7 +31,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
@@ -42,11 +40,9 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState,
         Client client
     ) {
         super(XPackUsageFeatureAction.SQL.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
-        this.licenseState = licenseState;
         this.client = client;
     }
 

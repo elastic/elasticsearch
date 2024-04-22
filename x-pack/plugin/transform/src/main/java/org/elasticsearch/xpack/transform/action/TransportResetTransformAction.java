@@ -135,7 +135,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
-                    request.timeout(),
+                    request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener
                 );

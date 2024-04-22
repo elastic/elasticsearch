@@ -2,8 +2,6 @@
 [[tutorial-manage-existing-data-stream]]
 === Tutorial: Update existing data stream
 
-preview::[]
-
 To update the lifecycle of an existing data stream you do the following actions:
 
 . <<set-lifecycle>>
@@ -74,9 +72,7 @@ The response will look like:
       "generation_time": "6.84s",                       <9>
       "lifecycle": {
         "enabled": true,
-        "data_retention": "30d",
-        "effective_retention": "30d"                    <10>
-        "retention_determined_by": "data_stream_configuration"
+        "data_retention": "30d"                         <10>
       }
     }
   }

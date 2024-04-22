@@ -66,7 +66,7 @@ setup:
 ---
 "terms aggregation on _ignored metadata field":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
   - do:
       search:
@@ -101,7 +101,7 @@ setup:
 ---
 "terms aggregation on _ignored metadata field with top hits":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
   - do:
       search:
@@ -137,7 +137,7 @@ setup:
 ---
 "date histogram aggregation with terms on _ignored metadata field":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
   - do:
       search:
@@ -173,7 +173,7 @@ setup:
 ---
 "cardinality aggregation on _ignored metadata field":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
   - do:
       search:
@@ -190,7 +190,7 @@ setup:
 ---
 "value count aggregation on _ignored metadata field":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
   - do:
       search:
@@ -207,7 +207,7 @@ setup:
 ---
 "date range aggregation with terms on _ignored metadata field":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
   - do:
       search:
@@ -250,7 +250,7 @@ setup:
 ---
 "random sampler aggregation with terms on _ignored metadata field":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
   - do:
       search:
@@ -281,7 +281,7 @@ setup:
 ---
 "filter aggregation on _ignored metadata field":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.14.99"
       reason: "_ignored metadata field aggregation support added in 8.14"
       features: close_to
   - do:

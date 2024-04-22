@@ -501,9 +501,13 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // avoids getting 404 errors
         updateClusterSettings(
             randomBoolean()
-                ? Settings.builder().put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0)).build()
+                ? Settings.builder()
+                    .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .put("cluster.remote.invalid_remote.skip_unavailable", "false")
+                    .build()
                 : Settings.builder()
                     .put("cluster.remote.invalid_remote.mode", "proxy")
+                    .put("cluster.remote.invalid_remote.skip_unavailable", "false")
                     .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                     .build()
         );

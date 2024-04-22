@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: Introduced in 8.12.0
   - do:
       connector.put:
@@ -25,28 +25,28 @@ setup:
 ---
 "List Connector Sync Jobs":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-one-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-two-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-three-id }
   - do:
-      connector_sync_job.list: { }
+      connector.sync_job_list: { }
 
   - match: { count: 3 }
 
@@ -58,28 +58,28 @@ setup:
 ---
 "List Connector Sync Jobs - with from":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-one-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-two-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-three-id }
   - do:
-      connector_sync_job.list:
+      connector.sync_job_list:
         from: 1
 
   - match: { count: 3 }
@@ -91,28 +91,28 @@ setup:
 ---
 "List Connector Sync Jobs - with size":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-one-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-two-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-three-id }
   - do:
-      connector_sync_job.list:
+      connector.sync_job_list:
         size: 1
 
   - match: { count: 3 }
@@ -123,24 +123,24 @@ setup:
 ---
 "List Connector Sync Jobs - Get pending jobs":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-one-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-two-id }
   - do:
-      connector_sync_job.cancel:
+      connector.sync_job_cancel:
         connector_sync_job_id: $sync-job-two-id
   - do:
-      connector_sync_job.list:
+      connector.sync_job_list:
         status: pending
   - match: { count: 1 }
   - match: { results.0.id: $sync-job-one-id }
@@ -148,21 +148,21 @@ setup:
 ---
 "List Connector Sync Jobs - Get jobs for connector one":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-one-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-two
           job_type: access_control
           trigger_method: scheduled
   - set: { id: sync-job-two-id }
   - do:
-      connector_sync_job.list:
+      connector.sync_job_list:
         connector_id: connector-one
   - match: { count: 1 }
   - match: { results.0.id: $sync-job-one-id }
@@ -171,27 +171,27 @@ setup:
 "List Connector Sync Jobs - with invalid job status":
   - do:
       catch: bad_request
-      connector_sync_job.list:
+      connector.sync_job_list:
         status: invalid_job_status
 
 ---
 "List Connector Sync Jobs - Get jobs with single job type":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: full
           trigger_method: scheduled
   - set: { id: sync-job-one-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: incremental
           trigger_method: scheduled
   - set: { id: sync-job-two-id }
   - do:
-      connector_sync_job.list:
+      connector.sync_job_list:
         connector_id: connector-one
         job_type: full
   - match: { count: 1 }
@@ -200,21 +200,21 @@ setup:
 ---
 "List Connector Sync Jobs - Get jobs with multiple job types":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: full
           trigger_method: scheduled
   - set: { id: sync-job-one-id }
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: connector-one
           job_type: incremental
           trigger_method: scheduled
   - set: { id: sync-job-two-id }
   - do:
-      connector_sync_job.list:
+      connector.sync_job_list:
         connector_id: connector-one
         job_type: full,incremental
 
@@ -227,12 +227,12 @@ setup:
 "List Connector Sync Jobs - with invalid job type":
   - do:
       catch: bad_request
-      connector_sync_job.list:
+      connector.sync_job_list:
         job_type: invalid_job_type,incremental
 
 ---
 "List Connector Sync Jobs - empty list":
   - do:
-      connector_sync_job.list: { }
+      connector.sync_job_list: { }
 
   - match: { count: 0 }

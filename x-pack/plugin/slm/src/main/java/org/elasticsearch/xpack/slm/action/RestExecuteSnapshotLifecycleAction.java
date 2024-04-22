@@ -37,7 +37,7 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String snapLifecycleId = request.param("name");
         ExecuteSnapshotLifecycleAction.Request req = new ExecuteSnapshotLifecycleAction.Request(snapLifecycleId);
-        req.timeout(request.paramAsTime("timeout", req.timeout()));
+        req.ackTimeout(request.paramAsTime("timeout", req.ackTimeout()));
         req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
         return channel -> client.execute(ExecuteSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }

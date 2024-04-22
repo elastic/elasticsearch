@@ -25,20 +25,27 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
+// ESQL is available in 8.11 or later
 def supportedVersion = bwcVersion -> {
-  // ESQL is available in 8.11 or later
   return bwcVersion.onOrAfter(Version.fromString("8.11.0"));
+}
+
+// Versions on and after 8.13.3 will get a `version` parameter
+def versionUnsupported = bwcVersion -> {
+  return bwcVersion.before(Version.fromString("8.13.3"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    systemProperty("tests.version_parameter_unsupported", versionUnsupported(bwcVersion))
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    systemProperty("tests.version_parameter_unsupported", versionUnsupported(bwcVersion))
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
     classpath = sourceSets.yamlRestTest.runtimeClasspath
   }

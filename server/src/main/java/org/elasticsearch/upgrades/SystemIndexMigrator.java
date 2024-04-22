@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -537,7 +538,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
         UpdateSettingsClusterStateUpdateRequest updateSettingsRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
             new Index[] { index }
-        ).settings(readOnlySettings).setPreserveExisting(false);
+        ).settings(readOnlySettings).setPreserveExisting(false).ackTimeout(TimeValue.ZERO);
 
         metadataUpdateSettingsService.updateSettings(updateSettingsRequest, listener);
     }

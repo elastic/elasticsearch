@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -148,9 +147,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
                 BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(),
@@ -187,9 +184,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
                 BlockingUsageActionXPackPlugin.NON_BLOCKING_XPACK_USAGE.name(),

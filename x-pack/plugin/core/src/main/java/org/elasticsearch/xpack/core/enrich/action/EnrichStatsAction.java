@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -184,13 +186,26 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             }
         }
 
-        public record CacheStats(String nodeId, long count, long hits, long misses, long evictions)
-            implements
-                Writeable,
-                ToXContentFragment {
+        public record CacheStats(
+            String nodeId,
+            long count,
+            long hits,
+            long misses,
+            long evictions,
+            long hitsTimeInMillis,
+            long missesTimeInMillis
+        ) implements Writeable, ToXContentFragment {
 
             public CacheStats(StreamInput in) throws IOException {
-                this(in.readString(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+                this(
+                    in.readString(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readLong() : -1,
+                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS) ? in.readLong() : -1
+                );
             }
 
             @Override
@@ -200,6 +215,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.field("hits", hits);
                 builder.field("misses", misses);
                 builder.field("evictions", evictions);
+                builder.humanReadableField("hits_time_in_millis", "hits_time", new TimeValue(hitsTimeInMillis));
+                builder.humanReadableField("misses_time_in_millis", "misses_time", new TimeValue(missesTimeInMillis));
                 return builder;
             }
 
@@ -210,6 +227,10 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 out.writeVLong(hits);
                 out.writeVLong(misses);
                 out.writeVLong(evictions);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_ADDITIONAL_STATS)) {
+                    out.writeLong(hitsTimeInMillis);
+                    out.writeLong(missesTimeInMillis);
+                }
             }
         }
     }

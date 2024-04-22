@@ -43,7 +43,7 @@ public class RestResetJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         ResetJobAction.Request request = new ResetJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 

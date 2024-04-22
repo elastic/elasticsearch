@@ -33,7 +33,7 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PostStartBasicRequest startBasicRequest = new PostStartBasicRequest();
         startBasicRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        startBasicRequest.timeout(request.paramAsTime("timeout", startBasicRequest.timeout()));
+        startBasicRequest.ackTimeout(request.paramAsTime("timeout", startBasicRequest.ackTimeout()));
         startBasicRequest.masterNodeTimeout(request.paramAsTime("master_timeout", startBasicRequest.masterNodeTimeout()));
         return channel -> client.execute(
             PostStartBasicAction.INSTANCE,

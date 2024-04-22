@@ -25,8 +25,8 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityComponents;
 
 /**
- * A role mapper the reads the role mapping rules (i.e. {@link ExpressionRoleMapping}) from the cluster state (i.e. {@link RoleMappingMetadata}).
- * This is not enabled by default.
+ * A role mapper the reads the role mapping rules (i.e. {@link ExpressionRoleMapping}s) from the cluster state
+ * (i.e. {@link RoleMappingMetadata}). This is not enabled by default.
  */
 public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
 

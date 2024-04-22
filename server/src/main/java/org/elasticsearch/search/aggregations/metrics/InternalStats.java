@@ -123,47 +123,47 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public final long getCount() {
+    public long getCount() {
         return count;
     }
 
     @Override
-    public final double getMin() {
+    public double getMin() {
         return min;
     }
 
     @Override
-    public final double getMax() {
+    public double getMax() {
         return max;
     }
 
     @Override
-    public final double getAvg() {
+    public double getAvg() {
         return sum / count;
     }
 
     @Override
-    public final double getSum() {
+    public double getSum() {
         return sum;
     }
 
     @Override
-    public final String getMinAsString() {
+    public String getMinAsString() {
         return valueAsString(Metrics.min.name());
     }
 
     @Override
-    public final String getMaxAsString() {
+    public String getMaxAsString() {
         return valueAsString(Metrics.max.name());
     }
 
     @Override
-    public final String getAvgAsString() {
+    public String getAvgAsString() {
         return valueAsString(Metrics.avg.name());
     }
 
     @Override
-    public final String getSumAsString() {
+    public String getSumAsString() {
         return valueAsString(Metrics.sum.name());
     }
 

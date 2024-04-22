@@ -64,7 +64,7 @@ public class IgnoredMetaFieldRollingUpgradeIT extends ParameterizedRollingUpgrad
             if (getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
                 assertTermsAggIgnoredMetadataFieldException(
                     "index-old-agg",
-                    "aggregations on the '_ignored' field are supported for indices created by version 8505001 or higher"
+                    "Fielddata is not supported on field [_ignored] of type [_ignored]"
                 );
             } else {
                 assertTermsAggIgnoredMetadataField("index-old-agg");

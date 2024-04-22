@@ -11,4 +11,4 @@ ROW a=1.8
 ```
 Note: This is a noop for `long` (including unsigned) and `integer`.
 For `double` this picks the closest `double` value to the integer
-similar to {javadoc}/java.base/java/lang/Math.html#floor(double)[Math.floor].
+similar to Math.floor.

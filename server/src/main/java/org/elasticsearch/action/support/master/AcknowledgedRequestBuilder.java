@@ -32,7 +32,7 @@ public abstract class AcknowledgedRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.ackTimeout(timeout);
         return (RequestBuilder) this;
     }
 
@@ -42,7 +42,7 @@ public abstract class AcknowledgedRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        request.ackTimeout(timeout);
         return (RequestBuilder) this;
     }
 }

@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override

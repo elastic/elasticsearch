@@ -80,7 +80,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
     static final TimeValue DEFAULT_READ_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
-    private final ThreadPool threadPool;
     private final Executor remoteClientResponseExecutor;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
@@ -110,7 +109,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
-        this.threadPool = threadPool;
         this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;

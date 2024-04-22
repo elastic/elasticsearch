@@ -59,7 +59,7 @@ use a value of `*`.
 [[delete-pipeline-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[delete-pipeline-api-api-example]]

@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
@@ -103,6 +104,13 @@ public class InferenceNamedWriteablesProvider {
                 InferenceServiceResults.class,
                 ChunkedTextEmbeddingResults.NAME,
                 ChunkedTextEmbeddingResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChunkedTextEmbeddingFloatResults.NAME,
+                ChunkedTextEmbeddingFloatResults::new
             )
         );
         namedWriteables.add(

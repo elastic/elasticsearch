@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class NamedExpressions {
 
@@ -41,17 +43,20 @@ public class NamedExpressions {
         List<? extends NamedExpression> fields,
         List<? extends NamedExpression> childOutput
     ) {
-        List<String> fieldNames = Expressions.names(fields);
+        Map<String, Integer> lastPositions = Maps.newHashMapWithExpectedSize(fields.size());
+        for (int i = 0; i < fields.size(); i++) {
+            lastPositions.put(fields.get(i).name(), i);
+        }
         List<NamedExpression> output = new ArrayList<>(childOutput.size() + fields.size());
         for (NamedExpression childAttr : childOutput) {
-            if (fieldNames.contains(childAttr.name()) == false) {
+            if (lastPositions.containsKey(childAttr.name()) == false) {
                 output.add(childAttr);
             }
         }
         // do not add duplicate fields multiple times, only last one matters as output
         for (int i = 0; i < fields.size(); i++) {
             NamedExpression field = fields.get(i);
-            if (fieldNames.lastIndexOf(field.name()) == i) {
+            if (lastPositions.get(field.name()) == i) {
                 output.add(field);
             }
         }

@@ -1810,7 +1810,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertHitCount(prepareSearch(indexName), numDocs);
     }
 
-    public void testSearchShardRecoveryRegistersCommit() throws Exception {
+    public void testSearchShardRecoveryRegistersCommit() {
         startIndexNode();
         var searchNode = startSearchNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -1823,7 +1823,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         int commits = randomIntBetween(0, 3);
         for (int i = 0; i < commits; i++) {
             indexDocs(indexName, randomIntBetween(10, 50));
-            refresh(indexName);
+            flush(indexName);
         }
         AtomicInteger registerCommitRequestsSent = new AtomicInteger();
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
@@ -1854,7 +1854,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         int commits = randomIntBetween(0, 3);
         for (int i = 0; i < commits; i++) {
             indexDocs(indexName, randomIntBetween(10, 50));
-            refresh(indexName);
+            flush(indexName);
         }
         final var shardId = new ShardId(resolveIndex(indexName), 0);
         // Make sure we hit the transport action's retries by failing more than the number of allocation attempts

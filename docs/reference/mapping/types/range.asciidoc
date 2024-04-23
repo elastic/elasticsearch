@@ -351,7 +351,7 @@ Will become:
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
-Ranges are stored as inclusive on both sides so in synthetic source they are represented in this format as well. For example:
+Range field vales (e.g. `long_range`) are always represented as inclusive on both sides with bounds adjusted accordingly. For example:
 [source,console,id=synthetic-source-range-normalization-example]
 ----
 PUT idx

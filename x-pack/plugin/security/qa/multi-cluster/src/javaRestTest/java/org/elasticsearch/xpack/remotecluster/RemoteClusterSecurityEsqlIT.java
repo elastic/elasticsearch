@@ -287,7 +287,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                   "privileges": ["read"]
                 }
               ],
-              "cluster": [ "monitor_enrich" ],
+              "cluster": [ "monitor_enrich", "manage_own_api_key" ],
               "remote_indices": [
                 {
                   "names": ["employees"],
@@ -330,12 +330,16 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         populateData();
 
         // query remote cluster only
-        Response response = performRequestWithRemoteSearchUser(esqlRequest("""
+        Request request = esqlRequest("""
             FROM my_remote_cluster:employees
             | SORT emp_id ASC
             | LIMIT 2
-            | KEEP emp_id, department"""));
-        assertOK(response);
+            | KEEP emp_id, department""");
+        Response response = performRequestWithRemoteSearchUser(request);
+        assertRemoteOnlyResults(response);
+
+        // same as above but authenticate with API key
+        response = performRequestWithRemoteSearchUserViaAPIKey(request);
         assertRemoteOnlyResults(response);
 
         // query remote and local cluster
@@ -343,7 +347,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             FROM my_remote_cluster:employees,employees
             | SORT emp_id ASC
             | LIMIT 10"""));
-        assertOK(response);
         assertRemoteAndLocalResults(response);
 
         // query remote cluster only - but also include employees2 which the user does not have access to
@@ -352,7 +355,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | SORT emp_id ASC
             | LIMIT 2
             | KEEP emp_id, department"""));
-        assertOK(response);
         assertRemoteOnlyResults(response); // same as above since the user only has access to employees
 
         // query remote and local cluster - but also include employees2 which the user does not have access to
@@ -360,7 +362,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
             | SORT emp_id ASC
             | LIMIT 10"""));
-        assertOK(response);
         assertRemoteAndLocalResults(response); // same as above since the user only has access to employees
 
         // update role to include both employees and employees2 for the remote cluster
@@ -385,7 +386,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | SORT emp_id ASC
             | LIMIT 2
             | KEEP emp_id, department"""));
-        assertOK(response);
         assertRemoteOnlyAgainst2IndexResults(response);
     }
 
@@ -518,7 +518,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // invalid remote with local index should return local results
         var q = "FROM invalid_remote:employees,employees |  SORT emp_id DESC | LIMIT 10";
         Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
-        assertOK(response);
         assertLocalOnlyResults(response);
 
         // only calling an invalid remote should error
@@ -556,7 +555,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | SORT emp_id ASC
             | LIMIT 2
             | KEEP emp_id, department"""));
-        assertOK(response);
         assertRemoteOnlyResults(response);
 
         // without the remote index priv
@@ -619,22 +617,19 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // Query cluster
         {
             // ESQL with enrich is okay when user has access to enrich polices
-            Response response = performRequestWithRemoteSearchUser(esqlRequest("""
+            Request request = esqlRequest("""
                 FROM my_remote_cluster:employees,employees
                 | ENRICH countries
                 | STATS size=count(*) by country
                 | SORT size DESC
-                | LIMIT 2"""));
-            assertOK(response);
-            Map<String, Object> responseAsMap = entityAsMap(response);
-            List<?> columns = (List<?>) responseAsMap.get("columns");
-            List<?> values = (List<?>) responseAsMap.get("values");
-            assertEquals(2, columns.size());
-            assertEquals(2, values.size());
-            List<?> flatList = values.stream()
-                .flatMap(innerList -> innerList instanceof List ? ((List<?>) innerList).stream() : Stream.empty())
-                .collect(Collectors.toList());
-            assertThat(flatList, containsInAnyOrder(2, 3, "usa", "canada"));
+                | LIMIT 2""");
+
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertWithEnrich(response);
+
+            // same as above but authenticate with API key
+            response = performRequestWithRemoteSearchUserViaAPIKey(request);
+            assertWithEnrich(response);
 
             // Query cluster
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
@@ -774,8 +769,27 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         return client().performRequest(request);
     }
 
+    private Response performRequestWithRemoteSearchUserViaAPIKey(final Request request) throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "myapikey"
+            }""");
+        // ensure that the API key is created with the correct user
+        createApiKeyRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
+        );
+        Response response = client().performRequest(createApiKeyRequest);
+        assertOK(response);
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        final String encoded = (String) responseAsMap.get("encoded");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encoded));
+        return client().performRequest(request);
+    }
+
     @SuppressWarnings("unchecked")
     private void assertRemoteOnlyResults(Response response) throws IOException {
+        assertOK(response);
         Map<String, Object> responseAsMap = entityAsMap(response);
         List<?> columns = (List<?>) responseAsMap.get("columns");
         List<?> values = (List<?>) responseAsMap.get("values");
@@ -789,6 +803,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
     @SuppressWarnings("unchecked")
     private void assertRemoteOnlyAgainst2IndexResults(Response response) throws IOException {
+        assertOK(response);
         Map<String, Object> responseAsMap = entityAsMap(response);
         List<?> columns = (List<?>) responseAsMap.get("columns");
         List<?> values = (List<?>) responseAsMap.get("values");
@@ -802,6 +817,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
     @SuppressWarnings("unchecked")
     private void assertLocalOnlyResults(Response response) throws IOException {
+        assertOK(response);
         Map<String, Object> responseAsMap = entityAsMap(response);
         List<?> columns = (List<?>) responseAsMap.get("columns");
         List<?> values = (List<?>) responseAsMap.get("values");
@@ -816,6 +832,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
     @SuppressWarnings("unchecked")
     private void assertRemoteAndLocalResults(Response response) throws IOException {
+        assertOK(response);
         Map<String, Object> responseAsMap = entityAsMap(response);
         List<?> columns = (List<?>) responseAsMap.get("columns");
         List<?> values = (List<?>) responseAsMap.get("values");
@@ -847,6 +864,19 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 "support"
             )
         );
+    }
+
+    private void assertWithEnrich(Response response) throws IOException {
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(2, columns.size());
+        assertEquals(2, values.size());
+        List<?> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<?>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        assertThat(flatList, containsInAnyOrder(2, 3, "usa", "canada"));
     }
 
 }

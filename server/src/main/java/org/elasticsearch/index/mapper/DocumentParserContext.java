@@ -364,7 +364,7 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                    if (indexSettings().getMode().isSyntheticSourceEnabled() || SourceFieldMapper.isSynthetic(mappingLookup)) {
+                    if (indexSettings().getMode().isSyntheticSourceEnabled() || mappingLookup.isSourceSynthetic()) {
                         try {
                             int parentOffset = parent() instanceof RootObjectMapper ? 0 : parent().fullPath().length() + 1;
                             addIgnoredValues(

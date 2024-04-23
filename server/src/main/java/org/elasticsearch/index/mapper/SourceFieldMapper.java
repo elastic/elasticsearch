@@ -96,14 +96,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return (SourceFieldMapper) in;
     }
 
-    public static boolean isSynthetic(MappingLookup mappingLookup) {
-        Mapper sourceMapper = mappingLookup.getMapper(SourceFieldMapper.NAME);
-        if (sourceMapper instanceof SourceFieldMapper sourceFieldMapper) {
-            return sourceFieldMapper.isSynthetic();
-        }
-        return false;
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Explicit<Boolean>> enabled = Parameter.explicitBoolParam("enabled", false, m -> toType(m).enabled, true)

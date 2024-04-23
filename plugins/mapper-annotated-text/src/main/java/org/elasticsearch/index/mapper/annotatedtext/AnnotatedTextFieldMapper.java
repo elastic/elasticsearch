@@ -21,6 +21,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -62,6 +63,8 @@ import java.util.regex.Pattern;
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
 public class AnnotatedTextFieldMapper extends FieldMapper {
+
+    public static final NodeFeature SYNTHETIC_SOURCE_SUPPORT = new NodeFeature("mapper.annotated_text.synthetic_source");
 
     public static final String CONTENT_TYPE = "annotated_text";
 

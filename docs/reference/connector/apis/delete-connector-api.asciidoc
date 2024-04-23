@@ -6,7 +6,7 @@
 
 preview::[]
 
-Removes a connector and the associated sync jobs.
+Removes a connector and associated sync jobs.
 This is a destructive action that is not recoverable.
 
 Note: this action doesn't delete API key, ingest pipeline and data index associated with the connector. They need to be removed manually.

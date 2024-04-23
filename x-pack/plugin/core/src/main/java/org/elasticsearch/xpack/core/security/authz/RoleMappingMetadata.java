@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,8 +61,8 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<ClusterStat
         }
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(ClusterState.Custom.class, TYPE, streamInput);
     }
 
     @Override

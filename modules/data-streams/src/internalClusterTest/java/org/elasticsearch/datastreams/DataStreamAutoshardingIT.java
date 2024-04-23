@@ -123,6 +123,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         indexDocs(dataStreamName, randomIntBetween(100, 200));
 
         {
+            resetTelemetry();
             ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
             DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
             String assignedShardNodeId = clusterStateBeforeRollover.routingTable()

@@ -19,10 +19,10 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.FlatFieldVectorsWriter;
-import org.apache.lucene.codecs.FlatVectorsWriter;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -101,7 +101,8 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
     ES814ScalarQuantizedVectorsWriter(SegmentWriteState state, Float confidenceInterval, FlatVectorsWriter rawVectorDelegate)
         throws IOException {
-        this.confidenceInterval = confidenceInterval;
+      super(rawVectorDelegate.getFlatVectorScorer());
+      this.confidenceInterval = confidenceInterval;
         segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -449,7 +450,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                     new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
                         fieldInfo.getVectorDimension(),
                         docsWithField.cardinality(),
-                        (byte) 7, // TODO: bits
+                        mergedQuantizationState, // TODO: bits
                         false, // TODO compress
                         quantizationDataInput
                     )

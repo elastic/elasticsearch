@@ -8,9 +8,10 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.FlatVectorsFormat;
-import org.apache.lucene.codecs.FlatVectorsReader;
-import org.apache.lucene.codecs.FlatVectorsWriter;
+import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
@@ -33,7 +34,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String META_EXTENSION = "vemq";
     static final String VECTOR_DATA_EXTENSION = "veq";
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat();
+    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(new DefaultFlatVectorScorer());
 
     /** The minimum confidence interval */
     private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
@@ -74,7 +75,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES814ScalarQuantizedVectorsReader(new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state)));
+        return new ES814ScalarQuantizedVectorsReader(
+            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), new DefaultFlatVectorScorer())
+        );
     }
 
     static class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader {
@@ -82,6 +85,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         final FlatVectorsReader reader;
 
         ES814ScalarQuantizedVectorsReader(FlatVectorsReader reader) {
+            super(reader.getFlatVectorScorer());
             this.reader = reader;
         }
 

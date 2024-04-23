@@ -36,6 +36,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
+    private final BinaryComparisonOpeartion functionType;
+
     @FunctionalInterface
     public interface BinaryOperatorConstructor {
         EsqlBinaryComparison apply(Source source, Expression lhs, Expression rhs);
@@ -54,6 +56,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         private final int id;
         private final String symbol;
         private final BinaryComparisonProcessor.BinaryComparisonOperation shim; // This will be removed before the PR is done
+        private final BinaryOperatorConstructor constructor;
 
         BinaryComparisonOpeartion(
             int id,
@@ -64,6 +67,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             this.id = id;
             this.symbol = symbol;
             this.shim = shim;
+            this.constructor = constructor;
         }
 
         @Override
@@ -79,6 +83,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
                 }
             }
             throw new IOException("No BinaryComparisonOperation found for id [" + id + "]");
+        }
+
+        public EsqlBinaryComparison buildNewInstance(Source source, Expression lhs, Expression rhs) {
+            return constructor.apply(source, lhs, rhs);
         }
     }
 
@@ -102,7 +110,13 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         super(source, left, right, operation.shim, zoneId);
+        assert zoneId == null;
         this.evaluatorMap = evaluatorMap;
+        this.functionType = operation;
+    }
+
+    public BinaryComparisonOpeartion getFunctionType() {
+        return functionType;
     }
 
     @Override

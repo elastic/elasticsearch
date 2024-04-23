@@ -24,10 +24,10 @@ Returns information about all created connectors.
 ==== {api-path-parms-title}
 
 `size`::
-(Optional, integer) Maximum number of results to retrieve.
+(Optional, integer) Maximum number of results to retrieve. Defaults to `100`.
 
 `from`::
-(Optional, integer) The offset from the first result to fetch.
+(Optional, integer) The offset from the first result to fetch. Defaults to `0`.
 
 `index_name`::
 (Optional, string) A comma-separated list of index names associated with connectors, used to filter search results.

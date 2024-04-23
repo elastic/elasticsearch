@@ -119,7 +119,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
     }
 
-    public void testCacheIsWarmedBeforeSearchShardRecovery() throws Exception {
+    public void testCacheIsWarmedBeforeSearchShardRecovery() {
         startMasterOnlyNode();
 
         var cacheSettings = Settings.builder()
@@ -139,11 +139,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                     .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(EngineConfig.USE_COMPOUND_FILE, false)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
             )
         );
 
-        int numDocs = randomIntBetween(1000, 10_000);
+        int numDocs = randomIntBetween(100, 10000);
         indexDocs(indexName, numDocs);
         flushAndRefresh(indexName);
         ensureGreen(indexName);

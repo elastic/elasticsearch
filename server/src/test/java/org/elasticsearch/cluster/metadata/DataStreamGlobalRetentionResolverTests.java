@@ -26,7 +26,7 @@ public class DataStreamGlobalRetentionResolverTests extends ESTestCase {
     public void testOnlyGlobalRetentionMetadata() {
         DataStreamFactoryRetention factoryRetention = randomBoolean()
             ? DataStreamFactoryRetention.emptyFactoryRetention()
-            : randomNonNullFactoryRetention();
+            : randomNonEmptyFactoryRetention();
         DataStreamGlobalRetentionResolver resolver = new DataStreamGlobalRetentionResolver(factoryRetention);
         DataStreamGlobalRetention expectedGlobalRetention = randomGlobalRetention();
         DataStreamGlobalRetention globalRetention = resolver.resolve(
@@ -38,7 +38,7 @@ public class DataStreamGlobalRetentionResolverTests extends ESTestCase {
     }
 
     public void testOnlyFactoryRetentionFallback() {
-        DataStreamFactoryRetention factoryRetention = randomNonNullFactoryRetention();
+        DataStreamFactoryRetention factoryRetention = randomNonEmptyFactoryRetention();
         DataStreamGlobalRetentionResolver resolver = new DataStreamGlobalRetentionResolver(factoryRetention);
         DataStreamGlobalRetention globalRetention = resolver.resolve(ClusterState.EMPTY_STATE);
         assertThat(globalRetention, notNullValue());
@@ -46,7 +46,7 @@ public class DataStreamGlobalRetentionResolverTests extends ESTestCase {
         assertThat(globalRetention.getMaxRetention(), equalTo(factoryRetention.getMaxRetention()));
     }
 
-    private static DataStreamFactoryRetention randomNonNullFactoryRetention() {
+    private static DataStreamFactoryRetention randomNonEmptyFactoryRetention() {
         boolean withDefault = randomBoolean();
         TimeValue defaultRetention = withDefault ? TimeValue.timeValueDays(randomIntBetween(10, 20)) : null;
         TimeValue maxRetention = withDefault && randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(50, 200));

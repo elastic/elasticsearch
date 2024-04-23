@@ -26,18 +26,15 @@ public class DataStreamGlobalRetentionResolver {
 
     /**
      * Return the global retention configuration as found in the metadata. If the metadata is null, then it falls back
-     * to the factory settings, if both default and max factory settings as null, it returns null.
+     * to the factory retention. Returns null ig both the cluster metadata for global retention and the factory retention
+     * are null.
      */
     @Nullable
     public DataStreamGlobalRetention resolve(ClusterState clusterState) {
         DataStreamGlobalRetention globalRetentionFromClusterState = clusterState.custom(DataStreamGlobalRetention.TYPE);
-        if (factoryRetention.getDefaultRetention() == null && factoryRetention.getMaxRetention() == null) {
+        if (globalRetentionFromClusterState != null || factoryRetention.isDefined() == false) {
             return globalRetentionFromClusterState;
         }
-        if (globalRetentionFromClusterState == null) {
-            return new DataStreamGlobalRetention(factoryRetention.getDefaultRetention(), factoryRetention.getMaxRetention());
-        }
-        return globalRetentionFromClusterState;
+        return new DataStreamGlobalRetention(factoryRetention.getDefaultRetention(), factoryRetention.getMaxRetention());
     }
-
 }

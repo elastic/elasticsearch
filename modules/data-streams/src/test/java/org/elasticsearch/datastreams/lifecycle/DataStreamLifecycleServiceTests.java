@@ -135,7 +135,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
-    private DataStreamGlobalRetentionResolver globalRetentionResolver;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamFactoryRetention.emptyFactoryRetention()
+    );
 
     @Before
     public void setupServices() {
@@ -1390,7 +1392,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         AtomicLong now = new AtomicLong(0);
         long delta = randomLongBetween(10, 10000);
         DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> Clock.systemUTC().millis());
-        globalRetentionResolver = new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention());
         DataStreamLifecycleService service = new DataStreamLifecycleService(
             Settings.EMPTY,
             getTransportRequestsRecordingClient(),

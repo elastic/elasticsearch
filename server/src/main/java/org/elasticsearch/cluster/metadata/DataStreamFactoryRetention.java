@@ -27,6 +27,13 @@ public interface DataStreamFactoryRetention {
     TimeValue getDefaultRetention();
 
     /**
+     * @return true, if at least one of the two settings is not null, false otherwise.
+     */
+    default boolean isDefined() {
+        return getMaxRetention() != null || getDefaultRetention() != null;
+    }
+
+    /**
      * Applies any post constructor initialisation, for example, listening to cluster setting changes.
      */
     void init(ClusterSettings clusterSettings);

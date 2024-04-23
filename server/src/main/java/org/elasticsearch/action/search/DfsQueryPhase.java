@@ -155,7 +155,7 @@ final class DfsQueryPhase extends SearchPhase {
                 scoreDocs.toArray(new ScoreDoc[0]),
                 source.knnSearch().get(i).getField(),
                 source.knnSearch().get(i).getQueryVector()
-            ).boost(source.knnSearch().get(i).boost());
+            ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
             }

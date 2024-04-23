@@ -213,7 +213,9 @@ FROM sample_data
 //end::docsBucketLast24hr[]
 ;
 
+//tag::docsBucketLast24hr-result[]
    COUNT(*):long    |    bucket:date
+//end::docsBucketLast24hr-result[]
 ;
 
 docsGettingStartedBucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
@@ -415,11 +417,78 @@ FROM employees
 | LIMIT 4
 ;
 
- sumK:double   | b1k:double    | b2k:double      
+ sumK:double   | b1k:double    | b2k:double
 49.0           |25000.0        |24000.0
 52.0           |26000.0        |26000.0
 53.0           |27000.0        |26000.0
 56.0           |28000.0        |28000.0
+;
+
+reuseGroupingFunction#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS sum = 1 + BUCKET(salary, 1000.) BY b1k = BUCKET(salary, 1000.)
+| SORT sum
+| LIMIT 4
+;
+
+ sum:double    | b1k:double
+25001.0        |25000.0
+26001.0        |26000.0
+27001.0        |27000.0
+28001.0        |28000.0
+;
+
+reuseGroupingFunctionWithExpression#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS sum = BUCKET(salary % 2 + 13, 1.) + 1 BY bucket = BUCKET(salary % 2 + 13, 1.)
+| SORT sum
+;
+
+ sum:double    | bucket:double
+14.0           |13.0
+15.0           |14.0
+;
+
+reuseGroupingFunctionWithinAggs#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS sum = 1 + MAX(1 + BUCKET(salary, 1000.)) BY BUCKET(salary, 1000.) + 1
+| SORT sum
+| LIMIT 4
+;
+
+ sum:double    |BUCKET(salary, 1000.) + 1:double
+25002.0        |25001.0
+26002.0        |26001.0
+27002.0        |27001.0
+28002.0        |28001.0
+;
+
+reuseGroupingFunctionWithAggsExpression#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS sum = 1 + AVG(BUCKET(salary, 1000.)) + BUCKET(salary, 1000.) BY bucket = BUCKET(salary, 1000.)
+| SORT sum
+| LIMIT 4
+;
+
+ sum:double    | bucket:double
+50001.0        |25000.0
+52001.0        |26000.0
+54001.0        |27000.0
+56001.0        |28000.0
+;
+
+reuseMultipleGroupingFunctionWithAggsExpression#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS sum = b2k + AVG(BUCKET(salary, 1000.)) + BUCKET(salary, 1000.) BY b1k = BUCKET(salary, 1000.), b2k = BUCKET(salary, 2000.)
+| SORT sum
+| LIMIT 4
+;
+
+ sum:double    | b1k:double    | b2k:double
+74000.0        |25000.0        |24000.0
+78000.0        |26000.0        |26000.0
+80000.0        |27000.0        |26000.0
+84000.0        |28000.0        |28000.0
 ;
 
 //

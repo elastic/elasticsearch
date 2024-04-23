@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -71,8 +73,13 @@ public class ConcatTests extends AbstractFunctionTestCase {
     }
 
     private static void suppliers(List<TestCaseSupplier> suppliers, int length) {
-        suppliers.add(supplier("ascii", DataTypes.KEYWORD, length, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("unicode", DataTypes.TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
+        if (length > 3) {
+            suppliers.add(supplier("ascii", DataTypes.KEYWORD, length, () -> randomAlphaOfLengthBetween(1, 10)));
+            suppliers.add(supplier("unicode", DataTypes.TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
+        } else {
+            add(suppliers, "ascii", length, () -> randomAlphaOfLengthBetween(1, 10));
+            add(suppliers, "unicode", length, () -> randomRealisticUnicodeOfLengthBetween(1, 10));
+        }
     }
 
     private static TestCaseSupplier supplier(String name, DataType type, int length, Supplier<String> valueSupplier) {
@@ -92,6 +99,44 @@ public class ConcatTests extends AbstractFunctionTestCase {
             expectedToString += "]]";
             return new TestCaseSupplier.TestCase(values, expectedToString, DataTypes.KEYWORD, equalTo(new BytesRef(expectedValue)));
         });
+    }
+
+    private static void add(List<TestCaseSupplier> suppliers, String name, int length, Supplier<String> valueSupplier) {
+        Map<Integer, List<List<DataType>>> permutations = new HashMap<Integer, List<List<DataType>>>();
+        List<DataType> supportedDataTypes = List.of(DataTypes.KEYWORD, DataTypes.TEXT);
+        permutations.put(0, List.of(List.of(DataTypes.KEYWORD), List.of(DataTypes.TEXT)));
+        for (int v = 0; v < length - 1; v++) {
+            List<List<DataType>> current = permutations.get(v);
+            List<List<DataType>> next = new ArrayList<>();
+            for (int i = 0; i < current.size(); i++) {
+                for (int j = 0; j < supportedDataTypes.size(); j++) {
+                    List<DataType> n = new ArrayList<>(current.get(i));
+                    n.add(supportedDataTypes.get(j));
+                    next.add(n);
+                }
+            }
+            permutations.put(v + 1, next);
+        }
+
+        for (List<DataType> types : permutations.get(length - 1)) {
+            suppliers.add(new TestCaseSupplier(length + " " + name, types, () -> {
+                List<TestCaseSupplier.TypedData> values = new ArrayList<>();
+                String expectedValue = "";
+                String expectedToString = "ConcatEvaluator[values=[";
+                for (int v = 0; v < length; v++) {
+                    String value = valueSupplier.get();
+                    values.add(new TestCaseSupplier.TypedData(new BytesRef(value), types.get(v), Integer.toString(v)));
+                    expectedValue += value;
+                    if (v != 0) {
+                        expectedToString += ", ";
+                    }
+                    expectedToString += "Attribute[channel=" + v + "]";
+                }
+                expectedToString += "]]";
+                return new TestCaseSupplier.TestCase(values, expectedToString, DataTypes.KEYWORD, equalTo(new BytesRef(expectedValue)));
+            }));
+        }
+
     }
 
     @Override

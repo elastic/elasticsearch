@@ -40,7 +40,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
+        openIndexRequest.ackTimeout(request.paramAsTime("timeout", openIndexRequest.ackTimeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
         openIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, openIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");

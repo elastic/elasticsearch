@@ -20,9 +20,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BatchEncoder;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
@@ -59,7 +58,7 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final Group[] groups;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
         super(blockFactory);
         this.groups = specs.stream().map(Group::new).toArray(Group[]::new);
         this.emitBatchSize = emitBatchSize;
@@ -79,7 +78,7 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     private static class Group {
-        final HashAggregationOperator.GroupSpec spec;
+        final GroupSpec spec;
         BatchEncoder encoder;
         int positionOffset;
         int valueOffset;
@@ -87,12 +86,12 @@ final class PackedValuesBlockHash extends BlockHash {
         int valueCount;
         int bytesStart;
 
-        Group(HashAggregationOperator.GroupSpec spec) {
+        Group(GroupSpec spec) {
             this.spec = spec;
         }
     }
 
-    class AddWork extends LongLongBlockHash.AbstractAddBlock {
+    class AddWork extends AbstractAddBlock {
         final int positionCount;
         int position;
 
@@ -106,9 +105,9 @@ final class PackedValuesBlockHash extends BlockHash {
         }
 
         /**
-         * Encodes one permutation of the keys at time into {@link #bytes}. The encoding is
-         * mostly provided by {@link BatchEncoder} with nulls living in a bit mask at the
-         * front of the bytes.
+         * Encodes one permutation of the keys at time into {@link #bytes} and adds it
+         * to the {@link #bytesRefHash}. The encoding is mostly provided by
+         * {@link BatchEncoder} with nulls living in a bit mask at the front of the bytes.
          */
         void add() {
             for (position = 0; position < positionCount; position++) {

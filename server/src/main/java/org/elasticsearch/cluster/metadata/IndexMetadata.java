@@ -920,7 +920,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * @param timestampRange new timestamp range
+     * @param timestampRange new @timestamp range
+     * @param eventIngestedRange new event.ingested range
      * @return copy of this instance with updated timestamp range
      */
     public IndexMetadata withTimestampRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {

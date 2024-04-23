@@ -599,8 +599,8 @@ public class ShardStateAction {
     /**
      * Holder of the pair of time ranges needed in cluster state - one for @timestamp, the other for 'event.ingested'.
      * Since 'event.ingested' was added well after @timestamp, it can be UNKNOWN when @timestamp range is present.
-     * @param timestampRange
-     * @param eventIngestedRange
+     * @param timestampRange range for @timestamp
+     * @param eventIngestedRange range for event.ingested
      */
     record ClusterStateTimeRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {}
 
@@ -728,9 +728,9 @@ public class ShardStateAction {
                                     startedShardEntry.eventIngestedRange
                                 );
                             }
+
                             if (newTimestampMillisRange != currentTimestampMillisRange
-                                || (newEventIngestedMillisRange != IndexLongFieldRange.UNKNOWN
-                                    && newEventIngestedMillisRange != currentEventIngestedMillisRange)) {
+                                || newEventIngestedMillisRange != currentEventIngestedMillisRange) {
                                 updatedTimestampRanges.put(
                                     index,
                                     new ClusterStateTimeRanges(newTimestampMillisRange, newEventIngestedMillisRange)
@@ -784,6 +784,14 @@ public class ShardStateAction {
                         + cursor.getKey()
                         + "] should have complete timestamp range, but got "
                         + clusterState.metadata().index(cursor.getKey()).getTimestampRange()
+                        + " for "
+                        + cursor.getValue().prettyPrint();
+                assert cursor.getValue().allPrimaryShardsActive() == false
+                    || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete()
+                    : "index ["
+                        + cursor.getKey()
+                        + "] should have complete event.ingested range, but got "
+                        + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
             }

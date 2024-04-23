@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
@@ -65,7 +64,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
             case 0 -> {
                 var inferenceConfig = randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate();
                 var previouslyLicensed = randomBoolean() ? null : randomBoolean();
-                var inferenceTimeout = randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
+                var inferenceTimeout = randomBoolean() ? null : randomTimeValue();
                 var highPriority = randomBoolean();
 
                 var request = CoordinatedInferenceAction.Request.forTextInput(
@@ -82,7 +81,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
             case 1 -> {
                 var inferenceConfig = randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate();
                 var previouslyLicensed = randomBoolean() ? null : randomBoolean();
-                var inferenceTimeout = randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
+                var inferenceTimeout = randomBoolean() ? null : randomTimeValue();
                 var highPriority = randomBoolean();
                 var modelType = randomFrom(CoordinatedInferenceAction.Request.RequestModelType.values());
 

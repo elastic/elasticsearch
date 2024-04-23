@@ -52,6 +52,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
+    public static final ParseField NAME_FIELD = AbstractQueryBuilder.NAME_FIELD;
     public static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
@@ -89,6 +90,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );
+        PARSER.declareString(KnnSearchBuilder.Builder::queryName, NAME_FIELD);
         PARSER.declareFloat(KnnSearchBuilder.Builder::boost, BOOST_FIELD);
         PARSER.declareField(
             KnnSearchBuilder.Builder::innerHit,
@@ -110,6 +112,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     final int numCands;
     final Float similarity;
     final List<QueryBuilder> filterQueries;
+    String queryName;
     float boost = DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;
 
@@ -171,7 +174,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         int numCands,
         Float similarity
     ) {
-        this(field, queryVectorBuilder, queryVector, new ArrayList<>(), k, numCands, similarity, null, DEFAULT_BOOST);
+        this(field, queryVectorBuilder, queryVector, new ArrayList<>(), k, numCands, similarity, null, null, DEFAULT_BOOST);
     }
 
     private KnnSearchBuilder(
@@ -201,6 +204,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         int numCandidates,
         Float similarity,
         InnerHitBuilder innerHitBuilder,
+        String queryName,
         float boost
     ) {
         if (k < 1) {
@@ -239,6 +243,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.numCands = numCandidates;
         this.innerHitBuilder = innerHitBuilder;
         this.similarity = similarity;
+        this.queryName = queryName;
         this.boost = boost;
         this.filterQueries = filterQueries;
         this.querySupplier = null;
@@ -255,6 +260,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TOP_LEVEL_KNN_SUPPORT_QUERY_NAME)) {
+            this.queryName = in.readOptionalString();
+        } else {
+            this.queryName = null;
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
@@ -301,6 +311,18 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     /**
+     * Sets a query name for the kNN search query.
+     */
+    public KnnSearchBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
+    public String queryName() {
+        return queryName;
+    }
+
+    /**
      * Set a boost to apply to the kNN search scores.
      */
     public KnnSearchBuilder boost(float boost) {
@@ -328,6 +350,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 return this;
             }
             return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, similarity).boost(boost)
+                .queryName(queryName)
                 .addFilterQueries(filterQueries)
                 .innerHit(innerHitBuilder);
         }
@@ -349,7 +372,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 }
                 ll.onResponse(null);
             })));
-            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost).innerHit(innerHitBuilder);
+            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost)
+                .queryName(queryName)
+                .innerHit(innerHitBuilder);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -362,6 +387,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         if (changed) {
             return new KnnSearchBuilder(field, queryVector, k, numCands, similarity).boost(boost)
+                .queryName(queryName)
                 .addFilterQueries(rewrittenQueries)
                 .innerHit(innerHitBuilder);
         }
@@ -372,7 +398,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity).boost(boost).addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity).boost(boost)
+            .queryName(queryName)
+            .addFilterQueries(filterQueries);
     }
 
     @Override
@@ -389,6 +417,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             && Objects.equals(filterQueries, that.filterQueries)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(innerHitBuilder, that.innerHitBuilder)
+            && Objects.equals(queryName, that.queryName)
             && boost == that.boost;
     }
 
@@ -404,6 +433,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             Objects.hashCode(queryVector),
             Objects.hashCode(filterQueries),
             innerHitBuilder,
+            queryName,
             boost
         );
     }
@@ -440,6 +470,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (boost != DEFAULT_BOOST) {
             builder.field(BOOST_FIELD.getPreferredName(), boost);
         }
+        if (queryName != null) {
+            builder.field(NAME_FIELD.getPreferredName(), queryName);
+        }
 
         return builder;
     }
@@ -459,6 +492,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TOP_LEVEL_KNN_SUPPORT_QUERY_NAME)) {
+            out.writeOptionalString(queryName);
+        }
         if (out.getTransportVersion().before(TransportVersions.V_8_7_0) && queryVectorBuilder != null) {
             throw new IllegalArgumentException(
                 format(
@@ -488,6 +524,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         private Integer numCandidates;
         private Float similarity;
         private final List<QueryBuilder> filterQueries = new ArrayList<>();
+        private String queryName;
         private float boost = DEFAULT_BOOST;
         private InnerHitBuilder innerHitBuilder;
 
@@ -499,6 +536,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
         public Builder field(String field) {
             this.field = field;
+            return this;
+        }
+
+        public Builder queryName(String queryName) {
+            this.queryName = queryName;
             return this;
         }
 
@@ -552,6 +594,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 adjustedNumCandidates,
                 similarity,
                 innerHitBuilder,
+                queryName,
                 boost
             );
         }

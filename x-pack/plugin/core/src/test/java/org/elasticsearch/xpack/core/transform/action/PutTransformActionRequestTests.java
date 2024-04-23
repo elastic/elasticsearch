@@ -30,7 +30,7 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
     @Override
     protected Request createTestInstance() {
         TransformConfig config = TransformConfigTests.randomTransformConfigWithoutHeaders(transformId);
-        return new Request(config, randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(config, randomBoolean(), randomTimeValue());
     }
 
     @Override

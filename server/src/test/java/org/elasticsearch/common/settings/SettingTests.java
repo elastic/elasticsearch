@@ -1167,7 +1167,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testTimeValue() {
-        final TimeValue random = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        final TimeValue random = randomTimeValue();
 
         Setting<TimeValue> setting = Setting.timeSetting("foo", random);
         assertThat(setting.get(Settings.EMPTY), equalTo(random));

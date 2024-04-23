@@ -21,7 +21,7 @@ public class UpgradeTransformsActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(randomBoolean(), randomTimeValue());
     }
 
     @Override

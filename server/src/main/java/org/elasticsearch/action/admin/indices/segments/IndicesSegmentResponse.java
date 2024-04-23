@@ -14,7 +14,6 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -36,11 +35,6 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
     private final ShardSegments[] shards;
 
     private volatile Map<String, IndexSegments> indicesSegments;
-
-    IndicesSegmentResponse(StreamInput in) throws IOException {
-        super(in);
-        shards = in.readArray(ShardSegments::new, ShardSegments[]::new);
-    }
 
     IndicesSegmentResponse(
         ShardSegments[] shards,
@@ -214,8 +208,5 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
         static final String MERGE_ID = "merge_id";
         static final String MEMORY = "memory";
         static final String MEMORY_IN_BYTES = "memory_in_bytes";
-        static final String RAM_TREE = "ram_tree";
-        static final String DESCRIPTION = "description";
-        static final String CHILDREN = "children";
     }
 }

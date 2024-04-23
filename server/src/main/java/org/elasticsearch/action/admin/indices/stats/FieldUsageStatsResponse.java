@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
@@ -33,11 +32,6 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.stats = stats;
-    }
-
-    FieldUsageStatsResponse(StreamInput in) throws IOException {
-        super(in);
-        stats = in.readMap(i -> i.readCollectionAsList(FieldUsageShardResponse::new));
     }
 
     @Override

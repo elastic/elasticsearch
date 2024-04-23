@@ -62,8 +62,8 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
             return new Request(calendarId, events.stream().map(ScheduledEvent.Builder::build).collect(Collectors.toList()));
         }
 
-        private String calendarId;
-        private List<ScheduledEvent> scheduledEvents;
+        private final String calendarId;
+        private final List<ScheduledEvent> scheduledEvents;
 
         public Request(StreamInput in) throws IOException {
             super(in);

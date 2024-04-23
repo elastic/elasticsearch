@@ -101,7 +101,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
-        private String[] policyNames;
+        private final String[] policyNames;
 
         public Request(String... policyNames) {
             if (policyNames == null) {

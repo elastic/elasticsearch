@@ -59,7 +59,7 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
         RolloverConditions.Builder concreteConditionsBuilder = RolloverConditions.newBuilder()
@@ -346,12 +346,12 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
     private static final List<Consumer<RolloverConfiguration.ValueParser>> conditionsGenerator = Arrays.asList(
         (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMaxIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue().getStringRep(), "test"),
         (builder) -> builder.addMaxPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMinIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue().getStringRep(), "test"),
         (builder) -> builder.addMinPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );

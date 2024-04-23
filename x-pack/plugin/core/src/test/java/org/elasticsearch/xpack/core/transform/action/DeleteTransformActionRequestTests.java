@@ -15,12 +15,7 @@ import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Reque
 public class DeleteTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            randomAlphaOfLengthBetween(1, 20),
-            randomBoolean(),
-            randomBoolean(),
-            TimeValue.parseTimeValue(randomTimeValue(), "timeout")
-        );
+        return new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), randomBoolean(), randomTimeValue());
     }
 
     @Override

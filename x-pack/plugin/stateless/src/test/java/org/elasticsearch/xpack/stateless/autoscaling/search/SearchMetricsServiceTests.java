@@ -841,8 +841,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
             )
         );
         assertEquals(0, service.getNumberOfReplicaChanges().size());
-
-        service.updateSearchPower(randomIntBetween(250, 10000));
+        service.updateSearchPowerMax(500);
+        service.updateSearchPowerMin(250);
         {
             Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
@@ -855,8 +855,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
             .build();
         var newState = ClusterState.builder(state).metadata(Metadata.builder().put(withinBoostWindowMetadata, false)).build();
         service.clusterChanged(new ClusterChangedEvent("test", newState, state));
-
-        service.updateSearchPower(randomIntBetween(1, 99));
+        service.updateSearchPowerMax(50);
+        service.updateSearchPowerMin(150);
         {
             Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
@@ -1037,7 +1037,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
     }
 
     public void testGetNumberOfReplicaChangesOnShardSizeUpdateHighSearchPower() {
-        service.updateSearchPower(randomIntBetween(250, 10000));
+        service.updateSearchPowerMax(500);
+        service.updateSearchPowerMin(250);
         IndexMetadata outsideBoostWindowMetadata = createIndex(1, 1);
         IndexMetadata withinBoostWindowMetadata = createIndex(3, 1);
 
@@ -1214,6 +1215,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+            ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING,
+            ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING,
             ServerlessSharedSettings.SEARCH_POWER_SETTING
         );
     }

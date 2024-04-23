@@ -98,7 +98,7 @@ result in an error.
 ### How REST Actions Connect to Transport Actions
 
 The Rest layer uses an implementation of `AbstractClient`. `BaseRestHandler#prepareRequest` takes a `NodeClient`: this client
-know how to connect to a specified TransportAction. A `Rest*Action` implementation will return a `RestChannelConsumer` that
+knows how to connect to a specified TransportAction. A `Rest*Action` implementation will return a `RestChannelConsumer` that
 most often invokes a call into a method on the `NodeClient` to pass through to the TransportAction. Along the way from
 `BaseRestHandler#prepareRequest` through the `AbstractClient` and `NodeClient` code, `NodeClient#executeLocally` is called: this
 method calls into `TaskManager#registerAndExecute`, registering the operation with the `TaskManager` so it can be found in Task
@@ -112,7 +112,9 @@ are only used for internode operations/communications.
 ### Transport Layer
 
 (Managed by the TransportService, TransportActions must be registered there, too)
+
 (Executing a TransportAction (either locally via NodeClient or remotely via TransportService) is where most of the authorization & other security logic runs)
+
 (What actions, and why, are registered in TransportService but not NodeClient?)
 
 ### Direct Node to Node Transport Layer

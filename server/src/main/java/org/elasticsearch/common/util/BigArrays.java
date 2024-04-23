@@ -125,9 +125,6 @@ public class BigArrays {
 
         @Override
         public boolean get(long index, int len, BytesRef ref) {
-            if (indexIsInt(index) == false) {
-                throw new IllegalArgumentException("AFAFD");
-            }
             assert indexIsInt(index);
             ref.bytes = array;
             ref.offset = (int) index;

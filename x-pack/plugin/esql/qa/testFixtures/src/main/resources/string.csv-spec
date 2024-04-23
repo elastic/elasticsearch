@@ -1210,10 +1210,16 @@ M              | [foo, bar]
 ;
 
 locate#[skip:-8.13.99,reason:new string function added in 8.14]
-row a = "hello" | eval a_ll = locate(a, "ll");
+// tag::locate[]
+row a = "hello"
+| eval a_ll = locate(a, "ll")
+// end::locate[]
+;
 
+// tag::locate-result[]
 a:keyword | a_ll:integer
-hello | 3
+hello     | 3
+// end::locate-result[]
 ;
 
 locateFail#[skip:-8.13.99,reason:new string function added in 8.14]

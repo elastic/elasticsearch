@@ -21,8 +21,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.MockBlockFactory;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupeTests;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeTests;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -197,9 +196,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types) {
-        List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(types.size());
         for (int c = 0; c < types.size(); c++) {
-            specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
+            specs.add(new BlockHash.GroupSpec(c, types.get(c)));
         }
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
@@ -235,10 +234,10 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private static class Oracle {
         private final NavigableSet<List<Object>> keys = new TreeSet<>(new KeyComparator());
 
-        private final boolean collectsNull;
+        private final boolean collectsNullLongs;
 
-        private Oracle(boolean collectsNull) {
-            this.collectsNull = collectsNull;
+        private Oracle(boolean collectsNullLongs) {
+            this.collectsNullLongs = collectsNullLongs;
         }
 
         void add(BasicBlockTests.RandomBlock[] randomBlocks) {
@@ -255,7 +254,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
             BasicBlockTests.RandomBlock block = randomBlocks[key.size()];
             List<Object> values = block.values().get(p);
             if (values == null) {
-                if (collectsNull) {
+                if (block.block().elementType() != ElementType.LONG || collectsNullLongs) {
                     List<Object> newKey = new ArrayList<>(key);
                     newKey.add(null);
                     add(randomBlocks, p, newKey);

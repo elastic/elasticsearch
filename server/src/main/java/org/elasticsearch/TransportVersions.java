@@ -177,6 +177,9 @@ public class TransportVersions {
     public static final TransportVersion GEOIP_CACHE_STATS = def(8_636_00_0);
     public static final TransportVersion WATERMARK_THRESHOLDS_STATS = def(8_637_00_0);
     public static final TransportVersion ENRICH_CACHE_ADDITIONAL_STATS = def(8_638_00_0);
+    public static final TransportVersion ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED = def(8_639_00_0);
+    public static final TransportVersion ML_TRAINED_MODEL_CACHE_METADATA_ADDED = def(8_640_00_0);
+    public static final TransportVersion TOP_LEVEL_KNN_SUPPORT_QUERY_NAME = def(8_641_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

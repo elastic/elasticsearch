@@ -2,4 +2,4 @@
 
 *Description*
 
-Converts a field into a string.
+Converts an input value into a string.

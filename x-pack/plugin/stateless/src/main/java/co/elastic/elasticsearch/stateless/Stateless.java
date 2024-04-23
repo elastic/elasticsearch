@@ -247,6 +247,8 @@ public class Stateless extends Plugin
     public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING = "stateless."
         + GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL
         + "_thread_pool";
+    public static final String PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME;
+    public static final String PREWARM_THREAD_POOL_SETTING = "stateless." + PREWARM_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
@@ -600,6 +602,7 @@ public class Stateless extends Plugin
         final int clusterStateReadWriteMaxThreads;
         final int getVirtualBatchedCompoundCommitChunkCoreThreads;
         final int getVirtualBatchedCompoundCommitChunkMaxThreads;
+        final int prewarmMaxThreads = Math.min(processors * 4, 32);
 
         if (hasIndexRole) {
             shardReadMaxThreads = Math.min(processors * 4, 10);
@@ -663,6 +666,14 @@ public class Stateless extends Plugin
                 TimeValue.timeValueSeconds(30L),
                 true,
                 GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                PREWARM_THREAD_POOL,
+                0,
+                prewarmMaxThreads,
+                TimeValue.timeValueSeconds(30L),
+                true,
+                PREWARM_THREAD_POOL_SETTING
             ) };
     }
 

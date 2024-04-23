@@ -33,7 +33,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfigTests.randomLearningToRankConfig;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -55,6 +57,22 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
                 }
             }
         }
+    }
+
+    public void testModelIdIsRequired() throws IOException {
+        XContentBuilder jsonBuilder = jsonBuilder().startObject();
+        if (randomBoolean()) {
+            jsonBuilder.field("params", randomParams());
+        }
+        jsonBuilder.endObject();
+
+        XContentParser parser = createParser(jsonBuilder);
+
+        Exception e = assertThrows(
+            IllegalArgumentException.class,
+            () -> LearningToRankRescorerBuilder.fromXContent(parser, mock(LearningToRankService.class))
+        );
+        assertThat(e.getMessage(), containsString("Required one of fields [model_id], but none were specified."));
     }
 
     @Override

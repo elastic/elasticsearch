@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
@@ -45,6 +46,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.reclaimable
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.refreshingBytes;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.versionLookupSize;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class StatelessLiveVersionMapTests extends ESTestCase {
@@ -323,7 +325,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertFalse(isUnsafe(map));
     }
 
-    public void testArchiveMemoryUsed() {
+    public void testArchiveMemoryUsed() throws InterruptedException {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong(0);
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -354,6 +356,17 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertEquals(0, archive.getRamBytesUsed());
         assertEquals(0, archive.getReclaimableRamBytes());
         assertEquals(0, archive.getRefreshingRamBytes());
+
+        // Make sure that a background monitoring process running along with indexing doesn't cause ConcurrentModificationException
+        var backgroundArchiveMonitorRunning = new AtomicBoolean(true);
+        var backgroundArchiveMonitor = new Thread(() -> {
+            while (backgroundArchiveMonitorRunning.get()) {
+                assertThat(archive.getRamBytesUsed(), greaterThanOrEqualTo(0L));
+                assertThat(archive.getReclaimableRamBytes(), greaterThanOrEqualTo(0L));
+                assertThat(archive.getRefreshingRamBytes(), greaterThanOrEqualTo(0L));
+            }
+        });
+        backgroundArchiveMonitor.start();
         // Randomly test indexing (assuming safe map), refresh, flush and unpromotable refresh
         IntStream.range(1, randomIntBetween(10, 20)).forEach(i -> {
             var sizeBeforeIndexing = archive.getRamBytesUsed();
@@ -390,6 +403,9 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         });
         assertArchiveMemoryBytesUsedIsCorrect(archive);
         assertEquals(0, refreshingBytes(map));
+
+        backgroundArchiveMonitorRunning.set(false);
+        backgroundArchiveMonitor.join();
     }
 
     public void testLiveVersionMapMemoryUsed() {

@@ -153,8 +153,10 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     @Override
     public long getRamBytesUsed() {
         long memBytesUsed = 0;
-        for (var versionLookup : archivePerGeneration.values()) {
-            memBytesUsed += archiveEntryBytesUsed(versionLookup);
+        synchronized (mutex) {
+            for (var versionLookup : archivePerGeneration.values()) {
+                memBytesUsed += archiveEntryBytesUsed(versionLookup);
+            }
         }
         return memBytesUsed;
     }
@@ -163,11 +165,13 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     public long getReclaimableRamBytes() {
         long preCommitGeneration = preCommitGenerationSupplier.get();
         long notFlushingBytes = 0;
-        for (var entry : archivePerGeneration.entrySet()) {
-            if (entry.getKey() > preCommitGeneration) {
-                notFlushingBytes += archiveEntryBytesUsed(entry.getValue());
-            } else {
-                break;
+        synchronized (mutex) {
+            for (var entry : archivePerGeneration.entrySet()) {
+                if (entry.getKey() > preCommitGeneration) {
+                    notFlushingBytes += archiveEntryBytesUsed(entry.getValue());
+                } else {
+                    break;
+                }
             }
         }
         return notFlushingBytes;
@@ -177,9 +181,11 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     public long getRefreshingRamBytes() {
         long preCommitGeneration = preCommitGenerationSupplier.get();
         long flushingBytes = 0;
-        for (var entry : archivePerGeneration.entrySet()) {
-            if (entry.getKey() <= preCommitGeneration) {
-                flushingBytes += archiveEntryBytesUsed(entry.getValue());
+        synchronized (mutex) {
+            for (var entry : archivePerGeneration.entrySet()) {
+                if (entry.getKey() <= preCommitGeneration) {
+                    flushingBytes += archiveEntryBytesUsed(entry.getValue());
+                }
             }
         }
         return flushingBytes;

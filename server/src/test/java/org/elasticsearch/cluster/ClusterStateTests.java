@@ -119,7 +119,7 @@ public class ClusterStateTests extends ESTestCase {
 
         var copy = state.copyAndUpdate(builder -> builder.stateUUID(newStateUuid));
 
-        assertThat(copy, not(sameInstance(state)));˝
+        assertThat(copy, not(sameInstance(state)));
         assertThat(copy.stateUUID(), equalTo(newStateUuid));
     }
 

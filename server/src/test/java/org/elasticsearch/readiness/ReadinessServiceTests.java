@@ -304,8 +304,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // initially the service isn't ready because initial cluster state has not been applied yet
         assertFalse(readinessService.ready());
 
-        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE)
-            .version(21L)
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(21L)
             .errorMetadata(new ReservedStateErrorMetadata(22L, TRANSIENT, List.of("dummy error")));
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
             .nodes(

@@ -293,8 +293,6 @@ tasks.named('stringTemplates').configure {
   }
 }
 
-for(forbidTask in ['forbiddenApisMain', 'forbiddenApisTest'] ){
-  tasks.named(forbidTask).configure {
-    signaturesFiles += files('src/main/resources/forbidden/ql-signatures.txt')
-  }
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  signaturesFiles += files('src/main/resources/forbidden/ql-signatures.txt')
 }

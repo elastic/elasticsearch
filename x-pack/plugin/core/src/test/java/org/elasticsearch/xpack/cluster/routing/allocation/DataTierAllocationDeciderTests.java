@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -777,7 +776,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             case SIGTERM -> SingleNodeShutdownMetadata.builder()
                 .setNodeId(nodeId)
                 .setType(type)
-                .setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()))
+                .setGracePeriod(randomTimeValue())
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .build();

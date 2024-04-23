@@ -385,13 +385,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testTimeoutWithUnits() throws IOException {
-        final String timeout = randomTimeValue();
+        final var timeout = randomTimeValue();
         final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
-            """, timeout);
+            """, timeout.getStringRep());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final SearchSourceBuilder builder = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
-            assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
+            assertThat(builder.timeout(), equalTo(timeout));
         }
     }
 

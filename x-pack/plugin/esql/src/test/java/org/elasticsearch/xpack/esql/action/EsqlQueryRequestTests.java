@@ -87,8 +87,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         boolean hasParams = params.isEmpty() == false;
         StringBuilder paramsString = paramsString(params, hasParams);
         boolean keepOnCompletion = randomBoolean();
-        TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
-        TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        TimeValue waitForCompletion = randomTimeValue();
+        TimeValue keepAlive = randomTimeValue();
         String json = String.format(
             Locale.ROOT,
             """

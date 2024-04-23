@@ -28,7 +28,6 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     private static final String OPEN_AI_EMBEDDINGS_ADDED = "8.12.0";
     private static final String OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED = "8.13.0";
-    private static final String OPEN_AI_EMBEDDINGS_DIMENSIONS_SETTING_ADDED = "8.13.0";
     private static final String OPEN_AI_COMPLETIONS_ADDED = "8.14.0";
 
     private static MockWebServer openAiEmbeddingsServer;

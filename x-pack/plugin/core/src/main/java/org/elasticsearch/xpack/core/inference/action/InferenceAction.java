@@ -242,7 +242,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
             private String query;
-            private TimeValue timeout;
+            private TimeValue timeout = DEFAULT_TIMEOUT;
 
             private Builder() {}
 

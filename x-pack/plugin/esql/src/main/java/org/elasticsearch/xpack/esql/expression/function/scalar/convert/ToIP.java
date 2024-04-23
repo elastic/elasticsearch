@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -32,8 +33,28 @@ public class ToIP extends AbstractConvertFunction {
         Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "ip", description = "Converts an input string to an IP value.")
-    public ToIP(Source source, @Param(name = "field", type = { "ip", "keyword", "text" }) Expression field) {
+    @FunctionInfo(
+        returnType = "ip",
+        description = "Converts an input string to an IP value.",
+        examples = @Example(file = "ip", tag = "to_ip", explanation = """
+            Note that in this example, the last conversion of the string isn't possible.
+            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            The header will provide information on the source of the failure:
+
+            `"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`
+
+            A following header will contain the failure reason and the offending value:
+
+            `"java.lang.IllegalArgumentException: 'foo' is not an IP string literal."`""")
+    )
+    public ToIP(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "ip", "keyword", "text" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

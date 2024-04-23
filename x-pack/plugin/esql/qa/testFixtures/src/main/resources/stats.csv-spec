@@ -1552,7 +1552,7 @@ s2point1:d | s_mv:i | languages:i
 2.1        | 3      | null
 ;
 
-evalOverridingKey
+evalOverridingKey#[skip:-8.13.1,reason:fixed in 8.13.2]
 FROM employees
 | EVAL k = languages
 | STATS c = COUNT() BY languages, k

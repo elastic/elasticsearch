@@ -18,7 +18,7 @@ Returns information about all stored connector sync jobs ordered by their creati
 [[list-connector-sync-jobs-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connector, it's required to have the {enterprise-search-ref}/build-connector.html[Elastic connector service] running.
 
 [[list-connector-sync-jobs-api-path-params]]
 ==== {api-path-parms-title}

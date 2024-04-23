@@ -17,6 +17,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -229,6 +230,12 @@ public class TimeValueTests extends ESTestCase {
         final long duration = randomLongBetween(Long.MIN_VALUE, -2);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new TimeValue(duration, randomTimeUnitObject()));
         assertThat(ex.getMessage(), containsString("duration cannot be negative"));
+    }
+
+    public void testMin() {
+        assertThat(TimeValue.min(TimeValue.ZERO, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(0)));
+        assertThat(TimeValue.min(TimeValue.MAX_VALUE, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(1)));
+        assertThat(TimeValue.min(TimeValue.MINUS_ONE, TimeValue.timeValueHours(1)), is(TimeValue.MINUS_ONE));
     }
 
     private TimeUnit randomTimeUnitObject() {

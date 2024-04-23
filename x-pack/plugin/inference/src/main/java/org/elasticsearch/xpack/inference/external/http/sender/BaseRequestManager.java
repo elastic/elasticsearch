@@ -38,7 +38,10 @@ abstract class BaseRequestManager implements RequestManager {
 
     @Override
     public Object rateLimitGrouping() {
-        return rateLimitGroup;
+        // It's possible that two inference endpoints have the same information defining the group but have different
+        // rate limits then they should be in different groups otherwise whoever initially created the group will set
+        // the rate and the other inference endpoint's rate will be ignored
+        return Objects.hash(rateLimitGroup, rateLimitSettings);
     }
 
     @Override

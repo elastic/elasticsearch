@@ -237,14 +237,12 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     private void handleTasks() throws InterruptedException {
-        boolean handledAtLeastOneTask = false;
+        var timeToWait = settings.getTaskPollFrequency();
         for (var endpoint : rateLimitGroupings.values()) {
-            handledAtLeastOneTask |= endpoint.executeEnqueuedTask();
+            timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
         }
 
-        if (handledAtLeastOneTask == false) {
-            sleeper.sleep(settings.getTaskPollFrequency());
-        }
+        sleeper.sleep(timeToWait);
     }
 
     private void notifyRequestsOfShutdown() {
@@ -321,13 +319,16 @@ class RequestExecutorService implements RequestExecutor {
      */
     private static class RateLimitingEndpointHandler {
 
+        private static final TimeValue NO_TASKS_AVAILABLE = TimeValue.MAX_VALUE;
+        private static final TimeValue EXECUTED_A_TASK = TimeValue.ZERO;
         private static final Logger logger = LogManager.getLogger(RateLimitingEndpointHandler.class);
+        private static final int ACCUMULATED_TOKENS_LIMIT = 1;
 
         private final AdjustableCapacityBlockingQueue<RejectableTask> queue;
         private final Supplier<Boolean> isShutdownMethod;
         private final RequestSender requestSender;
         private final String id;
-        private Instant timeOfLastEnqueue;
+        private final AtomicReference<Instant> timeOfLastEnqueue = new AtomicReference<>();
         private final Clock clock;
         private final RateLimiter rateLimiter;
         private final RequestExecutorServiceSettings requestExecutorServiceSettings;
@@ -351,7 +352,12 @@ class RequestExecutorService implements RequestExecutor {
 
             Objects.requireNonNull(rateLimitSettings);
             Objects.requireNonNull(rateLimiterCreator);
-            rateLimiter = rateLimiterCreator.create(1, rateLimitSettings.requestsPerTimeUnit(), rateLimitSettings.timeUnit());
+            rateLimiter = rateLimiterCreator.create(
+                // rateLimitSettings.requestsPerTimeUnit(),
+                ACCUMULATED_TOKENS_LIMIT,
+                rateLimitSettings.requestsPerTimeUnit(),
+                rateLimitSettings.timeUnit()
+            );
 
             settings.registerQueueCapacityCallback(id, this::onCapacityChange);
         }
@@ -375,23 +381,23 @@ class RequestExecutorService implements RequestExecutor {
         }
 
         public Instant timeOfLastEnqueue() {
-            return timeOfLastEnqueue;
+            return timeOfLastEnqueue.get();
         }
 
-        public synchronized boolean executeEnqueuedTask() {
+        public synchronized TimeValue executeEnqueuedTask() {
             try {
                 return executeEnqueuedTaskInternal();
             } catch (Exception e) {
                 logger.warn(format("Executor service grouping [%s] failed to execute request", id), e);
                 // we tried to do some work but failed, so we'll say we did something to try looking for more work
-                return true;
+                return EXECUTED_A_TASK;
             }
         }
 
-        private boolean executeEnqueuedTaskInternal() {
+        private TimeValue executeEnqueuedTaskInternal() {
             var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
             if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
-                return false;
+                return timeBeforeAvailableToken;
             }
 
             var task = queue.poll();
@@ -400,7 +406,7 @@ class RequestExecutorService implements RequestExecutor {
             // So we'll need to check for null and call a helper method executePreparedTasks()
 
             if (shouldExecuteTask(task) == false) {
-                return false;
+                return NO_TASKS_AVAILABLE;
             }
 
             // We should never have to wait because we checked above
@@ -409,7 +415,7 @@ class RequestExecutorService implements RequestExecutor {
 
             task.getRequestManager()
                 .execute(task.getQuery(), task.getInput(), requestSender, task.getRequestCompletedFunction(), task.getListener());
-            return true;
+            return EXECUTED_A_TASK;
         }
 
         private static boolean shouldExecuteTask(RejectableTask task) {
@@ -427,7 +433,7 @@ class RequestExecutorService implements RequestExecutor {
         }
 
         public void enqueue(RequestTask task) {
-            timeOfLastEnqueue = Instant.now(clock);
+            timeOfLastEnqueue.set(Instant.now(clock));
 
             if (isShutdown()) {
                 EsRejectedExecutionException rejected = new EsRejectedExecutionException(

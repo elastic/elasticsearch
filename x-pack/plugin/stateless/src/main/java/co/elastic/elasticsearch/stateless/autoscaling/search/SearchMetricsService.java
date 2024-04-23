@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
@@ -52,6 +53,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING;
+import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_SETTING;
 
 /**
@@ -94,7 +97,8 @@ public class SearchMetricsService implements ClusterStateListener {
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile long accurateMetricWindowNs;
     private volatile long staleMetricsCheckIntervalNs;
-    private volatile int searchPowerSetting;
+    private volatile int searchPowerMinSetting;
+    private volatile int searchPowerMaxSetting;
 
     public static SearchMetricsService create(
         ClusterSettings clusterSettings,
@@ -119,11 +123,52 @@ public class SearchMetricsService implements ClusterStateListener {
             STALE_METRICS_CHECK_INTERVAL_SETTING,
             value -> this.staleMetricsCheckIntervalNs = value.getNanos()
         );
+        this.searchPowerMinSetting = clusterSettings.get(SEARCH_POWER_MIN_SETTING);
+        this.searchPowerMaxSetting = clusterSettings.get(SEARCH_POWER_MAX_SETTING);
         clusterSettings.initializeAndWatch(SEARCH_POWER_SETTING, this::updateSearchPower);
+        clusterSettings.initializeAndWatch(SEARCH_POWER_MIN_SETTING, this::updateSearchPowerMin);
+        clusterSettings.initializeAndWatch(SEARCH_POWER_MAX_SETTING, this::updateSearchPowerMax);
     }
 
-    void updateSearchPower(int sp) {
-        this.searchPowerSetting = sp;
+    void updateSearchPowerMin(Integer spMin) {
+        this.searchPowerMinSetting = spMin;
+    }
+
+    void updateSearchPowerMax(Integer spMax) {
+        this.searchPowerMaxSetting = spMax;
+    }
+
+    void updateSearchPower(Integer sp) {
+        if (this.searchPowerMinSetting == this.searchPowerMaxSetting) {
+            this.searchPowerMinSetting = sp;
+            this.searchPowerMaxSetting = sp;
+        } else {
+            throw new IllegalArgumentException(
+                "Updating "
+                    + ServerlessSharedSettings.SEARCH_POWER_SETTING.getKey()
+                    + " ["
+                    + sp
+                    + "] while "
+                    + ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey()
+                    + " ["
+                    + this.searchPowerMinSetting
+                    + "] and "
+                    + ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING.getKey()
+                    + " ["
+                    + this.searchPowerMaxSetting
+                    + "] are not equal."
+            );
+        }
+    }
+
+    // visible for testing
+    public int getSearchPowerMinSetting() {
+        return searchPowerMinSetting;
+    }
+
+    // visible for testing
+    public int getSearchPowerMaxSetting() {
+        return searchPowerMaxSetting;
     }
 
     void processShardSizesRequest(PublishShardSizesRequest request) {
@@ -399,7 +444,7 @@ public class SearchMetricsService implements ClusterStateListener {
 
     Map<String, Integer> getNumberOfReplicaChanges() {
         Map<String, Integer> numReplicaChanges = new HashMap<>();
-        if (searchPowerSetting < 100) {
+        if (searchPowerMinSetting < 100) {
             for (Map.Entry<Index, IndexShardsSettings> entry : indices.entrySet()) {
                 Index index = entry.getKey();
                 IndexShardsSettings settings = entry.getValue();
@@ -426,12 +471,12 @@ public class SearchMetricsService implements ClusterStateListener {
                     }
                 }
                 if (isWithinBoostWindow) {
-                    if (searchPowerSetting >= 250) {
+                    if (searchPowerMinSetting >= 250) {
                         if (settings.replicas != 2) {
                             numReplicaChanges.put(index.getName(), 2);
                         }
                     } else {
-                        assert searchPowerSetting >= 100 : "search power < 100 should be handled elsewhere";
+                        assert searchPowerMinSetting >= 100 : "search power < 100 should be handled elsewhere";
                         // TODO assign replicas based on index ranking, for now it's always 1, same as < 100
                         if (settings.replicas != 1) {
                             numReplicaChanges.put(index.getName(), 1);

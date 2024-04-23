@@ -85,10 +85,6 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return searchUsageStats;
     }
 
-    public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        return new ClusterStatsNodeResponse(in);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

@@ -56,7 +56,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         req.dryRun(randomBoolean());
         req.explain(randomBoolean());
         req.add(new AllocateEmptyPrimaryAllocationCommand("foo", 1, "bar", randomBoolean()));
-        req.timeout(TimeValue.timeValueMillis(randomIntBetween(0, 100)));
+        req.ackTimeout(TimeValue.timeValueMillis(randomIntBetween(0, 100)));
         BytesStreamOutput out = new BytesStreamOutput();
         req.writeTo(out);
         BytesReference bytes = out.bytes();
@@ -67,7 +67,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         assertEquals(req.isRetryFailed(), deserializedReq.isRetryFailed());
         assertEquals(req.dryRun(), deserializedReq.dryRun());
         assertEquals(req.explain(), deserializedReq.explain());
-        assertEquals(req.timeout(), deserializedReq.timeout());
+        assertEquals(req.ackTimeout(), deserializedReq.ackTimeout());
         assertEquals(1, deserializedReq.getCommands().commands().size()); // allocation commands have their own tests
         assertEquals(req.getCommands().commands().size(), deserializedReq.getCommands().commands().size());
     }

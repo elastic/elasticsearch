@@ -50,7 +50,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
         deleteJobRequest.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), deleteJobRequest.isForce()));
-        deleteJobRequest.timeout(restRequest.paramAsTime("timeout", deleteJobRequest.timeout()));
+        deleteJobRequest.ackTimeout(restRequest.paramAsTime("timeout", deleteJobRequest.ackTimeout()));
         deleteJobRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", deleteJobRequest.masterNodeTimeout()));
         deleteJobRequest.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 

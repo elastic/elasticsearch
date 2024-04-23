@@ -40,6 +40,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     static {
         PARSER.declareString(Builder::setModelId, MODEL_FIELD);
         PARSER.declareObject(Builder::setParams, (p, c) -> p.map(), PARAMS_FIELD);
+        PARSER.declareRequiredFieldSet(MODEL_FIELD.getPreferredName());
     }
 
     public static LearningToRankRescorerBuilder fromXContent(XContentParser parser, LearningToRankService learningToRankService) {

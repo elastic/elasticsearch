@@ -11,13 +11,11 @@ package org.elasticsearch.action.support.nodes;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
@@ -27,10 +25,6 @@ public abstract class BaseNodesXContentResponse<TNodeResponse extends BaseNodeRe
 
     protected BaseNodesXContentResponse(ClusterName clusterName, List<TNodeResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
-    }
-
-    protected BaseNodesXContentResponse(StreamInput in) throws IOException {
-        super(in);
     }
 
     @Override

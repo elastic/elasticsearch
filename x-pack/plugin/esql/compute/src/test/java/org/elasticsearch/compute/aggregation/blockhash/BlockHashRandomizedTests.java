@@ -259,12 +259,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 for (Block block : keyBlocks) {
                     assertThat(block.getPositionCount(), equalTo(LOOKUP_POSITIONS));
                 }
-                try (
-                    ReleasableIterator<IntBlock> lookup = blockHash.lookup(
-                        new Page(keyBlocks).shallowCopy(),
-                        ByteSizeValue.ofKb(between(1, 100))
-                    )
-                ) {
+                try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keyBlocks), ByteSizeValue.ofKb(between(1, 100)))) {
                     int positionOffset = 0;
                     while (lookup.hasNext()) {
                         try (IntBlock ords = lookup.next()) {

@@ -56,9 +56,8 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * all blocks returned by the iterator will equal {@link Page#getPositionCount} but
      * will "target" a size of {@code targetBlockSize}.
      * <p>
-     *     Calling this will either {@link Page#releaseBlocks() release} the blocks immediately
-     *     or the returned {@link ReleasableIterator} will {@link Page#releaseBlocks() release}
-     *     it when it's {@link ReleasableIterator#close released}.
+     *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
+     *     inside the {@link Page}. Close it to release those references.
      * </p>
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);

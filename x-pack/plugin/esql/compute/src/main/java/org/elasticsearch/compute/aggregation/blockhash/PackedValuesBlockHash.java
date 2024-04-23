@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -161,6 +162,14 @@ final class PackedValuesBlockHash extends BlockHash {
                 group.valueOffset += group.valueCount;
             }
         }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(
+                super::close,
+                Releasables.wrap(() -> Iterators.map(Iterators.forArray(groups), g -> g.encoder))
+            );
+        }
     }
 
     @Override
@@ -170,43 +179,25 @@ final class PackedValuesBlockHash extends BlockHash {
 
     class LookupWork implements ReleasableIterator<IntBlock> {
         private final long targetBytesSize;
-        private final Page page;
+        private final int positionCount;
         private int position;
 
-        private IntBlock next;
-
         LookupWork(Page page, long targetBytesSize, int batchSize) {
-            try {
-                this.page = page;
-                this.targetBytesSize = targetBytesSize;
-                initializeGroupsForPage(page, batchSize);
-                next = buildNext();
-            } finally {
-                if (next == null) {
-                    page.releaseBlocks();
-                }
-            }
+            this.positionCount = page.getPositionCount();
+            this.targetBytesSize = targetBytesSize;
+            initializeGroupsForPage(page, batchSize);
         }
 
         @Override
         public boolean hasNext() {
-            return next != null;
+            return position < positionCount;
         }
 
         @Override
         public IntBlock next() {
-            IntBlock ret = next;
-            next = buildNext();
-            return ret;
-        }
-
-        private IntBlock buildNext() {
-            if (position >= page.getPositionCount()) {
-                return null;
-            }
             int size = Math.toIntExact(Math.min(Integer.MAX_VALUE, targetBytesSize / Integer.BYTES / 2));
             try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
-                while (position < page.getPositionCount() && ords.estimatedBytes() < targetBytesSize) {
+                while (position < positionCount && ords.estimatedBytes() < targetBytesSize) {
                     boolean singleEntry = startPosition();
                     if (singleEntry) {
                         lookupSingleEntry(ords);
@@ -274,13 +265,14 @@ final class PackedValuesBlockHash extends BlockHash {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(page::releaseBlocks, next);
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(Iterators.forArray(groups), g -> g.encoder)));
         }
     }
 
     private void initializeGroupsForPage(Page page, int batchSize) {
         for (Group group : groups) {
-            group.encoder = MultivalueDedupe.batchEncoder(page.getBlock(group.spec.channel()), batchSize, true);
+            Block b = page.getBlock(group.spec.channel());
+            group.encoder = MultivalueDedupe.batchEncoder(b, batchSize, true);
         }
     }
 
@@ -393,18 +385,7 @@ final class PackedValuesBlockHash extends BlockHash {
             if (offset > 0) {
                 readKeys(decoders, builders, nulls, values, offset);
             }
-
-            Block[] keyBlocks = new Block[groups.length];
-            try {
-                for (int g = 0; g < keyBlocks.length; g++) {
-                    keyBlocks[g] = builders[g].build();
-                }
-            } finally {
-                if (keyBlocks[keyBlocks.length - 1] == null) {
-                    Releasables.closeExpectNoException(keyBlocks);
-                }
-            }
-            return keyBlocks;
+            return Block.Builder.buildAll(builders);
         } finally {
             Releasables.closeExpectNoException(builders);
         }

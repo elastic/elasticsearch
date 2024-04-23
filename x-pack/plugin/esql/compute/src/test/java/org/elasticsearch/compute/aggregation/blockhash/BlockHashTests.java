@@ -1112,11 +1112,7 @@ public class BlockHashTests extends ESTestCase {
      * more than one block of group ids this will fail.
      */
     private void hash(Consumer<OrdsAndKeys> callback, Block.Builder... values) {
-        Block[] blocks = new Block[values.length];
-        for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = values[i].build();
-        }
-        hash(callback, blocks);
+        hash(callback, Block.Builder.buildAll(values));
     }
 
     /**
@@ -1133,12 +1129,7 @@ public class BlockHashTests extends ESTestCase {
                 called[0] = true;
                 callback.accept(ordsAndKeys);
                 if (hash instanceof LongLongBlockHash == false && hash instanceof BytesRefLongBlockHash == false) {
-                    try (
-                        ReleasableIterator<IntBlock> lookup = hash.lookup(
-                            new Page(values).shallowCopy(),
-                            ByteSizeValue.ofKb(between(1, 100))
-                        )
-                    ) {
+                    try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
                         assertThat(lookup.hasNext(), equalTo(true));
                         try (IntBlock ords = lookup.next()) {
                             assertThat(ords, equalTo(ordsAndKeys.ords));
@@ -1213,9 +1204,7 @@ public class BlockHashTests extends ESTestCase {
         });
         if (blockHash instanceof LongLongBlockHash == false && blockHash instanceof BytesRefLongBlockHash == false) {
             Block[] keys = blockHash.getKeys();
-            try (
-                ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keys).shallowCopy(), ByteSizeValue.ofKb(between(1, 100)))
-            ) {
+            try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keys), ByteSizeValue.ofKb(between(1, 100)))) {
                 while (lookup.hasNext()) {
                     try (IntBlock ords = lookup.next()) {
                         assertThat(ords.nullValuesCount(), equalTo(0));

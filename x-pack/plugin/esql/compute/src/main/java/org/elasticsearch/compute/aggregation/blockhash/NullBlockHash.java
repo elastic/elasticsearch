@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.core.Releasables;
 
 /**
  * Maps a {@link BooleanBlock} column to group ids. Assigns group
@@ -48,15 +47,11 @@ final class NullBlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        try {
-            Block block = page.getBlock(channel);
-            if (block.areAllValuesNull()) {
-                return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
-            }
-            throw new IllegalArgumentException("can't use NullBlockHash for non-null blocks");
-        } finally {
-            Releasables.closeExpectNoException(page::releaseBlocks);
+        Block block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
         }
+        throw new IllegalArgumentException("can't use NullBlockHash for non-null blocks");
     }
 
     @Override

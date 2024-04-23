@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.core.Releasables;
 
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
@@ -77,20 +76,16 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        try {
-            var block = page.getBlock(channel);
-            if (block.areAllValuesNull()) {
-                return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
-            }
-            BooleanBlock castBlock = page.getBlock(channel);
-            BooleanVector vector = castBlock.asVector();
-            if (vector == null) {
-                return ReleasableIterator.single(lookup(castBlock));
-            }
-            return ReleasableIterator.single(lookup(vector));
-        } finally {
-            Releasables.closeExpectNoException(page::releaseBlocks);
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
         }
+        BooleanBlock castBlock = page.getBlock(channel);
+        BooleanVector vector = castBlock.asVector();
+        if (vector == null) {
+            return ReleasableIterator.single(lookup(castBlock));
+        }
+        return ReleasableIterator.single(lookup(vector));
     }
 
     private IntBlock lookup(BooleanVector vector) {

@@ -26,7 +26,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -95,22 +94,18 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        try {
-            var block = page.getBlock(channel);
-            if (block.areAllValuesNull()) {
-                return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
-            }
-
-            BytesRefBlock castBlock = (BytesRefBlock) block;
-            BytesRefVector vector = castBlock.asVector();
-            // TODO honor targetBlockSize and chunk the pages if requested.
-            if (vector == null) {
-                return ReleasableIterator.single(lookup(castBlock));
-            }
-            return ReleasableIterator.single(lookup(vector));
-        } finally {
-            Releasables.closeExpectNoException(page::releaseBlocks);
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
         }
+
+        BytesRefBlock castBlock = (BytesRefBlock) block;
+        BytesRefVector vector = castBlock.asVector();
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        if (vector == null) {
+            return ReleasableIterator.single(lookup(castBlock));
+        }
+        return ReleasableIterator.single(lookup(vector));
     }
 
     private IntBlock lookup(BytesRefVector vector) {

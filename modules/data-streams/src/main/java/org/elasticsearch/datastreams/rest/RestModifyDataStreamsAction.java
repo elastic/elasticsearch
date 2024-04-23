@@ -44,7 +44,7 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
             throw new IllegalArgumentException("no data stream actions specified, at least one must be specified");
         }
         modifyDsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", modifyDsRequest.masterNodeTimeout()));
-        modifyDsRequest.timeout(request.paramAsTime("timeout", modifyDsRequest.timeout()));
+        modifyDsRequest.ackTimeout(request.paramAsTime("timeout", modifyDsRequest.ackTimeout()));
         return channel -> client.execute(ModifyDataStreamsAction.INSTANCE, modifyDsRequest, new RestToXContentListener<>(channel));
     }
 

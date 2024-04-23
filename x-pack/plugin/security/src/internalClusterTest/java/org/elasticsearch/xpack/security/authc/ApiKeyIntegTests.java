@@ -522,6 +522,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107699")
     public void testApiKeyRemover() throws Exception {
         final String namePrefix = randomAlphaOfLength(10);
         try {

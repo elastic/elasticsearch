@@ -40,7 +40,7 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
             request.paramAsBoolean("accept_data_loss", false)
         );
 
-        deleteRequest.timeout(request.paramAsTime("timeout", deleteRequest.timeout()));
+        deleteRequest.ackTimeout(request.paramAsTime("timeout", deleteRequest.ackTimeout()));
         deleteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRequest.masterNodeTimeout()));
 
         return channel -> client.execute(

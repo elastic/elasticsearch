@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
@@ -57,20 +58,22 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
             }
         );
         // strings that are cartesian_shape representations
-        TestCaseSupplier.unary(
-            suppliers,
-            evaluatorName.apply("FromString"),
-            List.of(
-                new TestCaseSupplier.TypedDataSupplier(
-                    "<cartesian_shape as string>",
-                    () -> new BytesRef(CARTESIAN.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))),
-                    DataTypes.KEYWORD
-                )
-            ),
-            EsqlDataTypes.CARTESIAN_SHAPE,
-            bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
-            List.of()
-        );
+        for (DataType dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
+            TestCaseSupplier.unary(
+                suppliers,
+                evaluatorName.apply("FromString"),
+                List.of(
+                    new TestCaseSupplier.TypedDataSupplier(
+                        "<cartesian_shape as string>",
+                        () -> new BytesRef(CARTESIAN.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))),
+                        dt
+                    )
+                ),
+                EsqlDataTypes.CARTESIAN_SHAPE,
+                bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
+                List.of()
+            );
+        }
 
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }

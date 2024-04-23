@@ -714,6 +714,37 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return suppliers;
     }
 
+    public static String errorMessageStringForBinaryOperators(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types
+    ) {
+        try {
+            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+        } catch (IllegalStateException e) {
+            // This means all the positional args were okay, so the expected error is from the combination
+            if (types.get(0).equals(DataTypes.UNSIGNED_LONG)) {
+                return "first argument of [] is [unsigned_long] and second is ["
+                    + types.get(1).typeName()
+                    + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
+
+            }
+            if (types.get(1).equals(DataTypes.UNSIGNED_LONG)) {
+                return "first argument of [] is ["
+                    + types.get(0).typeName()
+                    + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
+            }
+            return "first argument of [] is ["
+                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
+                + "] so second argument must also be ["
+                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
+                + "] but was ["
+                + types.get(1).typeName()
+                + "]";
+
+        }
+    }
+
     /**
      * Adds test cases containing unsupported parameter types that immediately fail.
      */
@@ -931,6 +962,39 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
+        Map.entry(
+            Set.of(
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.IP,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.VERSION,
+                DataTypes.NULL
+            ),
+            "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+        ),
+        Map.entry(
+            Set.of(
+                DataTypes.BOOLEAN,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                EsqlDataTypes.GEO_POINT,
+                EsqlDataTypes.GEO_SHAPE,
+                DataTypes.INTEGER,
+                DataTypes.IP,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.VERSION,
+                DataTypes.NULL
+            ),
+            "cartesian_point or datetime or geo_point or numeric or string"
+        ),
         Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
         Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
         Map.entry(
@@ -1062,7 +1126,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderTypes(description.argNames());
             renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
-            renderDescription(description.description(), info.note());
+            renderDescription(description.description(), info.detailedDescription(), info.note());
             boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
             renderKibanaInlineDocs(name, info);
@@ -1136,11 +1200,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("parameters", rendered, "asciidoc");
     }
 
-    private static void renderDescription(String description, String note) throws IOException {
+    private static void renderDescription(String description, String detailedDescription, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
             """ + description + "\n";
+
+        if (Strings.isNullOrEmpty(detailedDescription) == false) {
+            rendered += "\n" + detailedDescription + "\n";
+        }
+
         if (Strings.isNullOrEmpty(note) == false) {
             rendered += "\nNOTE: " + note + "\n";
         }
@@ -1174,6 +1243,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
                 |===
                 """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
+            if (example.explanation().length() > 0) {
+                builder.append("\n");
+                builder.append(example.explanation());
+                builder.append("\n\n");
+            }
         }
         builder.append('\n');
         String rendered = builder.toString();

@@ -4,7 +4,7 @@
   "UNSTABLE_CLUSTER_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html",
   "LAGGING_NODE_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#_diagnosing_lagging_nodes_2",
   "SHARD_LOCK_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#_diagnosing_shardlockobtainfailedexception_failures_2",
-  "CONCURRENT_REPOSITORY_WRITERS": "add-repository.html",
+  "CONCURRENT_REPOSITORY_WRITERS": "diagnosing-corrupted-repositories.html",
   "ARCHIVE_INDICES": "archive-indices.html",
   "HTTP_TRACER": "modules-network.html#http-rest-request-tracer",
   "LOGGING": "logging.html",

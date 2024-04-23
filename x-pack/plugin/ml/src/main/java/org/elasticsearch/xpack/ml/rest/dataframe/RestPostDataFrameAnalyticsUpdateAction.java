@@ -52,7 +52,7 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             updateRequest = UpdateDataFrameAnalyticsAction.Request.parseRequest(id, parser);
         }
-        updateRequest.timeout(restRequest.paramAsTime("timeout", updateRequest.timeout()));
+        updateRequest.ackTimeout(restRequest.paramAsTime("timeout", updateRequest.ackTimeout()));
 
         return channel -> client.execute(UpdateDataFrameAnalyticsAction.INSTANCE, updateRequest, new RestToXContentListener<>(channel));
     }

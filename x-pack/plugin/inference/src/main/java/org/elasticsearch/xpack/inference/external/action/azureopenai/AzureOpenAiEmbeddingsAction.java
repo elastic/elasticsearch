@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiEmbeddingsExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -27,14 +27,14 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrap
 public class AzureOpenAiEmbeddingsAction implements ExecutableAction {
 
     private final String errorMessage;
-    private final AzureOpenAiEmbeddingsExecutableRequestCreator requestCreator;
+    private final AzureOpenAiEmbeddingsRequestManager requestCreator;
     private final Sender sender;
 
     public AzureOpenAiEmbeddingsAction(Sender sender, AzureOpenAiEmbeddingsModel model, ServiceComponents serviceComponents) {
         Objects.requireNonNull(serviceComponents);
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
-        requestCreator = new AzureOpenAiEmbeddingsExecutableRequestCreator(model, serviceComponents.truncator());
+        requestCreator = new AzureOpenAiEmbeddingsRequestManager(model, serviceComponents.truncator(), serviceComponents.threadPool());
         errorMessage = constructFailedToSendRequestMessage(model.getUri(), "Azure OpenAI embeddings");
     }
 

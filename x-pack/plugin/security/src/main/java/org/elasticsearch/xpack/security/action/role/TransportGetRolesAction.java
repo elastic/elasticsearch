@@ -30,18 +30,11 @@ import java.util.stream.Collectors;
 public class TransportGetRolesAction extends TransportAction<GetRolesRequest, GetRolesResponse> {
 
     private final NativeRolesStore nativeRolesStore;
-    private final ReservedRolesStore reservedRolesStore;
 
     @Inject
-    public TransportGetRolesAction(
-        ActionFilters actionFilters,
-        NativeRolesStore nativeRolesStore,
-        TransportService transportService,
-        ReservedRolesStore reservedRolesStore
-    ) {
+    public TransportGetRolesAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService) {
         super(GetRolesAction.NAME, actionFilters, transportService.getTaskManager());
         this.nativeRolesStore = nativeRolesStore;
-        this.reservedRolesStore = reservedRolesStore;
     }
 
     @Override

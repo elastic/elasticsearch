@@ -60,17 +60,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testRolloverClusterStateForDataStream() throws Exception {
         Instant now = Instant.now();
         String dataStreamName = "logs-my-app";
-        final DataStream dataStream = new DataStream(
+        final DataStream dataStream = DataStream.builder(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
-            1,
-            null,
-            false,
-            false,
-            false,
-            false,
-            IndexMode.TIME_SERIES
-        );
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
+        ).setIndexMode(IndexMode.TIME_SERIES).build();
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
@@ -168,17 +161,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
-        final DataStream dataStream = new DataStream(
+        final DataStream dataStream = DataStream.builder(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
-            1,
-            null,
-            false,
-            false,
-            false,
-            false,
-            dsIndexMode
-        );
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
+        ).setIndexMode(dsIndexMode).build();
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
@@ -257,17 +243,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testChangingIndexModeFromTimeSeriesToSomethingElseNoEffectOnExistingDataStreams() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
-        final DataStream dataStream = new DataStream(
+        final DataStream dataStream = DataStream.builder(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
-            1,
-            null,
-            false,
-            false,
-            false,
-            false,
-            IndexMode.TIME_SERIES
-        );
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
+        ).setIndexMode(IndexMode.TIME_SERIES).build();
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
@@ -479,17 +458,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         for (int i = 1; i <= numberOfBackingIndices; i++) {
             backingIndices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i, now.toEpochMilli()), "uuid" + i));
         }
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            numberOfBackingIndices,
-            null,
-            false,
-            false,
-            false,
-            false,
-            null
-        );
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices).setGeneration(numberOfBackingIndices).build();
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(

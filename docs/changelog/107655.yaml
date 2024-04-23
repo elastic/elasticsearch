@@ -1,0 +1,6 @@
+pr: 107655
+summary: "Use #addWithoutBreaking when adding a negative number of bytes to the circuit\
+  \ breaker in `SequenceMatcher`"
+area: EQL
+type: bug
+issues: []

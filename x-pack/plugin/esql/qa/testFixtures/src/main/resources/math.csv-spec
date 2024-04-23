@@ -1213,21 +1213,6 @@ a:double
 // end::floor-result[]
 ;
 
-ceilFloorOfInfinite
-row i = 1.0/0.0 | eval c = ceil(i), f = floor(i);
-
-i:double | c:double | f:double
-Infinity | Infinity | Infinity
-;
-
-ceilFloorOfNegativeInfinite
-row i = -1.0/0.0 | eval c = ceil(i), f = floor(i);
-
-i:double  | c:double  | f:double
--Infinity | -Infinity | -Infinity
-;
-
-
 ceilFloorOfInteger
 row i = 1 | eval c = ceil(i), f = floor(i);
 

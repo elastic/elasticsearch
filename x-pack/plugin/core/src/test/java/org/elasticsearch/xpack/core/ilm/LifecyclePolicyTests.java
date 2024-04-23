@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -124,7 +125,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         TimeValue prev = null;
         for (String phase : phaseNames) {
             TimeValue after = prev == null
-                ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test_after")
+                ? randomTimeValue(0, 100000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS)
                 : TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
             prev = after;
             Map<String, LifecycleAction> actions = new HashMap<>();
@@ -172,7 +173,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         TimeValue prev = null;
         for (String phase : orderedPhases) {
             TimeValue after = prev == null
-                ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test_after")
+                ? randomTimeValue(0, 100000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS)
                 : TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
             prev = after;
             Map<String, LifecycleAction> actions = new HashMap<>();
@@ -214,7 +215,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         // Add a frozen phase if neither the hot nor cold phase contains a searchable snapshot action
         if (hotPhaseContainsSearchableSnap == false && coldPhaseContainsSearchableSnap == false && randomBoolean()) {
             TimeValue frozenTime = prev == null
-                ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test")
+                ? randomTimeValue(0, 100000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS)
                 : TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
             phases.put(
                 TimeseriesLifecycleType.FROZEN_PHASE,
@@ -267,7 +268,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = Maps.newMapWithExpectedSize(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 10000, "s", "m", "h", "d"), "test_after");
+            TimeValue after = randomTimeValue(0, 10000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
             Map<String, LifecycleAction> actions = new HashMap<>();
             if (randomBoolean()) {
                 MockAction action = new MockAction();

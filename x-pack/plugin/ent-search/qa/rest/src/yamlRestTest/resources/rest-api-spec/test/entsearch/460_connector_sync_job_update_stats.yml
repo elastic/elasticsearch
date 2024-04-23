@@ -16,7 +16,7 @@ setup:
 ---
 "Update the ingestion stats for a connector sync job - only mandatory parameters":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -25,7 +25,7 @@ setup:
   - set: { id: id }
 
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: $id
         body:
           deleted_document_count: 10
@@ -35,7 +35,7 @@ setup:
   - match: { result: updated }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { deleted_document_count: 10 }
@@ -45,7 +45,7 @@ setup:
 ---
 "Update the ingestion stats for a connector sync job - negative deleted document count error":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -54,7 +54,7 @@ setup:
   - set: { id: id }
 
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: $id
         body:
           deleted_document_count: -10
@@ -65,7 +65,7 @@ setup:
 ---
 "Update the ingestion stats for a connector sync job - negative indexed document count error":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -74,7 +74,7 @@ setup:
   - set: { id: id }
 
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: $id
         body:
           deleted_document_count: 10
@@ -85,7 +85,7 @@ setup:
 ---
 "Update the ingestion stats for a connector sync job - negative indexed document volume error":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -94,7 +94,7 @@ setup:
   - set: { id: id }
 
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: $id
         body:
           deleted_document_count: 10
@@ -105,7 +105,7 @@ setup:
 ---
 "Update the ingestion stats for a connector sync job - negative optional total document count error":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -114,7 +114,7 @@ setup:
   - set: { id: id }
 
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: $id
         body:
           deleted_document_count: 10
@@ -126,7 +126,7 @@ setup:
 ---
 "Update the ingestion stats for a connector sync job - with optional total_document_count":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -135,7 +135,7 @@ setup:
   - set: { id: id }
 
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: $id
         body:
           deleted_document_count: 10
@@ -146,7 +146,7 @@ setup:
   - match: { result: updated }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { deleted_document_count: 10 }
@@ -157,7 +157,7 @@ setup:
 ---
 "Update the ingestion stats for a connector sync job - with optional last_seen":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -165,7 +165,7 @@ setup:
   - set: { id: id }
 
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: $id
         body:
           deleted_document_count: 10
@@ -176,7 +176,7 @@ setup:
   - match: { result: updated }
 
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
 
   - match: { deleted_document_count: 10 }
@@ -187,7 +187,7 @@ setup:
 ---
 "Update the ingestion stats for a Connector Sync Job - Connector Sync Job does not exist":
   - do:
-      connector_sync_job.update_stats:
+      connector.sync_job_update_stats:
         connector_sync_job_id: test-nonexistent-connector-sync-job-id
         body:
           deleted_document_count: 10

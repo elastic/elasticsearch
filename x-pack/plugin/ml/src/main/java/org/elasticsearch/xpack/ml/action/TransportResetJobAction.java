@@ -156,7 +156,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
-        getTaskRequest.setTimeout(request.timeout());
+        getTaskRequest.setTimeout(request.ackTimeout());
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetTaskAction.TYPE, getTaskRequest, ActionListener.wrap(getTaskResponse -> {
             TaskResult taskResult = getTaskResponse.getTask();
             if (taskResult.isCompleted()) {

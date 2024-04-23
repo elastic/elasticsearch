@@ -107,9 +107,8 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
-            // TODO: Implement this.
-            throw new UnsupportedOperationException();
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
+            return BinaryRangeUtil.decodeIPRanges(bytes);
         }
 
         @Override

@@ -62,7 +62,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
         }
 
         FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        freezeRequest.timeout(request.paramAsTime("timeout", freezeRequest.timeout()));
+        freezeRequest.ackTimeout(request.paramAsTime("timeout", freezeRequest.ackTimeout()));
         freezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeRequest.masterNodeTimeout()));
         freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");

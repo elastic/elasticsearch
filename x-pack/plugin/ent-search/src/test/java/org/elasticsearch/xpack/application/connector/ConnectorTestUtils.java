@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringPolicy;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRuleCondition;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidation;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
@@ -179,6 +180,22 @@ public final class ConnectorTestUtils {
             .build();
     }
 
+    public static FilteringValidationInfo getRandomFilteringValidationInfo() {
+        return new FilteringValidationInfo.Builder().setValidationErrors(getRandomFilteringValidationErrors())
+            .setValidationState(getRandomFilteringValidationState())
+            .build();
+    }
+
+    private static List<FilteringValidation> getRandomFilteringValidationErrors() {
+        return List.of(getRandomFilteringValidationError(), getRandomFilteringValidationError(), getRandomFilteringValidationError());
+    }
+
+    private static FilteringValidation getRandomFilteringValidationError() {
+        return new FilteringValidation.Builder().setIds(List.of(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+            .setMessages(List.of(randomAlphaOfLengthBetween(10, 20), randomAlphaOfLengthBetween(15, 25)))
+            .build();
+    }
+
     public static ConnectorFiltering getRandomConnectorFiltering() {
 
         Instant currentTimestamp = Instant.now();
@@ -203,14 +220,9 @@ public final class ConnectorTestUtils {
                             .build()
                     )
                 )
-                .setFilteringValidationInfo(
-                    new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
-                        .setValidationState(getRandomFilteringValidationState())
-                        .build()
-                )
+                .setFilteringValidationInfo(getRandomFilteringValidationInfo())
                 .build()
         )
-            .setDomain(randomAlphaOfLength(10))
             .setDraft(
                 new FilteringRules.Builder().setAdvancedSnippet(
                     new FilteringAdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
@@ -231,11 +243,7 @@ public final class ConnectorTestUtils {
                                 .build()
                         )
                     )
-                    .setFilteringValidationInfo(
-                        new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
-                            .setValidationState(getRandomFilteringValidationState())
-                            .build()
-                    )
+                    .setFilteringValidationInfo(getRandomFilteringValidationInfo())
                     .build()
             )
             .build();

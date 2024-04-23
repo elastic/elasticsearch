@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
@@ -62,7 +63,6 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -94,7 +94,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -124,7 +123,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveRefs(),
             new ImplicitCasting()
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
         rules = List.of(resolution, finish);
     }
 
@@ -778,58 +777,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class PromoteStringsInDateComparisons extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformExpressionsUp(BinaryComparison.class, PromoteStringsInDateComparisons::promote);
-        }
-
-        private static Expression promote(BinaryComparison cmp) {
-            if (cmp.resolved() == false) {
-                return cmp;
-            }
-            var left = cmp.left();
-            var right = cmp.right();
-            boolean modified = false;
-            if (left.dataType() == DATETIME) {
-                if (right.dataType() == KEYWORD && right.foldable() && ((right instanceof EsqlScalarFunction) == false)) {
-                    right = stringToDate(right);
-                    modified = true;
-                }
-            } else {
-                if (right.dataType() == DATETIME) {
-                    if (left.dataType() == KEYWORD && left.foldable() && ((left instanceof EsqlScalarFunction) == false)) {
-                        left = stringToDate(left);
-                        modified = true;
-                    }
-                }
-            }
-            return modified ? cmp.replaceChildren(List.of(left, right)) : cmp;
-        }
-
-        private static Expression stringToDate(Expression stringExpression) {
-            var str = stringExpression.fold().toString();
-
-            Long millis = null;
-            // TODO: better control over this string format - do we want this to be flexible or always redirect folks to use date parsing
-            try {
-                millis = str == null ? null : dateTimeToLong(str);
-            } catch (Exception ex) { // in case of exception, millis will be null which will trigger an error
-            }
-
-            var source = stringExpression.source();
-            Expression result;
-            if (millis == null) {
-                var errorMessage = format(null, "Invalid date [{}]", str);
-                result = new UnresolvedAttribute(source, source.text(), null, errorMessage);
-            } else {
-                result = new Literal(source, millis, DATETIME);
-            }
-            return result;
-        }
-    }
-
     private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
         // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
         if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
@@ -852,11 +799,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof EsqlScalarFunction esf) {
                 return processScalarFunction(esf, registry);
             }
-
-            if (f instanceof EsqlArithmeticOperation eao) {
-                return processArithmeticOperation(eao);
+            if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
+                return processBinaryOperator((BinaryOperator) f);
             }
-
             return f;
         }
 
@@ -888,7 +833,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
 
-        private static Expression processArithmeticOperation(EsqlArithmeticOperation o) {
+        private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o) {
             Expression left = o.left();
             Expression right = o.right();
             if (left.resolved() == false || right.resolved() == false) {

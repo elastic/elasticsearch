@@ -15,7 +15,7 @@ setup:
 ---
 "Set an error for a pending connector sync job - invalid state transition from pending to error":
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -25,7 +25,7 @@ setup:
 
   - do:
       catch: bad_request
-      connector_sync_job.error:
+      connector.sync_job_error:
         connector_sync_job_id: $id
         body:
           error: error
@@ -33,7 +33,7 @@ setup:
 ---
 "Set an error for a Connector Sync Job - Connector Sync Job does not exist":
   - do:
-      connector_sync_job.error:
+      connector.sync_job_error:
         connector_sync_job_id: test-nonexistent-connector-sync-job-id
         body:
           error: error

@@ -14,9 +14,13 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.MockResolvedIndices;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -405,6 +409,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final ScriptService scriptService;
         private final Client client;
         private final long nowInMillis;
+        private final IndexMetadata indexMetadata;
 
         ServiceHolder(
             Settings nodeSettings,
@@ -549,6 +554,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     }""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
+
+            indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
         }
 
         public static Predicate<String> indexNameMatcher() {
@@ -600,7 +615,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 namedWriteableRegistry,
                 null,
                 () -> true,
-                scriptService
+                scriptService,
+                createMockResolvedIndices()
             );
         }
 
@@ -628,6 +644,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 }));
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
+        }
+
+        private ResolvedIndices createMockResolvedIndices() {
+            return new MockResolvedIndices(
+                Map.of(),
+                new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT),
+                Map.of(index, indexMetadata)
+            );
         }
     }
 }

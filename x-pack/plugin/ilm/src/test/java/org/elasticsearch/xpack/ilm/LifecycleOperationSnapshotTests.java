@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -99,7 +99,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
             logger.info("--> checking for snapshot success");
             try {
                 GetSnapshotsResponse getResp = client().execute(
-                    GetSnapshotsAction.INSTANCE,
+                    TransportGetSnapshotsAction.TYPE,
                     new GetSnapshotsRequest(new String[] { "repo" }, new String[] { snapshotName })
                 ).get();
                 assertThat(getResp.getSnapshots().size(), equalTo(1));
@@ -116,7 +116,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
 
         // Restore snapshot
         client().execute(
-            RestoreSnapshotAction.INSTANCE,
+            TransportRestoreSnapshotAction.TYPE,
             new RestoreSnapshotRequest("repo", snapshotName).includeGlobalState(true).indices(Strings.EMPTY_ARRAY).waitForCompletion(true)
         ).get();
 

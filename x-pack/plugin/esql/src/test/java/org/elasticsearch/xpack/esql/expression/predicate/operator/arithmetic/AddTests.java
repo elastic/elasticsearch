@@ -43,20 +43,20 @@ public class AddTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
             TestCaseSupplier.forBinaryWithWidening(
-                new TestCaseSupplier.NumericTypeTestConfigs(
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Integer.MIN_VALUE >> 1) - 1,
                         (Integer.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.intValue() + r.intValue(),
                         "AddIntsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Long.MIN_VALUE >> 1) - 1,
                         (Long.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.longValue() + r.longValue(),
                         "AddLongsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         Double.NEGATIVE_INFINITY,
                         Double.POSITIVE_INFINITY,
                         (l, r) -> l.doubleValue() + r.doubleValue(),
@@ -65,7 +65,8 @@ public class AddTests extends AbstractFunctionTestCase {
                 ),
                 "lhs",
                 "rhs",
-                List.of()
+                (lhs, rhs) -> List.of(),
+                true
             )
         );
 
@@ -79,9 +80,10 @@ public class AddTests extends AbstractFunctionTestCase {
                 "rhs",
                 (l, r) -> (((BigInteger) l).add((BigInteger) r)),
                 DataTypes.UNSIGNED_LONG,
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
-                List.of()
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                List.of(),
+                true
             )
         );
 
@@ -96,7 +98,8 @@ public class AddTests extends AbstractFunctionTestCase {
                 EsqlDataTypes.DATE_PERIOD,
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of()
+                List.of(),
+                true
             )
         );
         suppliers.addAll(
@@ -108,7 +111,8 @@ public class AddTests extends AbstractFunctionTestCase {
                 EsqlDataTypes.TIME_DURATION,
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of()
+                List.of(),
+                true
             )
         );
 
@@ -134,7 +138,8 @@ public class AddTests extends AbstractFunctionTestCase {
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of()
+                List.of(),
+                true
             )
         );
         suppliers.addAll(
@@ -159,7 +164,8 @@ public class AddTests extends AbstractFunctionTestCase {
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of()
+                List.of(),
+                true
             )
         );
         suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {

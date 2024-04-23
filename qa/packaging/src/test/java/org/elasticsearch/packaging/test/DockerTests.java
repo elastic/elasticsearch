@@ -1011,6 +1011,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when available system memory is constrained by Docker, the machine-dependant heap sizing
      * logic sets the correct heap size, based on the container limits.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104786")
     public void test150MachineDependentHeap() throws Exception {
         final List<String> xArgs = machineDependentHeapTest("942m", List.of());
 

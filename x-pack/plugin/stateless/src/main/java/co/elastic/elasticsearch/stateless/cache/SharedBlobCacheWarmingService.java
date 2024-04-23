@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
@@ -45,7 +46,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -265,7 +265,7 @@ public class SharedBlobCacheWarmingService {
         private final IndexShard indexShard;
         private final BlobRegion target;
         private final SubscribableListener<Void> listener = new SubscribableListener<>();
-        private final Set<String> files = new HashSet<>();
+        private final Set<String> files = ConcurrentCollections.newConcurrentSet();
 
         CacheRegionWarmingTask(IndexShard indexShard, BlobRegion target) {
             this.indexShard = indexShard;

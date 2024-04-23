@@ -19,7 +19,7 @@ Note: this action doesn't delete any API key, ingest pipeline or data index asso
 [[delete-connector-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connector, it's required to have the {enterprise-search-ref}/build-connector.html[Elastic connector service] running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[delete-connector-api-path-params]]

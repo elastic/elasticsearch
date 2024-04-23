@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -66,7 +65,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
         Map<String, Object> params,
         LearningToRankService learningToRankService
     ) {
-        this.modelId = Strings.requireNonBlank(modelId, "modelId can't be blank");
+        this.modelId = modelId;
         this.params = params;
         this.learningToRankConfig = learningToRankConfig;
         this.learningToRankService = learningToRankService;

@@ -11,7 +11,7 @@ package org.elasticsearch.nativeaccess;
 import java.lang.invoke.MethodHandle;
 
 /**
- * Utility class interface vector similarity functions.
+ * Utility interface providing vector similarity functions.
  *
  * <p> MethodHandles are returned to avoid a static reference to MemorySegment,
  * which is not in the currently lowest compile version, JDK 17. Code consuming

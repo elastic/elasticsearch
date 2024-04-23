@@ -269,13 +269,13 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
             @Override
             public void collect(int doc, long bucketOrd) throws IOException {
-                visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-                BitArray bits = visitedOrds.get(bucketOrd);
-                if (bits == null) {
-                    bits = new BitArray(maxOrd, bigArrays);
-                    visitedOrds.set(bucketOrd, bits);
-                }
                 if (docValues.advanceExact(doc)) {
+                    visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
+                    BitArray bits = visitedOrds.get(bucketOrd);
+                    if (bits == null) {
+                        bits = new BitArray(maxOrd, bigArrays);
+                        visitedOrds.set(bucketOrd, bits);
+                    }
                     for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
                         bits.set((int) ord);
                     }

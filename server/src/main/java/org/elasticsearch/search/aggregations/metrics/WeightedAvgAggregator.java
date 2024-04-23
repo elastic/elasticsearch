@@ -69,17 +69,18 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         return new LeafBucketCollectorBase(sub, docValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                weights = bigArrays().grow(weights, bucket + 1);
-                valueSums = bigArrays().grow(valueSums, bucket + 1);
-                valueCompensations = bigArrays().grow(valueCompensations, bucket + 1);
-                weightCompensations = bigArrays().grow(weightCompensations, bucket + 1);
-
                 if (docValues.advanceExact(doc) && docWeights.advanceExact(doc)) {
                     if (docWeights.docValueCount() > 1) {
                         throw new IllegalArgumentException(
                             "Encountered more than one weight for a "
                                 + "single document. Use a script to combine multiple weights-per-doc into a single value."
                         );
+                    }
+                    if (bucket >= weights.size()) {
+                        weights = bigArrays().grow(weights, bucket + 1);
+                        valueSums = bigArrays().grow(valueSums, bucket + 1);
+                        valueCompensations = bigArrays().grow(valueCompensations, bucket + 1);
+                        weightCompensations = bigArrays().grow(weightCompensations, bucket + 1);
                     }
                     // There should always be one weight if advanceExact lands us here, either
                     // a real weight or a `missing` weight

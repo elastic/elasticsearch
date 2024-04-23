@@ -77,8 +77,8 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                growBucket(bucket);
                 if (values.advanceExact(doc)) {
+                    growBucket(bucket);
                     for (int i = 0; i < values.docValueCount(); ++i) {
                         addPoint(values.nextValue(), bucket);
                     }
@@ -91,8 +91,8 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                growBucket(bucket);
                 if (values.advanceExact(doc)) {
+                    growBucket(bucket);
                     addPoint(values.pointValue(), bucket);
                 }
             }

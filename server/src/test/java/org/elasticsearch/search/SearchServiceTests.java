@@ -2188,13 +2188,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             );
         }
         {
-            // collapse and rescore
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.source().collapse(new CollapseBuilder("field"));
-            searchRequest.source().addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
-            assertCreateContextValidation(searchRequest, "cannot use `collapse` in conjunction with `rescore`", indexService, service);
-        }
-        {
             // stored fields disabled with _source requested
             SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
             searchRequest.source().storedField("_none_");

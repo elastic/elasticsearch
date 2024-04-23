@@ -175,7 +175,7 @@ GET /my-index-000001/_search
 // TEST[setup:my_index]
 
 [discrete]
-[[expand-collapse-results]]
+[[rescore-collapse-results]]
 ==== Rescore collapse results
 
 You can use field collapsing alongside the <<rescore, `rescore`>> search parameter.

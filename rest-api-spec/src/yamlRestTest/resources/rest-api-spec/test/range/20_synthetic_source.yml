@@ -323,7 +323,7 @@ setup:
       index:
         index: synthetic_source_test
         id: "4"
-        body: { "ip_range" : { "gt": "192.168.0.4", "lt": "192.168.0.8" } }
+        body: { "ip_range" : { "gt": "2001:db8::", "lt": "200a:100::" } }
 
   - do:
       index:
@@ -347,7 +347,7 @@ setup:
       index:
         index: synthetic_source_test
         id: "8"
-        body: { "ip_range": { "gte": "10.10.10.10" } }
+        body: { "ip_range": { "gte": "2001:db8::" } }
 
   - do:
       indices.refresh: {}
@@ -367,7 +367,7 @@ setup:
         ip_range: { "gte": "192.168.0.4", "lte": "192.168.0.4" }
   - match:
       hits.hits.3._source:
-        ip_range: { "gte": "192.168.0.5", "lte": "192.168.0.7" }
+        ip_range: { "gte": "2001:db8::1", "lte": "200a:ff:ffff:ffff:ffff:ffff:ffff:ffff" }
   - match:
       hits.hits.4._source:
         ip_range: { "gte": "74.125.227.0", "lte": "74.125.227.127" }
@@ -375,10 +375,10 @@ setup:
       hits.hits.5._source: {}
   - match:
       hits.hits.6._source:
-        ip_range: { "gte": "::", "lte": "10.10.10.10" }
+        ip_range: { "gte": "0.0.0.0", "lte": "10.10.10.10" }
   - match:
       hits.hits.7._source:
-        ip_range: { "gte": "10.10.10.10", "lte": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff" }
+        ip_range: { "gte": "2001:db8::", "lte": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff" }
 
 ---
 "Date range":

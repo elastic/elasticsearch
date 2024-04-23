@@ -236,14 +236,14 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private static String storedValue(ParsedDocument doc) {
+    protected static String storedValue(ParsedDocument doc) {
         assertEquals(3, doc.rootDoc().getFields("field").size());
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         IndexableField storedField = fields.get(2);
         return storedField.stringValue();
     }
 
-    public final void testNullBounds() throws IOException {
+    public void testNullBounds() throws IOException {
 
         // null, null => min, max
         assertNullBounds(b -> b.startObject("field").nullField("gte").nullField("lte").endObject(), true, true);

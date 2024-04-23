@@ -87,6 +87,37 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         }
     }
 
+    @Override
+    public void testNullBounds() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", true);
+        }));
+
+        ParsedDocument bothNull = mapper.parse(source(b -> b.startObject("field").nullField("gte").nullField("lte").endObject()));
+        assertThat(storedValue(bothNull), equalTo("[:: : ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff]"));
+
+        ParsedDocument onlyFromIPv4 = mapper.parse(
+            source(b -> b.startObject("field").field("gte", rangeValue()).nullField("lte").endObject())
+        );
+        assertThat(storedValue(onlyFromIPv4), equalTo("[192.168.1.7 : 255.255.255.255]"));
+
+        ParsedDocument onlyToIPv4 = mapper.parse(
+            source(b -> b.startObject("field").nullField("gte").field("lte", rangeValue()).endObject())
+        );
+        assertThat(storedValue(onlyToIPv4), equalTo("[0.0.0.0 : 192.168.1.7]"));
+
+        ParsedDocument onlyFromIPv6 = mapper.parse(
+            source(b -> b.startObject("field").field("gte", "2001:db8::").nullField("lte").endObject())
+        );
+        assertThat(storedValue(onlyFromIPv6), equalTo("[2001:db8:: : ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff]"));
+
+        ParsedDocument onlyToIPv6 = mapper.parse(
+            source(b -> b.startObject("field").nullField("gte").field("lte", "2001:db8::").endObject())
+        );
+        assertThat(storedValue(onlyToIPv6), equalTo("[:: : 2001:db8::]"));
+    }
+
     @SuppressWarnings("unchecked")
     public void testValidSyntheticSource() throws IOException {
         CheckedConsumer<XContentBuilder, IOException> mapping = b -> {

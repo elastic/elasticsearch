@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -43,12 +43,10 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.QueryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -265,14 +263,14 @@ class OptimizerRules {
      * at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
     public static final class BooleanFunctionEqualsElimination extends
-        org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+        org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<EsqlBinaryComparison> {
 
         BooleanFunctionEqualsElimination() {
             super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP);
         }
 
         @Override
-        protected Expression rule(BinaryComparison bc) {
+        protected Expression rule(EsqlBinaryComparison bc) {
             if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
                 // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
 
@@ -291,13 +289,13 @@ class OptimizerRules {
 
     /**
      * Propagate Equals to eliminate conjuncted Ranges or BinaryComparisons.
-     * When encountering a different Equals, non-containing {@link Range} or {@link BinaryComparison}, the conjunction becomes false.
-     * When encountering a containing {@link Range}, {@link BinaryComparison} or {@link NotEquals}, these get eliminated by the equality.
+     * When encountering a different Equals or {@link EsqlBinaryComparison}, the conjunction becomes false.
+     * When encountering a {@link EsqlBinaryComparison} or {@link NotEquals}, these get eliminated by the equality.
      *
-     * Since this rule can eliminate Ranges and BinaryComparisons, it should be applied before
+     * Since this rule can eliminate BinaryComparisons, it should be applied before
      * {@link org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons}.
      *
-     * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
+     * This rule doesn't perform any promotion of {@link EsqlBinaryComparison}s, that is handled by
      * {@link org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons} on purpose as the resulting Range might be
      * foldable (which is picked by the folding rule on the next run).
      */
@@ -319,28 +317,23 @@ class OptimizerRules {
 
         // combine conjunction
         private static Expression propagate(And and) {
-            List<Range> ranges = new ArrayList<>();
             // Only equalities, not-equalities and inequalities with a foldable .right are extracted separately;
             // the others go into the general 'exps'.
-            // TODO: In 105217, this should change to EsqlBinaryComparison, but it doesn't exist in this branch yet
-            List<BinaryComparison> equals = new ArrayList<>();
+            List<EsqlBinaryComparison> equals = new ArrayList<>();
             List<NotEquals> notEquals = new ArrayList<>();
-            List<BinaryComparison> inequalities = new ArrayList<>();
+            List<EsqlBinaryComparison> inequalities = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
 
             boolean changed = false;
 
             for (Expression ex : Predicates.splitAnd(and)) {
-                if (ex instanceof Range) {
-                    ranges.add((Range) ex);
-                } else if (ex instanceof Equals || ex instanceof NullEquals) {
-                    BinaryComparison otherEq = (BinaryComparison) ex;
+                if (ex instanceof Equals otherEq) {
                     // equals on different values evaluate to FALSE
                     // ignore date/time fields as equality comparison might actually be a range check
                     if (otherEq.right().foldable() && DataTypes.isDateTime(otherEq.left().dataType()) == false) {
-                        for (BinaryComparison eq : equals) {
+                        for (EsqlBinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
-                                Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
+                                Integer comp = EsqlBinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
                                 if (comp != null) {
                                     // var cannot be equal to two different values at the same time
                                     if (comp != 0) {
@@ -357,7 +350,7 @@ class OptimizerRules {
                     || ex instanceof GreaterThanOrEqual
                     || ex instanceof LessThan
                     || ex instanceof LessThanOrEqual) {
-                        BinaryComparison bc = (BinaryComparison) ex;
+                        EsqlBinaryComparison bc = (EsqlBinaryComparison) ex;
                         if (bc.right().foldable()) {
                             inequalities.add(bc);
                         } else {
@@ -375,46 +368,14 @@ class OptimizerRules {
             }
 
             // check
-            for (BinaryComparison eq : equals) {
+            for (EsqlBinaryComparison eq : equals) {
                 Object eqValue = eq.right().fold();
-
-                for (Iterator<Range> iterator = ranges.iterator(); iterator.hasNext();) {
-                    Range range = iterator.next();
-
-                    if (range.value().semanticEquals(eq.left())) {
-                        // if equals is outside the interval, evaluate the whole expression to FALSE
-                        if (range.lower().foldable()) {
-                            Integer compare = BinaryComparison.compare(range.lower().fold(), eqValue);
-                            if (compare != null && (
-                            // eq outside the lower boundary
-                            compare > 0 ||
-                            // eq matches the boundary but should not be included
-                                (compare == 0 && range.includeLower() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                            }
-                        }
-                        if (range.upper().foldable()) {
-                            Integer compare = BinaryComparison.compare(range.upper().fold(), eqValue);
-                            if (compare != null && (
-                            // eq outside the upper boundary
-                            compare < 0 ||
-                            // eq matches the boundary but should not be included
-                                (compare == 0 && range.includeUpper() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                            }
-                        }
-
-                        // it's in the range and thus, remove it
-                        iterator.remove();
-                        changed = true;
-                    }
-                }
 
                 // evaluate all NotEquals against the Equal
                 for (Iterator<NotEquals> iter = notEquals.iterator(); iter.hasNext();) {
                     NotEquals neq = iter.next();
                     if (eq.left().semanticEquals(neq.left())) {
-                        Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
+                        Integer comp = EsqlBinaryComparison.compare(eqValue, neq.right().fold());
                         if (comp != null) {
                             if (comp == 0) { // clashing and conflicting: a = 1 AND a != 1
                                 return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
@@ -427,10 +388,10 @@ class OptimizerRules {
                 }
 
                 // evaluate all inequalities against the Equal
-                for (Iterator<BinaryComparison> iter = inequalities.iterator(); iter.hasNext();) {
-                    BinaryComparison bc = iter.next();
+                for (Iterator<EsqlBinaryComparison> iter = inequalities.iterator(); iter.hasNext();) {
+                    EsqlBinaryComparison bc = iter.next();
                     if (eq.left().semanticEquals(bc.left())) {
-                        Integer compare = BinaryComparison.compare(eqValue, bc.right().fold());
+                        Integer compare = EsqlBinaryComparison.compare(eqValue, bc.right().fold());
                         if (compare != null) {
                             if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
                                 if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
@@ -451,7 +412,7 @@ class OptimizerRules {
                 }
             }
 
-            return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, equals, notEquals, inequalities, ranges)) : and;
+            return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, equals, notEquals, inequalities)) : and;
         }
 
         // combine disjunction:
@@ -463,8 +424,7 @@ class OptimizerRules {
             List<Expression> exps = new ArrayList<>();
             List<Equals> equals = new ArrayList<>(); // foldable right term Equals
             List<NotEquals> notEquals = new ArrayList<>(); // foldable right term NotEquals
-            List<Range> ranges = new ArrayList<>();
-            List<BinaryComparison> inequalities = new ArrayList<>(); // foldable right term (=limit) BinaryComparision
+            List<EsqlBinaryComparison> inequalities = new ArrayList<>(); // foldable right term (=limit) BinaryComparision
 
             // split expressions by type
             for (Expression ex : Predicates.splitOr(or)) {
@@ -480,9 +440,7 @@ class OptimizerRules {
                     } else {
                         exps.add(ex);
                     }
-                } else if (ex instanceof Range) {
-                    ranges.add((Range) ex);
-                } else if (ex instanceof BinaryComparison bc) {
+                } else if (ex instanceof EsqlBinaryComparison bc) {
                     if (bc.right().foldable()) {
                         inequalities.add(bc);
                     } else {
@@ -504,7 +462,7 @@ class OptimizerRules {
                 // Equals OR NotEquals
                 for (NotEquals neq : notEquals) {
                     if (eq.left().semanticEquals(neq.left())) { // a = 2 OR a != ? -> ...
-                        Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
+                        Integer comp = EsqlBinaryComparison.compare(eqValue, neq.right().fold());
                         if (comp != null) {
                             if (comp == 0) { // a = 2 OR a != 2 -> TRUE
                                 return TRUE;
@@ -521,66 +479,11 @@ class OptimizerRules {
                     continue;
                 }
 
-                // Equals OR Range
-                for (int i = 0; i < ranges.size(); i++) { // might modify list, so use index loop
-                    Range range = ranges.get(i);
-                    if (eq.left().semanticEquals(range.value())) {
-                        Integer lowerComp = range.lower().foldable() ? BinaryComparison.compare(eqValue, range.lower().fold()) : null;
-                        Integer upperComp = range.upper().foldable() ? BinaryComparison.compare(eqValue, range.upper().fold()) : null;
-
-                        if (lowerComp != null && lowerComp == 0) {
-                            if (range.includeLower() == false) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
-                                ranges.set(
-                                    i,
-                                    new Range(
-                                        range.source(),
-                                        range.value(),
-                                        range.lower(),
-                                        true,
-                                        range.upper(),
-                                        range.includeUpper(),
-                                        range.zoneId()
-                                    )
-                                );
-                            } // else : a = 2 OR 2 <= a < ? -> 2 <= a < ?
-                            removeEquals = true; // update range with lower equality instead or simply superfluous
-                            break;
-                        } else if (upperComp != null && upperComp == 0) {
-                            if (range.includeUpper() == false) { // a = 2 OR ? < a < 2 -> ? < a <= 2
-                                ranges.set(
-                                    i,
-                                    new Range(
-                                        range.source(),
-                                        range.value(),
-                                        range.lower(),
-                                        range.includeLower(),
-                                        range.upper(),
-                                        true,
-                                        range.zoneId()
-                                    )
-                                );
-                            } // else : a = 2 OR ? < a <= 2 -> ? < a <= 2
-                            removeEquals = true; // update range with upper equality instead
-                            break;
-                        } else if (lowerComp != null && upperComp != null) {
-                            if (0 < lowerComp && upperComp < 0) { // a = 2 OR 1 < a < 3
-                                removeEquals = true; // equality is superfluous
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (removeEquals) {
-                    iterEq.remove();
-                    updated = true;
-                    continue;
-                }
-
                 // Equals OR Inequality
                 for (int i = 0; i < inequalities.size(); i++) {
-                    BinaryComparison bc = inequalities.get(i);
+                    EsqlBinaryComparison bc = inequalities.get(i);
                     if (eq.left().semanticEquals(bc.left())) {
-                        Integer comp = BinaryComparison.compare(eqValue, bc.right().fold());
+                        Integer comp = EsqlBinaryComparison.compare(eqValue, bc.right().fold());
                         if (comp != null) {
                             if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
                                 if (comp < 0) { // a = 1 OR a > 2 -> nop
@@ -611,7 +514,7 @@ class OptimizerRules {
                 }
             }
 
-            return updated ? Predicates.combineOr(CollectionUtils.combine(exps, equals, notEquals, inequalities, ranges)) : or;
+            return updated ? Predicates.combineOr(CollectionUtils.combine(exps, equals, notEquals, inequalities)) : or;
         }
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -189,6 +191,43 @@ public class BinaryFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+
+        return new BinaryDocValuesSyntheticFieldLoader(name()) {
+            @Override
+            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                var in = new ByteArrayStreamInput();
+                in.reset(value.bytes, value.offset, value.length);
+
+                int count = in.readVInt();
+                switch (count) {
+                    case 0:
+                        return;
+                    case 1:
+                        b.field(simpleName());
+                        break;
+                    default:
+                        b.startArray(simpleName());
+                }
+
+                for (int i = 0; i < count; i++) {
+                    byte[] bytes = in.readByteArray();
+                    b.value(Base64.getEncoder().encodeToString(bytes));
+                }
+
+                if (count > 1) {
+                    b.endArray();
+                }
+            }
+        };
     }
 
     public static final class CustomBinaryDocValuesField extends CustomDocValuesField {

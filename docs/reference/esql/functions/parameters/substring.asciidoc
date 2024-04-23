@@ -3,10 +3,10 @@
 *Parameters*
 
 `string`::
-
+String expression. If `null`, the function returns `null`.
 
 `start`::
-
+Start position.
 
 `length`::
-
+Length of the substring from the start position. Optional; if omitted, all positions after `start` are returned.

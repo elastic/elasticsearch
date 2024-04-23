@@ -8,8 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
@@ -93,7 +92,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         for (Values values : context.getIgnoredFieldValues()) {
-            context.doc().add(new StringField(NAME, encode(values), Field.Store.YES));
+            context.doc().add(new StoredField(NAME, encode(values)));
         }
     }
 

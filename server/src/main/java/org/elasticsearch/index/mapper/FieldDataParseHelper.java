@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * Helper class for processing field data of any type, as provided by the {@link XContentParser}.
@@ -56,17 +57,17 @@ public final class FieldDataParseHelper {
      * {@link #encodeToken(XContentParser)} above.
      */
     public static void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
-        switch (r.bytes[r.offset]) {
-            case 'b' -> TypeUtils.EMBEDDED_OBJECT.decodeAndWrite(b, r);
-            case 'c', 'j', 's', 'y' -> TypeUtils.START.decodeAndWrite(b, r);
-            case 'd' -> TypeUtils.BIG_DECIMAL.decodeAndWrite(b, r);
-            case 'f', 't' -> TypeUtils.BOOLEAN.decodeAndWrite(b, r);
-            case 'i' -> TypeUtils.BIG_INTEGER.decodeAndWrite(b, r);
-            case 'S' -> TypeUtils.STRING.decodeAndWrite(b, r);
-            case 'I' -> TypeUtils.INTEGER.decodeAndWrite(b, r);
-            case 'L' -> TypeUtils.LONG.decodeAndWrite(b, r);
-            case 'D' -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
-            case 'F' -> TypeUtils.FLOAT.decodeAndWrite(b, r);
+        switch ((char) r.bytes[r.offset]) {
+            case BINARY_VALUE -> TypeUtils.EMBEDDED_OBJECT.decodeAndWrite(b, r);
+            case CBOR_OBJECT_VALUE, JSON_OBJECT_VALUE, YAML_OBJECT_VALUE, SMILE_OBJECT_VALUE -> TypeUtils.START.decodeAndWrite(b, r);
+            case BIG_DECIMAL_VALUE -> TypeUtils.BIG_DECIMAL.decodeAndWrite(b, r);
+            case FALSE_VALUE, TRUE_VALUE -> TypeUtils.BOOLEAN.decodeAndWrite(b, r);
+            case BIG_INTEGER_VALUE -> TypeUtils.BIG_INTEGER.decodeAndWrite(b, r);
+            case STRING_VALUE -> TypeUtils.STRING.decodeAndWrite(b, r);
+            case INTEGER_VALUE -> TypeUtils.INTEGER.decodeAndWrite(b, r);
+            case LONG_VALUE -> TypeUtils.LONG.decodeAndWrite(b, r);
+            case DOUBLE_VALUE -> TypeUtils.DOUBLE.decodeAndWrite(b, r);
+            case FLOAT_VALUE -> TypeUtils.FLOAT.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
     }
@@ -89,8 +90,23 @@ public final class FieldDataParseHelper {
         };
     }
 
+    private static final char STRING_VALUE = 'S';
+    private static final char INTEGER_VALUE = 'I';
+    private static final char LONG_VALUE = 'L';
+    private static final char DOUBLE_VALUE = 'D';
+    private static final char FLOAT_VALUE = 'F';
+    private static final char BIG_INTEGER_VALUE = 'i';
+    private static final char BIG_DECIMAL_VALUE = 'd';
+    private static final char FALSE_VALUE = 'f';
+    private static final char TRUE_VALUE = 't';
+    private static final char BINARY_VALUE = 'b';
+    private static final char CBOR_OBJECT_VALUE = 'c';
+    private static final char JSON_OBJECT_VALUE = 'j';
+    private static final char YAML_OBJECT_VALUE = 'y';
+    private static final char SMILE_OBJECT_VALUE = 's';
+
     private enum TypeUtils {
-        STRING('S') {
+        STRING(STRING_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, parser.text());
@@ -102,6 +118,7 @@ public final class FieldDataParseHelper {
                 byte[] bytes = new byte[text.length + 1];
                 bytes[0] = getEncoding();
                 System.arraycopy(text, 0, bytes, 1, text.length);
+                assertValidEncoding(bytes);
                 return bytes;
             }
 
@@ -110,7 +127,7 @@ public final class FieldDataParseHelper {
                 b.value(new BytesRef(r.bytes, r.offset + 1, r.length - 1).utf8ToString());
             }
         },
-        INTEGER('I') {
+        INTEGER(INTEGER_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, parser.intValue());
@@ -121,6 +138,7 @@ public final class FieldDataParseHelper {
                 byte[] bytes = new byte[5];
                 bytes[0] = getEncoding();
                 ByteUtils.writeIntLE(parser.intValue(), bytes, 1);
+                assertValidEncoding(bytes);
                 return bytes;
             }
 
@@ -129,7 +147,7 @@ public final class FieldDataParseHelper {
                 b.value(ByteUtils.readIntLE(r.bytes, 1 + r.offset));
             }
         },
-        LONG('L') {
+        LONG(LONG_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, parser.longValue());
@@ -140,6 +158,7 @@ public final class FieldDataParseHelper {
                 byte[] bytes = new byte[9];
                 bytes[0] = getEncoding();
                 ByteUtils.writeLongLE(parser.longValue(), bytes, 1);
+                assertValidEncoding(bytes);
                 return bytes;
             }
 
@@ -148,7 +167,7 @@ public final class FieldDataParseHelper {
                 b.value(ByteUtils.readLongLE(r.bytes, 1 + r.offset));
             }
         },
-        DOUBLE('D') {
+        DOUBLE(DOUBLE_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, parser.doubleValue());
@@ -159,6 +178,7 @@ public final class FieldDataParseHelper {
                 byte[] bytes = new byte[9];
                 bytes[0] = getEncoding();
                 ByteUtils.writeDoubleLE(parser.doubleValue(), bytes, 1);
+                assertValidEncoding(bytes);
                 return bytes;
             }
 
@@ -167,7 +187,7 @@ public final class FieldDataParseHelper {
                 b.value(ByteUtils.readDoubleLE(r.bytes, 1 + r.offset));
             }
         },
-        FLOAT('F') {
+        FLOAT(FLOAT_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, parser.floatValue());
@@ -178,6 +198,7 @@ public final class FieldDataParseHelper {
                 byte[] bytes = new byte[5];
                 bytes[0] = getEncoding();
                 ByteUtils.writeFloatLE(parser.floatValue(), bytes, 1);
+                assertValidEncoding(bytes);
                 return bytes;
             }
 
@@ -186,7 +207,7 @@ public final class FieldDataParseHelper {
                 b.value(ByteUtils.readFloatLE(r.bytes, 1 + r.offset));
             }
         },
-        BIG_INTEGER('i') {
+        BIG_INTEGER(BIG_INTEGER_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, encode(parser));
@@ -194,7 +215,9 @@ public final class FieldDataParseHelper {
 
             @Override
             byte[] encode(XContentParser parser) throws IOException {
-                return encode((BigInteger) parser.numberValue(), getEncoding());
+                byte[] bytes = encode((BigInteger) parser.numberValue(), getEncoding());
+                assertValidEncoding(bytes);
+                return bytes;
             }
 
             @Override
@@ -202,7 +225,7 @@ public final class FieldDataParseHelper {
                 b.value(new BigInteger(r.bytes, r.offset + 1, r.length - 1));
             }
         },
-        BIG_DECIMAL('d') {
+        BIG_DECIMAL(BIG_DECIMAL_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, encode(parser));
@@ -210,7 +233,9 @@ public final class FieldDataParseHelper {
 
             @Override
             byte[] encode(XContentParser parser) throws IOException {
-                return encode((BigDecimal) parser.numberValue(), getEncoding());
+                byte[] bytes = encode((BigDecimal) parser.numberValue(), getEncoding());
+                assertValidEncoding(bytes);
+                return bytes;
             }
 
             @Override
@@ -222,7 +247,7 @@ public final class FieldDataParseHelper {
                 b.value(new BigDecimal(new BigInteger(r.bytes, r.offset + 5, r.length - 5), scale));
             }
         },
-        BOOLEAN('B') {
+        BOOLEAN(new Character[] { TRUE_VALUE, FALSE_VALUE }) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, encode(parser));
@@ -230,7 +255,9 @@ public final class FieldDataParseHelper {
 
             @Override
             byte[] encode(XContentParser parser) throws IOException {
-                return new byte[] { parser.booleanValue() ? (byte) 't' : (byte) 'f' };
+                byte[] bytes = new byte[] { parser.booleanValue() ? (byte) 't' : (byte) 'f' };
+                assertValidEncoding(bytes);
+                return bytes;
             }
 
             @Override
@@ -242,7 +269,7 @@ public final class FieldDataParseHelper {
                 b.value(r.bytes[r.offset] == 't');
             }
         },
-        EMBEDDED_OBJECT('b') {
+        EMBEDDED_OBJECT(BINARY_VALUE) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, encode(parser.binaryValue()));
@@ -250,7 +277,9 @@ public final class FieldDataParseHelper {
 
             @Override
             byte[] encode(XContentParser parser) throws IOException {
-                return encode(parser.binaryValue());
+                byte[] bytes = encode(parser.binaryValue());
+                assertValidEncoding(bytes);
+                return bytes;
             }
 
             @Override
@@ -258,7 +287,7 @@ public final class FieldDataParseHelper {
                 b.value(r.bytes, r.offset + 1, r.length - 1);
             }
         },
-        START('O') {
+        START(new Character[] { CBOR_OBJECT_VALUE, JSON_OBJECT_VALUE, YAML_OBJECT_VALUE, SMILE_OBJECT_VALUE }) {
             @Override
             StoredField buildStoredField(String name, XContentParser parser) throws IOException {
                 return new StoredField(name, encode(parser));
@@ -268,31 +297,42 @@ public final class FieldDataParseHelper {
             byte[] encode(XContentParser parser) throws IOException {
                 try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
                     builder.copyCurrentStructure(parser);
-                    return encode(builder);
+                    byte[] bytes = encode(builder);
+                    assertValidEncoding(bytes);
+                    return bytes;
                 }
             }
 
             @Override
             void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
-                switch (r.bytes[r.offset]) {
-                    case 'c' -> decodeAndWriteXContent(b, XContentType.CBOR, r);
-                    case 'j' -> decodeAndWriteXContent(b, XContentType.JSON, r);
-                    case 's' -> decodeAndWriteXContent(b, XContentType.SMILE, r);
-                    case 'y' -> decodeAndWriteXContent(b, XContentType.YAML, r);
+                switch ((char) r.bytes[r.offset]) {
+                    case CBOR_OBJECT_VALUE -> decodeAndWriteXContent(b, XContentType.CBOR, r);
+                    case JSON_OBJECT_VALUE -> decodeAndWriteXContent(b, XContentType.JSON, r);
+                    case SMILE_OBJECT_VALUE -> decodeAndWriteXContent(b, XContentType.SMILE, r);
+                    case YAML_OBJECT_VALUE -> decodeAndWriteXContent(b, XContentType.YAML, r);
                     default -> throw new IllegalArgumentException("Can't decode " + r);
                 }
             }
         };
 
         TypeUtils(char encoding) {
+            this.encoding = new Character[] { encoding };
+        }
+
+        TypeUtils(Character[] encoding) {
             this.encoding = encoding;
         }
 
         byte getEncoding() {
-            return (byte) encoding;
+            assert encoding.length == 1;
+            return (byte) encoding[0].charValue();
         }
 
-        final char encoding;
+        void assertValidEncoding(byte[] encodedValue) {
+            assert Arrays.asList(encoding).contains((char) encodedValue[0]);
+        }
+
+        final Character[] encoding;
 
         abstract StoredField buildStoredField(String name, XContentParser parser) throws IOException;
 
@@ -328,10 +368,10 @@ public final class FieldDataParseHelper {
             BytesReference b = BytesReference.bytes(builder);
             byte[] encoded = new byte[1 + b.length()];
             encoded[0] = switch (builder.contentType()) {
-                case JSON -> 'j';
-                case SMILE -> 's';
-                case YAML -> 'y';
-                case CBOR -> 'c';
+                case JSON -> JSON_OBJECT_VALUE;
+                case SMILE -> SMILE_OBJECT_VALUE;
+                case YAML -> YAML_OBJECT_VALUE;
+                case CBOR -> CBOR_OBJECT_VALUE;
                 default -> throw new IllegalArgumentException("unsupported type " + builder.contentType());
             };
 

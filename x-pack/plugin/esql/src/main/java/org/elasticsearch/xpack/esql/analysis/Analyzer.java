@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -799,7 +800,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof EsqlScalarFunction esf) {
                 return processScalarFunction(esf, registry);
             }
-            if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
+            // TODO: is there a reason we don't just check if it's a BinaryOperator?
+            if (f instanceof EsqlArithmeticOperation || f instanceof EsqlBinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
             }
             return f;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
@@ -342,7 +343,7 @@ public class Verifier {
     }
 
     private static void checkBinaryComparison(LogicalPlan p, Set<Failure> failures) {
-        p.forEachExpression(BinaryComparison.class, bc -> {
+        p.forEachExpression(EsqlBinaryComparison.class, bc -> {
             Failure f = validateBinaryComparison(bc);
             if (f != null) {
                 failures.add(f);
@@ -360,7 +361,7 @@ public class Verifier {
     /**
      * Limit QL's comparisons to types we support.
      */
-    public static Failure validateBinaryComparison(BinaryComparison bc) {
+    public static Failure validateBinaryComparison(EsqlBinaryComparison bc) {
         if (bc.left().dataType().isNumeric()) {
             if (false == bc.right().dataType().isNumeric()) {
                 return fail(

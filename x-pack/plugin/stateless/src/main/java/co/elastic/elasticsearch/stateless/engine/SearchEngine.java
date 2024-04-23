@@ -690,6 +690,12 @@ public class SearchEngine extends Engine {
     }
 
     @Override
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        // TODO : include vector formats, when required
+        return segments();
+    }
+
+    @Override
     public RefreshResult refresh(String source) throws EngineException {
         return RefreshResult.NO_REFRESH;
     }

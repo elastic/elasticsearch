@@ -47,9 +47,9 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
         final BigArrays bigArrays = context.bigArrays();
-        counts = bigArrays.newLongArray(0, true);
-        sums = bigArrays.newDoubleArray(0, true);
-        compensations = bigArrays.newDoubleArray(0, true);
+        counts = bigArrays.newLongArray(1, true);
+        sums = bigArrays.newDoubleArray(1, true);
+        compensations = bigArrays.newDoubleArray(1, true);
     }
 
     @Override

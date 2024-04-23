@@ -51,7 +51,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         this.valuesSource = config.getValuesSource();
         this.keyed = keyed;
         this.format = formatter;
-        this.states = context.bigArrays().newObjectArray(0);
+        this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
     }

@@ -48,10 +48,10 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         assert valuesSources != null;
         this.valuesSources = valuesSources;
         this.format = format;
-        weights = bigArrays().newDoubleArray(0, true);
-        valueSums = bigArrays().newDoubleArray(0, true);
-        valueCompensations = bigArrays().newDoubleArray(0, true);
-        weightCompensations = bigArrays().newDoubleArray(0, true);
+        weights = bigArrays().newDoubleArray(1, true);
+        valueSums = bigArrays().newDoubleArray(1, true);
+        valueCompensations = bigArrays().newDoubleArray(1, true);
+        weightCompensations = bigArrays().newDoubleArray(1, true);
     }
 
     @Override

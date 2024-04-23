@@ -47,7 +47,8 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
-        mins = context.bigArrays().newDoubleArray(0, false);
+        mins = context.bigArrays().newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         this.format = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
@@ -71,12 +72,9 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                  * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
-                if (mins.size() == 0) {
-                    mins = bigArrays().resize(mins, 1);
-                    mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-                }
-                assert mins.size() == 1;
-                mins.set(0, Math.min(mins.get(0), segMin.doubleValue()));
+                double min = mins.get(0);
+                min = Math.min(min, segMin.doubleValue());
+                mins.set(0, min);
                 // the minimum value has been extracted, we don't need to collect hits on this segment.
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }

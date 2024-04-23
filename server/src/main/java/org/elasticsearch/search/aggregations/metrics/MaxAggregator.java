@@ -46,7 +46,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
-        maxes = context.bigArrays().newDoubleArray(0, false);
+        maxes = context.bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.formatter = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
@@ -70,12 +71,10 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                  * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
-                if (maxes.size() == 0) {
-                    maxes = bigArrays().resize(maxes, 1);
-                    maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-                }
                 assert maxes.size() == 1;
-                maxes.set(0, Math.max(maxes.get(0), segMax.doubleValue()));
+                double max = maxes.get(0);
+                max = Math.max(max, segMax.doubleValue());
+                maxes.set(0, max);
                 // the maximum value has been extracted, we don't need to collect hits on this segment.
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }

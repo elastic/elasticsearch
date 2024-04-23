@@ -85,7 +85,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         this.precision = precision;
         this.maxOrd = maxOrd;
         this.bigArrays = context.bigArrays();
-        this.visitedOrds = bigArrays.newObjectArray(0);
+        this.visitedOrds = bigArrays.newObjectArray(1);
     }
 
     @Override

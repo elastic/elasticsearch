@@ -42,11 +42,13 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
-        counts = bigArrays().newLongArray(0, true);
-        sums = bigArrays().newDoubleArray(0, true);
-        compensations = bigArrays().newDoubleArray(0, true);
-        mins = bigArrays().newDoubleArray(0, false);
-        maxes = bigArrays().newDoubleArray(0, false);
+        counts = bigArrays().newLongArray(1, true);
+        sums = bigArrays().newDoubleArray(1, true);
+        compensations = bigArrays().newDoubleArray(1, true);
+        mins = bigArrays().newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+        maxes = bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.format = config.format();
     }
 

@@ -41,7 +41,7 @@ DELETE _connector/my-connector
 [[create-connector-api-prereqs]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connector, it's required to have the {enterprise-search-ref}/build-connector.html[Elastic connector service] running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `service_type` parameter should reference a supported third-party service. See the available service types for {enterprise-search-ref}/native-connectors.html[native] and {enterprise-search-ref}/build-connector.html[self-managed] connectors. This can also reference the service type of your custom connector.
 
 

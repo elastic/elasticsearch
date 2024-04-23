@@ -182,6 +182,7 @@ public class TransportVersions {
     public static final TransportVersion TOP_LEVEL_KNN_SUPPORT_QUERY_NAME = def(8_641_00_0);
     public static final TransportVersion INDEX_SEGMENTS_VECTOR_FORMATS = def(8_642_00_0);
     public static final TransportVersion ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION = def(8_643_00_0);
+    public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = def(8_644_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -235,9 +236,6 @@ public class TransportVersions {
      *
      * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
-
-    // FIXME: don't commit with this this here...this is a hack to avoid the never ending set of conflicts in this file.
-    public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = def(8_699_00_0);
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.

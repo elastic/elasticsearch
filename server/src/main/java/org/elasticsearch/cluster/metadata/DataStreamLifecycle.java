@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -184,6 +185,38 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Nullable
     public TimeValue getDataStreamRetention() {
         return dataRetention == null ? null : dataRetention.value;
+    }
+
+    /**
+     * This method checks if the effective retention is matching what the user has configured; if the effective retention
+     * does not match then it adds a warning informing the user about the effective retention and the source.
+     */
+    public void addWarningHeaderIfDataRetentionNotEffective(@Nullable DataStreamGlobalRetention globalRetention) {
+        if (globalRetention == null) {
+            return;
+        }
+        Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
+            globalRetention
+        );
+        String effectiveRetentionStringRep = effectiveDataRetentionWithSource.v1().getStringRep();
+        switch (effectiveDataRetentionWithSource.v2()) {
+            case DEFAULT_GLOBAL_RETENTION -> HeaderWarning.addWarning(
+                String.format(
+                    "Infinite retention is not allowed for this project. The default retention of [%s] will be applied.",
+                    effectiveRetentionStringRep
+                )
+            );
+            case MAX_GLOBAL_RETENTION -> HeaderWarning.addWarning(
+                String.format(
+                    " The retention provided [%s] is exceeding the max allowed data retention of this project [%s]. The max retention of [%s] will be applied",
+                    getDataStreamRetention() == null ? "infinite" : getDataStreamRetention().getStringRep(),
+                    effectiveRetentionStringRep,
+                    effectiveRetentionStringRep
+                )
+            );
+            case DATA_STREAM_CONFIGURATION -> {
+            }
+        }
     }
 
     /**

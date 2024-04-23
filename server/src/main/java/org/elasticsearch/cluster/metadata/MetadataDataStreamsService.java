@@ -210,6 +210,9 @@ public class MetadataDataStreamsService {
             var dataStream = validateDataStream(metadata, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
         }
+        if (lifecycle != null) {
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(DataStreamGlobalRetention.getFromClusterState(currentState));
+        }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 

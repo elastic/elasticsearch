@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -161,6 +162,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -208,7 +210,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         LongSupplier nowSupplier,
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
-        DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher
+        DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         this.settings = settings;
         this.client = client;
@@ -219,6 +222,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.clusterStateChangesDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
+        this.globalRetentionResolver = globalRetentionResolver;
         this.scheduledJob = null;
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
@@ -783,7 +787,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    dataStream.getLifecycle().getEffectiveDataRetention(DataStreamGlobalRetention.getFromClusterState(state))
+                    dataStream.getLifecycle().getEffectiveDataRetention(globalRetentionResolver.resolve(state))
                 );
                 transportActionsDeduplicator.executeOnce(
                     rolloverRequest,
@@ -828,7 +832,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         Metadata metadata = state.metadata();
-        DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
+        DataStreamGlobalRetention globalRetention = globalRetentionResolver.resolve(state);
         List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier, globalRetention);
         if (backingIndicesOlderThanRetention.isEmpty()) {
             return Set.of();

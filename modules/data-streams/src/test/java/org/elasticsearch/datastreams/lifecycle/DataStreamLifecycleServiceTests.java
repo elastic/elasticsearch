@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
@@ -133,6 +135,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
+    private DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Before
     public void setupServices() {
@@ -178,7 +181,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -1386,6 +1390,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         AtomicLong now = new AtomicLong(0);
         long delta = randomLongBetween(10, 10000);
         DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> Clock.systemUTC().millis());
+        globalRetentionResolver = new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention());
         DataStreamLifecycleService service = new DataStreamLifecycleService(
             Settings.EMPTY,
             getTransportRequestsRecordingClient(),
@@ -1401,7 +1406,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));

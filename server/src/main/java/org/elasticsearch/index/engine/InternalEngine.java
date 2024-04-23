@@ -2582,8 +2582,13 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
+        return segments(false);
+    }
+
+    @Override
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
         try (var ignored = acquireEnsureOpenRef()) {
-            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();

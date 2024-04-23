@@ -429,6 +429,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo));
+    }
+
+    @Override
     public RefreshResult refresh(String source) {
         // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side

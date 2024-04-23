@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class ResourceAlreadyUploadedException extends ElasticsearchException {
+public class ResourceAlreadyUploadedException extends ResourceNotFoundException {
 
     public ResourceAlreadyUploadedException(String msg, Object... args) {
         super(msg, args);
@@ -22,8 +22,4 @@ public class ResourceAlreadyUploadedException extends ElasticsearchException {
         super(in);
     }
 
-    @Override
-    public final RestStatus status() {
-        return RestStatus.NOT_FOUND;
-    }
 }

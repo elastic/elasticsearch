@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -35,6 +37,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -333,6 +337,19 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
+        // NOTE: when _ignored is requested via `stored_fields` we need to load it from doc values instead of loading it from stored fields.
+        // The _ignored field used to be stored, but as a result of supporting aggregations on it, it moved from using a stored field to
+        // using doc values.
+        if (storedFields != null && Arrays.asList(storedFields).contains(IgnoredFieldMapper.NAME)) {
+            final DocumentField ignoredDocumentField = loadIgnoredMetadataField(docIdAndVersion);
+            if (ignoredDocumentField != null) {
+                if (metadataFields == null) {
+                    metadataFields = new HashMap<>();
+                }
+                metadataFields.put(IgnoredFieldMapper.NAME, ignoredDocumentField);
+            }
+        }
+
         BytesReference sourceBytes = null;
         if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
             Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
@@ -355,6 +372,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             documentFields,
             metadataFields
         );
+    }
+
+    private static DocumentField loadIgnoredMetadataField(final DocIdAndVersion docIdAndVersion) throws IOException {
+        final SortedSetDocValues ignoredDocValues = docIdAndVersion.reader.getContext()
+            .reader()
+            .getSortedSetDocValues(IgnoredFieldMapper.NAME);
+        if (ignoredDocValues == null
+            || ignoredDocValues.advanceExact(docIdAndVersion.docId) == false
+            || ignoredDocValues.docValueCount() <= 0) {
+            return null;
+        }
+        final List<Object> ignoredValues = new ArrayList<>(ignoredDocValues.docValueCount());
+        for (int i = 0; i < ignoredDocValues.docValueCount(); i++) {
+            ignoredValues.add(ignoredDocValues.lookupOrd(ignoredDocValues.nextOrd()).utf8ToString());
+        }
+        return new DocumentField(IgnoredFieldMapper.NAME, ignoredValues);
     }
 
     private static StoredFieldLoader buildStoredFieldLoader(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {

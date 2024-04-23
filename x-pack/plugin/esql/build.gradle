@@ -292,3 +292,9 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
   }
 }
+
+for(forbidTask in ['forbiddenApisMain', 'forbiddenApisTest'] ){
+  tasks.named(forbidTask).configure {
+    signaturesFiles += files('src/main/resources/forbidden/ql-signatures.txt')
+  }
+}

@@ -87,6 +87,11 @@ final class ESPolicy extends Policy {
             return false;
         }
 
+        // completely deny access to specific files that are forbidden
+        if (forbiddenFilePermission.implies(permission)) {
+            return false;
+        }
+
         URL location = codeSource.getLocation();
         if (location != null) {
             // run scripts with limited permissions
@@ -101,23 +106,16 @@ final class ESPolicy extends Policy {
             }
         }
 
-        if (permission instanceof FilePermission) {
-            // The FilePermission to check access to the path.data is the hottest permission check in
-            // Elasticsearch, so we check it first.
-            if (dataPathPermission.implies(permission)) {
-                return true;
-            }
+        // The FilePermission to check access to the path.data is the hottest permission check in
+        // Elasticsearch, so we explicitly check it here.
+        if (dataPathPermission.implies(permission)) {
+            return true;
+        }
 
-            // completely deny access to specific files that are forbidden
-            if (forbiddenFilePermission.implies(permission)) {
-                return false;
-            }
-
-            // Special handling for broken Hadoop code: "let me execute or my classes will not load"
-            // yeah right, REMOVE THIS when hadoop is fixed
-            if ("<<ALL FILES>>".equals(permission.getName())) {
-                hadoopHack();
-            }
+        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
+        // yeah right, REMOVE THIS when hadoop is fixed
+        if (permission instanceof FilePermission && "<<ALL FILES>>".equals(permission.getName())) {
+            hadoopHack();
         }
 
         // otherwise defer to template + dynamic file permissions

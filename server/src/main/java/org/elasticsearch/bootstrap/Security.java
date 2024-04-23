@@ -191,8 +191,19 @@ final class Security {
 
     private static List<FilePermission> createForbiddenFilePermissions(Environment environment) throws IOException {
         Permissions policy = new Permissions();
-        addSingleFilePath(policy, environment.configFile().resolve("elasticsearch.yml"), "read,readlink");
-        addSingleFilePath(policy, environment.configFile().resolve("jvm.options"), "read,readlink");
+        addSingleFilePath(policy, environment.configFile().resolve("elasticsearch.yml"), "read,readlink,write,delete,execute");
+        addSingleFilePath(policy, environment.configFile().resolve("jvm.options"), "read,readlink,write,delete,execute");
+        Path jvmOptionsD = environment.configFile().resolve("jvm.options.d");
+        if (Files.isDirectory(jvmOptionsD)) {
+            // we don't want to create this if it doesn't exist
+            addDirectoryPath(
+                policy,
+                "forbidden_access",
+                environment.configFile().resolve("jvm.options.d"),
+                "read,readlink,write,delete,execute",
+                false
+            );
+        }
         return toFilePermissions(policy);
     }
 

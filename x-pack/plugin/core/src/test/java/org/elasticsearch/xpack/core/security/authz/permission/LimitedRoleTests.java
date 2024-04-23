@@ -247,35 +247,50 @@ public class LimitedRoleTests extends ESTestCase {
         Role.Builder limitedByRole1 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-1");
         Role.Builder limitedByRole2 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-2");
 
-        // randomly include remote indices privileges in one of the role for the remoteClusterAlias
-        boolean includeRemoteIndicesPermission = randomBoolean();
-        if (includeRemoteIndicesPermission) {
+        // randomly include remote privileges in one of the role for the remoteClusterAlias
+        boolean includeRemotePermission = randomBoolean();
+        if (includeRemotePermission) {
+            RemoteClusterPermissions remoteCluster = new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(
+                    RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                    new String[] { remoteClusterAlias }
+                )
+            );
             String roleToAddRemoteGroup = randomFrom("b", "l1", "l2");
             switch (roleToAddRemoteGroup) {
-                case "b" -> baseRole.addRemoteIndicesGroup(
-                    Set.of(remoteClusterAlias),
-                    randomFlsPermissions(randomAlphaOfLength(3)),
-                    randomDlsQuery(),
-                    randomIndexPrivilege(),
-                    randomBoolean(),
-                    randomAlphaOfLength(3)
-                );
-                case "l1" -> limitedByRole1.addRemoteIndicesGroup(
-                    Set.of(remoteClusterAlias),
-                    randomFlsPermissions(randomAlphaOfLength(4)),
-                    randomDlsQuery(),
-                    randomIndexPrivilege(),
-                    randomBoolean(),
-                    randomAlphaOfLength(4)
-                );
-                case "l2" -> limitedByRole2.addRemoteIndicesGroup(
-                    Set.of(remoteClusterAlias),
-                    randomFlsPermissions(randomAlphaOfLength(5)),
-                    randomDlsQuery(),
-                    randomIndexPrivilege(),
-                    randomBoolean(),
-                    randomAlphaOfLength(5)
-                );
+                case "b" -> {
+                    baseRole.addRemoteIndicesGroup(
+                        Set.of(remoteClusterAlias),
+                        randomFlsPermissions(randomAlphaOfLength(3)),
+                        randomDlsQuery(),
+                        randomIndexPrivilege(),
+                        randomBoolean(),
+                        randomAlphaOfLength(3)
+                    );
+                    baseRole.addRemoteClusterPermissions(remoteCluster);
+                }
+                case "l1" -> {
+                    limitedByRole1.addRemoteIndicesGroup(
+                        Set.of(remoteClusterAlias),
+                        randomFlsPermissions(randomAlphaOfLength(4)),
+                        randomDlsQuery(),
+                        randomIndexPrivilege(),
+                        randomBoolean(),
+                        randomAlphaOfLength(4)
+                    );
+                    limitedByRole1.addRemoteClusterPermissions(remoteCluster);
+                }
+                case "l2" -> {
+                    limitedByRole2.addRemoteIndicesGroup(
+                        Set.of(remoteClusterAlias),
+                        randomFlsPermissions(randomAlphaOfLength(5)),
+                        randomDlsQuery(),
+                        randomIndexPrivilege(),
+                        randomBoolean(),
+                        randomAlphaOfLength(5)
+                    );
+                    limitedByRole2.addRemoteClusterPermissions(remoteCluster);
+                }
                 default -> throw new IllegalStateException("unexpected case");
             }
         }

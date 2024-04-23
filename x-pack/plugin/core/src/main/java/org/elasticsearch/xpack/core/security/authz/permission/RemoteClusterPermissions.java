@@ -56,6 +56,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
 
     public static final String NAME = "remote_cluster_permissions";
     private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups;
+    // if adding to this; update related logs/error messages to be plural
     private static final Set<String> allowedRemoteClusterPermissions = Set.of("monitor_enrich");
     static {
         assert ClusterPrivilegeResolver.names().containsAll(allowedRemoteClusterPermissions);
@@ -64,7 +65,6 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public static Set<String> getSupportRemoteClusterPermissions() {
-        // if there are ever more than 1 allowed permission make related logs/error messages plural
         return allowedRemoteClusterPermissions;
     }
 

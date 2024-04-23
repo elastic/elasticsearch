@@ -18,6 +18,8 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -312,6 +314,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         // put stored fields into result objects
+        final IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
         if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
             Set<String> needed = new HashSet<>();
             if (storedFields != null) {
@@ -322,6 +325,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             metadataFields = new HashMap<>();
             for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
                 if (false == needed.contains(entry.getKey())) {
+                    continue;
+                }
+                if (IgnoredFieldMapper.NAME.equals(entry.getKey())
+                    && indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
                     continue;
                 }
                 MappedFieldType ft = mapperService.fieldType(entry.getKey());
@@ -340,7 +347,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         // NOTE: when _ignored is requested via `stored_fields` we need to load it from doc values instead of loading it from stored fields.
         // The _ignored field used to be stored, but as a result of supporting aggregations on it, it moved from using a stored field to
         // using doc values.
-        if (storedFields != null && Arrays.asList(storedFields).contains(IgnoredFieldMapper.NAME)) {
+        if (indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+            && storedFields != null
+            && Arrays.asList(storedFields).contains(IgnoredFieldMapper.NAME)) {
             final DocumentField ignoredDocumentField = loadIgnoredMetadataField(docIdAndVersion);
             if (ignoredDocumentField != null) {
                 if (metadataFields == null) {

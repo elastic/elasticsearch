@@ -21,8 +21,11 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
+import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -40,16 +43,21 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
-public class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
+public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
 
     private final String jwt0SharedSecret = "jwt0_shared_secret";
     private final String jwt1SharedSecret = "jwt1_shared_secret";
-    private final String jwt2SharedSecret = "jwt2_shared_secret";
     private final String jwtHmacKey = "test-HMAC/secret passphrase-value";
+    private static boolean anonymousRole;
+
+    @BeforeClass
+    public static void beforeTests() {
+        anonymousRole = randomBoolean();
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        final Settings.Builder builder = Settings.builder()
+        Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // some tests make use of cluster-state based role mappings
             .put("xpack.security.authc.cluster_state_role_mappings.enabled", true)
@@ -74,33 +82,19 @@ public class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             .put("xpack.security.authc.realms.jwt.jwt1.allowed_subjects", "user-02")
             .put("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "es-02")
             .put("xpack.security.authc.realms.jwt.jwt1.fallback_claims.sub", "client_id")
-            .put("xpack.security.authc.realms.jwt.jwt1.claims.principal", "appid")
+            .put("xpack.security.authc.realms.jwt.jwt1.claims.principal", "appId")
             .put("xpack.security.authc.realms.jwt.jwt1.claims.groups", "groups")
             .put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "shared_secret")
-            .put("xpack.security.authc.realms.jwt.jwt1.client_authentication.rotation_grace_period", "10m")
-            .putList("xpack.security.authc.realms.jwt.jwt1.allowed_signature_algorithms", "HS256", "HS384")
-            // 3rd JWT realm
-            .put("xpack.security.authc.realms.jwt.jwt2.order", 30)
-            .put("xpack.security.authc.realms.jwt.jwt2.token_type", "access_token")
-            .put("xpack.security.authc.realms.jwt.jwt2.allowed_issuer", "my-issuer-03")
-            .put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", "user-03")
-            .put("xpack.security.authc.realms.jwt.jwt2.allowed_audiences", "es-03")
-            .put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.sub", "oid")
-            .put("xpack.security.authc.realms.jwt.jwt2.claims.principal", "email")
-            .put("xpack.security.authc.realms.jwt.jwt2.claims.groups", "groups")
-            .put("xpack.security.authc.realms.jwt.jwt2.client_authentication.type", "shared_secret")
-            .put("xpack.security.authc.realms.jwt.jwt2.client_authentication.rotation_grace_period", "0s")
-            .putList("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256", "HS384");
-
+            .putList("xpack.security.authc.realms.jwt.jwt1.allowed_signature_algorithms", "HS256", "HS384");
+        if (anonymousRole) {
+            builder.put("xpack.security.authc.anonymous.roles", "testAnonymousRole");
+        }
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
             secureSettings.setString("xpack.security.authc.realms.jwt.jwt0.hmac_key", jwtHmacKey);
             secureSettings.setString("xpack.security.authc.realms.jwt.jwt0.client_authentication.shared_secret", jwt0SharedSecret);
             secureSettings.setString("xpack.security.authc.realms.jwt.jwt1.hmac_key", jwtHmacKey);
             secureSettings.setString("xpack.security.authc.realms.jwt.jwt1.client_authentication.shared_secret", jwt1SharedSecret);
-            secureSettings.setString("xpack.security.authc.realms.jwt.jwt2.hmac_key", jwtHmacKey);
-            secureSettings.setString("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", jwt2SharedSecret);
         });
-
         return builder.build();
     }
 
@@ -148,7 +142,11 @@ public class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             );
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
-            assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName)));
+            if (anonymousRole) {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName), equalTo("testAnonymousRole")));
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName)));
+            }
         }
         {
             Response authenticateResponse = getRestClient().performRequest(
@@ -156,7 +154,11 @@ public class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             );
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
-            assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
+            if (anonymousRole) {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
+            }
         }
         // role mapping for username2
         if (randomBoolean()) {
@@ -210,7 +212,11 @@ public class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             );
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
-            assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
+            if (anonymousRole) {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
+            }
         }
         {
             Response authenticateResponse = getRestClient().performRequest(
@@ -218,7 +224,87 @@ public class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             );
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
-            assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName)));
+            if (anonymousRole) {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName), equalTo("testAnonymousRole")));
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName)));
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGroupsRoleMappingForJWT() throws Exception {
+        // JWT "access_token" valid for jwt2
+        JWTClaimsSet jwtClaims = new JWTClaimsSet.Builder().audience("es-02")
+            .issuer("my-issuer-02")
+            .subject("user-02")
+            .claim("groups", List.of("adminGroup", "superUserGroup"))
+            .claim("appId", "appIdSubject")
+            .issueTime(Date.from(Instant.now()))
+            .expirationTime(Date.from(Instant.now().plusSeconds(300)))
+            .build();
+        {
+            Response authenticateResponse = getRestClient().performRequest(
+                getAuthenticateRequest(getSignedJWT(jwtClaims), jwt1SharedSecret)
+            );
+            assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
+            Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
+            // no role mapping
+            if (anonymousRole) {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
+            }
+        }
+        ExpressionRoleMapping mapping = new ExpressionRoleMapping(
+            "test-username-expression",
+            new AnyExpression(
+                List.of(
+                    new FieldExpression("groups", List.of(new FieldExpression.FieldValue("adminGroup"))),
+                    new AllExpression(
+                        List.of(
+                            new FieldExpression("groups", List.of(new FieldExpression.FieldValue("superUserGroup"))),
+                            new FieldExpression("metadata.jwt_claim_iss", List.of(new FieldExpression.FieldValue("WRONG")))
+                        )
+                    )
+                )
+            ),
+            List.of("role1", "role2"),
+            List.of(),
+            Map.of(),
+            true
+        );
+        publishRoleMappings(Set.of(mapping));
+        {
+            Response authenticateResponse = getRestClient().performRequest(
+                getAuthenticateRequest(getSignedJWT(jwtClaims), jwt1SharedSecret)
+            );
+            assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
+            Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
+            // groups based role mapping
+            if (anonymousRole) {
+                assertThat(
+                    (List<String>) authenticateResponseMap.get("roles"),
+                    contains(equalTo("role1"), equalTo("role2"), equalTo("testAnonymousRole"))
+                );
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("role1"), equalTo("role2")));
+            }
+        }
+        // clear off all the role mappings
+        publishRoleMappings(Set.of());
+        {
+            Response authenticateResponse = getRestClient().performRequest(
+                getAuthenticateRequest(getSignedJWT(jwtClaims), jwt1SharedSecret)
+            );
+            assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
+            Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
+            // no role mapping
+            if (anonymousRole) {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
+            }
         }
     }
 

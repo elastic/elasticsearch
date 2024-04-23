@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -121,6 +122,7 @@ public class GetDataStreamGlobalRetentionAction {
     public static class TransportGetDataStreamGlobalSettingsAction extends TransportMasterNodeReadAction<Request, Response> {
 
         private final FeatureService featureService;
+        private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
         @Inject
         public TransportGetDataStreamGlobalSettingsAction(
@@ -129,7 +131,8 @@ public class GetDataStreamGlobalRetentionAction {
             ThreadPool threadPool,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            FeatureService featureService
+            FeatureService featureService,
+            DataStreamGlobalRetentionResolver globalRetentionResolver
         ) {
             super(
                 INSTANCE.name(),
@@ -143,6 +146,7 @@ public class GetDataStreamGlobalRetentionAction {
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.featureService = featureService;
+            this.globalRetentionResolver = globalRetentionResolver;
         }
 
         @Override
@@ -156,7 +160,7 @@ public class GetDataStreamGlobalRetentionAction {
                 );
                 return;
             }
-            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
+            DataStreamGlobalRetention globalRetention = globalRetentionResolver.resolve(state);
             listener.onResponse(new Response(globalRetention == null ? DataStreamGlobalRetention.EMPTY : globalRetention));
         }
 

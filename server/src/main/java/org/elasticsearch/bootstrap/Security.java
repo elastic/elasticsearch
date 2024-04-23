@@ -196,13 +196,7 @@ final class Security {
         Path jvmOptionsD = environment.configFile().resolve("jvm.options.d");
         if (Files.isDirectory(jvmOptionsD)) {
             // we don't want to create this if it doesn't exist
-            addDirectoryPath(
-                policy,
-                "forbidden_access",
-                environment.configFile().resolve("jvm.options.d"),
-                "read,readlink,write,delete,execute",
-                false
-            );
+            addDirectoryPath(policy, "forbidden_access", jvmOptionsD, "read,readlink,write,delete,execute", false);
         }
         return toFilePermissions(policy);
     }

@@ -84,9 +84,6 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         ScriptService scriptService,
         Logger logger
     ) {
-        if (mappings.isEmpty()) {
-            return Set.of();
-        }
         ExpressionModel model = user.asModel();
         Set<String> roles = mappings.stream()
             .filter(ExpressionRoleMapping::isEnabled)

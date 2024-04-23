@@ -101,8 +101,8 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
     ES814ScalarQuantizedVectorsWriter(SegmentWriteState state, Float confidenceInterval, FlatVectorsWriter rawVectorDelegate)
         throws IOException {
-      super(rawVectorDelegate.getFlatVectorScorer());
-      this.confidenceInterval = confidenceInterval;
+        super(rawVectorDelegate.getFlatVectorScorer());
+        this.confidenceInterval = confidenceInterval;
         segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,

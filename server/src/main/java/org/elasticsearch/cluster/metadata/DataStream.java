@@ -134,48 +134,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         this(
             name,
-            indices,
             generation,
             metadata,
             hidden,
             replicated,
             system,
             System::currentTimeMillis,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStoreEnabled,
-            failureIndices,
-            rolloverOnWrite,
-            autoShardingEvent
-        );
-    }
-
-    public DataStream(
-        String name,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata,
-        boolean hidden,
-        boolean replicated,
-        boolean system,
-        LongSupplier timeProvider,
-        boolean allowCustomRouting,
-        IndexMode indexMode,
-        DataStreamLifecycle lifecycle,
-        boolean failureStoreEnabled,
-        List<Index> failureIndices,
-        boolean rolloverOnWrite,
-        @Nullable DataStreamAutoShardingEvent autoShardingEvent
-    ) {
-        this(
-            name,
-            generation,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            timeProvider,
             allowCustomRouting,
             indexMode,
             lifecycle,

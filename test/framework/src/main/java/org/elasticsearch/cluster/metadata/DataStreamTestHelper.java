@@ -340,7 +340,6 @@ public final class DataStreamTestHelper {
         boolean replicated = randomBoolean();
         return new DataStream(
             dataStreamName,
-            indices,
             generation,
             metadata,
             randomBoolean(),
@@ -351,15 +350,19 @@ public final class DataStreamTestHelper {
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
-            failureIndices,
-            replicated == false && randomBoolean(),
-            randomBoolean()
-                ? new DataStreamAutoShardingEvent(
-                    indices.get(indices.size() - 1).getName(),
-                    randomIntBetween(1, 10),
-                    randomMillisUpToYear9999()
+            DataStream.DataStreamIndices.backingIndicesBuilder(indices)
+                .setRolloverOnWrite(replicated == false && randomBoolean())
+                .setAutoShardingEvent(
+                    randomBoolean()
+                        ? new DataStreamAutoShardingEvent(
+                            indices.get(indices.size() - 1).getName(),
+                            randomIntBetween(1, 10),
+                            randomMillisUpToYear9999()
+                        )
+                        : null
                 )
-                : null
+                .build(),
+            DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices).build()
         );
     }
 

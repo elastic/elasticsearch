@@ -45,7 +45,7 @@ public class RestPutLicenseAction extends BaseRestHandler {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.license(request.content(), request.getXContentType());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        putLicenseRequest.timeout(request.paramAsTime("timeout", putLicenseRequest.timeout()));
+        putLicenseRequest.ackTimeout(request.paramAsTime("timeout", putLicenseRequest.ackTimeout()));
         putLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLicenseRequest.masterNodeTimeout()));
 
         if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {

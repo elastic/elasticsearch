@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
@@ -91,6 +92,15 @@ public final class EsqlDataTypes {
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
+    private static final Map<String, DataType> NAME_OR_ALIAS_TO_TYPE;
+    static {
+        Map<String, DataType> map = TYPES.stream().collect(toMap(DataType::typeName, Function.identity()));
+        map.put("bool", BOOLEAN);
+        map.put("int", INTEGER);
+        map.put("string", KEYWORD);
+        NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
+    }
+
     private EsqlDataTypes() {}
 
     public static Collection<DataType> types() {
@@ -103,6 +113,11 @@ public final class EsqlDataTypes {
 
     public static DataType fromName(String name) {
         DataType type = ES_TO_TYPE.get(name);
+        return type != null ? type : UNSUPPORTED;
+    }
+
+    public static DataType fromNameOrAlias(String typeName) {
+        DataType type = NAME_OR_ALIAS_TO_TYPE.get(typeName.toLowerCase(Locale.ROOT));
         return type != null ? type : UNSUPPORTED;
     }
 

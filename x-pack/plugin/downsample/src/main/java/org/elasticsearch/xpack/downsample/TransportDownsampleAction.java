@@ -110,7 +110,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     private final Client client;
     private final IndicesService indicesService;
-    private final ClusterService clusterService;
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
@@ -170,7 +169,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.indicesService = indicesService;
-        this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();

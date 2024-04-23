@@ -48,7 +48,7 @@ public class RestMlMemoryAction extends BaseRestHandler {
         }
         MlMemoryAction.Request request = new MlMemoryAction.Request(nodeId);
         request.masterNodeTimeout(restRequest.paramAsTime(MASTER_TIMEOUT, request.masterNodeTimeout()));
-        request.timeout(restRequest.paramAsTime(TIMEOUT, request.timeout()));
+        request.ackTimeout(restRequest.paramAsTime(TIMEOUT, request.ackTimeout()));
         return channel -> client.execute(MlMemoryAction.INSTANCE, request, new NodesResponseRestListener<>(channel));
     }
 }

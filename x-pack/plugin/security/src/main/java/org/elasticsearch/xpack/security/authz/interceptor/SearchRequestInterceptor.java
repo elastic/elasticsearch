@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,11 +19,8 @@ import java.util.Map;
 
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    private final ClusterService clusterService;
-
-    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
+    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
         super(threadPool.getThreadContext(), licenseState);
-        this.clusterService = clusterService;
     }
 
     @Override

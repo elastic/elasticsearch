@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
@@ -144,16 +144,16 @@ public class ClusterPrivilegeResolver {
         HasPrivilegesAction.NAME
     );
     private static final Set<String> CREATE_SNAPSHOT_PATTERN = Set.of(
-        CreateSnapshotAction.NAME,
-        SnapshotsStatusAction.NAME + "*",
-        GetSnapshotsAction.NAME,
-        SnapshotsStatusAction.NAME,
+        TransportCreateSnapshotAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name() + "*",
+        TransportGetSnapshotsAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name(),
         GetRepositoriesAction.NAME
     );
     private static final Set<String> MONITOR_SNAPSHOT_PATTERN = Set.of(
-        SnapshotsStatusAction.NAME + "*",
-        GetSnapshotsAction.NAME,
-        SnapshotsStatusAction.NAME,
+        TransportSnapshotsStatusAction.TYPE.name() + "*",
+        TransportGetSnapshotsAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name(),
         GetRepositoriesAction.NAME
     );
     private static final Set<String> READ_CCR_PATTERN = Set.of(ClusterStateAction.NAME, HasPrivilegesAction.NAME);

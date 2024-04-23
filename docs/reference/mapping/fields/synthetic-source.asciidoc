@@ -174,28 +174,4 @@ that ordering.
 
 [[synthetic-source-modifications-ranges]]
 ====== Representation of ranges
-Range field vales (e.g. `long_range`) are always represented as inclusive on both sides with bounds adjusted accordingly. For example:
-[source,console,id=synthetic-source-range-example]
-----
-PUT idx/_doc/1
-{
-  "my_range": {
-    "gt": 200,
-    "lt": 300
-  }
-}
-----
-// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
-
-Will become:
-
-[source,console-result]
-----
-{
-  "my_range": {
-    "gte": 201,
-    "lte": 299
-  }
-}
-----
-// TEST[s/^/{"_source":/ s/\n$/}/]
+Range field vales (e.g. `long_range`) are always represented as inclusive on both sides with bounds adjusted accordingly.  See <<range-synthetic-source-inclusive, examples>>.

@@ -37,6 +37,8 @@ final class ESPolicy extends Policy {
     /** limited policy for scripts */
     static final String UNTRUSTED_RESOURCE = "untrusted.policy";
 
+    private static final String ALL_FILE_MASK = "read,readlink,write,delete,execute";
+
     final Policy template;
     final Policy untrusted;
     final Policy system;
@@ -68,9 +70,10 @@ final class ESPolicy extends Policy {
         }
         this.dynamic = dynamic;
         this.plugins = plugins;
+
         this.pluginExclusiveFiles = pluginExclusiveFiles.entrySet()
             .stream()
-            .collect(Collectors.toUnmodifiableMap(e -> new FilePermission(e.getKey(), "read"), e -> Set.copyOf(e.getValue())));
+            .collect(Collectors.toUnmodifiableMap(e -> new FilePermission(e.getKey(), ALL_FILE_MASK), e -> Set.copyOf(e.getValue())));
         this.allExclusiveFiles = createPermission(this.pluginExclusiveFiles.keySet());
     }
 
@@ -124,30 +127,15 @@ final class ESPolicy extends Policy {
             return true;
         }
 
-        // check if this is an access to a plugin-exclusive file
         if (allExclusiveFiles.implies(permission)) {
-            if (location == null) {
-                return false;
-            }
-            // check the plugin source
-            Set<String> accessibleSources = pluginExclusiveFiles.get(permission);
-            if (accessibleSources != null) {
-                return accessibleSources.contains(location.getFile());
-            } else {
-                // there's a directory reference in there somewhere
-                // do a manual search :(
-                // there may be several permissions that potentially match
-                return pluginExclusiveFiles.entrySet()
-                    .stream()
-                    .filter(e -> e.getKey().implies(permission))
-                    .anyMatch(e -> e.getValue().contains(location.getFile()));
-            }
-        }
-
-        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
-        // yeah right, REMOVE THIS when hadoop is fixed
-        if ("<<ALL FILES>>".equals(permission.getName())) {
-            hadoopHack();
+            /*
+             * Check if location can access this plugin-exclusive file
+             * The plugin permission this is generated from, PluginExclusiveFileAccessPermission, doesn't have a mask,
+             * it just grants all access (and so disallows all access from others)
+             * It's helpful to use the infrastructure around FilePermission here to do the directory structure check with implies
+             * so we use ALL_FILE_MASK mask to check if we can do something with this file, whatever the actual operation we're requesting
+             */
+            return canAccessExclusiveFile(location, new FilePermission(permission.getName(), ALL_FILE_MASK));
         }
 
         // Special handling for broken Hadoop code: "let me execute or my classes will not load"
@@ -158,6 +146,28 @@ final class ESPolicy extends Policy {
 
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
+    }
+
+    @SuppressForbidden(reason = "We get given an URL by the security infrastructure")
+    private boolean canAccessExclusiveFile(URL location, FilePermission permission) {
+        if (location == null) {
+            return false;
+        }
+
+        // check the plugin source
+        Set<String> accessibleSources = pluginExclusiveFiles.get(permission);
+        if (accessibleSources != null) {
+            // simple case - single-file referenced directly
+            return accessibleSources.contains(location.getFile());
+        } else {
+            // there's a directory reference in there somewhere
+            // do a manual search :(
+            // there may be several permissions that potentially match
+            return pluginExclusiveFiles.entrySet()
+                .stream()
+                .filter(e -> e.getKey().implies(permission))
+                .anyMatch(e -> e.getValue().contains(location.getFile()));
+        }
     }
 
     private static void hadoopHack() {

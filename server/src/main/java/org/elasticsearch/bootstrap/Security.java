@@ -215,8 +215,7 @@ final class Security {
                 .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(pp.getKey()));
         }
 
-        exclusiveFiles.replaceAll((k, v) -> Set.copyOf(v));
-        return Collections.unmodifiableMap(exclusiveFiles);
+        return exclusiveFiles;
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */

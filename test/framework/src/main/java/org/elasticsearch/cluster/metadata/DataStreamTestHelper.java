@@ -130,13 +130,10 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
-        return DataStream.builder(name, indices)
-            .setGeneration(generation)
-            .setMetadata(metadata)
-            .setReplicated(replicated)
-            .setLifecycle(lifecycle)
-            .setBackingIndices(DataStream.DataStreamIndices.backingIndicesBuilder(indices).setAutoShardingEvent(autoShardingEvent).build())
-            .build();
+        return DataStream.builder(
+            name,
+            DataStream.DataStreamIndices.backingIndicesBuilder(indices).setAutoShardingEvent(autoShardingEvent).build()
+        ).setGeneration(generation).setMetadata(metadata).setReplicated(replicated).setLifecycle(lifecycle).build();
     }
 
     public static DataStream newInstance(

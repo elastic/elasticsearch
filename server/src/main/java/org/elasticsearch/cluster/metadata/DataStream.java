@@ -1300,6 +1300,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return new Builder(name, indices);
     }
 
+    public static Builder builder(String name, DataStreamIndices backingIndices) {
+        return new Builder(name, backingIndices);
+    }
+
     public Builder copy() {
         return new Builder(this);
     }
@@ -1438,9 +1442,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private DataStreamIndices failureIndices = DataStreamIndices.failureIndicesBuilder(List.of()).build();
 
         public Builder(String name, List<Index> indices) {
+            this(name, DataStreamIndices.backingIndicesBuilder(indices).build());
+        }
+
+        public Builder(String name, DataStreamIndices backingIndices) {
             this.name = name;
-            assert indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
-            this.backingIndices = DataStreamIndices.backingIndicesBuilder(indices).build();
+            assert backingIndices.indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
+            this.backingIndices = backingIndices;
         }
 
         public Builder(DataStream dataStream) {
@@ -1515,6 +1523,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         public Builder setBackingIndices(DataStreamIndices backingIndices) {
+            assert backingIndices.indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
             this.backingIndices = backingIndices;
             return this;
         }
@@ -1526,9 +1535,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         public Builder setDataStreamIndices(boolean targetFailureStore, DataStreamIndices indices) {
             if (targetFailureStore) {
-                this.failureIndices = indices;
+                setFailureIndices(indices);
             } else {
-                this.backingIndices = indices;
+                setBackingIndices(indices);
             }
             return this;
         }

@@ -49,10 +49,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         version = in.readOptionalInt();
     }
 
-    PutPipelineRequest() {
-        this(null, null, null, null);
-    }
-
     public String getId() {
         return id;
     }

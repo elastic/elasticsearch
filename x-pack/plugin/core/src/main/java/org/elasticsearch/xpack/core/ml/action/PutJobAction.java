@@ -47,7 +47,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
             return new Request(jobBuilder);
         }
 
-        private Job.Builder jobBuilder;
+        private final Job.Builder jobBuilder;
 
         public Request(Job.Builder jobBuilder) {
             // Validate the jobBuilder immediately so that errors can be detected prior to transportation.

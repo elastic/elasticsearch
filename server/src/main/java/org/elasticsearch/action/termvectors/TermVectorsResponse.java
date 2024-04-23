@@ -67,15 +67,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     private BytesReference termVectors;
     private BytesReference headerRef;
-    private String index;
-    private String id;
+    private final String index;
+    private final String id;
     private long docVersion;
     private boolean exists = false;
     private boolean artificial = false;
     private long tookInMillis;
     private boolean hasScores = false;
-
-    private boolean sourceCopied = false;
 
     int[] currentPositions = new int[0];
     int[] currentStartOffset = new int[0];
@@ -86,8 +84,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         this.index = index;
         this.id = id;
     }
-
-    TermVectorsResponse() {}
 
     TermVectorsResponse(StreamInput in) throws IOException {
         index = in.readString();
@@ -133,10 +129,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public Fields getFields() throws IOException {
         if (hasTermVectors() && isExists()) {
-            if (sourceCopied == false) { // make the bytes safe
-                headerRef = new BytesArray(headerRef.toBytesRef(), true);
-                termVectors = new BytesArray(termVectors.toBytesRef(), true);
-            }
+            headerRef = new BytesArray(headerRef.toBytesRef(), true);
+            termVectors = new BytesArray(termVectors.toBytesRef(), true);
             TermVectorsFields termVectorsFields = new TermVectorsFields(headerRef, termVectors);
             hasScores = termVectorsFields.hasScores;
             return termVectorsFields;

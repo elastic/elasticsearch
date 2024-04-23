@@ -1,0 +1,5 @@
+pr: 107743
+summary: Validate `model_id` is required when using the `learning_to_rank` rescorer
+area: Search
+type: bug
+issues: []

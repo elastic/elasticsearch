@@ -41,7 +41,7 @@ There are a couple of restrictions to be aware of:
 types:
 
 ** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
-** {plugins}/mapper-annotated-text.html#annotated-text-synthetic-source[`annotated-text`]
+** {plugins}/mapper-annotated-text.html[`annotated-text`]
 ** <<binary-synthetic-source,`binary`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>

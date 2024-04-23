@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
@@ -67,12 +68,15 @@ public class SharedBlobCacheWarmingService {
     public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
-        this.fetchExecutor = threadPool.executor(Stateless.SHARD_READ_THREAD_POOL);
+        this.fetchExecutor = threadPool.executor(Stateless.PREWARM_THREAD_POOL);
+
+        // the PREWARM_THREAD_POOL does the actual work but we want to limit the number of prewarming tasks in flight at once so that each
+        // one completes sooner, so we use a ThrottledTaskRunner. The throttle limit is a little more than the threadpool size just to avoid
+        // having the PREWARM_THREAD_POOL stall while the next task is being queued up
         this.throttledTaskRunner = new ThrottledTaskRunner(
             "prewarming-cache",
-            // use half of the SHARD_READ_THREAD_POOL at max to leave room for regular concurrent reads to complete
-            Math.max(1, threadPool.info(Stateless.SHARD_READ_THREAD_POOL).getMax() / 2),
-            threadPool.generic()
+            1 + threadPool.info(Stateless.PREWARM_THREAD_POOL).getMax(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE // forks to the fetch pool pretty much straight away
         );
     }
 
@@ -114,7 +118,7 @@ public class SharedBlobCacheWarmingService {
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
-        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
 
@@ -288,7 +292,7 @@ public class SharedBlobCacheWarmingService {
                             long position = (long) target.region * cacheService.getRegionSize() + relativePos;
                             var blobContainer = unwrapDirectory(indexShard.store().directory()).getBlobContainer(target.blob.primaryTerm());
                             try (var in = blobContainer.readBlob(OperationPurpose.INDICES, target.blob.blobName(), position, length)) {
-                                assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                                assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
                                 var bytesCopied = SharedBytes.copyToCacheFileAligned(
                                     channel,
                                     in,

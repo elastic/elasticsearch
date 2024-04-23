@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
-import org.elasticsearch.compute.operator.MultivalueDedupeInt;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -30,7 +30,7 @@ import java.util.BitSet;
  */
 final class IntBlockHash extends BlockHash {
     private final int channel;
-    private final LongHash hash;
+    final LongHash hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -70,7 +70,7 @@ final class IntBlockHash extends BlockHash {
         }
     }
 
-    private IntVector add(IntVector vector) {
+    IntVector add(IntVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -81,7 +81,7 @@ final class IntBlockHash extends BlockHash {
         }
     }
 
-    private IntBlock add(IntBlock block) {
+    IntBlock add(IntBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeInt(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();

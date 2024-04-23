@@ -21,10 +21,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
@@ -67,7 +67,7 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final Group[] groups;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
         super(blockFactory);
         this.groups = specs.stream().map(Group::new).toArray(Group[]::new);
         this.emitBatchSize = emitBatchSize;
@@ -91,7 +91,7 @@ final class PackedValuesBlockHash extends BlockHash {
      * The on-heap representation of a {@code for} loop for each group key.
      */
     private static class Group {
-        final HashAggregationOperator.GroupSpec spec;
+        final GroupSpec spec;
         BatchEncoder encoder;
         int positionOffset;
         int valueOffset;
@@ -107,12 +107,12 @@ final class PackedValuesBlockHash extends BlockHash {
         int valueCount;
         int bytesStart;
 
-        Group(HashAggregationOperator.GroupSpec spec) {
+        Group(GroupSpec spec) {
             this.spec = spec;
         }
     }
 
-    class AddWork extends LongLongBlockHash.AbstractAddBlock {
+    class AddWork extends AbstractAddBlock {
         final int positionCount;
         int position;
 

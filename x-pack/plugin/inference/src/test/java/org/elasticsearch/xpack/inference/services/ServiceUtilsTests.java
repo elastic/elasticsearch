@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToU
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
@@ -326,6 +327,60 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(createdEnum, is(InputType.CLASSIFICATION));
         assertTrue(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNull_WhenKeyDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var timeValue = extractOptionalTimeValue(map, "a", "scope", validation);
+
+        assertNull(timeValue);
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_CreatesTimeValue_Of3Seconds() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "3s"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNotNull(timeValue);
+        assertThat(timeValue, is(TimeValue.timeValueSeconds(3)));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_InvalidUnit() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "3abc"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertFalse(validation.validationErrors().isEmpty());
+        assertNull(timeValue);
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is(
+                "[scope] Invalid time value [3abc]. [key] must be a valid time value string: failed to parse setting [key] "
+                    + "with value [3abc] as a time value: unit is missing or unrecognized"
+            )
+        );
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_NegativeNumber() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "-3d"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertFalse(validation.validationErrors().isEmpty());
+        assertNull(timeValue);
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is(
+                "[scope] Invalid time value [-3d]. [key] must be a valid time value string: failed to parse setting [key] "
+                    + "with value [-3d] as a time value: negative durations are not supported"
+            )
+        );
     }
 
     public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {

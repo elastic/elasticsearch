@@ -103,7 +103,6 @@ public class CompositeRolesStore {
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
-    private final WorkflowService workflowService;
     private final ThreadContext threadContext;
 
     public CompositeRolesStore(
@@ -117,8 +116,7 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer,
-        WorkflowService workflowService
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
@@ -178,7 +176,6 @@ public class CompositeRolesStore {
             effectiveRoleDescriptorsConsumer
         );
         this.anonymousUser = new AnonymousUser(settings);
-        this.workflowService = workflowService;
         this.threadContext = threadContext;
     }
 

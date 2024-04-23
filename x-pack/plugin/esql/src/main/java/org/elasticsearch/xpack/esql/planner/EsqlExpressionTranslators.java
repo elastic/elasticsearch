@@ -166,6 +166,7 @@ public final class EsqlExpressionTranslators {
                 bc.symbol()
             );
         }
+
         static Query translate(EsqlBinaryComparison bc, TranslatorHandler handler) {
             Check.isTrue(
                 bc.right().foldable(),

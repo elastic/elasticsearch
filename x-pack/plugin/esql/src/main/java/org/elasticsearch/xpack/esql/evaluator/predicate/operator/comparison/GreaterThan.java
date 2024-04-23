@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -34,11 +33,11 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
     );
 
     public GreaterThan(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.GT, evaluatorMap);
+        super(source, left, right, BinaryComparisonOpeartion.GT, evaluatorMap);
     }
 
     public GreaterThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.GT, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOpeartion.GT, zoneId, evaluatorMap);
     }
 
     @Override

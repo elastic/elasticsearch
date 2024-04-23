@@ -146,7 +146,7 @@ cause the document to be rejected with a parse failure. In future we hope to hav
 the equals signs so wil actively reject documents that contain this today.
 
 [[annotated-text-synthetic-source]]
-==== Synthetic `_source`
+===== Synthetic `_source`
 
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
 (indices that have `index.mode` set to `time_series`). For other indices

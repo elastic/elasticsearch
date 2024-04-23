@@ -48,7 +48,7 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
     private final Truncator truncator;
 
     private HuggingFaceRequestManager(HuggingFaceModel model, ResponseHandler responseHandler, Truncator truncator, ThreadPool threadPool) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model));
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
         this.model = model;
         this.responseHandler = responseHandler;
         this.truncator = truncator;

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -27,7 +26,7 @@ public class GetTransformStatsActionRequestTests extends AbstractWireSerializing
     protected Request createTestInstance() {
         return new Request(
             randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : randomBoolean() ? Metadata.ALL : null,
-            randomBoolean() ? TimeValue.parseTimeValue(randomTimeValue(), "timeout") : null,
+            randomBoolean() ? randomTimeValue() : null,
             randomBoolean()
         );
     }

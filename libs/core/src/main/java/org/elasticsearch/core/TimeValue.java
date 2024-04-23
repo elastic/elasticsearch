@@ -329,13 +329,26 @@ public class TimeValue implements Comparable<TimeValue> {
         };
     }
 
+    /**
+     * @param sValue       Value to parse, which may not be {@code null}.
+     * @param settingName  Name of the parameter or setting. On invalid input, this value is included in the exception message. Otherwise,
+     *                     this parameter is unused.
+     * @return The {@link TimeValue} which the input string represents.
+     */
     public static TimeValue parseTimeValue(String sValue, String settingName) {
         Objects.requireNonNull(settingName);
         Objects.requireNonNull(sValue);
         return parseTimeValue(sValue, null, settingName);
     }
 
-    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
+    /**
+     * @param sValue       Value to parse, which may be {@code null}.
+     * @param defaultValue Value to return if {@code sValue} is {@code null}.
+     * @param settingName  Name of the parameter or setting. On invalid input, this value is included in the exception message. Otherwise,
+     *                     this parameter is unused.
+     * @return The {@link TimeValue} which the input string represents, or {@code defaultValue} if the input is {@code null}.
+     */
+    public static TimeValue parseTimeValue(@Nullable String sValue, TimeValue defaultValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;

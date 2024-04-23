@@ -64,7 +64,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             false,
             false,
             EMPTY_ARRAY,
-            TimeValue.parseTimeValue(randomTimeValue(), "test")
+            randomTimeValue()
         );
         final GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).get();
         long[] expected = new long[shards];
@@ -81,7 +81,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             false,
             false,
             EMPTY_ARRAY,
-            TimeValue.parseTimeValue(randomTimeValue(), "test")
+            randomTimeValue()
         );
         final GetGlobalCheckpointsAction.Response response2 = client().execute(GetGlobalCheckpointsAction.INSTANCE, request2).get();
 

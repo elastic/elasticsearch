@@ -147,7 +147,7 @@ public class RandomSearchRequestGenerator {
             builder.minScore(randomFloat() * 1000);
         }
         if (randomBoolean()) {
-            builder.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "timeout"));
+            builder.timeout(randomTimeValue());
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));

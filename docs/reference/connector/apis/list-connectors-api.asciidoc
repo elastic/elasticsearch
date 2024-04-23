@@ -84,7 +84,7 @@ The following example lists the first two connectors:
 GET _connector?from=0&size=2
 ----
 
-An example to list a connector associated with `search-google-drive` data index name:
+An example to list a connector associated with the `search-google-drive` Elasticsearch index:
 
 [source,console]
 ----

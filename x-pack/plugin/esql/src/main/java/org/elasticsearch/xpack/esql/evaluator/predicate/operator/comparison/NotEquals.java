@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -40,11 +39,11 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     );
 
     public NotEquals(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, evaluatorMap);
+        super(source, left, right, BinaryComparisonOpeartion.NEQ, evaluatorMap);
     }
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOpeartion.NEQ, zoneId, evaluatorMap);
     }
 
     @Evaluator(extraName = "Ints")

@@ -23,8 +23,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
-import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 
 import java.io.IOException;
 
@@ -33,7 +33,7 @@ import java.io.IOException;
  */
 final class BytesRefBlockHash extends BlockHash {
     private final int channel;
-    private final BytesRefHash hash;
+    final BytesRefHash hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -73,7 +73,7 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
-    private IntVector add(BytesRefVector vector) {
+    IntVector add(BytesRefVector vector) {
         BytesRef scratch = new BytesRef();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
@@ -85,7 +85,7 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
-    private IntBlock add(BytesRefBlock block) {
+    IntBlock add(BytesRefBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();

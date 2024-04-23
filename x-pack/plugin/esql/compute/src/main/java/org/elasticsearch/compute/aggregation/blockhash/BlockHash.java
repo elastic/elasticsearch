@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
@@ -65,21 +64,18 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
+    public record GroupSpec(int channel, ElementType elementType) {}
+
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
      * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
      *                      explosion of groups caused by multivalued fields
-     * @param allowBrokenOptimizations true ot allow optimizations with bad null handling. We will fix their
+     * @param allowBrokenOptimizations true to allow optimizations with bad null handling. We will fix their
      *                                 null handling and remove this flag, but we need to disable these in
      *                                 production until we can. And this lets us continue to compile and
      *                                 test them.
      */
-    public static BlockHash build(
-        List<HashAggregationOperator.GroupSpec> groups,
-        BlockFactory blockFactory,
-        int emitBatchSize,
-        boolean allowBrokenOptimizations
-    ) {
+    public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }

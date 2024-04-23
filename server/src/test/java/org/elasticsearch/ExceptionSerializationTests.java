@@ -833,6 +833,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(178, FailureIndexNotSupportedException.class);
         ids.put(179, NotPersistentTaskNodeException.class);
         ids.put(180, PersistentTaskNodeNotAssignedException.class);
+        ids.put(181, ResourceAlreadyUploadedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
@@ -43,9 +42,9 @@ class ModelImporter {
     private final Client client;
     private final String modelId;
     private final ModelPackageConfig config;
-    private final CancellableTask task;
+    private final ModelDownloadTask task;
 
-    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, CancellableTask task) {
+    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, ModelDownloadTask task) {
         this.client = client;
         this.modelId = Objects.requireNonNull(modelId);
         this.config = Objects.requireNonNull(packageConfig);
@@ -76,6 +75,7 @@ class ModelImporter {
         int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
         for (int part = 0; part < totalParts - 1; ++part) {
+            task.setProgress(totalParts, part);
             BytesArray definition = chunkIterator.next();
 
             PutTrainedModelDefinitionPartAction.Request modelPartRequest = new PutTrainedModelDefinitionPartAction.Request(

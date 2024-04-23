@@ -153,8 +153,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     public static class NodeStatsRequest extends TransportRequest {
 
-        private NodesStatsRequestParameters nodesStatsRequestParameters;
-        private String[] nodesIds;
+        private final NodesStatsRequestParameters nodesStatsRequestParameters;
+        private final String[] nodesIds;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);

@@ -9,7 +9,7 @@ preview::[]
 Removes a connector and associated sync jobs.
 This is a destructive action that is not recoverable.
 
-Note: this action doesn't delete API key, ingest pipeline and data index associated with the connector. They need to be removed manually.
+Note: this action doesn't delete any API key, ingest pipeline or data index associated with the connector. These need to be removed manually.
 
 [[delete-connector-api-request]]
 ==== {api-request-title}

@@ -1416,7 +1416,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         public static class Builder {
-            private String namePrefix;
+            private final String namePrefix;
             private List<Index> indices;
             private boolean rolloverOnWrite = false;
             @Nullable
@@ -1432,11 +1432,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 this.indices = dataStreamIndices.indices;
                 this.rolloverOnWrite = dataStreamIndices.rolloverOnWrite;
                 this.autoShardingEvent = dataStreamIndices.autoShardingEvent;
-            }
-
-            public Builder setNamePrefix(String namePrefix) {
-                this.namePrefix = namePrefix;
-                return this;
             }
 
             public Builder setIndices(List<Index> indices) {

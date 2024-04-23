@@ -164,6 +164,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
         assertThat(consistentReadResponseState.metadata().hasIndex(indexName), is(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1734")
     public void testConsistentClusterStateReadIsNotReturnedUntilLastStateIsAppliedLocally() throws Exception {
         var masterNode = startMasterOnlyNode(Settings.builder().put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s").build());
 

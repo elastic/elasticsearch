@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.junit.BeforeClass;
 
@@ -39,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests.getAuthenticateRequest;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -143,9 +144,12 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
             if (anonymousRole) {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName), equalTo("testAnonymousRole")));
+                assertThat(
+                    (List<String>) authenticateResponseMap.get("roles"),
+                    containsInAnyOrder(equalTo(roleName), equalTo("testAnonymousRole"))
+                );
             } else {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName)));
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo(roleName)));
             }
         }
         {
@@ -155,7 +159,7 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
             if (anonymousRole) {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo("testAnonymousRole")));
             } else {
                 assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
             }
@@ -213,7 +217,7 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
             if (anonymousRole) {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo("testAnonymousRole")));
             } else {
                 assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
             }
@@ -225,9 +229,12 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
             if (anonymousRole) {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName), equalTo("testAnonymousRole")));
+                assertThat(
+                    (List<String>) authenticateResponseMap.get("roles"),
+                    containsInAnyOrder(equalTo(roleName), equalTo("testAnonymousRole"))
+                );
             } else {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo(roleName)));
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo(roleName)));
             }
         }
     }
@@ -251,24 +258,25 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
             // no role mapping
             if (anonymousRole) {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo("testAnonymousRole")));
             } else {
                 assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
             }
         }
-        ExpressionRoleMapping mapping = new ExpressionRoleMapping(
-            "test-username-expression",
-            new AnyExpression(
-                List.of(
-                    new FieldExpression("groups", List.of(new FieldExpression.FieldValue("adminGroup"))),
-                    new AllExpression(
-                        List.of(
-                            new FieldExpression("groups", List.of(new FieldExpression.FieldValue("superUserGroup"))),
-                            new FieldExpression("metadata.jwt_claim_iss", List.of(new FieldExpression.FieldValue("WRONG")))
-                        )
+        RoleMapperExpression roleMapperExpression = new AnyExpression(
+            List.of(
+                new FieldExpression("groups", List.of(new FieldExpression.FieldValue("adminGroup"))),
+                new AllExpression(
+                    List.of(
+                        new FieldExpression("groups", List.of(new FieldExpression.FieldValue("superUserGroup"))),
+                        new FieldExpression("metadata.jwt_claim_iss", List.of(new FieldExpression.FieldValue("WRONG")))
                     )
                 )
-            ),
+            )
+        );
+        ExpressionRoleMapping mapping = new ExpressionRoleMapping(
+            "test-username-expression",
+            roleMapperExpression,
             List.of("role1", "role2"),
             List.of(),
             Map.of(),
@@ -285,10 +293,10 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             if (anonymousRole) {
                 assertThat(
                     (List<String>) authenticateResponseMap.get("roles"),
-                    contains(equalTo("role1"), equalTo("role2"), equalTo("testAnonymousRole"))
+                    containsInAnyOrder(equalTo("role1"), equalTo("role2"), equalTo("testAnonymousRole"))
                 );
             } else {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("role1"), equalTo("role2")));
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo("role1"), equalTo("role2")));
             }
         }
         // clear off all the role mappings
@@ -301,9 +309,35 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
             // no role mapping
             if (anonymousRole) {
-                assertThat((List<String>) authenticateResponseMap.get("roles"), contains(equalTo("testAnonymousRole")));
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo("testAnonymousRole")));
             } else {
                 assertThat((List<String>) authenticateResponseMap.get("roles"), emptyIterable());
+            }
+        }
+        // reinstate the same role mapping expression but with different roles
+        publishRoleMappings(Set.of());
+        ExpressionRoleMapping mapping2 = new ExpressionRoleMapping(
+            "test-username-expression",
+            roleMapperExpression,
+            List.of("role3"),
+            List.of(),
+            Map.of(),
+            true
+        );
+        publishRoleMappings(Set.of(mapping2));
+        {
+            Response authenticateResponse = getRestClient().performRequest(
+                getAuthenticateRequest(getSignedJWT(jwtClaims), jwt1SharedSecret)
+            );
+            assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
+            Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
+            if (anonymousRole) {
+                assertThat(
+                    (List<String>) authenticateResponseMap.get("roles"),
+                    containsInAnyOrder(equalTo("testAnonymousRole"), equalTo("role3"))
+                );
+            } else {
+                assertThat((List<String>) authenticateResponseMap.get("roles"), containsInAnyOrder(equalTo("role3")));
             }
         }
     }

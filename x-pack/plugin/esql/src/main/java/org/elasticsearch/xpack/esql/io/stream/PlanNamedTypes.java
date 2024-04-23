@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
@@ -316,13 +317,12 @@ public final class PlanNamedTypes {
             // NamedExpressions
             of(NamedExpression.class, Alias.class, PlanNamedTypes::writeAlias, PlanNamedTypes::readAlias),
             // BinaryComparison
-            of(BinaryComparison.class, Equals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(BinaryComparison.class, NullEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(BinaryComparison.class, NotEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(BinaryComparison.class, GreaterThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(BinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(BinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(BinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            of(EsqlBinaryComparison.class, Equals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            of(EsqlBinaryComparison.class, NotEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            of(EsqlBinaryComparison.class, GreaterThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            of(EsqlBinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            of(EsqlBinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            of(EsqlBinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             // InsensitiveEquals
             of(
                 InsensitiveEquals.class,
@@ -1199,7 +1199,7 @@ public final class PlanNamedTypes {
 
     // -- BinaryComparison
 
-    static BinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
+    static EsqlBinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
         var source = in.readSource();
         var operation = in.readEnum(BinaryComparisonProcessor.BinaryComparisonOperation.class);
         var left = in.readExpression();
@@ -1207,7 +1207,7 @@ public final class PlanNamedTypes {
         var zoneId = in.readOptionalZoneId();
         return switch (operation) {
             case EQ -> new Equals(source, left, right, zoneId);
-            case NULLEQ -> new NullEquals(source, left, right, zoneId);
+            case NULLEQ -> throw new UnsupportedOperationException();
             case NEQ -> new NotEquals(source, left, right, zoneId);
             case GT -> new GreaterThan(source, left, right, zoneId);
             case GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
@@ -1216,7 +1216,7 @@ public final class PlanNamedTypes {
         };
     }
 
-    static void writeBinComparison(PlanStreamOutput out, BinaryComparison binaryComparison) throws IOException {
+    static void writeBinComparison(PlanStreamOutput out, EsqlBinaryComparison binaryComparison) throws IOException {
         out.writeSource(binaryComparison.source());
         out.writeEnum(binaryComparison.function());
         out.writeExpression(binaryComparison.left());

@@ -65,7 +65,7 @@ Creates a connector document in the internal index and initializes its configura
 (Optional, string) The description of the connector.
 
 `index_name`::
-(Optional, string) The target index for syncing data by the connector. If the index doesn't exist, it will be created upon the first sync.
+(Optional, string) The target index to sync data. If the index doesn't exist, it will be created upon the first sync.
 
 `name`::
 (Optional, string) The name of the connector. Setting the connector name is recommended when managing connectors in {kib}.

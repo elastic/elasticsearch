@@ -102,10 +102,8 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
-import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -586,12 +584,12 @@ public class PlanNamedTypesTests extends ESTestCase {
         var left = field(randomName(), randomDataType());
         var right = field(randomName(), randomDataType());
         return switch (v) {
-            case 0 -> new Equals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 1 -> new NotEquals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 2 -> new GreaterThan(Source.EMPTY, left, right, zoneIdOrNull());
-            case 3 -> new GreaterThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull());
-            case 4 -> new LessThan(Source.EMPTY, left, right, zoneIdOrNull());
-            case 5 -> new LessThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull());
+            case 0 -> new Equals(Source.EMPTY, left, right);
+            case 1 -> new NotEquals(Source.EMPTY, left, right);
+            case 2 -> new GreaterThan(Source.EMPTY, left, right);
+            case 3 -> new GreaterThanOrEqual(Source.EMPTY, left, right);
+            case 4 -> new LessThan(Source.EMPTY, left, right);
+            case 5 -> new LessThanOrEqual(Source.EMPTY, left, right);
             default -> throw new AssertionError(v);
         };
     }
@@ -631,10 +629,6 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     static NameId nameIdOrNull() {
         return randomBoolean() ? new NameId() : null;
-    }
-
-    static ZoneId zoneIdOrNull() {
-        return randomBoolean() ? DateUtils.UTC : null;
     }
 
     static Nullability randomNullability() {

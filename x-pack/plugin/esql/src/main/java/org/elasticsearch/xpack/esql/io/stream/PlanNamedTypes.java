@@ -187,7 +187,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
@@ -1199,24 +1198,18 @@ public final class PlanNamedTypes {
 
     static EsqlBinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
         var source = in.readSource();
-        var operation = in.readEnum(BinaryComparisonProcessor.BinaryComparisonOperation.class);
+        EsqlBinaryComparison.BinaryComparisonOpeartion opeartion = EsqlBinaryComparison.BinaryComparisonOpeartion.readFromStream(in);
         var left = in.readExpression();
         var right = in.readExpression();
+        // TODO: Remove zoneId entirely
         var zoneId = in.readOptionalZoneId();
-        return switch (operation) {
-            case EQ -> new Equals(source, left, right, zoneId);
-            case NULLEQ -> throw new UnsupportedOperationException();
-            case NEQ -> new NotEquals(source, left, right, zoneId);
-            case GT -> new GreaterThan(source, left, right, zoneId);
-            case GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
-            case LT -> new LessThan(source, left, right, zoneId);
-            case LTE -> new LessThanOrEqual(source, left, right, zoneId);
-        };
+        assert zoneId == null;
+        return opeartion.buildNewInstance(source, left, right);
     }
 
     static void writeBinComparison(PlanStreamOutput out, EsqlBinaryComparison binaryComparison) throws IOException {
         out.writeSource(binaryComparison.source());
-        out.writeEnum(binaryComparison.function());
+        binaryComparison.getFunctionType().writeTo(out);
         out.writeExpression(binaryComparison.left());
         out.writeExpression(binaryComparison.right());
         out.writeOptionalZoneId(binaryComparison.zoneId());

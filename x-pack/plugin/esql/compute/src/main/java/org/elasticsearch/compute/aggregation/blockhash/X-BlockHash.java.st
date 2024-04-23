@@ -60,12 +60,6 @@ $else$
 import java.util.BitSet;
 
 $endif$
-$if(boolean)$
-import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
-import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
-import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
-$endif$
-
 /**
  * Maps a {@link $Type$Block} column to group ids.
  */
@@ -85,10 +79,7 @@ final class $Type$BlockHash extends BlockHash {
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-$if(boolean)$
-$else$
         this.hash = new $Hash$(1, blockFactory.bigArrays());
-$endif$
     }
 
     @Override

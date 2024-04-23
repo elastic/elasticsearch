@@ -26,7 +26,7 @@ public class DataStreamGlobalRetentionResolver {
 
     /**
      * Return the global retention configuration as found in the metadata. If the metadata is null, then it falls back
-     * to the factory retention. Returns null ig both the cluster metadata for global retention and the factory retention
+     * to the factory retention. Returns null if both the cluster metadata for global retention and the factory retention
      * are null.
      */
     @Nullable

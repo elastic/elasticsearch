@@ -70,10 +70,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                  * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
-                assert maxes.size() == 1;
-                double max = maxes.get(0);
-                max = Math.max(max, segMax.doubleValue());
-                maxes.set(0, max);
+                maxes = bigArrays().grow(maxes,  1);
+                maxes.set(0, Math.max(Double.NEGATIVE_INFINITY, segMax.doubleValue()));
                 // the maximum value has been extracted, we don't need to collect hits on this segment.
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }

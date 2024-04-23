@@ -962,7 +962,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setSize(Math.min(numGroups, 10));
         long expectedNumHits = numHits;
         assertResponse(request, resp -> {
-            assertThat(resp.getHits().getTotalHits().value, equalTo((long) expectedNumHits));
+            assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
             for (int pos = 0; pos < resp.getHits().getHits().length; pos++) {
                 SearchHit hit = resp.getHits().getAt(pos);
                 assertThat(hit.getId(), equalTo(groups[pos].id()));

@@ -71,7 +71,7 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
     private Settings simpleUserRestClientSettings() {
         // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_simple_user", new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before

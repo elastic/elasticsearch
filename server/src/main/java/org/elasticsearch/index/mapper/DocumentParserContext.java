@@ -371,8 +371,7 @@ public abstract class DocumentParserContext {
                                 new IgnoredValuesFieldMapper.Values(mapper.name(), parentOffset, FieldDataParseHelper.encodeToken(parser()))
                             );
                         } catch (IOException e) {
-                            // A parsing failure for ignored field values should be *very* rare.
-                            // It is not considered important enough to drop the document, ignore it silently for now.
+                            throw new IllegalArgumentException("failed to parse field [" + mapper.name() + " ]", e);
                         }
                     }
                     addIgnoredField(mapper.name());

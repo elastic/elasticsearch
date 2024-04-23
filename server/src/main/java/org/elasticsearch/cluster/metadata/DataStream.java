@@ -1371,7 +1371,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return lookup.contains(index);
         }
 
-        public String provideName(String dataStreamName, long generation, long epochMillis) {
+        private String provideName(String dataStreamName, long generation, long epochMillis) {
             return getDefaultIndexName(namePrefix, dataStreamName, generation, epochMillis);
         }
 

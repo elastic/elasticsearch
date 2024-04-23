@@ -93,7 +93,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         final Settings newSettings = Settings.builder().loadFromMap(request.settings()).build();
         final UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
             new Index[] { watcherIndexMd.getIndex() }
-        ).settings(newSettings).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+        ).settings(newSettings).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
             @Override

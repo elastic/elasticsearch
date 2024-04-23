@@ -268,12 +268,12 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = getNodeId(coordinatingNode);
-        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.getNodeId().equals(nodeId)).findAny().get();
-        assertThat(stats.getNodeId(), equalTo(nodeId));
-        assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.nodeId().equals(nodeId)).findAny().get();
+        assertThat(stats.nodeId(), equalTo(nodeId));
+        assertThat(stats.remoteRequestsTotal(), greaterThanOrEqualTo(1L));
         // 'numDocs' lookups are done, but not 'numDocs' searches, because searches may get cached:
         // and not all enrichments may happen via the same node.
-        assertThat(stats.getExecutedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
+        assertThat(stats.executedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
     }
 
     private static List<String> createSourceIndex(int numDocs) {

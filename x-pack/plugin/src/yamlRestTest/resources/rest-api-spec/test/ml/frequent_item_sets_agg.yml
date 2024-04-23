@@ -58,6 +58,9 @@ setup:
       indices.create:
         index: store-flattened
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               data:
@@ -556,6 +559,9 @@ setup:
       indices.create:
         index: unavailable-data
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               features:

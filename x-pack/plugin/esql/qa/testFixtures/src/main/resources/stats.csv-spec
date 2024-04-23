@@ -695,7 +695,7 @@ ca:l|gender:s
 ;
 
 
-countFieldVsAll#[skip:-8.14.99, reason:Fixed count(null) in 8.15]
+countFieldVsAll#[skip:-8.13.99, reason:Fixed count(null) in 8.14]
 from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
 
 ca:l|cn:l|cf:l|gender:s
@@ -1456,7 +1456,7 @@ rows:l
 6
 ;
 
-countOfConst#[skip:-8.14.99,reason:supported in 8.15]
+countOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s1 = count(1), s2point1 = count(2.1), s_mv = count([-1, 0, 3]) * 3, s_null = count(null), rows = count(*)
 ;
@@ -1465,7 +1465,7 @@ s1:l | s2point1:l | s_mv:l | s_null:l | rows:l
 100  | 100        | 900    | 0        | 100
 ;
 
-countOfConstGrouped#[skip:-8.14.99,reason:supported in 8.15]
+countOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s2point1 = count("two point one"), s_mv = count([-1, 0, 3]), s_null = count(null), rows = count(*) by languages
 | SORT languages
@@ -1576,7 +1576,7 @@ s2point1:d | s_mv:i | languages:i
 2.1        | 3      | null
 ;
 
-medianOfConst#[skip:-8.14.99,reason:supported in 8.15]
+medianOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s1 = median(1), s_mv = median([-1, 0, 1, 3]), s_null = median(null)
 ;
@@ -1585,7 +1585,7 @@ s1:d | s_mv:d | s_null:d
 1.0  | 0.5    | null
 ;
 
-medianOfConstGrouped#[skip:-8.14.99,reason:supported in 8.15]
+medianOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s2point1 = median(2.1), s_mv = median([-1, 0, 1, 3]) by languages
 | SORT languages
@@ -1600,7 +1600,7 @@ s2point1:d | s_mv:d | languages:i
 2.1        | 0.5    | null
 ;
 
-countDistinctOfConst#[skip:-8.14.99,reason:supported in 8.15]
+countDistinctOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s1 = count_distinct(1), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_null = count_distinct(null), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 5) 
 ;
@@ -1609,7 +1609,7 @@ s1:l | s_mv:l | s_null:l | s_param:l
 1    | 4      | 0        | 4
 ;
 
-countDistinctOfConstGrouped#[skip:-8.14.99,reason:supported in 8.15]
+countDistinctOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s2point1 = count_distinct("two point one"), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 8000) by languages
 | SORT languages

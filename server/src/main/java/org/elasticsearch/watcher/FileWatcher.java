@@ -95,6 +95,10 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         abstract void onFileDeleted();
     }
 
+    /**
+     * A placeholder {@link Observer} for a file that we don't have permissions to access.
+     * We can't watch it for changes, but it shouldn't block us from watching other files in the same directory.
+     */
     private static class DeniedObserver extends Observer {
         private DeniedObserver(Path path) {
             super(path);

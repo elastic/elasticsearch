@@ -99,6 +99,11 @@ final class ESPolicy extends Policy {
             return false;
         }
 
+        // completely deny access to specific files that are forbidden
+        if (forbiddenFilePermission.implies(permission)) {
+            return false;
+        }
+
         URL location = codeSource.getLocation();
         if (location != null) {
             // run scripts with limited permissions
@@ -113,43 +118,42 @@ final class ESPolicy extends Policy {
             }
         }
 
-        if (permission instanceof FilePermission) {
-            // The FilePermission to check access to the path.data is the hottest permission check in
-            // Elasticsearch, so we check it first.
-            if (dataPathPermission.implies(permission)) {
-                return true;
-            }
+        // The FilePermission to check access to the path.data is the hottest permission check in
+        // Elasticsearch, so we explicitly check it here.
+        if (dataPathPermission.implies(permission)) {
+            return true;
+        }
 
-            // completely deny access to specific files that are forbidden
-            if (forbiddenFilePermission.implies(permission)) {
+        // check if this is an access to a plugin-exclusive file
+        if (allExclusiveFiles.implies(permission)) {
+            if (location == null) {
                 return false;
             }
-
-            // check if this is an access to a plugin-exclusive file
-            if (allExclusiveFiles.implies(permission)) {
-                if (location == null) {
-                    return false;
-                }
-                // check the plugin source
-                Set<String> accessibleSources = pluginExclusiveFiles.get(permission);
-                if (accessibleSources != null) {
-                    return accessibleSources.contains(location.getFile());
-                } else {
-                    // there's a directory reference in there somewhere
-                    // do a manual search :(
-                    // there may be several permissions that potentially match
-                    return pluginExclusiveFiles.entrySet()
-                        .stream()
-                        .filter(e -> e.getKey().implies(permission))
-                        .anyMatch(e -> e.getValue().contains(location.getFile()));
-                }
+            // check the plugin source
+            Set<String> accessibleSources = pluginExclusiveFiles.get(permission);
+            if (accessibleSources != null) {
+                return accessibleSources.contains(location.getFile());
+            } else {
+                // there's a directory reference in there somewhere
+                // do a manual search :(
+                // there may be several permissions that potentially match
+                return pluginExclusiveFiles.entrySet()
+                    .stream()
+                    .filter(e -> e.getKey().implies(permission))
+                    .anyMatch(e -> e.getValue().contains(location.getFile()));
             }
+        }
 
-            // Special handling for broken Hadoop code: "let me execute or my classes will not load"
-            // yeah right, REMOVE THIS when hadoop is fixed
-            if ("<<ALL FILES>>".equals(permission.getName())) {
-                hadoopHack();
-            }
+        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
+        // yeah right, REMOVE THIS when hadoop is fixed
+        if ("<<ALL FILES>>".equals(permission.getName())) {
+            hadoopHack();
+        }
+
+        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
+        // yeah right, REMOVE THIS when hadoop is fixed
+        if (permission instanceof FilePermission && "<<ALL FILES>>".equals(permission.getName())) {
+            hadoopHack();
         }
 
         // otherwise defer to template + dynamic file permissions

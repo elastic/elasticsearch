@@ -53,6 +53,9 @@ public class ESPolicyUnitTests extends ESTestCase {
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
     }
 
+    /**
+     * As of JDK 9, {@link CodeSource#getLocation} is documented to potentially return {@code null}
+     */
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testNullLocation() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
@@ -115,7 +118,10 @@ public class ESPolicyUnitTests extends ESTestCase {
             List.of(new FilePermission("/home/elasticsearch/config/forbidden.yml", "read")),
             Map.of()
         );
-        ProtectionDomain pd = new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions());
+        ProtectionDomain pd = new ProtectionDomain(
+            new CodeSource(randomBoolean() ? null : randomFrom(TEST_CODEBASES.values()), (Certificate[]) null),
+            new Permissions()
+        );
 
         assertTrue(policy.implies(pd, new FilePermission("/home/elasticsearch/config/config.yml", "read")));
         assertFalse(policy.implies(pd, new FilePermission("/home/elasticsearch/config/forbidden.yml", "read")));

@@ -40,6 +40,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     private static final List<FieldAndFormat> DEFAULT_METADATA_FIELDS = List.of(
         new FieldAndFormat(IgnoredFieldMapper.NAME, null),
         new FieldAndFormat(RoutingFieldMapper.NAME, null),
+        // will only be fetched when mapped (older archived indices)
         new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
     );
 
@@ -95,9 +96,9 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
                 if (fieldFetcher != null) {
-                    return fieldFetcher.storedFieldsSpec();
+                    return metadataFieldFetcher.storedFieldsSpec().merge(fieldFetcher.storedFieldsSpec());
                 }
-                return StoredFieldsSpec.NO_REQUIREMENTS;
+                return metadataFieldFetcher.storedFieldsSpec();
             }
 
             @Override

@@ -39,7 +39,7 @@ public class RestMoveToStepAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             request = TransportMoveToStepAction.Request.parseRequest(index, parser);
         }
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(ILMActions.MOVE_TO_STEP, request, new RestToXContentListener<>(channel));
     }

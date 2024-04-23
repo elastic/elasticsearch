@@ -120,7 +120,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
         }
 
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
-            request.timeout()
+            request.ackTimeout()
         ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
         indexStateService.closeIndices(closeRequest, listener.delegateResponse((delegatedListener, t) -> {
             logger.debug(() -> "failed to close indices [" + Arrays.toString(concreteIndices) + "]", t);

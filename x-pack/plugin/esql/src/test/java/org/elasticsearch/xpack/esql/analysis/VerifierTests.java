@@ -476,6 +476,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
     }
 
+    public void testInlineImpossibleConvert() {
+        assertEquals("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]", error("ROW false::ip"));
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

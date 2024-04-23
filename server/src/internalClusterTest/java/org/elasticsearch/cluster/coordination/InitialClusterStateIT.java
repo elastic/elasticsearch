@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,7 +41,7 @@ public class InitialClusterStateIT extends ESIntegTestCase {
             assertEquals(expectedValue, metadata.clusterUUID());
 
             final ClusterStatsResponse response = PlainActionFuture.get(
-                fut -> client(nodeName).execute(ClusterStatsAction.INSTANCE, new ClusterStatsRequest(), fut),
+                fut -> client(nodeName).execute(TransportClusterStatsAction.TYPE, new ClusterStatsRequest(), fut),
                 10,
                 TimeUnit.SECONDS
             );

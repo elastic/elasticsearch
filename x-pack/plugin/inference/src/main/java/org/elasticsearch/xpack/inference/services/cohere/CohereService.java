@@ -269,7 +269,8 @@ public class CohereService extends SenderService {
                 similarityToUse,
                 embeddingSize,
                 model.getServiceSettings().getCommonSettings().maxInputTokens(),
-                model.getServiceSettings().getCommonSettings().modelId()
+                model.getServiceSettings().getCommonSettings().modelId(),
+                model.getServiceSettings().getCommonSettings().rateLimitSettings()
             ),
             model.getServiceSettings().getEmbeddingType()
         );
@@ -279,6 +280,6 @@ public class CohereService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

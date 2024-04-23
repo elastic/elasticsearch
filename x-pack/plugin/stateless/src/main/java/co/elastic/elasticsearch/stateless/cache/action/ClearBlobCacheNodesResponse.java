@@ -35,7 +35,11 @@ import java.util.Objects;
 
 public class ClearBlobCacheNodesResponse extends BaseNodesXContentResponse<ClearBlobCacheNodeResponse> implements ChunkedToXContentObject {
     public ClearBlobCacheNodesResponse(StreamInput in) throws IOException {
-        super(in);
+        super(
+            new ClusterName(in),
+            in.readCollectionAsList(ClearBlobCacheNodeResponse::new),
+            in.readCollectionAsList(FailedNodeException::new)
+        );
     }
 
     public ClearBlobCacheNodesResponse(

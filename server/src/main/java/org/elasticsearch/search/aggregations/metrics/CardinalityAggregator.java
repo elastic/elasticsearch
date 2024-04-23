@@ -68,7 +68,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         assert valuesSourceConfig.hasValues();
         this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
-        this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 0);
         this.executionMode = executionMode;
     }
 

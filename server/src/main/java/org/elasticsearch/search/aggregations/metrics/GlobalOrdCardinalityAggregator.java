@@ -85,7 +85,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         this.precision = precision;
         this.maxOrd = maxOrd;
         this.bigArrays = context.bigArrays();
-        this.visitedOrds = bigArrays.newObjectArray(1);
+        this.visitedOrds = bigArrays.newObjectArray(0);
     }
 
     @Override
@@ -206,6 +206,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             // This optimization only applies to top-level cardinality aggregations that apply to fields indexed with an inverted index.
             final Terms indexTerms = aggCtx.getLeafReaderContext().reader().terms(field);
             if (indexTerms != null) {
+                visitedOrds = bigArrays.grow(visitedOrds, 1);
                 BitArray bits = visitedOrds.get(0);
                 final int numNonVisitedOrds = maxOrd - (bits == null ? 0 : (int) bits.cardinality());
                 if (maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING || numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {

@@ -52,7 +52,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         this.valuesSource = config.getValuesSource();
         this.keyed = keyed;
         this.formatter = formatter;
-        this.states = context.bigArrays().newObjectArray(1);
+        this.states = context.bigArrays().newObjectArray(0);
         this.keys = keys;
         this.compression = compression;
         this.executionHint = executionHint;

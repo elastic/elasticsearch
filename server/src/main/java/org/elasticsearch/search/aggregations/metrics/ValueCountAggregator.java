@@ -48,7 +48,7 @@ public final class ValueCountAggregator extends NumericMetricsAggregator.SingleV
         super(name, aggregationContext, parent, metadata);
         assert valuesSourceConfig.hasValues();
         this.valuesSource = valuesSourceConfig.getValuesSource();
-        counts = bigArrays().newLongArray(1, true);
+        counts = bigArrays().newLongArray(0, true);
     }
 
     @Override

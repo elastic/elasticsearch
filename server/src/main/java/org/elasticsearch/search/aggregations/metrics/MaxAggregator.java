@@ -46,8 +46,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
-        maxes = context.bigArrays().newDoubleArray(1, false);
-        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
+        maxes = context.bigArrays().newDoubleArray(0, false);
         this.formatter = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {

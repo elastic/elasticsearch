@@ -52,18 +52,12 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
         this.wrapLongitude = wrapLongitude;
-        tops = bigArrays().newDoubleArray(1, false);
-        tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
-        bottoms = bigArrays().newDoubleArray(1, false);
-        bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
-        posLefts = bigArrays().newDoubleArray(1, false);
-        posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
-        posRights = bigArrays().newDoubleArray(1, false);
-        posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
-        negLefts = bigArrays().newDoubleArray(1, false);
-        negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
-        negRights = bigArrays().newDoubleArray(1, false);
-        negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
+        tops = bigArrays().newDoubleArray(0, false);
+        bottoms = bigArrays().newDoubleArray(0, false);
+        posLefts = bigArrays().newDoubleArray(0, false);
+        posRights = bigArrays().newDoubleArray(0, false);
+        negLefts = bigArrays().newDoubleArray(0, false);
+        negRights = bigArrays().newDoubleArray(0, false);
     }
 
     @Override

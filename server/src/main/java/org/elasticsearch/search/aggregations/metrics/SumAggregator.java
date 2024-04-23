@@ -43,8 +43,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
-        sums = bigArrays().newDoubleArray(1, true);
-        compensations = bigArrays().newDoubleArray(1, true);
+        sums = bigArrays().newDoubleArray(0, true);
+        compensations = bigArrays().newDoubleArray(0, true);
     }
 
     @Override

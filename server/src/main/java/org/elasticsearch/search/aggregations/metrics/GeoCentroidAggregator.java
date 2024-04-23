@@ -45,11 +45,11 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         super(name, context, parent, metadata);
         assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
-        lonSum = bigArrays().newDoubleArray(1, true);
-        lonCompensations = bigArrays().newDoubleArray(1, true);
-        latSum = bigArrays().newDoubleArray(1, true);
-        latCompensations = bigArrays().newDoubleArray(1, true);
-        counts = bigArrays().newLongArray(1, true);
+        lonSum = bigArrays().newDoubleArray(0, true);
+        lonCompensations = bigArrays().newDoubleArray(0, true);
+        latSum = bigArrays().newDoubleArray(0, true);
+        latCompensations = bigArrays().newDoubleArray(0, true);
+        counts = bigArrays().newLongArray(0, true);
     }
 
     @Override

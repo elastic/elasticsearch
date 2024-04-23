@@ -55,7 +55,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
         this.format = Objects.requireNonNull(format);
         this.compression = compression;
         this.executionHint = executionHint;
-        this.valueSketches = context.bigArrays().newObjectArray(1);
+        this.valueSketches = context.bigArrays().newObjectArray(0);
     }
 
     private boolean hasDataForBucket(long bucketOrd) {

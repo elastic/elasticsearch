@@ -57,15 +57,13 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         this.format = config.format();
         this.sigma = sigma;
         final BigArrays bigArrays = context.bigArrays();
-        counts = bigArrays.newLongArray(1, true);
-        sums = bigArrays.newDoubleArray(1, true);
-        compensations = bigArrays.newDoubleArray(1, true);
-        mins = bigArrays.newDoubleArray(1, false);
-        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-        maxes = bigArrays.newDoubleArray(1, false);
-        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        sumOfSqrs = bigArrays.newDoubleArray(1, true);
-        compensationOfSqrs = bigArrays.newDoubleArray(1, true);
+        counts = bigArrays.newLongArray(0, true);
+        sums = bigArrays.newDoubleArray(0, true);
+        compensations = bigArrays.newDoubleArray(0, true);
+        mins = bigArrays.newDoubleArray(0, false);
+        maxes = bigArrays.newDoubleArray(0, false);
+        sumOfSqrs = bigArrays.newDoubleArray(0, true);
+        compensationOfSqrs = bigArrays.newDoubleArray(0, true);
     }
 
     @Override

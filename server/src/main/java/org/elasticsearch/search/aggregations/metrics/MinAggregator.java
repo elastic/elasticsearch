@@ -47,8 +47,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
-        mins = context.bigArrays().newDoubleArray(1, false);
-        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+        mins = context.bigArrays().newDoubleArray(0, false);
         this.format = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {

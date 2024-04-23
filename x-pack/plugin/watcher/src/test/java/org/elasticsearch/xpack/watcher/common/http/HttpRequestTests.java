@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -105,12 +106,10 @@ public class HttpRequestTests extends ESTestCase {
             builder.body(randomAlphaOfLength(200));
         }
         if (randomBoolean()) {
-            // micros and nanos don't round trip will full precision so exclude them from the test
-            builder.connectionTimeout(randomTimeValue(0, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS));
+            builder.connectionTimeout(randomTimeout());
         }
         if (randomBoolean()) {
-            // micros and nanos don't round trip will full precision so exclude them from the test
-            builder.readTimeout(randomTimeValue(0, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS));
+            builder.readTimeout(randomTimeout());
         }
         if (randomBoolean()) {
             builder.proxy(new HttpProxy(randomAlphaOfLength(10), randomIntBetween(1024, 65000)));
@@ -130,6 +129,11 @@ public class HttpRequestTests extends ESTestCase {
                 assertEquals(httpRequest, parsedRequest);
             }
         }
+    }
+
+    private static TimeValue randomTimeout() {
+        // micros and nanos don't round trip will full precision so exclude them from the test
+        return randomTimeValue(0, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS);
     }
 
     public void testXContentRemovesAuthorization() throws Exception {

@@ -81,11 +81,7 @@ public class IgnoredMetaFieldRollingUpgradeIT extends ParameterizedRollingUpgrad
                 RestStatus.CREATED
             );
             final Map<String, Object> doc = entityAsMap(getWithIgnored("old-get-ignored-index", "1"));
-            if (getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
-                assertThat(((List<?>) doc.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
-            } else {
-                assertNull(doc.get(IgnoredFieldMapper.NAME));
-            }
+            assertThat(((List<?>) doc.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
         } else if (isUpgradedCluster()) {
             assertRestStatus(client().performRequest(waitForClusterStatus("green", "90s")), RestStatus.OK);
             assertRestStatus(
@@ -97,18 +93,14 @@ public class IgnoredMetaFieldRollingUpgradeIT extends ParameterizedRollingUpgrad
             // field could be stored depending on the version of Elasticsearch which created the index. The mapper for the _ignored field
             // will keep the stored field if necessary to avoid mixing documents where the _ignored field is stored and documents where it
             // is not, in the same index.
-            if (getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
-                assertThat(((List<?>) doc.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
-            } else {
-                assertNull(doc.get(IgnoredFieldMapper.NAME));
-            }
+            assertThat(((List<?>) doc.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
 
             // NOTE: The stored field is dropped only once a new index is created by a new version of Elasticsearch.
             final String newVersionIndexName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
             assertRestStatus(client().performRequest(createNewIndex(newVersionIndexName)), RestStatus.OK);
             assertRestStatus(client().performRequest(indexDocument(newVersionIndexName, "foobar", "192.168.777", "3")), RestStatus.CREATED);
             final Map<String, Object> docFromNewIndex = entityAsMap(getWithIgnored(newVersionIndexName, "3"));
-            assertNull(docFromNewIndex.get(IgnoredFieldMapper.NAME));
+            assertThat(((List<?>) docFromNewIndex.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
         }
     }
 

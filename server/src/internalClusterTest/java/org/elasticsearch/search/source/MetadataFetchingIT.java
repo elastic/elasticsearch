@@ -128,7 +128,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         {
             GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_ignored").get();
             assertTrue(getResponse.isExists());
-            assertThat(getResponse.getField("_ignored"), nullValue());
+            assertEquals("ip", getResponse.getField("_ignored").getValue());
         }
     }
 

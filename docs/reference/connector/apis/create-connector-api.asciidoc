@@ -77,7 +77,7 @@ Creates a connector document in the internal index and initializes its configura
 (Optional, string) Language analyzer for the data. Limited to supported languages.
 
 `service_type`::
-(Optional, string) Connector service type. Can reference Elastic-supported connector types or a custom connector type. See the available service types for {enterprise-search-ref}/native-connectors.html[native] and {enterprise-search-ref}/build-connector.html[self-managed] connectors.
+(Optional, string) Connector service type. Can reference Elastic-supported third-party services or a custom connector type. See the available service types for {enterprise-search-ref}/native-connectors.html[native] and {enterprise-search-ref}/build-connector.html[self-managed] connectors.
 
 
 [role="child_attributes"]

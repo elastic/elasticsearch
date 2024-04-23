@@ -71,7 +71,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                  * so the ordinal for the bucket is always 0.
                  */
                 if (maxes.size() == 0) {
-                    maxes = bigArrays().grow(maxes, 1);
+                    maxes = bigArrays().resize(maxes, 1);
                     maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
                 assert maxes.size() == 1;

@@ -72,7 +72,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                  * so the ordinal for the bucket is always 0.
                  */
                 if (mins.size() == 0) {
-                    mins = bigArrays().grow(mins, 1);
+                    mins = bigArrays().resize(mins, 1);
                     mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
                 }
                 assert mins.size() == 1;

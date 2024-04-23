@@ -13,6 +13,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
@@ -369,12 +370,12 @@ public class StatementParserTests extends ESTestCase {
                 Filter filter = (Filter) where;
                 assertThat(filter.children().size(), equalTo(1));
                 assertThat(filter.condition(), instanceOf(expectedOperators[i]));
-                BinaryComparison comparison;
+                EsqlBinaryComparison comparison;
                 if (filter.condition() instanceof Not not) {
                     assertThat(not.children().get(0), instanceOf(Equals.class));
-                    comparison = (BinaryComparison) (not.children().get(0));
+                    comparison = (EsqlBinaryComparison) (not.children().get(0));
                 } else {
-                    comparison = (BinaryComparison) filter.condition();
+                    comparison = (EsqlBinaryComparison) filter.condition();
                 }
                 assertThat(comparison.left(), instanceOf(UnresolvedAttribute.class));
                 assertThat(((UnresolvedAttribute) comparison.left()).name(), equalTo(expectedIdentifiers[j]));

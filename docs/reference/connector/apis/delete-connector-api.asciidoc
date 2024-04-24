@@ -7,6 +7,7 @@
 preview::[]
 
 Removes a connector and its associated data.
+// We need to be more specific with "associated data". What data is removed exactly(connector, sync data)? What related data should be manually removed? (e.g. Index, API key, etc)
 This is a destructive action that is not recoverable.
 
 [[delete-connector-api-request]]
@@ -18,6 +19,7 @@ This is a destructive action that is not recoverable.
 ==== {api-prereq-title}
 
 * To sync data using connectors, it's essential to have the Elastic connectors service running.
+// "To sync data using connectors" - this is not the case for native connectors, we should be more specific that we're referring to self-managed connectors
 * The `connector_id` parameter should reference an existing connector.
 
 [[delete-connector-api-path-params]]

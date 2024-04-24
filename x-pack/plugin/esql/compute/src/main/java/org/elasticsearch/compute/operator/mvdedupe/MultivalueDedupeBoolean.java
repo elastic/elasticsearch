@@ -125,6 +125,7 @@ public class MultivalueDedupeBoolean {
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
+        block.incRef();
         return new BatchEncoder.Booleans(Math.max(2, batchSize)) {
             @Override
             protected void readNextBatch() {
@@ -150,6 +151,11 @@ public class MultivalueDedupeBoolean {
                         }
                     }
                 }
+            }
+
+            @Override
+            public void close() {
+                block.decRef();
             }
         };
     }

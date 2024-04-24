@@ -77,7 +77,9 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertEquals("cohere", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "embed-english-light-v3.0"));
-            assertThat(serviceSettings, hasEntry("embedding_type", "int8"));
+            var embeddingType = serviceSettings.get("embedding_type");
+            // An upgraded node will report the embedding type as byte, the old node int8
+            assertThat(embeddingType, Matchers.is(oneOf("int8", "byte")));
 
             assertEmbeddingInference(oldClusterIdInt8, CohereEmbeddingType.BYTE);
             assertEmbeddingInference(oldClusterIdFloat, CohereEmbeddingType.FLOAT);

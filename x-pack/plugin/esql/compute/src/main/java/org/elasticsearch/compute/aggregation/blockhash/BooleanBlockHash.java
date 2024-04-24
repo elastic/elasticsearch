@@ -16,11 +16,11 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
 
-import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
-import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.NULL_ORD;
-import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.TRUE_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
 
 /**
  * Maps a {@link BooleanBlock} column to group ids. Assigns group

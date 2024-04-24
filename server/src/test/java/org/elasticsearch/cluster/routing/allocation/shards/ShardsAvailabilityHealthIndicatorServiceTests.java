@@ -2034,55 +2034,39 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(unassignedReplica, state));
 
+        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.NODE_LEFT, UnassignedInfo.Reason.NODE_RESTARTING);
         ShardAllocation allocation = new ShardAllocation(
             "node",
             UNAVAILABLE,
             new UnassignedInfo(
-                UnassignedInfo.Reason.NODE_LEFT,
+                reason,
                 "message",
                 null,
                 0,
                 0,
                 0,
                 randomBoolean(),
-                UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                randomFrom(UnassignedInfo.AllocationStatus.values()),
                 Set.of(),
-                null
+                reason == UnassignedInfo.Reason.NODE_LEFT ? null : randomAlphaOfLength(20)
             )
         );
-        ShardRouting decidersNoReplica = createShardRouting(id, false, allocation);
+        ShardRouting unallocatedReplica = createShardRouting(id, false, allocation);
         state = createClusterStateWith(
             List.of(idxMeta),
             List.of(index(idxMeta, new ShardAllocation("node", UNAVAILABLE), allocation)),
             List.of(),
             List.of()
         );
-        assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(decidersNoReplica, state));
+        assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(unallocatedReplica, state));
 
-        allocation = new ShardAllocation(
-            "node",
-            UNAVAILABLE,
-            new UnassignedInfo(
-                UnassignedInfo.Reason.NODE_LEFT,
-                "message",
-                null,
-                0,
-                0,
-                0,
-                randomBoolean(),
-                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                Set.of(),
-                null
-            )
-        );
-        ShardRouting newlyInitializingReplica = createShardRouting(id, false, allocation);
         state = createClusterStateWith(
             List.of(idxMeta),
             List.of(index(idxMeta, new ShardAllocation("node", CREATING), allocation)),
             List.of(),
             List.of()
         );
-        assertTrue(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(newlyInitializingReplica, state));
+        assertTrue(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(unallocatedReplica, state));
     }
 
     private HealthIndicatorResult createExpectedResult(

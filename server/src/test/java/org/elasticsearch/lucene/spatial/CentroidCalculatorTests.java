@@ -319,6 +319,7 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         assertThat(calculator, matchesCentroid(addFromCalculator));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106126")
     public void testAddDifferentDimensionalType() {
         Point point = randomPoint();
         Line line = randomLine();

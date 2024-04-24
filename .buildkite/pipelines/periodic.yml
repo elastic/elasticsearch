@@ -332,6 +332,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.14.0
+      - label: 8.15.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.15.0
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
     timeout_in_minutes: 420
@@ -380,6 +390,7 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
               - checkRestCompat
         agents:
           provider: gcp
@@ -396,7 +407,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
-            BWC_VERSION: ["7.17.21", "8.13.3", "8.14.0"]
+            BWC_VERSION: ["7.17.21", "8.13.3", "8.14.0", "8.15.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -420,6 +431,7 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
               - checkRestCompat
         agents:
           provider: gcp
@@ -438,7 +450,7 @@ steps:
               - graalvm-ce17
               - openjdk17
               - openjdk21
-            BWC_VERSION: ["7.17.21", "8.13.3", "8.14.0"]
+            BWC_VERSION: ["7.17.21", "8.13.3", "8.14.0", "8.15.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

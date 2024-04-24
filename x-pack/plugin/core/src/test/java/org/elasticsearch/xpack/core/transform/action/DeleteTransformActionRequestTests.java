@@ -33,7 +33,7 @@ public class DeleteTransformActionRequestTests extends AbstractWireSerializingTe
         String id = instance.getId();
         boolean force = instance.isForce();
         boolean deleteDestIndex = instance.isDeleteDestIndex();
-        TimeValue timeout = instance.timeout();
+        TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 3)) {
             case 0 -> id += randomAlphaOfLengthBetween(1, 5);

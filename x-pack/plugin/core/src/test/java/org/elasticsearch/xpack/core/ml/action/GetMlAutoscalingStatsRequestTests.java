@@ -28,6 +28,6 @@ public class GetMlAutoscalingStatsRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected Request mutateInstance(Request instance) throws IOException {
-        return new Request(TimeValue.timeValueMillis(instance.timeout().millis() + randomIntBetween(1, 1000)));
+        return new Request(TimeValue.timeValueMillis(instance.ackTimeout().millis() + randomIntBetween(1, 1000)));
     }
 }

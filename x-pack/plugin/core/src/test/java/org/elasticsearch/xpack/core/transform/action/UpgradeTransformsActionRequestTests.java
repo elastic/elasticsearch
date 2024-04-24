@@ -27,7 +27,7 @@ public class UpgradeTransformsActionRequestTests extends AbstractWireSerializing
     @Override
     protected Request mutateInstance(Request instance) {
         boolean dryRun = instance.isDryRun();
-        TimeValue timeout = instance.timeout();
+        TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 1)) {
             case 0 -> dryRun ^= true;

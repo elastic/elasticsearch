@@ -34,7 +34,7 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTes
     protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         Instant from = instance.from();
-        TimeValue timeout = instance.timeout();
+        TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 2)) {
             case 0 -> id += randomAlphaOfLengthBetween(1, 5);

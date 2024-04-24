@@ -1,9 +1,9 @@
 ---
 "Modify a data stream":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "this API was released in 7.16.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -91,10 +91,10 @@
 
 ---
 "Modify a data stream's failure store":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
       reason: "this API was released in 8.14.0"
-      features: allowed_warnings
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
       allowed_warnings:

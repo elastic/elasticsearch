@@ -106,9 +106,9 @@ final class PackedValuesBlockHash extends BlockHash {
         }
 
         /**
-         * Encodes one permutation of the keys at time into {@link #bytes}. The encoding is
-         * mostly provided by {@link BatchEncoder} with nulls living in a bit mask at the
-         * front of the bytes.
+         * Encodes one permutation of the keys at time into {@link #bytes} and adds it
+         * to the {@link #bytesRefHash}. The encoding is mostly provided by
+         * {@link BatchEncoder} with nulls living in a bit mask at the front of the bytes.
          */
         void add() {
             for (position = 0; position < positionCount; position++) {

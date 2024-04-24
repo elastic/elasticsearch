@@ -44,7 +44,7 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String name = request.param("repository");
         DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest(name);
-        deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
+        deleteRepositoryRequest.ackTimeout(request.paramAsTime("timeout", deleteRepositoryRequest.ackTimeout()));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
         return channel -> client.admin()
             .cluster()

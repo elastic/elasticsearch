@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -139,6 +140,10 @@ public class ServiceUtils {
         );
     }
 
+    public static String invalidSettingError(String settingName, String scope) {
+        return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
+    }
+
     // TODO improve URI validation logic
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
@@ -184,6 +189,21 @@ public class ServiceUtils {
         }
 
         return new SecureString(Objects.requireNonNull(requiredField).toCharArray());
+    }
+
+    public static SecureString extractOptionalSecureString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String optionalField = extractOptionalString(map, settingName, scope, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false || optionalField == null) {
+            return null;
+        }
+
+        return new SecureString(optionalField.toCharArray());
     }
 
     public static SimilarityMeasure extractSimilarity(Map<String, Object> map, String scope, ValidationException validationException) {
@@ -383,4 +403,9 @@ public class ServiceUtils {
     }
 
     private static final String TEST_EMBEDDING_INPUT = "how big";
+
+    public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
+        // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
+        return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
+    }
 }

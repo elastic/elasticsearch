@@ -35,11 +35,11 @@ in monthly buckets:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=docsBucketMonth]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonth]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/date.csv-spec[tag=docsBucketMonth-result]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonth-result]
 |===
 
 The goal isn't to provide *exactly* the target number of buckets, it's to pick a
@@ -51,11 +51,11 @@ Combine `BUCKET` with
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=docsBucketMonthlyHistogram]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonthlyHistogram]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/date.csv-spec[tag=docsBucketMonthlyHistogram-result]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonthlyHistogram-result]
 |===
 
 NOTE: `BUCKET` does not create buckets that don't match any documents.
@@ -66,11 +66,11 @@ at most 100 buckets in a year results in weekly buckets:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=docsBucketWeeklyHistogram]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogram]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/date.csv-spec[tag=docsBucketWeeklyHistogram-result]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogram-result]
 |===
 
 NOTE: `BUCKET` does not filter any rows. It only uses the provided range to
@@ -83,11 +83,11 @@ salary histogram:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/ints.csv-spec[tag=docsBucketNumeric]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumeric]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/ints.csv-spec[tag=docsBucketNumeric-result]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumeric-result]
 |===
 
 Unlike the earlier example that intentionally filters on a date range, you
@@ -102,7 +102,7 @@ per hour:
 
 [source.styled,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=docsBucketLast24hr]
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketLast24hr]
 ----
 
 Create monthly buckets for the year 1985, and calculate the average salary by
@@ -110,9 +110,9 @@ hiring month:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=bucket_in_agg]
+include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/date.csv-spec[tag=bucket_in_agg-result]
+include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg-result]
 |===

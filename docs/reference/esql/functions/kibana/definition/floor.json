@@ -3,6 +3,7 @@
   "type" : "eval",
   "name" : "floor",
   "description" : "Round a number down to the nearest integer.",
+  "note" : "This is a noop for `long` (including unsigned) and `integer`.\nFor `double` this picks the closest `double` value to the integer\nsimilar to Math.floor.",
   "signatures" : [
     {
       "params" : [
@@ -10,7 +11,7 @@
           "name" : "number",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -22,7 +23,7 @@
           "name" : "number",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -34,7 +35,7 @@
           "name" : "number",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -46,11 +47,14 @@
           "name" : "number",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : ""
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
       "returnType" : "unsigned_long"
     }
+  ],
+  "examples" : [
+    "ROW a=1.8\n| EVAL a=FLOOR(a)"
   ]
 }

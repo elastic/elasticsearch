@@ -134,6 +134,8 @@ public class Constants {
         "indices:data/write/xpack/connector/update_configuration",
         "indices:data/write/xpack/connector/update_error",
         "indices:data/write/xpack/connector/update_filtering",
+        "indices:data/write/xpack/connector/update_filtering/activate",
+        "indices:data/write/xpack/connector/update_filtering/draft_validation",
         "indices:data/write/xpack/connector/update_index_name",
         "indices:data/write/xpack/connector/update_last_seen",
         "indices:data/write/xpack/connector/update_last_sync_stats",

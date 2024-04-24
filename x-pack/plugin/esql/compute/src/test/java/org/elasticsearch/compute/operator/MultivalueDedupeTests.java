@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.LongFunction;
@@ -73,12 +74,13 @@ public class MultivalueDedupeTests extends ESTestCase {
         return false;
     }
 
-    @ParametersFactory
+    @ParametersFactory(argumentFormatting = "elementType=%s positions=%s nullsAllowed=%s valuesPerPosition=%s-%s dupsPerPosition=%s-%s")
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : supportedTypes()) {
             for (boolean nullAllowed : new boolean[] { false, true }) {
                 for (int max : new int[] { 10, 100, 1000 }) {
+                    params.add(new Object[] { elementType, 1000, nullAllowed, 1, 1, 0, 0 });
                     params.add(new Object[] { elementType, 1000, nullAllowed, 1, max, 0, 0 });
                     params.add(new Object[] { elementType, 1000, nullAllowed, 1, max, 0, 100 });
                 }
@@ -294,42 +296,103 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertBytesRefHash(Set<BytesRef> previousValues, BasicBlockTests.RandomBlock b) {
         BytesRefHash hash = new BytesRefHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(blockFactory(), hash);
+        previousValues.forEach(hash::add);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hashAdd(blockFactory(), hash);
         try (IntBlock ords = hashes.ords()) {
-            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
             assertHash(b, ords, hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
+            long sizeBeforeLookup = hash.size();
+            try (IntBlock lookup = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hashLookup(blockFactory(), hash)) {
+                assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                assertLookup(previousValues, b, b, lookup, i -> hash.get(i, new BytesRef()));
+            }
+            BasicBlockTests.RandomBlock other = randomBlock();
+            if (randomBoolean()) {
+                other = b.merge(other);
+            }
+            try (IntBlock lookup = new MultivalueDedupeBytesRef((BytesRefBlock) other.block()).hashLookup(blockFactory(), hash)) {
+                assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                assertLookup(previousValues, b, other, lookup, i -> hash.get(i, new BytesRef()));
+            }
+            assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
         }
     }
 
     private void assertIntHash(Set<Integer> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(blockFactory(), hash);
+        previousValues.forEach(hash::add);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hashAdd(blockFactory(), hash);
         try (IntBlock ords = hashes.ords()) {
-            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
             assertHash(b, ords, hash.size(), previousValues, i -> (int) hash.get(i));
+            long sizeBeforeLookup = hash.size();
+            try (IntBlock lookup = new MultivalueDedupeInt((IntBlock) b.block()).hashLookup(blockFactory(), hash)) {
+                assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                assertLookup(previousValues, b, b, lookup, i -> (int) hash.get(i));
+            }
+            BasicBlockTests.RandomBlock other = randomBlock();
+            if (randomBoolean()) {
+                other = b.merge(other);
+            }
+            try (IntBlock lookup = new MultivalueDedupeInt((IntBlock) other.block()).hashLookup(blockFactory(), hash)) {
+                assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                assertLookup(previousValues, b, other, lookup, i -> (int) hash.get(i));
+            }
+            assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
         }
     }
 
     private void assertLongHash(Set<Long> previousValues, BasicBlockTests.RandomBlock b) {
-        LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(blockFactory(), hash);
-        try (IntBlock ords = hashes.ords()) {
-            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-            assertHash(b, ords, hash.size(), previousValues, i -> hash.get(i));
+        try (LongHash hash = new LongHash(1, blockFactory().bigArrays())) {
+            previousValues.forEach(hash::add);
+            MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hashAdd(blockFactory(), hash);
+            try (IntBlock ords = hashes.ords()) {
+                assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
+                assertHash(b, ords, hash.size(), previousValues, hash::get);
+                long sizeBeforeLookup = hash.size();
+                try (IntBlock lookup = new MultivalueDedupeLong((LongBlock) b.block()).hashLookup(blockFactory(), hash)) {
+                    assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                    assertLookup(previousValues, b, b, lookup, hash::get);
+                }
+                BasicBlockTests.RandomBlock other = randomBlock();
+                if (randomBoolean()) {
+                    other = b.merge(other);
+                }
+                try (IntBlock lookup = new MultivalueDedupeLong((LongBlock) other.block()).hashLookup(blockFactory(), hash)) {
+                    assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                    assertLookup(previousValues, b, other, lookup, hash::get);
+                }
+                assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
+            }
         }
     }
 
     private void assertDoubleHash(Set<Double> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(d -> hash.add(Double.doubleToLongBits(d)));
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(blockFactory(), hash);
+        previousValues.forEach(d -> hash.add(Double.doubleToLongBits(d)));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hashAdd(blockFactory(), hash);
         try (IntBlock ords = hashes.ords()) {
-            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
             assertHash(b, ords, hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
+            long sizeBeforeLookup = hash.size();
+            try (IntBlock lookup = new MultivalueDedupeDouble((DoubleBlock) b.block()).hashLookup(blockFactory(), hash)) {
+                assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                assertLookup(previousValues, b, b, lookup, i -> Double.longBitsToDouble(hash.get(i)));
+            }
+            BasicBlockTests.RandomBlock other = randomBlock();
+            if (randomBoolean()) {
+                other = b.merge(other);
+            }
+            try (IntBlock lookup = new MultivalueDedupeDouble((DoubleBlock) other.block()).hashLookup(blockFactory(), hash)) {
+                assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                assertLookup(previousValues, b, other, lookup, i -> Double.longBitsToDouble(hash.get(i)));
+            }
+            assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
         }
+    }
+
+    private Boolean shouldHaveSeenNull(BasicBlockTests.RandomBlock b) {
+        return b.values().stream().anyMatch(Objects::isNull);
     }
 
     private void assertHash(
@@ -337,7 +400,7 @@ public class MultivalueDedupeTests extends ESTestCase {
         IntBlock hashes,
         long hashSize,
         Set<? extends Object> previousValues,
-        LongFunction<Object> lookup
+        LongFunction<Object> valueLookup
     ) {
         Set<Object> allValues = new HashSet<>();
         allValues.addAll(previousValues);
@@ -351,20 +414,53 @@ public class MultivalueDedupeTests extends ESTestCase {
                 assertThat(hashes.getInt(start), equalTo(0));
                 return;
             }
-            List<Object> actualValues = new ArrayList<>(count);
+            Set<Object> actualValues = new TreeSet<>();
             int end = start + count;
             for (int i = start; i < end; i++) {
-                actualValues.add(lookup.apply(hashes.getInt(i) - 1));
+                actualValues.add(valueLookup.apply(hashes.getInt(i) - 1));
             }
-            assertThat(new HashSet<>(actualValues), containsInAnyOrder(new HashSet<>(v).toArray()));
+            assertThat(actualValues, equalTo(new TreeSet<>(v)));
             allValues.addAll(v);
         }
 
         Set<Object> hashedValues = new HashSet<>((int) hashSize);
         for (long i = 0; i < hashSize; i++) {
-            hashedValues.add(lookup.apply(i));
+            hashedValues.add(valueLookup.apply(i));
         }
         assertThat(hashedValues, equalTo(allValues));
+    }
+
+    private void assertLookup(
+        Set<? extends Object> previousValues,
+        BasicBlockTests.RandomBlock hashed,
+        BasicBlockTests.RandomBlock lookedUp,
+        IntBlock lookup,
+        LongFunction<Object> valueLookup
+    ) {
+        Set<Object> contained = new HashSet<>(previousValues);
+        for (List<Object> values : hashed.values()) {
+            if (values != null) {
+                contained.addAll(values);
+            }
+        }
+        for (int p = 0; p < lookedUp.block().getPositionCount(); p++) {
+            int count = lookup.getValueCount(p);
+            int start = lookup.getFirstValueIndex(p);
+            List<Object> v = lookedUp.values().get(p);
+            if (v == null) {
+                assertThat(count, equalTo(1));
+                assertThat(lookup.getInt(start), equalTo(0));
+                return;
+            }
+            Set<Object> actualValues = new TreeSet<>();
+            int end = start + count;
+            for (int i = start; i < end; i++) {
+                actualValues.add(valueLookup.apply(lookup.getInt(i) - 1));
+            }
+            // System.err.println(actualValues + " " +
+            // v.stream().filter(contained::contains).collect(Collectors.toCollection(TreeSet::new)));
+            assertThat(actualValues, equalTo(v.stream().filter(contained::contains).collect(Collectors.toCollection(TreeSet::new))));
+        }
     }
 
     private int assertEncodedPosition(BasicBlockTests.RandomBlock b, BatchEncoder encoder, int position, int offset, int valueOffset) {

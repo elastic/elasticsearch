@@ -1,6 +1,6 @@
 keyword:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -37,8 +37,8 @@ keyword:
 
 ---
 fetch without refresh also produces synthetic source:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -82,8 +82,8 @@ fetch without refresh also produces synthetic source:
 
 ---
 force_synthetic_source_ok:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -131,8 +131,8 @@ force_synthetic_source_ok:
 
 ---
 force_synthetic_source_bad_mapping:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -175,8 +175,8 @@ force_synthetic_source_bad_mapping:
 
 ---
 stored text:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -248,8 +248,8 @@ stored text:
 
 ---
 stored keyword:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -289,8 +289,8 @@ stored keyword:
 
 ---
 doc values keyword with ignore_above:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -372,8 +372,8 @@ doc values keyword with ignore_above:
 
 ---
 stored keyword with ignore_above:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -457,8 +457,8 @@ stored keyword with ignore_above:
 
 ---
 indexed dense vectors:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -501,8 +501,8 @@ indexed dense vectors:
 
 ---
 non-indexed dense vectors:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -544,8 +544,8 @@ non-indexed dense vectors:
 
 ---
 _source filtering:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -586,8 +586,8 @@ _source filtering:
 
 ---
 _doc_count:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: introduced in 8.6.0
 
   - do:
@@ -715,8 +715,8 @@ _doc_count:
 
 ---
 ip with ignore_malformed:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: introduced in 8.6.0
 
   - do:
@@ -812,8 +812,8 @@ ip with ignore_malformed:
 
 ---
 flattened field:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:
@@ -904,8 +904,8 @@ flattened field:
 
 ---
 flattened field no doc values:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:
@@ -923,8 +923,8 @@ flattened field no doc values:
 
 ---
 flattened field with ignore_above:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:

@@ -24,4 +24,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:reindex')
+
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
 }

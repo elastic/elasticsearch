@@ -238,7 +238,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(request.validate().getMessage(), containsString(errorOnNonSnapshotBuilds));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")
     public void testMissingVersionIsNotValid() throws IOException {
         String missingVersion = randomBoolean() ? "" : ", \"version\": \"\"";
         String json = String.format(Locale.ROOT, """

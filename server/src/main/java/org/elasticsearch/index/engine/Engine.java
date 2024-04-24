@@ -395,6 +395,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
 
+    /**
+     * Returns the total time flushes have been executed excluding waiting on locks.
+     */
+    public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
+        return 0;
+    }
+
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 

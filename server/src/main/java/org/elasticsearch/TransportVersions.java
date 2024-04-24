@@ -170,6 +170,13 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_TIMEOUT_ADDED = def(8_629_00_0);
     public static final TransportVersion MODIFY_DATA_STREAM_FAILURE_STORES = def(8_630_00_0);
     public static final TransportVersion ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT = def(8_631_00_0);
+    public static final TransportVersion HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL = def(8_632_00_0);
+    public static final TransportVersion TRACK_FLUSH_TIME_EXCLUDING_WAITING_ON_LOCKS = def(8_633_00_0);
+    public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS = def(8_634_00_0);
+    public static final TransportVersion ILM_SHRINK_ENABLE_WRITE = def(8_635_00_0);
+    public static final TransportVersion GEOIP_CACHE_STATS = def(8_636_00_0);
+    public static final TransportVersion WATERMARK_THRESHOLDS_STATS = def(8_637_00_0);
+    public static final TransportVersion ENRICH_CACHE_ADDITIONAL_STATS = def(8_638_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

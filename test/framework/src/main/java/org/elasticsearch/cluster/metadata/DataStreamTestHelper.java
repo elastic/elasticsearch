@@ -130,22 +130,13 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
-        return new DataStream(
-            name,
-            indices,
-            generation,
-            metadata,
-            false,
-            replicated,
-            false,
-            false,
-            null,
-            lifecycle,
-            false,
-            List.of(),
-            false,
-            autoShardingEvent
-        );
+        return DataStream.builder(name, indices)
+            .setGeneration(generation)
+            .setMetadata(metadata)
+            .setReplicated(replicated)
+            .setLifecycle(lifecycle)
+            .setAutoShardingEvent(autoShardingEvent)
+            .build();
     }
 
     public static DataStream newInstance(
@@ -157,22 +148,14 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
-        return new DataStream(
-            name,
-            indices,
-            generation,
-            metadata,
-            false,
-            replicated,
-            false,
-            false,
-            null,
-            lifecycle,
-            failureStores.size() > 0,
-            failureStores,
-            false,
-            null
-        );
+        return DataStream.builder(name, indices)
+            .setGeneration(generation)
+            .setMetadata(metadata)
+            .setReplicated(replicated)
+            .setLifecycle(lifecycle)
+            .setFailureStoreEnabled(failureStores.isEmpty() == false)
+            .setFailureIndices(failureStores)
+            .build();
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -477,7 +460,11 @@ public final class DataStreamTestHelper {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
                 .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.isFailureStoreEnabled() && storeFailures)
+                    new ComposableIndexTemplate.DataStreamTemplate(
+                        false,
+                        false,
+                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
+                    )
                 )
                 .build()
         );
@@ -493,7 +480,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -561,18 +548,18 @@ public final class DataStreamTestHelper {
             backingIndices.add(im);
             generation++;
         }
-        DataStream ds = new DataStream(
+        var dataStreamBuilder = DataStream.builder(
             dataStreamName,
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
-            generation,
-            existing != null ? existing.getMetadata() : null,
-            existing != null && existing.isHidden(),
-            existing != null && existing.isReplicated(),
-            existing != null && existing.isSystem(),
-            existing != null && existing.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES
-        );
-        builder.put(ds);
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        ).setGeneration(generation).setIndexMode(IndexMode.TIME_SERIES);
+        if (existing != null) {
+            dataStreamBuilder.setMetadata(existing.getMetadata())
+                .setHidden(existing.isHidden())
+                .setReplicated(existing.isReplicated())
+                .setSystem(existing.isSystem())
+                .setAllowCustomRouting(existing.isAllowCustomRouting());
+        }
+        builder.put(dataStreamBuilder.build());
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {

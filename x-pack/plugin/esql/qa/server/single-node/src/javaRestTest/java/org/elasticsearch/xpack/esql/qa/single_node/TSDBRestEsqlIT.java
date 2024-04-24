@@ -61,9 +61,8 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         Response response = client().performRequest(bulk);
         assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
-        RestEsqlTestCase.RequestObjectBuilder builder = new RestEsqlTestCase.RequestObjectBuilder().query(
-            "FROM k8s | KEEP k8s.pod.name, @timestamp"
-        );
+        RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
+            .query("FROM k8s | KEEP k8s.pod.name, @timestamp");
         builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder);
         @SuppressWarnings("unchecked")

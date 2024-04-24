@@ -235,7 +235,7 @@ h:double
 ;
 
 sumOfScaledFloat
-from employees | stats h = sum(height.scaled_float);
+from employees | stats h = sum(height.scaled_float) | eval h = round(h, 10);
 
 h:double
 176.82
@@ -1584,6 +1584,23 @@ c:l | k1:i | languages:i
 18  | 4    | 4
 21  | 5    | 5
 10  | null | null
+;
+
+evalMultipleOverridingKeysWithAggregateExpr#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| EVAL k = languages, k1 = k
+| STATS c = 3*COUNT() BY languages, k, k1, languages
+| DROP k
+| SORT languages
+;
+
+c:l | k1:i | languages:i
+45  | 1    | 1
+57  | 2    | 2
+51  | 3    | 3
+54  | 4    | 4
+63  | 5    | 5
+30  | null | null
 ;
 
 minWithSortExpression1#[skip:-8.13.99,reason:supported in 8.14]

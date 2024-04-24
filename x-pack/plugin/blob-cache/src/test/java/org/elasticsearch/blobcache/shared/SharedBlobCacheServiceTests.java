@@ -530,6 +530,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 return generic;
             }
         };
+        final var bulkExecutor = threadPool.executor("bulk");
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -551,7 +552,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 cacheService.maybeFetchFullEntry(cacheKey, size, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(-length);
                     progressUpdater.accept(length);
-                }, future);
+                }, bulkExecutor, future);
 
                 future.get(10, TimeUnit.SECONDS);
                 assertEquals(0L, bytesRead.get());
@@ -564,7 +565,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(2, cacheService.freeRegionCount());
                 var configured = cacheService.maybeFetchFullEntry(cacheKey, size(500), (ch, chPos, relPos, len, update) -> {
                     throw new AssertionError("Should never reach here");
-                }, ActionListener.noop());
+                }, bulkExecutor, ActionListener.noop());
                 assertFalse(configured);
                 assertEquals(2, cacheService.freeRegionCount());
             }
@@ -591,6 +592,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 return generic;
             }
         };
+        final var bulkExecutor = threadPool.executor("bulk");
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -616,6 +618,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     cacheKey,
                                     size,
                                     (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                                    bulkExecutor,
                                     f
                                 )
                             );
@@ -944,6 +947,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 return generic;
             }
         };
+        final var bulkExecutor = threadPool.executor("bulk");
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<>(
@@ -965,7 +969,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(length);
                     progressUpdater.accept(length);
-                }, future);
+                }, bulkExecutor, future);
 
                 var fetched = future.get(10, TimeUnit.SECONDS);
                 assertThat("Region has been fetched", fetched, is(true));
@@ -993,6 +997,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             bytesRead.addAndGet(length);
                             progressUpdater.accept(length);
                         },
+                        bulkExecutor,
                         listener
                     );
                 }
@@ -1015,6 +1020,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     (channel, channelPos, relativePos, length, progressUpdater) -> {
                         throw new AssertionError("should not be executed");
                     },
+                    bulkExecutor,
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
@@ -1032,7 +1038,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(length);
                     progressUpdater.accept(length);
-                }, future);
+                }, bulkExecutor, future);
 
                 var fetched = future.get(10, TimeUnit.SECONDS);
                 assertThat("Region has been fetched", fetched, is(true));

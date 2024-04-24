@@ -146,7 +146,8 @@ emp_no:integer | x:keyword | lang:keyword | language:keyword
 
 
 multivalue
-row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name;  
+required_feature: esql.mv_sort
+row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name | eval a_lang = mv_sort(a_lang);  
 
 a:keyword   | a_lang:keyword
 ["1", "2"]  | ["English", "French"] 

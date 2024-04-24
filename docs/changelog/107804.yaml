@@ -1,0 +1,6 @@
+pr: 107804
+summary: Block readiness on bad initial `FileSettings`
+area: Infra/Node Lifecycle
+type: bug
+issues:
+ - 107744

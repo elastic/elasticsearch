@@ -273,7 +273,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             lastGeneration = commit.generation();
             assert filesToRetain == null || filesToRetain.containsAll(commit.commitFiles().keySet());
 
-            cacheDirectory.updateCommit(commit, null);
+            cacheDirectory.updateCommit(commit);
             if (filesToRetain != null) { // during close we do not know the files to retain
                 cacheDirectory.retainFilesIndexing(filesToRetain);
             }

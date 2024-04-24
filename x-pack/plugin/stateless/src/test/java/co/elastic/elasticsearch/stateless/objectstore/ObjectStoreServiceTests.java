@@ -235,7 +235,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 1
             );
             if (commit != null) {
-                dir.updateCommit(commit.last(), commit.primaryTermAndGeneration());
+                dir.updateLatestUploadedTermAndGen(commit.primaryTermAndGeneration());
+                dir.updateCommit(commit.last());
             }
 
             if (commitCount > 0) {

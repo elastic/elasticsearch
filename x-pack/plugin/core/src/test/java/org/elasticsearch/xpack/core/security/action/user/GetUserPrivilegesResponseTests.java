@@ -96,7 +96,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         );
         out.setTransportVersion(version);
 
-        final GetUserPrivilegesResponse original = randomResponse();
+        final GetUserPrivilegesResponse original = randomResponse(true, false);
         if (original.hasRemoteIndicesPrivileges()) {
             final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
             assertThat(

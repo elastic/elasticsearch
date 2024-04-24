@@ -701,7 +701,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+
+        if (EsqlSpecTestCase.availableVersions().isEmpty()) {
             // Masquerade as an old version of the official client, so we get the oldest version by default
             options.addHeader("x-elastic-client-meta", "es=8.13");
         }

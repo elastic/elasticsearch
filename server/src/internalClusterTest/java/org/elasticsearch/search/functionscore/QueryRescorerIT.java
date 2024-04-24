@@ -927,6 +927,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
             float bestScore = groups[group] == null ? -1 : groups[group].firstPassScore;
             var groupDoc = new GroupDoc(id, Integer.toString(group), firstPassScore, secondPassScore, shouldFilter);
             if (shouldFilter == false) {
+                if (firstPassScore == bestScore) {
+                  // avoid tiebreaker
+                  continue;
+                }
+
                 numHits++;
                 if (firstPassScore > bestScore) {
                     groups[group] = groupDoc;
@@ -952,12 +957,14 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         GroupDoc[] sortedGroups = Arrays.stream(groups)
             .filter(g -> g != null)
-            .sorted(Comparator.comparingDouble(GroupDoc::secondPassScore))
+            .sorted(Comparator.comparingDouble(GroupDoc::secondPassScore).reversed())
             .toArray(GroupDoc[]::new);
 
         var request = client().prepareSearch("test")
             .setQuery(fieldValueScoreQuery("firstPassScore"))
-            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).windowSize(numGroups))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore"))
+                    .setQueryWeight(0f)
+                    .windowSize(numGroups))
             .setCollapse(new CollapseBuilder("group"))
             .setSize(Math.min(numGroups, 10));
         long expectedNumHits = numHits;
@@ -965,8 +972,8 @@ public class QueryRescorerIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
             for (int pos = 0; pos < resp.getHits().getHits().length; pos++) {
                 SearchHit hit = resp.getHits().getAt(pos);
-                assertThat(hit.getId(), equalTo(groups[pos].id()));
-                int group = Integer.valueOf(hit.field("group").getValue());
+                assertThat(hit.getId(), equalTo(sortedGroups[pos].id()));
+                String group = hit.field("group").getValue();
                 assertThat(group, equalTo(sortedGroups[pos].group()));
                 assertThat(hit.getScore(), equalTo(sortedGroups[pos].secondPassScore));
             }

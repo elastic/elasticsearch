@@ -149,4 +149,8 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         }
         return Collections.unmodifiableSet(primaryTermAndGenerations);
     }
+
+    public static String blobNameFromGeneration(long generation) {
+        return StatelessCompoundCommit.blobNameFromGeneration(generation);
+    }
 }

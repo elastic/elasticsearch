@@ -22,10 +22,10 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -35,17 +35,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-public class ClearBlobCacheNodesResponseTests extends AbstractWireSerializingTestCase<ClearBlobCacheNodesResponse> {
+public class ClearBlobCacheNodesResponseTests extends ESTestCase {
     static final int MAX_NODE_RESPONSES = 2; // keep these low so that chance of 0 is higher.
     static final int MAX_NODE_FAILURES = 2; // keep these low so that chance of 0 is higher.
 
-    @Override
-    protected Writeable.Reader<ClearBlobCacheNodesResponse> instanceReader() {
-        return ClearBlobCacheNodesResponse::new;
+    public void testEqualsAndHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            createTestInstance(),
+            r -> new ClearBlobCacheNodesResponse(r.getClusterName(), r.getNodes(), r.failures()),
+            ClearBlobCacheNodesResponseTests::mutateInstance
+        );
     }
 
-    @Override
-    protected ClearBlobCacheNodesResponse createTestInstance() {
+    private static ClearBlobCacheNodesResponse createTestInstance() {
         return new ClearBlobCacheNodesResponse(
             new ClusterName("elasticsearch"),
             ClearBlobCacheNodeResponseTests.createTestInstances(randomInt(MAX_NODE_RESPONSES)),
@@ -54,7 +56,6 @@ public class ClearBlobCacheNodesResponseTests extends AbstractWireSerializingTes
     }
 
     public static List<FailedNodeException> createErrors(int numErrors) {
-
         return IntStream.range(0, numErrors).mapToObj(num -> {
             var numString = Integer.toString(num);
             var nodeId = "node_" + numString;
@@ -62,12 +63,11 @@ public class ClearBlobCacheNodesResponseTests extends AbstractWireSerializingTes
         }).toList();
     }
 
-    public static FailedNodeException createError(String nodeId) {
+    private static FailedNodeException createError(String nodeId) {
         return new FailedNodeException(nodeId, nodeId + " reason", new Throwable(nodeId + " caused by reason"));
     }
 
-    @Override
-    protected ClearBlobCacheNodesResponse mutateInstance(ClearBlobCacheNodesResponse instance) {
+    private static ClearBlobCacheNodesResponse mutateInstance(ClearBlobCacheNodesResponse instance) {
         return switch (between(0, 3)) {
             // Change the cluster name.
             case 0 -> new ClearBlobCacheNodesResponse(new ClusterName("mutate"), instance.getNodes(), instance.failures());

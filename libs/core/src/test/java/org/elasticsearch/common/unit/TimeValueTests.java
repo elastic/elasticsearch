@@ -104,7 +104,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testRoundTrip() {
-        final String s = randomTimeValue();
+        final String s = randomTimeValue().getStringRep();
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
         final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));

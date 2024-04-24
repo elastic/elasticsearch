@@ -67,6 +67,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -465,7 +466,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
             IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                String.format("expected IllegalStateException, but not thrown for mode [%s]", testMode),
+                String.format(Locale.ROOT, "expected IllegalStateException, but not thrown for mode [%s]", testMode),
                 future::actionGet
             );
             assertThat(

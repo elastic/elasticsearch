@@ -19,8 +19,10 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -42,7 +44,9 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -59,10 +63,13 @@ import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1024,6 +1031,109 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // but it is useful to reproduce the scenario in which a missed cluster state update could produce a NPE
         // in the StatelessCommitService#clusterChanged method
         ensureGreen(indexName);
+    }
+
+    public void testLatestCommitDependenciesUsesTheRightGenerations() throws Exception {
+        var maxNonUploadedCommits = randomIntBetween(4, 5);
+        var nodeSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
+            .build();
+        startMasterOnlyNode(nodeSettings);
+        var indexNode = startIndexNode(nodeSettings);
+        var searchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+
+        Queue<Tuple<NewCommitNotificationRequest, CheckedRunnable<Exception>>> pendingNewCommitOnUploadNotifications =
+            new LinkedBlockingQueue<>();
+        CountDownLatch commitNotifications = new CountDownLatch(2);
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                var newCommitNotificationRequest = (NewCommitNotificationRequest) request;
+                if (newCommitNotificationRequest.isUploaded()) {
+                    pendingNewCommitOnUploadNotifications.add(
+                        Tuple.tuple(newCommitNotificationRequest, () -> handler.messageReceived(request, channel, task))
+                    );
+                    commitNotifications.countDown();
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        // Accumulate STATELESS_UPLOAD_MAX_AMOUNT_COMMITS to force a BCC upload
+        for (int i = 0; i < maxNonUploadedCommits; i++) {
+            indexDocs(indexName, randomIntBetween(10, 50));
+            refresh(indexName);
+        }
+
+        // Now accumulate more commits locally, but not enough to trigger a BCC upload
+        for (int i = 0; i < maxNonUploadedCommits - 1; i++) {
+            indexDocs(indexName, randomIntBetween(10, 50));
+            refresh(indexName);
+        }
+
+        boolean searchNodeUsesBothBCCs = randomBoolean();
+        if (searchNodeUsesBothBCCs) {
+            // Create a scroll that depends on the previous and current BCC
+            assertResponse(
+                prepareSearch(indexName).setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(2)),
+                response -> {}
+            );
+        }
+
+        // The latest commit in the BCC will be an independent commit
+        client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        // Force a refresh so the index local reader only has a dependency on the latest BCC
+        refresh(indexName);
+
+        safeAwait(commitNotifications);
+
+        Set<PrimaryTermAndGeneration> uploadedBCCGenerations = new HashSet<>();
+        // Process the new commit notifications
+        Tuple<NewCommitNotificationRequest, CheckedRunnable<Exception>> pendingNewCommingOnUploadNotification;
+        while ((pendingNewCommingOnUploadNotification = pendingNewCommitOnUploadNotifications.poll()) != null) {
+            pendingNewCommingOnUploadNotification.v2().run();
+            NewCommitNotificationRequest newCommitNotificationRequest = pendingNewCommingOnUploadNotification.v1();
+            uploadedBCCGenerations.add(newCommitNotificationRequest.getLatestUploadedBatchedCompoundCommitTermAndGen());
+        }
+
+        long maxUploadedBCCGeneration = uploadedBCCGenerations.stream().mapToLong(PrimaryTermAndGeneration::generation).max().orElse(-1);
+
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        final Set<String> expectedBlobsAfterProcessingNewCommitNotifications;
+        if (searchNodeUsesBothBCCs) {
+            // If the search node opened a scroll, we should not remove any of the BCCs
+            expectedBlobsAfterProcessingNewCommitNotifications = uploadedBCCGenerations.stream()
+                .map(uploadedBCC -> BatchedCompoundCommit.blobNameFromGeneration(uploadedBCC.generation()))
+                .collect(Collectors.toSet());
+        } else {
+            expectedBlobsAfterProcessingNewCommitNotifications = Set.of(
+                BatchedCompoundCommit.blobNameFromGeneration(maxUploadedBCCGeneration)
+            );
+        }
+
+        assertBusy(
+            () -> assertThat(
+                shardCommitsContainer.listBlobs(operationPurpose).keySet(),
+                is(equalTo(expectedBlobsAfterProcessingNewCommitNotifications))
+            )
+        );
+
+        internalCluster().stopNode(searchNode);
+
+        // If all the search nodes leave the cluster we should keep the latest BCC around
+        assertBusy(
+            () -> assertThat(
+                shardCommitsContainer.listBlobs(operationPurpose).keySet(),
+                is(equalTo(Set.of(BatchedCompoundCommit.blobNameFromGeneration(maxUploadedBCCGeneration))))
+            )
+        );
+
+        // Until we fix ES-8335 we should do an explicit flush to release all VBCCs
+        flush(indexName);
     }
 
     private Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {

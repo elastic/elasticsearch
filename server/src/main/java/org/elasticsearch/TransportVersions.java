@@ -175,14 +175,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS = def(8_634_00_0);
     public static final TransportVersion ILM_SHRINK_ENABLE_WRITE = def(8_635_00_0);
     public static final TransportVersion GEOIP_CACHE_STATS = def(8_636_00_0);
-    public static final TransportVersion WATERMARK_THRESHOLDS_STATS = def(8_637_00_0);
-    public static final TransportVersion ENRICH_CACHE_ADDITIONAL_STATS = def(8_638_00_0);
-    public static final TransportVersion ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED = def(8_639_00_0);
-    public static final TransportVersion ML_TRAINED_MODEL_CACHE_METADATA_ADDED = def(8_640_00_0);
-    public static final TransportVersion TOP_LEVEL_KNN_SUPPORT_QUERY_NAME = def(8_641_00_0);
-    public static final TransportVersion INDEX_SEGMENTS_VECTOR_FORMATS = def(8_642_00_0);
-    public static final TransportVersion ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION = def(8_643_00_0);
-    public static final TransportVersion ESQL_MV_ORDERING_SORTED_ASCENDING = def(8_644_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

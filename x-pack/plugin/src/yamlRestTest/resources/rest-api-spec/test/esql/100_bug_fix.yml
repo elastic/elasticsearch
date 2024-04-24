@@ -267,8 +267,8 @@
 ---
 "mv_dedupe from index #104745":
   - requires:
-      cluster_features: ["esql.mv_ordering_sorted_ascending"]
-      reason: "fixed by introducing a sorted, non-deduplicated MvOrdering"
+      cluster_features: ["gte_v8.14.0"]
+      reason: "fixed in 8.14.0"
   - do:
       indices.create:
         index: idx_with_multivalues

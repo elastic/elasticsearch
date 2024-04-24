@@ -617,9 +617,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 mvData.addAll(dedup);
                 Collections.sort(mvData);
             }
-            case SORTED_ASCENDING -> {
-                Collections.sort(mvData);
-            }
             default -> throw new UnsupportedOperationException("unsupported ordering [" + ordering + "]");
         }
     }

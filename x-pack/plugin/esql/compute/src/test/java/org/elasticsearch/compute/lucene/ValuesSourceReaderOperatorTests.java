@@ -403,7 +403,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         loadSimpleAndAssert(
             driverContext,
             CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000))),
-            Block.MvOrdering.SORTED_ASCENDING,
+            Block.MvOrdering.UNORDERED,
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
     }

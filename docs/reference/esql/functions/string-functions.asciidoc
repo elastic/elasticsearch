@@ -9,6 +9,7 @@
 
 // tag::string_list[]
 * <<esql-concat>>
+* <<esql-ends_with>>
 * <<esql-left>>
 * <<esql-length>>
 * <<esql-locate>>
@@ -25,6 +26,7 @@
 // end::string_list[]
 
 include::layout/concat.asciidoc[]
+include::ends_with.asciidoc[]
 include::layout/left.asciidoc[]
 include::layout/length.asciidoc[]
 include::layout/locate.asciidoc[]

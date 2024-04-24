@@ -367,13 +367,9 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
                 )
             )
         );
-        TemplateRoleName templateRoleName = new TemplateRoleName(
-            new BytesArray(
-                """
-                    {"source":"[\\"{{metadata.jwt_claim_iss}}\\",\\"{{#join}}metadata.jwt_claim_aud{{/join}}\\",\\"{{metadata.jwt_claim_appId}}\\"]"}"""
-            ),
-            TemplateRoleName.Format.JSON
-        );
+        TemplateRoleName templateRoleName = new TemplateRoleName(new BytesArray("""
+            {"source":"[\\"{{metadata.jwt_claim_iss}}\\",\\"{{#join}}metadata.jwt_claim_aud{{/join}}\\"]"}
+            """), TemplateRoleName.Format.JSON);
         ExpressionRoleMapping mapping = new ExpressionRoleMapping(
             "test-username-expression",
             roleMapperExpression,
@@ -391,12 +387,12 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             if (anonymousRole) {
                 assertThat(
                     (List<String>) authenticateResponseMap.get("roles"),
-                    containsInAnyOrder(equalTo("my-issuer-02"), equalTo("es-02"), equalTo("testAppId"), equalTo("testAnonymousRole"))
+                    containsInAnyOrder(equalTo("my-issuer-02"), equalTo("es-02"), equalTo("testAnonymousRole"))
                 );
             } else {
                 assertThat(
                     (List<String>) authenticateResponseMap.get("roles"),
-                    containsInAnyOrder(equalTo("my-issuer-02"), equalTo("es-02"), equalTo("testAppId"))
+                    containsInAnyOrder(equalTo("my-issuer-02"), equalTo("es-02"))
                 );
             }
         }

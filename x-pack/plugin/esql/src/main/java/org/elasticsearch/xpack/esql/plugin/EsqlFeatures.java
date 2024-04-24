@@ -68,7 +68,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
      */
-    private static final NodeFeature ST_CENTROID = new NodeFeature("esql.st_centroid");
+    private static final NodeFeature ST_CENTROID_AGG = new NodeFeature("esql.st_centroid_agg");
 
     /**
      * Support for spatial aggregation {@code ST_INTERSECTS}. Done in #104907.
@@ -79,6 +79,11 @@ public class EsqlFeatures implements FeatureSpecification {
      * Support for spatial aggregation {@code ST_CONTAINS} and {@code ST_WITHIN}. Done in #106503.
      */
     private static final NodeFeature ST_CONTAINS_WITHIN = new NodeFeature("esql.st_contains_within");
+
+    /**
+     * Support for spatial aggregation {@code ST_DISJOINT}. Done in #107007.
+     */
+    private static final NodeFeature ST_DISJOINT = new NodeFeature("esql.st_disjoint");
 
     /**
      * The introduction of the {@code VALUES} agg.
@@ -95,20 +100,39 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
 
+    /**
+     * Cast string literals to a desired data type.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
+
+    /**
+     * Base64 encoding and decoding functions.
+     */
+    public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode");
+
+    /**
+     * Support for the :: casting operator
+     */
+    public static final NodeFeature CASTING_OPERATOR = new NodeFeature("esql.casting_operator");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             ASYNC_QUERY,
             AGG_VALUES,
+            BASE64_DECODE_ENCODE,
             MV_SORT,
             DISABLE_NULLABLE_OPTS,
             ST_X_Y,
             FROM_OPTIONS,
             SPATIAL_POINTS_FROM_SOURCE,
             SPATIAL_SHAPES,
-            ST_CENTROID,
+            ST_CENTROID_AGG,
             ST_INTERSECTS,
-            ST_CONTAINS_WITHIN
+            ST_CONTAINS_WITHIN,
+            ST_DISJOINT,
+            STRING_LITERAL_AUTO_CASTING,
+            CASTING_OPERATOR
         );
     }
 

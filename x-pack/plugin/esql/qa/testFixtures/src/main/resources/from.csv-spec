@@ -133,7 +133,7 @@ convertFromDatetimeWithOptions
 required_feature: esql.from_options
 
 // tag::convertFromDatetimeWithOptions[]
-  FROM employees OPTIONS "allow_no_indices"="false","preference"="_shards:0"
+  FROM employees OPTIONS "allow_no_indices"="false","preference"="_local"
 | SORT emp_no
 | EVAL hire_double = to_double(hire_date)
 | KEEP emp_no, hire_date, hire_double

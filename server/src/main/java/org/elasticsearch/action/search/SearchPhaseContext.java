@@ -15,7 +15,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
@@ -114,15 +113,6 @@ interface SearchPhaseContext extends Executor {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }
     }
-
-    /**
-     * Builds an request for the initial search phase.
-     *
-     * @param shardIt the target {@link SearchShardIterator}
-     * @param shardIndex the index of the shard that is used in the coordinator node to
-     *                   tiebreak results with identical sort values
-     */
-    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution

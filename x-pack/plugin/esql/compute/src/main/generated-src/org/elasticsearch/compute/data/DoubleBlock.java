@@ -224,19 +224,6 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(DoubleBlock block);
-
         @Override
         DoubleBlock build();
     }

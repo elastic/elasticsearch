@@ -152,6 +152,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             if (request.local() == false
+                && request.masterNodeTimeout().millis() >= 0
                 && currentTimeMillisSupplier.getAsLong() - startTimeMillis > request.masterNodeTimeout().millis()) {
                 throw new ElasticsearchTimeoutException("Timed out getting cluster state");
             }

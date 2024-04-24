@@ -97,7 +97,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
@@ -113,7 +113,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(
             restRequest,
-            null,
             true,
             new UsageService().getSearchUsageHolder(),
             nf -> false
@@ -137,7 +136,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).withParams(Collections.singletonMap("ignore_unavailable", "true")).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(
             restRequest,
-            null,
             true,
             new UsageService().getSearchUsageHolder(),
             nf -> false
@@ -250,7 +248,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -261,7 +259,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(
             restRequestWithNewLine,
-            null,
             true,
             new UsageService().getSearchUsageHolder(),
             nf -> false

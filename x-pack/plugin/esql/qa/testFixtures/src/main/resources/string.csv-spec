@@ -70,6 +70,29 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10010 | Piveteau  | null | null
 ;
 
+stringCast
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1 | eval ss = substring("abcd", "2"), l = left("abcd", "2"), r = right("abcd", "2");
+
+a:integer | ss:keyword | l:keyword | r:keyword
+1         | bcd        | ab        | cd
+;
+
+stringCastEmp
+required_feature: esql.string_literal_auto_casting
+
+from employees
+| eval ss = substring(first_name, "2")
+| sort emp_no
+| keep emp_no, first_name, ss
+| limit 2;
+
+emp_no: integer | first_name:keyword | ss:keyword
+10001           | Georgi             | eorgi
+10002           | Bezalel            | ezalel
+;
+
 substring
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -170,6 +193,13 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10008 | Kalloufi  | K | a
 10009 | Peac      | P | a
 10010 | Piveteau  | P | a
+;
+
+substring Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
+row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
+
+a:keyword | sub1:keyword | sub2:keyword
+🐱Meow!🐶Woof! | Meow!🐶Woof! | Meow!🐶Woof!
 ;
 
 ltrim
@@ -741,6 +771,16 @@ emp_no:integer | job_positions:keyword                                          
 10005          | null                                                                   | null                                                                   | null
 ;
 
+mvSliceCast
+required_feature: esql.string_literal_auto_casting
+
+ROW a = ["1", "2", "3", "4"]
+| eval a1 = mv_slice(a, "0", "1");
+
+a:keyword            | a1:keyword
+["1", "2", "3", "4"] | ["1", "2"]
+;
+
 mvSliceEmp
 required_feature: esql.mv_sort
 
@@ -792,7 +832,7 @@ emp_no:integer | full_name:keyword | full_name_2:keyword | job_positions:keyword
 ;
 
 showTextFields
-from hosts | where host == "beta" | keep host, host_group, description;
+from hosts | sort description, card, ip0, ip1 | where host == "beta" | keep host, host_group, description;
 ignoreOrder:true
 
 host:keyword     | host_group:text          | description:text
@@ -1167,4 +1207,169 @@ from employees | where emp_no == 10001 | eval split = split("fooMbar", gender) |
 
 gender:keyword | split:keyword 
 M              | [foo, bar]
+;
+
+locate#[skip:-8.13.99,reason:new string function added in 8.14]
+// tag::locate[]
+row a = "hello"
+| eval a_ll = locate(a, "ll")
+// end::locate[]
+;
+
+// tag::locate-result[]
+a:keyword | a_ll:integer
+hello     | 3
+// end::locate-result[]
+;
+
+locateFail#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "int");
+
+a:keyword | a_ll:integer
+hello | 0
+;
+
+locateZeroStart#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "ll", 0);
+
+a:keyword | a_ll:integer
+hello | 3
+;
+
+locateExactStart#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "ll", 3);
+
+a:keyword | a_ll:integer
+hello | 3
+;
+
+locateLongerStart#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "ll", 10);
+
+a:keyword | a_ll:integer
+hello | 0
+;
+
+locateLongerSubstr#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "farewell");
+
+a:keyword | a_ll:integer
+hello | 0
+;
+
+locateSame#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "hello");
+
+a:keyword | a_ll:integer
+hello | 1
+;
+
+locateWithSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = locate(last_name, f_s) | keep emp_no, last_name, f_s, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_s:keyword | f_l:integer
+10001 | Facello   | acello | 2
+10002 | Simmel    | immel | 2
+10003 | Bamford   | amford | 2
+10004 | Koblick   | oblick | 2
+10005 | Maliniak  | aliniak | 2
+10006 | Preusig   | reusig | 2
+10007 | Zielinski | ielinski | 2
+10008 | Kalloufi  | alloufi | 2
+10009 | Peac      | eac | 2
+10010 | Piveteau  | iveteau | 2
+;
+
+locateUtf16Emoji#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = locate(a, f_s);
+
+a:keyword | f_s:keyword | f_l:integer
+🐱Meow!🐶Woof! | Meow!🐶Woof! | 2
+;
+
+locateNestedSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = substring(a, locate(a, "ll"));
+
+a:keyword | a_ll:keyword
+hello | llo
+;
+
+locateNestSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(substring(a, 2), "ll");
+
+a:keyword | a_ll:integer
+hello | 2
+;
+
+locateStats#[skip:-8.13.99,reason:new string function added in 8.14]
+from employees | where emp_no <= 10010 | eval f_l = locate(last_name, "ll") | stats min(f_l), max(f_l) by job_positions | sort job_positions | limit 5;
+
+min(f_l):integer | max(f_l):integer | job_positions:keyword
+5               | 5               | Accountant
+0               | 0               | Architect
+0               | 0               | Head Human Resources
+0               | 3               | Internship
+3               | 3               | Junior Developer
+;
+
+locateWarnings#[skip:-8.13.99,reason:new string function added in 8.14]
+required_feature: esql.mv_warn
+
+from hosts | where host=="epsilon" | eval l1 = locate(host_group, "ate"), l2 = locate(description, "ate") | keep l1, l2;
+ignoreOrder:true
+warning:Line 1:80: evaluation of [locate(description, \"ate\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:80: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+l1:integer | l2:integer
+2          | null
+2          | null
+null       | 0
+;
+
+base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+// tag::to_base64[]
+row a = "elastic" 
+| eval e = to_base64(a)
+// end::to_base64[]
+;
+
+// tag::to_base64-result[]
+a:keyword | e:keyword
+elastic   | ZWxhc3RpYw==
+// end::to_base64-result[]
+;
+
+base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+// tag::from_base64[]
+row a = "ZWxhc3RpYw==" 
+| eval d = from_base64(a)
+// end::from_base64[]
+;
+
+// tag::from_base64-result[]
+a:keyword    | d:keyword
+ZWxhc3RpYw== | elastic
+// end::from_base64-result[]
+;
+
+base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+from employees
+| where emp_no < 10032 and emp_no > 10027
+| eval e = to_base64(first_name), d = from_base64(e)
+| keep emp_no, first_name, e, d
+| sort emp_no
+;
+
+emp_no:integer | first_name:keyword | e:keyword    | d:keyword
+10028          | Domenick           | RG9tZW5pY2s= | Domenick
+10029          | Otmar              | T3RtYXI=     | Otmar
+10030          | null               | null         | null
+10031          | null               | null         | null
 ;

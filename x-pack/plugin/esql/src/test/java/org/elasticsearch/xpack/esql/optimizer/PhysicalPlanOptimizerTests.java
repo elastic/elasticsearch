@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
@@ -2285,7 +2286,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValues() {
         var plan = this.physicalPlan("""
             from airports
-            | stats centroid = st_centroid(location)
+            | stats centroid = st_centroid_agg(location)
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2342,7 +2343,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValuesNested() {
         var plan = this.physicalPlan("""
             from airports
-            | stats centroid = st_centroid(to_geopoint(location))
+            | stats centroid = st_centroid_agg(to_geopoint(location))
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2403,7 +2404,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValuesNestedLiteral() {
         var plan = this.physicalPlan("""
             row wkt = "POINT(42.97109629958868 14.7552534006536)"
-            | stats centroid = st_centroid(to_geopoint(wkt))
+            | stats centroid = st_centroid_agg(to_geopoint(wkt))
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2457,7 +2458,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregations() {
         var plan = this.physicalPlan("""
             from airports
-            | stats centroid = st_centroid(location), count = COUNT()
+            | stats centroid = st_centroid_agg(location), count = COUNT()
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2523,7 +2524,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValuesMultiSpatialAggregations() {
         var plan = this.physicalPlan("""
             FROM airports
-            | STATS airports=ST_CENTROID(location), cities=ST_CENTROID(city_location), count=COUNT()
+            | STATS airports=ST_CENTROID_AGG(location), cities=ST_CENTROID_AGG(city_location), count=COUNT()
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2589,7 +2590,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = this.physicalPlan("""
             FROM airports
             | WHERE scalerank == 9
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2656,7 +2657,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGrouped() {
         var plan = this.physicalPlan("""
             FROM airports
-            | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2726,8 +2727,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGroupedAggregated() {
         var plan = this.physicalPlan("""
             FROM airports
-            | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
-            | STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+            | STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2820,7 +2821,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from airports
             | enrich city_boundaries ON city_location WITH airport, region, city_boundary
-            | stats centroid = st_centroid(city_location)
+            | stats centroid = st_centroid_agg(city_location)
             """, airports);
 
         var limit = as(plan, LimitExec.class);
@@ -2933,6 +2934,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String function() {
             return switch (relation) {
                 case INTERSECTS -> "ST_INTERSECTS";
+                case DISJOINT -> "ST_DISJOINT";
                 case WITHIN -> "ST_WITHIN";
                 case CONTAINS -> "ST_CONTAINS";
                 default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
@@ -2942,6 +2944,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Class<? extends SpatialRelatesFunction> functionClass() {
             return switch (relation) {
                 case INTERSECTS -> SpatialIntersects.class;
+                case DISJOINT -> SpatialDisjoint.class;
                 case WITHIN -> literalRight ? SpatialWithin.class : SpatialContains.class;
                 case CONTAINS -> literalRight ? SpatialContains.class : SpatialWithin.class;
                 default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
@@ -2975,12 +2978,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),
@@ -3027,16 +3034,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, true) };
         for (TestSpatialRelation test : tests) {
-            var centroidExpr = "centroid=ST_CENTROID(location), count=COUNT()";
+            var centroidExpr = "centroid=ST_CENTROID_AGG(location), count=COUNT()";
             var plan = this.physicalPlan(
                 "FROM " + test.index.index.name() + " | WHERE " + test.predicate() + " | STATS " + centroidExpr,
                 test.index
@@ -3139,11 +3152,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         for (String query : new String[] { """
             FROM airports
             | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """, """
             FROM airports
             | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
@@ -3240,13 +3253,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | WHERE scalerank == 9
               AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
               AND type == "mid"
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """, """
             FROM airports
             | WHERE scalerank == 9
               AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
               AND type == "mid"
-            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
@@ -3327,7 +3340,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String query = """
             FROM airports
             | WHERE ST_INTERSECTS(location, city_location)
-            | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+            | STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
             """;
 
         var plan = this.physicalPlan(query, airports);
@@ -3370,11 +3383,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         for (String query : new String[] { """
             FROM airports
             | WHERE ST_INTERSECTS(location, city_location)
-            | STATS location=ST_CENTROID(location), count=COUNT()
+            | STATS location=ST_CENTROID_AGG(location), count=COUNT()
             """, """
             FROM airports
             | WHERE ST_INTERSECTS(location, city_location)
-            | STATS city_location=ST_CENTROID(city_location), count=COUNT()
+            | STATS city_location=ST_CENTROID_AGG(city_location), count=COUNT()
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
@@ -3417,7 +3430,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FROM airports
             | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
                 AND ST_INTERSECTS(city_location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-            | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+            | STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
             """;
 
         var plan = this.physicalPlan(query, airports);

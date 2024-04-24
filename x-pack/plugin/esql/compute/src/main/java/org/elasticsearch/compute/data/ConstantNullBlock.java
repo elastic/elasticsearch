@@ -173,11 +173,6 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            return appendNull();
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do

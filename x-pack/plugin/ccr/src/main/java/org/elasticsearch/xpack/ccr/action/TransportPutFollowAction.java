@@ -306,7 +306,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     clusterService,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
-                    request.timeout(),
+                    request.ackTimeout(),
                     l.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
                 )
             )
@@ -328,21 +328,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         if (localDataStream == null) {
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
-            return new DataStream(
-                localDataStreamName,
-                List.of(backingIndexToFollow),
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                remoteDataStream.isHidden(),
-                true,
-                remoteDataStream.isSystem(),
-                remoteDataStream.isAllowCustomRouting(),
-                remoteDataStream.getIndexMode(),
-                remoteDataStream.getLifecycle(),
-                remoteDataStream.isFailureStore(),
-                remoteDataStream.getFailureIndices(),
-                remoteDataStream.getAutoShardingEvent()
-            );
+            return remoteDataStream.copy()
+                .setName(localDataStreamName)
+                .setIndices(List.of(backingIndexToFollow))
+                .setReplicated(true)
+                // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                // (and potentially even break things).
+                .setRolloverOnWrite(false)
+                .build();
         } else {
             if (localDataStream.isReplicated() == false) {
                 throw new IllegalArgumentException(
@@ -382,21 +375,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 backingIndices = localDataStream.getIndices();
             }
 
-            return new DataStream(
-                localDataStream.getName(),
-                backingIndices,
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                localDataStream.isHidden(),
-                localDataStream.isReplicated(),
-                localDataStream.isSystem(),
-                localDataStream.isAllowCustomRouting(),
-                localDataStream.getIndexMode(),
-                localDataStream.getLifecycle(),
-                localDataStream.isFailureStore(),
-                localDataStream.getFailureIndices(),
-                localDataStream.getAutoShardingEvent()
-            );
+            return localDataStream.copy()
+                .setIndices(backingIndices)
+                .setGeneration(remoteDataStream.getGeneration())
+                .setMetadata(remoteDataStream.getMetadata())
+                .build();
         }
     }
 

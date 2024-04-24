@@ -129,6 +129,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -157,11 +158,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
         return entityAsMap(response.getEntity());
     }
 
+    /**
+     * Convert the entity from a {@link Response} into a map of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
+     */
     public static Map<String, Object> entityAsMap(HttpEntity entity) throws IOException {
         XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
@@ -174,11 +180,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 )
         ) {
             return parser.map();
+        } finally {
+            EntityUtils.consumeQuietly(entity);
         }
     }
 
     /**
      * Convert the entity from a {@link Response} into a list of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
      */
     public static List<Object> entityAsList(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
@@ -192,6 +201,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 )
         ) {
             return parser.list();
+        } finally {
+            EntityUtils.consumeQuietly(response.getEntity());
         }
     }
 
@@ -229,20 +240,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static EnumSet<ProductFeature> availableFeatures;
     private static Set<String> nodesVersions;
-
-    private static final TestFeatureService ALL_FEATURES = new TestFeatureService() {
-        @Override
-        public boolean clusterHasFeature(String featureId) {
-            return true;
-        }
-
-        @Override
-        public Set<String> getAllSupportedFeatures() {
-            throw new UnsupportedOperationException(
-                "Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService"
-            );
-        }
-    };
 
     protected static TestFeatureService testFeatureService = ALL_FEATURES;
 
@@ -1455,7 +1452,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             String username = System.getProperty("tests.rest.cluster.username");
             String password = System.getProperty("tests.rest.cluster.password");
             String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
-            return builder.put(ThreadContext.PREFIX + ".Authorization", token).build();
+            builder.put(ThreadContext.PREFIX + ".Authorization", token);
+        }
+        if (System.getProperty("tests.rest.project.id") != null) {
+            final var projectId = System.getProperty("tests.rest.project.id");
+            builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
         }
         return builder.build();
     }
@@ -1603,6 +1604,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return response;
     }
 
+    public static void assertOKAndConsume(Response response) {
+        try {
+            assertOK(response);
+        } finally {
+            EntityUtils.consumeQuietly(response.getEntity());
+        }
+    }
+
     public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
         assertOK(response);
         return ObjectPath.createFromResponse(response);
@@ -1622,9 +1631,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     public static void assertAcknowledged(Response response) throws IOException {
-        assertOK(response);
-        String jsonBody = EntityUtils.toString(response.getEntity());
-        assertThat(jsonBody, containsString("\"acknowledged\":true"));
+        try {
+            assertOK(response);
+            String jsonBody = EntityUtils.toString(response.getEntity());
+            assertThat(jsonBody, containsString("\"acknowledged\":true"));
+        } finally {
+            // if assertOK throws an exception, still release resources
+            EntityUtils.consumeQuietly(response.getEntity());
+        }
     }
 
     /**

@@ -160,7 +160,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             eq(krbDebug),
             anyActionListener()
         );
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 }

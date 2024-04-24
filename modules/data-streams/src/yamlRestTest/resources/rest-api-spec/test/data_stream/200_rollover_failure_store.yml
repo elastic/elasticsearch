@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "data stream failure store rollover only supported in 8.14+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -32,7 +32,7 @@ setup:
   - do:
       indices.rollover:
         alias: "data-stream-for-rollover"
-        failure_store: true
+        target_failure_store: true
 
   - match: { old_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { new_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
@@ -67,7 +67,7 @@ setup:
   - do:
       indices.rollover:
         alias: "data-stream-for-rollover"
-        failure_store: true
+        target_failure_store: true
         body:
           conditions:
             max_docs: 1
@@ -96,7 +96,7 @@ setup:
   - do:
       indices.rollover:
         alias: "data-stream-for-rollover"
-        failure_store: true
+        target_failure_store: true
         body:
           conditions:
             max_docs: 1

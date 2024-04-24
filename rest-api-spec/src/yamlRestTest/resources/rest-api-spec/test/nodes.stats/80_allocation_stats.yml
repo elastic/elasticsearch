@@ -1,9 +1,9 @@
 ---
 "Allocation stats":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "allocation stats was added in 8.14.0"
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
   - do:
       nodes.info: {}

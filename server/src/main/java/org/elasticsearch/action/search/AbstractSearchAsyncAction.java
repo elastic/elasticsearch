@@ -769,8 +769,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         listener.onFailure(e);
     }
 
-    @Override
-    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
+    /**
+     * Builds an request for the initial search phase.
+     *
+     * @param shardIt the target {@link SearchShardIterator}
+     * @param shardIndex the index of the shard that is used in the coordinator node to
+     *                   tiebreak results with identical sort values
+     */
+    protected final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);

@@ -38,46 +38,46 @@ wkt:keyword                                                                     
 ;
 
 centroidFromStringNested
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
-| STATS c = ST_CENTROID(TO_GEOPOINT(wkt));
+| STATS c = ST_CENTROID_AGG(TO_GEOPOINT(wkt));
 
 c:geo_point
 POINT(42.97109629958868 14.7552534006536)
 ;
 
 centroidFromString1
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
-| STATS c = ST_CENTROID(pt);
+| STATS c = ST_CENTROID_AGG(pt);
 
 c:geo_point
 POINT(42.97109629958868 14.7552534006536)
 ;
 
 centroidFromString2
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
-| STATS c = ST_CENTROID(pt);
+| STATS c = ST_CENTROID_AGG(pt);
 
 c:geo_point
 POINT(59.390193899162114 18.741501288022846)
 ;
 
 centroidFromString3
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
-| STATS c = ST_CENTROID(pt);
+| STATS c = ST_CENTROID_AGG(pt);
 
 c:geo_point
 POINT(39.58327988510707 20.619513023697994)
@@ -89,7 +89,7 @@ required_feature: esql.st_x_y
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
-| STATS c = ST_CENTROID(pt)
+| STATS c = ST_CENTROID_AGG(pt)
 | EVAL x = ST_X(c), y = ST_Y(c);
 
 c:geo_point                                 | x:double          | y:double
@@ -149,25 +149,25 @@ c:long  | x:double  | y:double
 # Tests for ST_CENTROID on GEO_POINT type
 
 centroidFromAirports
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
-// tag::st_centroid-airports[]
+// tag::st_centroid_agg-airports[]
 FROM airports
-| STATS centroid=ST_CENTROID(location)
-// end::st_centroid-airports[]
+| STATS centroid=ST_CENTROID_AGG(location)
+// end::st_centroid_agg-airports[]
 ;
 
-// tag::st_centroid-airports-result[]
+// tag::st_centroid_agg-airports-result[]
 centroid:geo_point
 POINT(-0.030548143003023033 24.37553649504829)
-// end::st_centroid-airports-result[]
+// end::st_centroid_agg-airports-result[]
 ;
 
 centroidFromAirportsNested
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS centroid=ST_CENTROID(TO_GEOPOINT(location))
+| STATS centroid=ST_CENTROID_AGG(TO_GEOPOINT(location))
 ;
 
 centroid:geo_point
@@ -175,10 +175,10 @@ POINT (-0.03054810272375508 24.37553651570554)
 ;
 
 centroidFromAirportsCount
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                             | count:long
@@ -186,10 +186,10 @@ POINT(-0.030548143003023033 24.37553649504829) | 891
 ;
 
 centroidFromAirportsCountGrouped
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
 | SORT scalerank DESC
 ;
 
@@ -205,11 +205,11 @@ POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
 ;
 
 centroidFromAirportsFiltered
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | WHERE scalerank == 9
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                         | count:long
@@ -217,11 +217,11 @@ POINT(83.27726172452623 28.99289782286029) | 33
 ;
 
 centroidFromAirportsCountGroupedCentroid
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
-| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
 ;
 
 centroid:geo_point                           | count:long
@@ -229,10 +229,10 @@ POINT (7.572387259169772 26.836561792945492) | 891
 ;
 
 centroidFromAirportsCountCityLocations
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS centroid=ST_CENTROID(city_location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT()
 ;
 
 centroid:geo_point                            | count:long
@@ -240,10 +240,10 @@ POINT (1.3965610809060276 24.127649406297987) | 891
 ;
 
 centroidFromAirportsCountGroupedCountry
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT() BY country
 | SORT count DESC, country ASC
 | WHERE count >= 10
 ;
@@ -269,11 +269,11 @@ POINT (70.7946499697864 30.69746997440234)     | 10         | Pakistan
 ;
 
 centroidFromAirportsFilteredCountry
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | WHERE country == "United States"
-| STATS centroid=ST_CENTROID(city_location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT()
 ;
 
 centroid:geo_point                          | count:long
@@ -281,11 +281,11 @@ POINT (-97.3333946136801 38.07953176370194) | 129
 ;
 
 centroidFromAirportsCountGroupedCountryCentroid
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
-| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT() BY country
+| STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
 ;
 
 centroid:geo_point                            | count:long
@@ -293,10 +293,10 @@ POINT (17.55538044598613 18.185558743854063)  | 891
 ;
 
 centroidFromAirportsCountryCount
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
-| STATS airports=ST_CENTROID(location), cities=ST_CENTROID(city_location), count=COUNT()
+| STATS airports=ST_CENTROID_AGG(location), cities=ST_CENTROID_AGG(city_location), count=COUNT()
 ;
 
 airports:geo_point                             | cities:geo_point                              | count:long
@@ -304,13 +304,13 @@ POINT(-0.030548143003023033 24.37553649504829) | POINT (1.3965610809060276 24.12
 ;
 
 centroidFromAirportsFilteredAndSorted
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | WHERE scalerank == 9
 | SORT abbrev
 | WHERE length(name) > 12
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                          | count:long
@@ -318,11 +318,11 @@ POINT(78.73736493755132 26.761841227998957) | 12
 ;
 
 centroidFromAirportsAfterMvExpand
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | MV_EXPAND type
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                          | count:long
@@ -330,11 +330,11 @@ POINT(2.121611400672094 24.559172889205755) | 933
 ;
 
 centroidFromAirportsGroupedAfterMvExpand
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | MV_EXPAND type
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
 | SORT scalerank DESC
 ;
 
@@ -350,12 +350,12 @@ POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
 ;
 
 centroidFromAirportsGroupedAfterMvExpandFiltered
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | WHERE scalerank == 9
 | MV_EXPAND type
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
 ;
 
 centroid:geo_point                            | count:long | scalerank:i
@@ -363,12 +363,12 @@ POINT(83.16847535921261 28.79002037679311)    | 40         | 9
 ;
 
 centroidFromAirportsAfterMvExpandFiltered
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | WHERE scalerank == 9
 | MV_EXPAND type
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                            | count:long
@@ -376,11 +376,11 @@ POINT(83.16847535921261 28.79002037679311)    | 40
 ;
 
 centroidFromAirportsAfterKeywordPredicateCountryUK
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports
 | WHERE country == "United Kingdom"
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                              | count:long
@@ -392,7 +392,7 @@ required_feature: esql.st_intersects
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                              | count:long
@@ -404,7 +404,7 @@ required_feature: esql.st_contains_within
 
 FROM airports
 | WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"), location)
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                              | count:long
@@ -416,7 +416,7 @@ required_feature: esql.st_contains_within
 
 FROM airports
 | WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                              | count:long
@@ -428,7 +428,7 @@ required_feature: esql.st_intersects
 
 FROM airports
 | WHERE country == "United Kingdom"
-| STATS centroid = ST_CENTROID(location), count=COUNT()
+| STATS centroid = ST_CENTROID_AGG(location), count=COUNT()
 | EVAL centroid_in_uk = ST_INTERSECTS(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
 | EVAL centroid_in_iceland = ST_INTERSECTS(centroid, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
 | EVAL centroid_within_uk = ST_WITHIN(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -450,7 +450,7 @@ FROM airports
 | EVAL in_iceland = ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
 | EVAL within_uk = ST_WITHIN(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
 | EVAL within_iceland = ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
-| STATS centroid = ST_CENTROID(location), count=COUNT() BY in_uk, in_iceland, within_uk, within_iceland
+| STATS centroid = ST_CENTROID_AGG(location), count=COUNT() BY in_uk, in_iceland, within_uk, within_iceland
 | SORT count ASC
 ;
 
@@ -465,7 +465,7 @@ required_feature: esql.st_intersects
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                            | count:long
@@ -477,7 +477,7 @@ required_feature: esql.st_intersects
 
 FROM airports
 | WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:geo_point                            | count:long
@@ -598,11 +598,96 @@ required_feature: esql.st_intersects
 
 FROM airports_mp
 | WHERE ST_INTERSECTS(location, city_location)
-| STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
 ;
 
 location:geo_point  | city_location:geo_point  |  count:long
 POINT (0 0)         | POINT (0 0)              |  1
+;
+
+###############################################
+# Tests for ST_DISJOINT on GEO_POINT type
+
+literalPolygonDisjointLiteralPoint
+required_feature: esql.st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_DISJOINT(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)" | POINT(-1 1)
+;
+
+literalPointDisjointLiteralPolygon
+required_feature: esql.st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_DISJOINT(pt, TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)" | POINT(-1 1)
+;
+
+literalPolygonDisjointLiteralPointOneRow
+required_feature: esql.st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
+;
+
+disjoint:boolean
+false
+;
+
+literalPointDisjointLiteralPolygonOneRow
+required_feature: esql.st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_GEOPOINT("POINT(-1 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+disjoint:boolean
+true
+;
+
+pointDisjointLiteralPolygon
+required_feature: esql.st_disjoint
+
+FROM airports
+| WHERE ST_DISJOINT(location, TO_GEOSHAPE("POLYGON((-10 -60, 120 -60, 120 60, -10 60, -10 -60))"))
+| EVAL x = ST_X(location), y = ST_Y(location)
+| EVAL x = FLOOR(x / 100), y = FLOOR(y / 100)
+| STATS count=COUNT() BY x, y
+| KEEP x, y, count
+| SORT x ASC, y ASC
+;
+
+x:double  |  y:double  |  count:long
+-2        |  -1        |  8
+-2        |  0         |  94
+-1        |  -1        |  67
+-1        |  0         |  201
+0         |  0         |  15
+1         |  -1        |  33
+1         |  0         |  53
+;
+
+airportCityLocationPointDisjointCentroid
+required_feature: esql.st_disjoint
+
+FROM airports_mp
+| WHERE ST_DISJOINT(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+location:geo_point                         | city_location:geo_point                      |  count:long
+POINT (67.8581917192787 24.02956652920693) | POINT (67.81638333333332 24.048999999999996) |  6
 ;
 
 ###############################################
@@ -691,7 +776,7 @@ required_feature: esql.st_contains_within
 
 FROM airports_mp
 | WHERE ST_CONTAINS(location, city_location)
-| STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
 ;
 
 location:geo_point  | city_location:geo_point  |  count:long
@@ -778,7 +863,7 @@ required_feature: esql.st_contains_within
 
 FROM airports_mp
 | WHERE ST_WITHIN(location, city_location)
-| STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
 ;
 
 location:geo_point  | city_location:geo_point  |  count:long
@@ -878,46 +963,46 @@ wkt:keyword                                           |pt:cartesian_point
 ;
 
 centroidCartesianFromStringNested
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 row wkt = "POINT(4297.10986328125 -1475.530029296875)"
-| STATS c = ST_CENTROID(TO_CARTESIANPOINT(wkt));
+| STATS c = ST_CENTROID_AGG(TO_CARTESIANPOINT(wkt));
 
 c:cartesian_point
 POINT(4297.10986328125 -1475.530029296875)
 ;
 
 centroidFromCartesianString1
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
-| STATS c = ST_CENTROID(pt);
+| STATS c = ST_CENTROID_AGG(pt);
 
 c:cartesian_point
 POINT(4297.10986328125 -1475.530029296875)
 ;
 
 centroidFromCartesianString2
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
-| STATS c = ST_CENTROID(pt);
+| STATS c = ST_CENTROID_AGG(pt);
 
 c:cartesian_point
 POINT(5939.02001953125 398.6199951171875)
 ;
 
 centroidFromCartesianString3
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)", "POINT(-30.548143003023033 2437.553649504829)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
-| STATS c = ST_CENTROID(pt);
+| STATS c = ST_CENTROID_AGG(pt);
 
 c:cartesian_point
 POINT(3949.163965353159 1078.2645465797348)
@@ -954,30 +1039,30 @@ ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l  
 # Tests for ST_CENTROID on CARTESIAN_POINT type
 
 cartesianCentroidFromAirports
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports_web
-| STATS centroid=ST_CENTROID(location);
+| STATS centroid=ST_CENTROID_AGG(location);
 
 centroid:cartesian_point
 POINT(-266681.67563861894 3053301.5120195406)
 ;
 
 cartesianCentroidFromAirportsNested
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports_web
-| STATS centroid=ST_CENTROID(TO_CARTESIANPOINT(location));
+| STATS centroid=ST_CENTROID_AGG(TO_CARTESIANPOINT(location));
 
 centroid:cartesian_point
 POINT (-266681.66530554957 3053301.506061676)
 ;
 
 cartesianCentroidFromAirportsCount
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports_web
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point                      | count:long
@@ -985,10 +1070,10 @@ POINT(-266681.67563861894 3053301.5120195406) | 849
 ;
 
 cartesianCentroidFromAirportsCountGrouped
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports_web
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
 | SORT scalerank DESC
 ;
 
@@ -1004,11 +1089,11 @@ POINT(140136.12878224207 3081220.7881944445)  | 63         | 2
 ;
 
 cartesianCentroidFromAirportsFiltered
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports_web
 | WHERE scalerank == 9
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point                    | count:long
@@ -1016,13 +1101,13 @@ POINT(9289013.153846154 3615537.0533353365) | 26
 ;
 
 cartesianCentroidFromAirportsFilteredAndSorted
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports_web
 | WHERE scalerank == 9
 | SORT abbrev
 | WHERE length(name) > 12
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point            | count:long
@@ -1030,11 +1115,11 @@ POINT(9003597.4375 3429344.0078125) | 8
 ;
 
 cartesianCentroidFromAirportsCountGroupedCentroid
-required_feature: esql.st_centroid
+required_feature: esql.st_centroid_agg
 
 FROM airports_web
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
-| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
 ;
 
 centroid:cartesian_point                    | count:long
@@ -1049,7 +1134,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point     | count:long
@@ -1148,7 +1233,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point    | count:long
@@ -1160,11 +1245,153 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point    | count:long
 POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointIntersectsLiteralPolygonCount
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT()
+;
+
+count:long
+444
+;
+
+###############################################
+# Tests for ST_DISJOINT on CARTESIAN_POINT type
+
+literalPolygonDisjointLiteralCartesianPoint
+required_feature: esql.st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_DISJOINT(TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword     | pt:cartesian_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)"   | POINT(-1 1)
+;
+
+literalCartesianPointDisjointLiteralPolygon
+required_feature: esql.st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_DISJOINT(pt, TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword     | pt:cartesian_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)"   | POINT(-1 1)
+;
+
+literalPolygonDisjointLiteralCartesianPointOneRow
+required_feature: esql.st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_CARTESIANPOINT("POINT(0 0)"))
+;
+
+disjoint:boolean
+false
+;
+
+literalCartesianPointDisjointLiteralPolygonOneRow
+required_feature: esql.st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_CARTESIANPOINT("POINT(-1 0)"), TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+disjoint:boolean
+true
+;
+
+cartesianPointDisjointLiteralPolygonCount
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT()
+;
+
+count:long
+405
+;
+
+cartesianPointIntersectsDisjointLiteralPolygonCount
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| EVAL intersects = ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| EVAL disjoint = ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT() BY intersects, disjoint
+| SORT intersects DESC, disjoint DESC
+| KEEP intersects, disjoint, count
+;
+
+intersects:boolean  |  disjoint:boolean  |  count:long
+true                |  false             |  444
+false               |  true              |  405
+;
+
+cartesianPointDisjointLiteralPolygon
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| EVAL x = ST_X(location), y = ST_Y(location)
+| EVAL x = FLOOR(x / 10000000), y = FLOOR(y / 10000000)
+| STATS count=COUNT() BY x, y
+| KEEP x, y, count
+| SORT x ASC, y ASC
+;
+
+x:double  |  y:double  |  count:long
+-2        |  -1        |  8
+-2        |  0         |  136
+-2        |  1         |  3
+-1        |  -1        |  64
+-1        |  0         |  192
+-1        |  1         |  2
+;
+
+cartesianPointDisjointEmptyGeometry
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("LINESTRING()"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_CARTESIANSHAPE(\"LINESTRING()\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+count:long
+0
+;
+
+cartesianPointDisjointInvalidGeometry
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("Invalid Geometry"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_CARTESIANSHAPE(\"Invalid Geometry\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: invalid
+
+count:long
+0
 ;
 
 ###############################################
@@ -1175,7 +1402,7 @@ required_feature: esql.st_contains_within
 
 FROM airports_web
 | WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point     | count:long
@@ -1212,7 +1439,7 @@ required_feature: esql.st_contains_within
 
 FROM airports_web
 | WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point     | count:long
@@ -1301,7 +1528,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point    | count:long
@@ -1313,7 +1540,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_CONTAINS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point    | count:long
@@ -1328,7 +1555,7 @@ required_feature: esql.st_contains_within
 
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point     | count:long
@@ -1427,7 +1654,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point    | count:long
@@ -1439,7 +1666,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;
 
 centroid:cartesian_point    | count:long

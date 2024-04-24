@@ -40,6 +40,8 @@ import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
@@ -68,6 +70,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -127,8 +130,6 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -147,7 +148,6 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -165,6 +165,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
+import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
@@ -251,6 +252,7 @@ class NodeConstruction {
             NodeConstruction constructor = new NodeConstruction(closeables);
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider);
+            constructor.loadLoggingDataProviders();
             TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
@@ -461,6 +463,10 @@ class NodeConstruction {
         modules.bindToInstance(Environment.class, environment);
 
         return settings;
+    }
+
+    private void loadLoggingDataProviders() {
+        DynamicContextDataProvider.setDataProviders(pluginsService.loadServiceProviders(LoggingDataProvider.class));
     }
 
     private TelemetryProvider createTelemetryProvider(Settings settings) {
@@ -770,6 +776,11 @@ class NodeConstruction {
             threadPool
         );
 
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+        );
+        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
+
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
@@ -787,7 +798,8 @@ class NodeConstruction {
             AllocationService allocationService,
             IndicesService indicesService,
             FeatureService featureService,
-            SystemIndices systemIndices
+            SystemIndices systemIndices,
+            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -806,7 +818,8 @@ class NodeConstruction {
             clusterModule.getAllocationService(),
             indicesService,
             featureService,
-            systemIndices
+            systemIndices,
+            dataStreamGlobalRetentionResolver
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
@@ -1113,18 +1126,6 @@ class NodeConstruction {
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
         }
-
-        // Register noop versions of inference services if Inference plugin is not available
-        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
-        modules.bindToInstance(
-            InferenceServiceRegistry.class,
-            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getInferenceServiceRegistry)
-                .orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry())
-        );
-        modules.bindToInstance(
-            ModelRegistry.class,
-            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry).orElse(new ModelRegistry.NoopModelRegistry())
-        );
 
         injector = modules.createInjector();
 

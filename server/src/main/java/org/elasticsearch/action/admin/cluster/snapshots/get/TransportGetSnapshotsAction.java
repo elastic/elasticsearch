@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -72,6 +73,7 @@ import java.util.function.ToLongFunction;
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
 
+    public static final ActionType<GetSnapshotsResponse> TYPE = new ActionType<>("cluster:admin/snapshot/get");
     private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
@@ -86,7 +88,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetSnapshotsAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -690,7 +692,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final BooleanSupplier isCancelledSupplier;
 
         GetSnapshotInfoExecutor(int maxRunningTasks, BooleanSupplier isCancelledSupplier) {
-            super(GetSnapshotsAction.NAME, maxRunningTasks, EsExecutors.DIRECT_EXECUTOR_SERVICE, ConcurrentCollections.newBlockingQueue());
+            super(TYPE.name(), maxRunningTasks, EsExecutors.DIRECT_EXECUTOR_SERVICE, ConcurrentCollections.newBlockingQueue());
             this.maxRunningTasks = maxRunningTasks;
             this.isCancelledSupplier = isCancelledSupplier;
         }

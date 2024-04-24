@@ -77,7 +77,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         "internal:admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/file_chunk/get",
-        "indices:internal/admin/ccr/restore/file_chunk/get"
+        "indices:internal/admin/ccr/restore/file_chunk/get",
+        "internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/open_exchange",
+        "internal:data/read/esql/exchange",
+        "cluster:internal:data/read/esql/exchange"
     );
 
     private final AuthenticationService authcService;

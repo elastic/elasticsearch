@@ -130,11 +130,6 @@ public class S3RepositoryTests extends ESTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             S3RepositoriesMetrics.NOOP
-        ) {
-            @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually on test/main threads
-            }
-        };
+        );
     }
 }

@@ -184,12 +184,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         Builder endPositionEntry();
 
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          */

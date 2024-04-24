@@ -2,4 +2,6 @@
 
 *Description*
 
-Returns the value of a base raised to the power of an exponent.
+Returns the value of `base` raised to the power of `exponent`.
+
+NOTE: It is still possible to overflow a double result here; in that case, null will be returned.

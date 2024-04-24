@@ -16,11 +16,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
 
@@ -94,6 +94,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             request.getInput(),
             request.getTaskSettings(),
             request.getInputType(),
+            request.getInferenceTimeout(),
             listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)))
         );
     }

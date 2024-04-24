@@ -9,6 +9,7 @@
 
 // tag::spatial_list[]
 * experimental:[] <<esql-st_intersects>>
+* experimental:[] <<esql-st_disjoint>>
 * experimental:[] <<esql-st_contains>>
 * experimental:[] <<esql-st_within>>
 * experimental:[] <<esql-st_x>>
@@ -16,6 +17,7 @@
 // end::spatial_list[]
 
 include::st_intersects.asciidoc[]
+include::st_disjoint.asciidoc[]
 include::st_contains.asciidoc[]
 include::st_within.asciidoc[]
 include::st_x.asciidoc[]

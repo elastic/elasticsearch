@@ -163,7 +163,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             "price",
             IndexNumericFieldData.NumericType.DOUBLE,
             CoreValuesSourceType.NUMERIC,
-            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n),
+            false
         );
         FunctionScoreQuery query = new FunctionScoreQuery(
             new MatchAllDocsQuery(),

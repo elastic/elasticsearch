@@ -31,7 +31,7 @@ node. Calling this API clears the caches without restarting the deployment.
 
 `deployment_id`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 [[clear-trained-model-deployment-cache-example]]
 == {api-examples-title}

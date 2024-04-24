@@ -621,7 +621,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerDoubleGauge(
-                "es.indexing.primary_operations.rejections.ratio",
+                "es.indexing.primary_operations.document.rejections.ratio",
                 "Ratio of rejected primary operations",
                 "ratio",
                 () -> {
@@ -629,13 +629,13 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getTotalPrimaryOps)
                         .orElse(0L);
-                    var totalPrimaryRejections = Optional.ofNullable(stats.getOrRefresh())
+                    var totalPrimaryDocumentRejections = Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getPrimaryRejections)
+                        .map(IndexingPressureStats::getPrimaryDocumentRejections)
                         .orElse(0L);
-                    // rejections do not count towards `totalPrimaryOperations`
-                    var totalOps = totalPrimaryOperations + totalPrimaryRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryRejections / totalOps : 0.0);
+                    // primary document rejections do not count towards `totalPrimaryOperations`
+                    var totalOps = totalPrimaryOperations + totalPrimaryDocumentRejections;
+                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryDocumentRejections / totalOps : 0.0);
                 }
             )
         );
@@ -651,6 +651,29 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeInMillis() : 0L
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total_excluding_lock_waiting.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null
+                        ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingOnLockMillis()
+                        : 0L
+                )
+            )
+        );
     }
 
     /**
@@ -680,6 +703,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private NodeStats getNodeStats() {
         CommonStatsFlags flags = new CommonStatsFlags(
             CommonStatsFlags.Flag.Indexing,
+            CommonStatsFlags.Flag.Flush,
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,

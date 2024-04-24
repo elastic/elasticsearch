@@ -7,6 +7,9 @@ Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 [float]
 === Known issues
 
+* Due to a bug in the bundled JDK 22 nodes might crash abruptly under high memory pressure.
+  We recommend <<jvm-version,downgrading to JDK 21.0.2>> asap to mitigate the issue.
+
 * Nodes upgraded to 8.13.0 fail to load downsampling persistent tasks. This prevents them from joining the cluster, blocking its upgrade (issue: {es-issue}106880[#106880])
 +
 This affects clusters running version 8.10 or later, with an active downsampling
@@ -386,7 +389,7 @@ Security::
 
 Snapshot/Restore::
 * Add s3 `HeadObject` request to request stats {es-pull}105105[#105105]
-* Expose `OperationPurpose` via `CustomQueryParameter` to s3 logs {es-pull}105044[#105044]
+* Expose `OperationPurpose` in S3 access logs using a https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html#LogFormatCustom[custom query-string parameter] {es-pull}105044[#105044]
 * Fix blob cache race, decay, time dependency {es-pull}104784[#104784]
 * Pause shard snapshots on graceful shutdown {es-pull}101717[#101717]
 * Retry indefinitely for s3 indices blob read errors {es-pull}103300[#103300]

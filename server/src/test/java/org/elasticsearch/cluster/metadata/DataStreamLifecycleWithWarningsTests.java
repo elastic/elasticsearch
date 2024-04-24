@@ -43,7 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * We test the warnings added when user configured retention exceeds the global retention in this test
+ * We test the warnings added when user configured retention exceeds the global retention in this test,
  * so we can disable the warning check without impacting all the other test cases
  */
 public class DataStreamLifecycleWithWarningsTests extends ESTestCase {

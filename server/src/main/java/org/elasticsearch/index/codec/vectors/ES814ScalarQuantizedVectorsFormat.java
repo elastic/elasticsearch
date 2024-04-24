@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
@@ -47,6 +48,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
      * calculated as `1-1/(vector_dimensions + 1)`
      */
     public final Float confidenceInterval;
+    final ScalarQuantizedVectorScorer flatVectorScorer;
 
     public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval) {
         if (confidenceInterval != null
@@ -61,6 +63,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             );
         }
         this.confidenceInterval = confidenceInterval;
+        this.flatVectorScorer = new ScalarQuantizedVectorScorer(new DefaultFlatVectorScorer());
     }
 
     @Override
@@ -70,13 +73,13 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES814ScalarQuantizedVectorsWriter(state, confidenceInterval, rawVectorFormat.fieldsWriter(state));
+        return new ES814ScalarQuantizedVectorsWriter(state, confidenceInterval, rawVectorFormat.fieldsWriter(state), flatVectorScorer);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES814ScalarQuantizedVectorsReader(
-            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), new DefaultFlatVectorScorer())
+            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
         );
     }
 

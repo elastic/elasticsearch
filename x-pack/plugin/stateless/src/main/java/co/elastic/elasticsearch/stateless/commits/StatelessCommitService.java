@@ -1840,9 +1840,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
 
-            // search shard is on a node that does not register with a BCC generation, so it does not support recovering from a VBCC
-            // and should use the last uploaded BCC.
-            if (batchedCompoundGeneration == null) {
+            // search shard is on a node that does not register with a BCC generation (so it does not support recovering from a VBCC
+            // and should use the last uploaded BCC) or feature is not enabled
+            if (batchedCompoundGeneration == null || statelessUploadDelayed == false) {
                 return registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId));
             }
 

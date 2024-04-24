@@ -420,15 +420,9 @@ public class FsBlobContainer extends AbstractBlobContainer {
         // Emulate write/write contention as might happen in cloud repositories, at least for the case where the writers are all in this
         // JVM (e.g. for an ESIntegTestCase).
         try (var mutex = writeMutexes.tryAcquire(registerPath)) {
-            if (mutex == null) {
-                return OptionalBytesReference.MISSING;
-            } else {
-                try {
-                    return doUncontendedCompareAndExchangeRegister(registerPath, expected, updated);
-                } finally {
-                    mutex.close();
-                }
-            }
+            return mutex == null
+                ? OptionalBytesReference.MISSING
+                : doUncontendedCompareAndExchangeRegister(registerPath, expected, updated);
         }
     }
 

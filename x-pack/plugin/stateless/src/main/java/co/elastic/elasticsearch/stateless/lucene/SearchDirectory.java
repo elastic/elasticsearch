@@ -46,7 +46,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
@@ -110,8 +109,7 @@ public class SearchDirectory extends ByteSizeDirectory {
         this.blobContainer.set(blobContainer);
     }
 
-    // package-private for testing
-    void updateLatestUploadedTermAndGen(PrimaryTermAndGeneration termAndGen) {
+    public void updateLatestUploadedTermAndGen(PrimaryTermAndGeneration termAndGen) {
         objectStoreUploadTracker.updateLatestUploaded(termAndGen);
     }
 
@@ -138,13 +136,11 @@ public class SearchDirectory extends ByteSizeDirectory {
      * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
      *
      * @param newCommit map of file name to store metadata
-     * @param latestUploadedTermAndGen the last uploaded term and generation, can be null if none yet uploaded
      * @return true if this update advanced the commit tracked by this directory
      */
-    public boolean updateCommit(StatelessCompoundCommit newCommit, @Nullable PrimaryTermAndGeneration latestUploadedTermAndGen) {
+    public boolean updateCommit(StatelessCompoundCommit newCommit) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
-        updateLatestUploadedTermAndGen(latestUploadedTermAndGen);
         try {
             final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
             long commitSize = 0L;

@@ -212,7 +212,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
         assertThat(request.toString(), request.isUploaded(), is(true));
     }
 
-    private IndexShardRoutingTable randomIndexShardRoutingTable() {
+    public static IndexShardRoutingTable randomIndexShardRoutingTable() {
         final var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3));
         final var shardRouting = TestShardRouting.newShardRouting(shardId, null, true, ShardRoutingState.UNASSIGNED);
         final var builder = new IndexShardRoutingTable.Builder(shardId);

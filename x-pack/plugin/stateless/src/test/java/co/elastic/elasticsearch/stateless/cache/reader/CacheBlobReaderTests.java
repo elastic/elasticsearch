@@ -139,7 +139,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 var pendingCompoundCommits = VirtualBatchedCompoundCommitTestUtils.getPendingStatelessCompoundCommits(
                     virtualBatchedCompoundCommit
                 );
-                searchDirectory.updateCommit(pendingCompoundCommits.get(pendingCompoundCommits.size() - 1), null);
+                searchDirectory.updateCommit(pendingCompoundCommits.get(pendingCompoundCommits.size() - 1));
             }
         }
 

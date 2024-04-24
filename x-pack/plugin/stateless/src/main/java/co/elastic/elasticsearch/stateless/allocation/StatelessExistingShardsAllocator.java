@@ -24,18 +24,15 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 public class StatelessExistingShardsAllocator implements ExistingShardsAllocator {
 
     @Override
-    public void beforeAllocation(RoutingAllocation allocation) {
-
-    }
+    public void beforeAllocation(RoutingAllocation allocation) {}
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-
-    }
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
     @Override
     public void allocateUnassigned(
@@ -58,19 +55,13 @@ public class StatelessExistingShardsAllocator implements ExistingShardsAllocator
     }
 
     @Override
-    public void cleanCaches() {
-
-    }
+    public void cleanCaches() {}
 
     @Override
-    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
-
-    }
+    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {}
 
     @Override
-    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
-
-    }
+    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {}
 
     @Override
     public int getNumberOfInFlightFetches() {

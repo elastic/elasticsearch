@@ -75,6 +75,7 @@ setup:
   - do:
       search:
         index: synthetic_source_test
+        sort: _doc
   - match: { hits.total.value: 7 }
   - match:
       hits.hits.0._source:
@@ -148,6 +149,7 @@ setup:
   - do:
       search:
         index: synthetic_source_test
+        sort: _doc
   - match: { hits.total.value: 7 }
   - match:
       hits.hits.0._source:
@@ -215,6 +217,7 @@ setup:
   - do:
       search:
         index: synthetic_source_test
+        sort: _doc
   - match: { hits.total.value: 6 }
   - match:
       hits.hits.0._source:
@@ -279,6 +282,7 @@ setup:
   - do:
       search:
         index: synthetic_source_test
+        sort: _doc
   - match: { hits.total.value: 6 }
   - match:
       hits.hits.0._source:
@@ -355,6 +359,7 @@ setup:
   - do:
       search:
         index: synthetic_source_test
+        sort: _doc
   - match: { hits.total.value: 8 }
   - match:
       hits.hits.0._source:
@@ -443,6 +448,7 @@ setup:
   - do:
       search:
         index: synthetic_source_test
+        sort: _doc
   - match: { hits.total.value: 9 }
   - match:
       hits.hits.0._source:

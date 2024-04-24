@@ -201,18 +201,18 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         String effectiveRetentionStringRep = effectiveDataRetentionWithSource.v1().getStringRep();
         switch (effectiveDataRetentionWithSource.v2()) {
             case DEFAULT_GLOBAL_RETENTION -> HeaderWarning.addWarning(
-                String.format(
-                    "Infinite retention is not allowed for this project. The default retention of [%s] will be applied.",
-                    effectiveRetentionStringRep
-                )
+                "Infinite retention is not allowed for this project. The default retention of "
+                    + effectiveRetentionStringRep
+                    + " will be applied."
             );
             case MAX_GLOBAL_RETENTION -> HeaderWarning.addWarning(
-                String.format(
-                    " The retention provided [%s] is exceeding the max allowed data retention of this project [%s]. The max retention of [%s] will be applied",
-                    getDataStreamRetention() == null ? "infinite" : getDataStreamRetention().getStringRep(),
-                    effectiveRetentionStringRep,
-                    effectiveRetentionStringRep
-                )
+                "The retention provided "
+                    + (getDataStreamRetention() == null ? "infinite" : getDataStreamRetention().getStringRep())
+                    + " is exceeding the max allowed data retention of this project ["
+                    + effectiveRetentionStringRep
+                    + "]. The max retention of ["
+                    + effectiveRetentionStringRep
+                    + "] will be applied"
             );
             case DATA_STREAM_CONFIGURATION -> {
             }

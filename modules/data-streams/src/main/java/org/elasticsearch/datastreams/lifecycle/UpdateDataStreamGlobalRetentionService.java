@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -42,9 +43,14 @@ public class UpdateDataStreamGlobalRetentionService {
 
     private static final Logger logger = LogManager.getLogger(UpdateDataStreamGlobalRetentionService.class);
 
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
     private final MasterServiceTaskQueue<UpsertGlobalDataStreamMetadataTask> taskQueue;
 
-    public UpdateDataStreamGlobalRetentionService(ClusterService clusterService) {
+    public UpdateDataStreamGlobalRetentionService(
+        ClusterService clusterService,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
+    ) {
+        this.globalRetentionResolver = globalRetentionResolver;
         ClusterStateTaskExecutor<UpsertGlobalDataStreamMetadataTask> executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
@@ -95,7 +101,7 @@ public class UpdateDataStreamGlobalRetentionService {
         @Nullable DataStreamGlobalRetention newGlobalRetention,
         ClusterState clusterState
     ) {
-        var previousGlobalRetention = DataStreamGlobalRetention.getFromClusterState(clusterState);
+        var previousGlobalRetention = globalRetentionResolver.resolve(clusterState);
         if (Objects.equals(newGlobalRetention, previousGlobalRetention)) {
             return List.of();
         }
@@ -121,10 +127,12 @@ public class UpdateDataStreamGlobalRetentionService {
 
     // Visible for testing
     ClusterState updateGlobalRetention(ClusterState clusterState, @Nullable DataStreamGlobalRetention retentionFromRequest) {
-        final var initialRetention = DataStreamGlobalRetention.getFromClusterState(clusterState);
+        // Detecting if this update will result in a change in the cluster state, requires to use only the global retention from
+        // the cluster state and not the factory retention.
+        final var initialRetentionFromClusterState = DataStreamGlobalRetention.getFromClusterState(clusterState);
         // Avoid storing empty retention in the cluster state
         final var newRetention = DataStreamGlobalRetention.EMPTY.equals(retentionFromRequest) ? null : retentionFromRequest;
-        if (Objects.equals(newRetention, initialRetention)) {
+        if (Objects.equals(newRetention, initialRetentionFromClusterState)) {
             return clusterState;
         }
         if (newRetention == null) {

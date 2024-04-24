@@ -7,14 +7,17 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Maps a {@link BooleanBlock} column to group ids. Assigns group
@@ -40,6 +43,15 @@ final class NullBlockHash extends BlockHash {
         } else {
             throw new IllegalArgumentException("can't use NullBlockHash for non-null blocks");
         }
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        Block block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
+        }
+        throw new IllegalArgumentException("can't use NullBlockHash for non-null blocks");
     }
 
     @Override

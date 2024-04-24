@@ -928,8 +928,8 @@ public class QueryRescorerIT extends ESIntegTestCase {
             var groupDoc = new GroupDoc(id, Integer.toString(group), firstPassScore, secondPassScore, shouldFilter);
             if (shouldFilter == false) {
                 if (firstPassScore == bestScore) {
-                  // avoid tiebreaker
-                  continue;
+                    // avoid tiebreaker
+                    continue;
                 }
 
                 numHits++;
@@ -962,9 +962,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         var request = client().prepareSearch("test")
             .setQuery(fieldValueScoreQuery("firstPassScore"))
-            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore"))
-                    .setQueryWeight(0f)
-                    .windowSize(numGroups))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(0f).windowSize(numGroups))
             .setCollapse(new CollapseBuilder("group"))
             .setSize(Math.min(numGroups, 10));
         long expectedNumHits = numHits;

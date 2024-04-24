@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -66,6 +67,11 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
         final ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
         plugins.add(MustachePlugin.class);
         return List.copyOf(plugins);
+    }
+
+    @Before
+    private void clearRoleMappings() throws InterruptedException {
+        publishRoleMappings(Set.of());
     }
 
     @Override
@@ -221,7 +227,7 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             publishRoleMappings(Set.of(mapping1, mapping2));
         }
         {
-            Response authenticateResponse = getRestClient().performRequest(getAuthenticateRequest(username2Jwt, jwt0SharedSecret));
+            Response authenticateResponse = getRestClient().performRequest(getAuthenticateRequest(username1Jwt, jwt0SharedSecret));
             assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
             Map<String, Object> authenticateResponseMap = entityAsMap(authenticateResponse);
             if (anonymousRole) {

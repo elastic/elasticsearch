@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
@@ -629,11 +630,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                             .setReason("shutdown for a unit test")
                             .setType(type)
                             .setStartedAtMillis(randomNonNegativeLong())
-                            .setGracePeriod(
-                                type == SingleNodeShutdownMetadata.Type.SIGTERM
-                                    ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                                    : null
-                            )
+                            .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                             .build()
                     )
                 );

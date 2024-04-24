@@ -132,7 +132,7 @@
 ---
 "cluster health with closed index (pre 7.2.0)":
   - skip:
-      cluster_features: ["indices_replicate_closed"]
+      cluster_features: ["gte_v7.2.0"]
       reason:  "closed indices are replicated starting version 7.2.0"
   - requires:
       test_runner_features: ["allowed_warnings"]
@@ -210,7 +210,7 @@
 ---
 "cluster health with closed index":
   - requires:
-      cluster_features: ["indices_replicate_closed"]
+      cluster_features: ["gte_v7.2.0"]
       reason:  "closed indices are replicated starting version 7.2.0"
       test_runner_features: ["allowed_warnings", "default_shards"]
 

@@ -2752,7 +2752,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Settings.Builder builder = Settings.builder().put(settings);
         IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(settings);
         if (version.equals(IndexVersions.ZERO) == false) {
-            builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
+            builder.put(SETTING_VERSION_CREATED_STRING, version.toReleaseVersion());
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {

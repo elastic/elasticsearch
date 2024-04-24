@@ -76,7 +76,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id, force, deleteDestIndex);
+            return Objects.hash(ackTimeout(), id, force, deleteDestIndex);
         }
 
         @Override
@@ -93,7 +93,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             return Objects.equals(id, other.id)
                 && force == other.force
                 && deleteDestIndex == other.deleteDestIndex
-                && timeout().equals(other.timeout());
+                && ackTimeout().equals(other.ackTimeout());
         }
     }
 }

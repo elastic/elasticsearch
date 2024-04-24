@@ -44,7 +44,7 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("index"))
         );
         addIndexBlockRequest.masterNodeTimeout(request.paramAsTime("master_timeout", addIndexBlockRequest.masterNodeTimeout()));
-        addIndexBlockRequest.timeout(request.paramAsTime("timeout", addIndexBlockRequest.timeout()));
+        addIndexBlockRequest.ackTimeout(request.paramAsTime("timeout", addIndexBlockRequest.ackTimeout()));
         addIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, addIndexBlockRequest.indicesOptions()));
         return channel -> client.admin().indices().addBlock(addIndexBlockRequest, new RestToXContentListener<>(channel));
     }

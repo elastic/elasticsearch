@@ -48,7 +48,7 @@ public class RestDeleteTrainedModelAction extends BaseRestHandler {
         DeleteTrainedModelAction.Request request = new DeleteTrainedModelAction.Request(modelId);
         if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
             TimeValue timeout = restRequest.paramAsTime(TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
-            request.timeout(timeout);
+            request.ackTimeout(timeout);
         }
         request.setForce(restRequest.paramAsBoolean(DeleteTrainedModelAction.Request.FORCE.getPreferredName(), request.isForce()));
         return channel -> client.execute(DeleteTrainedModelAction.INSTANCE, request, new RestToXContentListener<>(channel));

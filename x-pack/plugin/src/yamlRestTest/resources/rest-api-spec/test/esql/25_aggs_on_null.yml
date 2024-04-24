@@ -39,6 +39,7 @@ group on null:
         body:
           query: 'FROM test | STATS med=median(never_null) BY always_null | LIMIT 1'
           columnar: true
+          version: 2024.04.01
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "always_null"}
@@ -54,6 +55,7 @@ group on null, long:
         body:
           query: 'FROM test | STATS med=median(sometimes_null) BY always_null, never_null | SORT always_null, never_null | LIMIT 10'
           columnar: true
+          version: 2024.04.01
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "always_null"}
@@ -72,6 +74,7 @@ agg on null:
         body:
           query: 'FROM test | STATS med=median(always_null) | LIMIT 1'
           columnar: true
+          version: 2024.04.01
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
   - length: {values: 1}
@@ -85,6 +88,7 @@ agg on missing:
         body:
           query: 'FROM test | STATS med=median(missing) | LIMIT 1'
           columnar: true
+          version: 2024.04.01
 
 ---
 group on missing:
@@ -94,6 +98,7 @@ group on missing:
         body:
           query: 'FROM test | STATS med=median(never_null) BY missing | LIMIT 1'
           columnar: true
+          version: 2024.04.01
 
 ---
 agg on half missing:
@@ -119,6 +124,7 @@ agg on half missing:
         body:
           query: 'FROM test* | STATS med=median(missing) | LIMIT 1'
           columnar: true
+          version: 2024.04.01
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
   - length: {values: 1}
@@ -148,6 +154,7 @@ group on half missing:
         body:
           query: 'FROM test,test2 | STATS med=median(never_null) BY missing | LIMIT 1'
           columnar: true
+          version: 2024.04.01
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "missing"}

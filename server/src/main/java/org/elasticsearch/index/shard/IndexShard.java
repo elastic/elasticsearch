@@ -757,16 +757,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
-    // temporary compatibility shim while adding targetNodeId parameter to dependencies
-    @Deprecated(forRemoval = true)
-    public void relocated(
-        final String targetAllocationId,
-        final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
-        final ActionListener<Void> listener
-    ) throws IllegalIndexShardStateException, IllegalStateException {
-        relocated(null, targetAllocationId, consumer, listener);
-    }
-
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
      * {@link BiConsumer} is executed after all operations are successfully blocked.
@@ -868,8 +858,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    // TODO only nullable temporarily, remove once deprecated relocated() override is removed, see ES-6725
-    private void verifyRelocatingState(@Nullable String targetNodeId) {
+    private void verifyRelocatingState(String targetNodeId) {
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
         }
@@ -883,14 +872,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED, ": shard is no longer relocating " + shardRouting);
         }
 
-        if (targetNodeId != null) {
-            if (targetNodeId.equals(shardRouting.relocatingNodeId()) == false) {
-                throw new IllegalIndexShardStateException(
-                    shardId,
-                    IndexShardState.STARTED,
-                    ": shard is no longer relocating to node [" + targetNodeId + "]: " + shardRouting
-                );
-            }
+        if (Objects.equals(targetNodeId, shardRouting.relocatingNodeId()) == false) {
+            throw new IllegalIndexShardStateException(
+                shardId,
+                IndexShardState.STARTED,
+                ": shard is no longer relocating to node [" + targetNodeId + "]: " + shardRouting
+            );
         }
 
         if (primaryReplicaResyncInProgress.get()) {
@@ -2586,6 +2573,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public List<Segment> segments() {
         return getEngine().segments();
+    }
+
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        return getEngine().segments(includeVectorFormatsInfo);
     }
 
     public String getHistoryUUID() {

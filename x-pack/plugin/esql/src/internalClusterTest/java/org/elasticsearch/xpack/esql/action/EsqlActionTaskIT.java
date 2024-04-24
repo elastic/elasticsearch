@@ -367,7 +367,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         try {
             scriptPermits.release(numberOfDocs()); // do not block Lucene operators
             Client client = client(coordinator);
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
             client().admin()
                 .indices()
                 .prepareUpdateSettings("test")

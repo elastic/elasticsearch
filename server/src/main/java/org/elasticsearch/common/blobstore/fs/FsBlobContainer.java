@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
@@ -60,6 +61,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -392,9 +394,34 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+        // no lock to acquire here, we are emulating the lack of read/read and read/write contention in cloud repositories
+        doCompareAndExchangeRegisterUnderLock(key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
+    }
+
+    private static final KeyedLock<Path> writeMutexes = new KeyedLock<>();
+
+    @Override
     public void compareAndExchangeRegister(
         OperationPurpose purpose,
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        // Emulate write/write contention as might happen in cloud repositories, at least for the case where the writers are all in this
+        // JVM (e.g. for an ESIntegTestCase).
+        try (var mutex = writeMutexes.tryAcquire(path.resolve(key))) {
+            if (mutex == null) {
+                listener.onResponse(OptionalBytesReference.MISSING);
+            } else {
+                doCompareAndExchangeRegisterUnderLock(key, expected, updated, ActionListener.runBefore(listener, mutex::close));
+            }
+        }
+    }
+
+    @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
+    private void doCompareAndExchangeRegisterUnderLock(
         String key,
         BytesReference expected,
         BytesReference updated,
@@ -433,6 +460,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 }
                 return OptionalBytesReference.of(found);
             } catch (OverlappingFileLockException e) {
+                assert false : e; // should be impossible, we protect against all concurrent operations within this JVM
                 return OptionalBytesReference.MISSING;
             }
         });
@@ -442,24 +470,29 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
         // Avoid concurrently opening/closing locked files, because this can trip an assertion within the JDK (see #93955 for details).
         // Perhaps it would work with finer-grained locks too, but we don't currently need to be fancy here.
-        private static final Object mutex = new Object();
+        //
+        // Also, avoid concurrent operations on FsBlobContainer registers within a single JVM with a simple blocking lock, to avoid
+        // OverlappingFileLockException. FileChannel#lock blocks on concurrent operations on the file in a different process. This emulates
+        // the lack of read/read and read/write contention that can happen on a cloud repository register.
+        private static final ReentrantLock mutex = new ReentrantLock();
 
         static LockedFileChannel open(Path path) throws IOException {
-            synchronized (mutex) {
-                List<Closeable> resources = new ArrayList<>(2);
-                try {
-                    final FileChannel fileChannel = openOrCreateAtomic(path);
-                    resources.add(fileChannel);
+            List<Closeable> resources = new ArrayList<>(3);
+            try {
+                mutex.lock();
+                resources.add(mutex::unlock);
 
-                    final Closeable fileLock = fileChannel.lock()::close;
-                    resources.add(fileLock);
+                final FileChannel fileChannel = openOrCreateAtomic(path);
+                resources.add(fileChannel);
 
-                    final var result = new LockedFileChannel(fileChannel, fileLock);
-                    resources.clear();
-                    return result;
-                } finally {
-                    IOUtils.closeWhileHandlingException(resources);
-                }
+                final Closeable fileLock = fileChannel.lock()::close;
+                resources.add(fileLock);
+
+                final var result = new LockedFileChannel(fileChannel, fileLock);
+                resources.clear();
+                return result;
+            } finally {
+                IOUtils.closeWhileHandlingException(resources);
             }
         }
 
@@ -476,9 +509,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
         @Override
         public void close() throws IOException {
-            synchronized (mutex) {
-                IOUtils.close(fileLock, fileChannel);
-            }
+            IOUtils.close(fileLock, fileChannel, mutex::unlock);
         }
     }
 }

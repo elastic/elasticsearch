@@ -737,7 +737,7 @@ public class CacheTests extends ESTestCase {
 
         // run the test for a limited amount of time; if threads are still running after that, let them know and exit gracefully
         if (deadlockLatch.await(1, TimeUnit.SECONDS) == false) {
-           reachedTimeLimit.set(true);
+            reachedTimeLimit.set(true);
         }
 
         // wait for either deadlock to be detected or the threads to terminate (end operations or time limit reached)

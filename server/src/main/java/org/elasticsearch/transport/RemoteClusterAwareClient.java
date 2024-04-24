@@ -47,7 +47,7 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
                 } else {
                     connection = remoteClusterService.getConnection(clusterAlias);
                 }
-            } catch (NoSuchRemoteClusterException e) {
+            } catch (ConnectTransportException e) {
                 if (ensureConnected == false) {
                     // trigger another connection attempt, but don't wait for it to complete
                     remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());

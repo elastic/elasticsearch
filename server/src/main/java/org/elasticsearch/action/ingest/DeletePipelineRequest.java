@@ -31,8 +31,6 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
         id = in.readString();
     }
 
-    DeletePipelineRequest() {}
-
     public void setId(String id) {
         this.id = Objects.requireNonNull(id);
     }

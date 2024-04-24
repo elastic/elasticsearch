@@ -721,8 +721,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            effectiveRoleDescriptors::set,
-            new WorkflowService()
+            effectiveRoleDescriptors::set
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -2242,7 +2241,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             callback.onResponse(Collections.emptyList());
             return null;
         }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
-        final WorkflowService workflowService = new WorkflowService();
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2256,8 +2254,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
-            rds -> {},
-            workflowService
+            rds -> {}
         );
 
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
@@ -2356,7 +2353,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             callback.onResponse(Collections.emptyList());
             return null;
         }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
-        final WorkflowService workflowService = new WorkflowService();
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2370,8 +2366,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
-            rds -> {},
-            workflowService
+            rds -> {}
         );
 
         final String apiKeyId = randomAlphaOfLength(20);
@@ -2964,8 +2959,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             serviceAccountService,
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            roleConsumer,
-            workflowService
+            roleConsumer
         ) {
             @Override
             public void invalidateAll() {

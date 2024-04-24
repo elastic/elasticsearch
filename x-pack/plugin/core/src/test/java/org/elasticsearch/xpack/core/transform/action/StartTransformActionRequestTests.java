@@ -15,13 +15,15 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction.Reques
 import java.time.Duration;
 import java.time.Instant;
 
+import static java.time.Instant.ofEpochMilli;
+
 public class StartTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         return new Request(
             randomAlphaOfLengthBetween(1, 20),
-            randomBoolean() ? Instant.ofEpochMilli(randomNonNegativeLong()) : null,
-            TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            randomBoolean() ? ofEpochMilli(randomNonNegativeLong()) : null,
+            randomTimeValue()
         );
     }
 

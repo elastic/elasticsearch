@@ -13,8 +13,8 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -40,7 +40,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
-public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
+public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctionTestCase {
     /**
      * Build many test cases with {@code boolean} values.
      */
@@ -625,12 +625,11 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     protected abstract DataType[] supportedTypes();
 
-    @Override
-    protected final List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(supportedTypes()));
+    protected final DataType[] representableNumerics() {
+        // TODO numeric should only include representable numbers but that is a change for a followup
+        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
     }
 
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);
     }

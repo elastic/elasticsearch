@@ -353,7 +353,6 @@ class RequestExecutorService implements RequestExecutor {
             Objects.requireNonNull(rateLimitSettings);
             Objects.requireNonNull(rateLimiterCreator);
             rateLimiter = rateLimiterCreator.create(
-                // rateLimitSettings.requestsPerTimeUnit(),
                 ACCUMULATED_TOKENS_LIMIT,
                 rateLimitSettings.requestsPerTimeUnit(),
                 rateLimitSettings.timeUnit()

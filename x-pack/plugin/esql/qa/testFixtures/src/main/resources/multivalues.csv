@@ -1,2 +1,0 @@
-boolean:boolean,keyword:keyword,integer:integer,long:long,double:double
-[true,false,false,true],[foo,bar,bar,foo],[1,2,2,1],[1,2,2,1],[1.1,2.2,2.2,1.1]

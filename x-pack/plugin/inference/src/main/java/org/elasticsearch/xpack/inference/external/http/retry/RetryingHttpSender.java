@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,11 +102,6 @@ public class RetryingHttpSender implements RequestSender {
 
             ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
                 try {
-                    if (result.response().getStatusLine().getStatusCode() == 429
-                        || result.response().getStatusLine().getStatusCode() == 503) {
-                        logger.warn(Strings.format("got a code: [%s]", result.response().getStatusLine().getStatusCode()));
-                    }
-
                     responseHandler.validateResponse(throttlerManager, logger, request, result);
                     InferenceServiceResults inferenceResults = responseHandler.parseResult(request, result);
 

@@ -80,8 +80,8 @@ tasks {
 
         // A work-in-progress exclusion list of failed tests
         filter {
-            excludeTestsMatching("*.StatelessRealTimeGetIT.testShardMultiGetFromTranslogDuringRelocation")
-            excludeTestsMatching("*.StatelessRealTimeGetIT.testGetFromTranslogDuringRelocation")
+            // To mute a test, adds a line here following to the below example
+            // excludeTestsMatching("*.TestClassIT.testMethod")
         }
     }
 

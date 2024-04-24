@@ -285,10 +285,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         private final boolean primary;
         private final Exception storeException;
 
-        public NodeGatewayStartedShards(StreamInput in) throws IOException {
-            this(in, null);
-        }
-
         public NodeGatewayStartedShards(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);
             allocationId = in.readOptionalString();

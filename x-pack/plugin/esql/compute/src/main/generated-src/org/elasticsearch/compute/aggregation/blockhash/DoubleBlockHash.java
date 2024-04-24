@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongHash;
@@ -19,8 +20,9 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
-import org.elasticsearch.compute.operator.MultivalueDedupeDouble;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.util.BitSet;
 
@@ -29,7 +31,7 @@ import java.util.BitSet;
  */
 final class DoubleBlockHash extends BlockHash {
     private final int channel;
-    private final LongHash hash;
+    final LongHash hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -69,7 +71,7 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
-    private IntVector add(DoubleVector vector) {
+    IntVector add(DoubleVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -80,10 +82,46 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
-    private IntBlock add(DoubleBlock block) {
+    IntBlock add(DoubleBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
+        }
+
+        DoubleBlock castBlock = (DoubleBlock) block;
+        DoubleVector vector = castBlock.asVector();
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        if (vector == null) {
+            return ReleasableIterator.single(lookup(castBlock));
+        }
+        return ReleasableIterator.single(lookup(vector));
+    }
+
+    private IntBlock lookup(DoubleVector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long found = hash.find(v);
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(found)));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup(DoubleBlock block) {
+        return new MultivalueDedupeDouble(block).hashLookup(blockFactory, hash);
     }
 
     @Override

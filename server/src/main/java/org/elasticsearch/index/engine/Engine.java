@@ -9,9 +9,12 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -55,6 +58,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -78,6 +82,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -1014,12 +1019,16 @@ public abstract class Engine implements Closeable {
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
+        return getSegmentInfo(lastCommittedSegmentInfos, false);
+    }
+
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean includeVectorFormatsInfo) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo);
             }
         }
 
@@ -1027,7 +1036,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, false, segments);
+                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo);
                 }
             }
         }
@@ -1063,7 +1072,12 @@ public abstract class Engine implements Closeable {
         return segmentsArr;
     }
 
-    private void fillSegmentInfo(SegmentReader segmentReader, boolean search, Map<String, Segment> segments) {
+    private void fillSegmentInfo(
+        SegmentReader segmentReader,
+        boolean search,
+        Map<String, Segment> segments,
+        boolean includeVectorFormatsInfo
+    ) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
         Segment segment = new Segment(info.info.name);
@@ -1078,7 +1092,40 @@ public abstract class Engine implements Closeable {
             logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
         }
         segment.segmentSort = info.info.getIndexSort();
-        segment.attributes = info.info.getAttributes();
+        segment.attributes = new HashMap<>();
+        segment.attributes.putAll(info.info.getAttributes());
+        Codec codec = info.info.getCodec();
+        Map<String, List<String>> knnFormats = null;
+        if (includeVectorFormatsInfo && codec instanceof PerFieldMapperCodec) {
+            try {
+                FieldInfos fieldInfos = segmentReader.getFieldInfos();
+                if (fieldInfos.hasVectorValues()) {
+                    for (FieldInfo fieldInfo : fieldInfos) {
+                        String name = fieldInfo.getName();
+                        if (fieldInfo.hasVectorValues()) {
+                            KnnVectorsFormat knnVectorsFormatForField = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
+                            if (knnFormats == null) {
+                                knnFormats = new HashMap<>();
+                            }
+                            knnFormats.compute(knnVectorsFormatForField.getName(), (s, a) -> {
+                                if (a == null) {
+                                    a = new ArrayList<>();
+                                }
+                                a.add(name);
+                                return a;
+                            });
+                        }
+                    }
+                }
+            } catch (AlreadyClosedException ace) {
+                // silently ignore
+            }
+        }
+        if (knnFormats != null) {
+            for (Map.Entry<String, List<String>> entry : knnFormats.entrySet()) {
+                segment.attributes.put(entry.getKey(), entry.getValue().toString());
+            }
+        }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
     }
@@ -1087,6 +1134,8 @@ public abstract class Engine implements Closeable {
      * The list of segments in the engine.
      */
     public abstract List<Segment> segments();
+
+    public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
 
     public boolean refreshNeeded() {
         if (store.tryIncRef()) {

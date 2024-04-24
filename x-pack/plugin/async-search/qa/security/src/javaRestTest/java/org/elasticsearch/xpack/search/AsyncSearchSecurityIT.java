@@ -223,7 +223,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     private SearchHit[] getSearchHits(String asyncId, String user) throws IOException {
         final Response resp = getAsyncSearch(asyncId, user);
         assertOK(resp);
-        SearchResponse searchResponse = ASYNC_SEARCH_RESPONSE_PARSER.apply(
+        AsyncSearchResponse asyncSearchResponse = ASYNC_SEARCH_RESPONSE_PARSER.apply(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
@@ -231,11 +231,13 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                 XContentType.JSON
             ),
             null
-        ).getSearchResponse();
+        );
+        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
         try {
             return searchResponse.getHits().asUnpooled().getHits();
         } finally {
             searchResponse.decRef();
+            asyncSearchResponse.decRef();
         }
     }
 

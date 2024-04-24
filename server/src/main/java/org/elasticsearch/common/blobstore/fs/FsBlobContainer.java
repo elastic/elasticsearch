@@ -396,10 +396,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         // no lock to acquire here, we are emulating the lack of read/read and read/write contention in cloud repositories
-        doCompareAndExchangeRegisterUnderLock(path.resolve(key), BytesArray.EMPTY, BytesArray.EMPTY, listener);
+        ActionListener.completeWith(
+            listener,
+            () -> doUncontendedCompareAndExchangeRegister(path.resolve(key), BytesArray.EMPTY, BytesArray.EMPTY)
+        );
     }
-
-    private static final KeyedLock<Path> writeMutexes = new KeyedLock<>();
 
     @Override
     public void compareAndExchangeRegister(
@@ -409,62 +410,69 @@ public class FsBlobContainer extends AbstractBlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
+        ActionListener.completeWith(listener, () -> doCompareAndExchangeRegister(path.resolve(key), expected, updated));
+    }
+
+    private static final KeyedLock<Path> writeMutexes = new KeyedLock<>();
+
+    private static OptionalBytesReference doCompareAndExchangeRegister(Path registerPath, BytesReference expected, BytesReference updated)
+        throws IOException {
         // Emulate write/write contention as might happen in cloud repositories, at least for the case where the writers are all in this
         // JVM (e.g. for an ESIntegTestCase).
-        final var registerPath = path.resolve(key);
         try (var mutex = writeMutexes.tryAcquire(registerPath)) {
             if (mutex == null) {
-                listener.onResponse(OptionalBytesReference.MISSING);
+                return OptionalBytesReference.MISSING;
             } else {
-                doCompareAndExchangeRegisterUnderLock(registerPath, expected, updated, ActionListener.runBefore(listener, mutex::close));
+                try {
+                    return doUncontendedCompareAndExchangeRegister(registerPath, expected, updated);
+                } finally {
+                    mutex.close();
+                }
             }
         }
     }
 
     @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
-    private static void doCompareAndExchangeRegisterUnderLock(
+    private static OptionalBytesReference doUncontendedCompareAndExchangeRegister(
         Path registerPath,
         BytesReference expected,
-        BytesReference updated,
-        ActionListener<OptionalBytesReference> listener
-    ) {
-        ActionListener.completeWith(listener, () -> {
-            BlobContainerUtils.ensureValidRegisterContent(updated);
-            try (LockedFileChannel lockedFileChannel = LockedFileChannel.open(registerPath)) {
-                final FileChannel fileChannel = lockedFileChannel.fileChannel();
-                final ByteBuffer readBuf = ByteBuffer.allocate(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH);
-                while (readBuf.remaining() > 0) {
-                    if (fileChannel.read(readBuf) == -1) {
-                        break;
-                    }
+        BytesReference updated
+    ) throws IOException {
+        BlobContainerUtils.ensureValidRegisterContent(updated);
+        try (LockedFileChannel lockedFileChannel = LockedFileChannel.open(registerPath)) {
+            final FileChannel fileChannel = lockedFileChannel.fileChannel();
+            final ByteBuffer readBuf = ByteBuffer.allocate(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH);
+            while (readBuf.remaining() > 0) {
+                if (fileChannel.read(readBuf) == -1) {
+                    break;
                 }
-                final var found = new BytesArray(readBuf.array(), readBuf.arrayOffset(), readBuf.position());
-                readBuf.clear();
-                if (fileChannel.read(readBuf) != -1) {
-                    throw new IllegalStateException(
-                        "register contains more than [" + BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH + "] bytes"
-                    );
-                }
-
-                if (expected.equals(found)) {
-                    var pageStart = 0L;
-                    final var iterator = updated.iterator();
-                    BytesRef page;
-                    while ((page = iterator.next()) != null) {
-                        final var writeBuf = ByteBuffer.wrap(page.bytes, page.offset, page.length);
-                        while (writeBuf.remaining() > 0) {
-                            fileChannel.write(writeBuf, pageStart + writeBuf.position());
-                        }
-                        pageStart += page.length;
-                    }
-                    fileChannel.force(true);
-                }
-                return OptionalBytesReference.of(found);
-            } catch (OverlappingFileLockException e) {
-                assert false : e; // should be impossible, we protect against all concurrent operations within this JVM
-                return OptionalBytesReference.MISSING;
             }
-        });
+            final var found = new BytesArray(readBuf.array(), readBuf.arrayOffset(), readBuf.position());
+            readBuf.clear();
+            if (fileChannel.read(readBuf) != -1) {
+                throw new IllegalStateException(
+                    "register contains more than [" + BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH + "] bytes"
+                );
+            }
+
+            if (expected.equals(found)) {
+                var pageStart = 0L;
+                final var iterator = updated.iterator();
+                BytesRef page;
+                while ((page = iterator.next()) != null) {
+                    final var writeBuf = ByteBuffer.wrap(page.bytes, page.offset, page.length);
+                    while (writeBuf.remaining() > 0) {
+                        fileChannel.write(writeBuf, pageStart + writeBuf.position());
+                    }
+                    pageStart += page.length;
+                }
+                fileChannel.force(true);
+            }
+            return OptionalBytesReference.of(found);
+        } catch (OverlappingFileLockException e) {
+            assert false : e; // should be impossible, we protect against all concurrent operations within this JVM
+            return OptionalBytesReference.MISSING;
+        }
     }
 
     private record LockedFileChannel(FileChannel fileChannel, Closeable fileLock) implements Closeable {

@@ -674,130 +674,128 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
     }
 
+    /**
+     * Given a started transform
+     * And the indexer thread has not started yet
+     * When a user calls _stop?force=false
+     * Then the indexer thread should exit early
+     */
     public void testStopBeforeIndexingThreadStarts() throws Exception {
-        /*
-         * Given a started transform
-         * And the indexer thread has not started yet
-         * When a user calls _stop?force=false
-         * Then the indexer thread should exit early
-         */
-        {
-            var indexer = createMockIndexer(
-                createTransformConfig(),
-                new AtomicReference<>(IndexerState.STARTED),
-                null,
-                threadPool,
-                auditor,
-                null,
-                new TransformIndexerStats(),
-                new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class))
-            );
+        var indexer = createMockIndexer(
+            createTransformConfig(),
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            null,
+            new TransformIndexerStats(),
+            new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class))
+        );
 
-            // stop the indexer thread once it kicks off
-            var startLatch = indexer.createAwaitForStartLatch(1);
-            assertEquals(IndexerState.STARTED, indexer.start());
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertEquals(IndexerState.INDEXING, indexer.getState());
+        // stop the indexer thread once it kicks off
+        var startLatch = indexer.createAwaitForStartLatch(1);
+        assertEquals(IndexerState.STARTED, indexer.start());
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(IndexerState.INDEXING, indexer.getState());
 
-            // stop the indexer, equivalent to _stop?force=false
-            assertEquals(IndexerState.STOPPING, indexer.stop());
-            assertEquals(IndexerState.STOPPING, indexer.getState());
+        // stop the indexer, equivalent to _stop?force=false
+        assertEquals(IndexerState.STOPPING, indexer.stop());
+        assertEquals(IndexerState.STOPPING, indexer.getState());
 
-            // now let the indexer thread run
-            startLatch.countDown();
+        // now let the indexer thread run
+        startLatch.countDown();
 
-            assertBusy(() -> {
-                assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
-                assertThat(indexer.getLastCheckpoint().getCheckpoint(), equalTo(-1L));
-            });
-        }
+        assertBusy(() -> {
+            assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
+            assertThat(indexer.getLastCheckpoint().getCheckpoint(), equalTo(-1L));
+        });
+    }
 
-        /*
-         * Given a started transform
-         * And the indexer thread has not started yet
-         * When a user calls _stop?force=true
-         * Then the indexer thread should exit early
-         */
-        {
-            var indexer = createMockIndexer(
-                createTransformConfig(),
-                new AtomicReference<>(IndexerState.STARTED),
-                null,
-                threadPool,
-                auditor,
-                null,
-                new TransformIndexerStats(),
-                new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class))
-            );
+    /**
+     * Given a started transform
+     * And the indexer thread has not started yet
+     * When a user calls _stop?force=true
+     * Then the indexer thread should exit early
+     */
+    public void testForceStopBeforeIndexingThreadStarts() throws Exception {
+        var indexer = createMockIndexer(
+            createTransformConfig(),
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            null,
+            new TransformIndexerStats(),
+            new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class))
+        );
 
-            // stop the indexer thread once it kicks off
-            var startLatch = indexer.createAwaitForStartLatch(1);
-            assertEquals(IndexerState.STARTED, indexer.start());
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertEquals(IndexerState.INDEXING, indexer.getState());
+        // stop the indexer thread once it kicks off
+        var startLatch = indexer.createAwaitForStartLatch(1);
+        assertEquals(IndexerState.STARTED, indexer.start());
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(IndexerState.INDEXING, indexer.getState());
 
-            // stop the indexer, equivalent to _stop?force=true
-            assertFalse("Transform Indexer thread should still be running", indexer.abort());
-            assertEquals(IndexerState.ABORTING, indexer.getState());
+        // stop the indexer, equivalent to _stop?force=true
+        assertFalse("Transform Indexer thread should still be running", indexer.abort());
+        assertEquals(IndexerState.ABORTING, indexer.getState());
 
-            // now let the indexer thread run
-            startLatch.countDown();
+        // now let the indexer thread run
+        startLatch.countDown();
 
-            assertBusy(() -> {
-                assertThat(indexer.getState(), equalTo(IndexerState.ABORTING));
-                assertThat(indexer.getLastCheckpoint().getCheckpoint(), equalTo(-1L));
-            });
-        }
+        assertBusy(() -> {
+            assertThat(indexer.getState(), equalTo(IndexerState.ABORTING));
+            assertThat(indexer.getLastCheckpoint().getCheckpoint(), equalTo(-1L));
+        });
+    }
 
-        /*
-         * Given a started transform
-         * And the indexer thread has not started yet
-         * When a user calls _stop?wait_for_checkpoint=true
-         * Then the indexer thread should not exit early
-         */
-        {
-            var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
-            var indexer = createMockIndexer(
-                createTransformConfig(),
-                new AtomicReference<>(IndexerState.STARTED),
-                null,
-                threadPool,
-                auditor,
-                null,
-                new TransformIndexerStats(),
-                context
-            );
+    /**
+     * Given a started transform
+     * And the indexer thread has not started yet
+     * When a user calls _stop?wait_for_checkpoint=true
+     * Then the indexer thread should not exit early
+     */
+    public void testStopWaitForCheckpointBeforeIndexingThreadStarts() throws Exception {
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        var indexer = createMockIndexer(
+            createTransformConfig(),
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            null,
+            new TransformIndexerStats(),
+            context
+        );
 
-            // stop the indexer thread once it kicks off
-            var startLatch = indexer.createAwaitForStartLatch(1);
-            assertEquals(IndexerState.STARTED, indexer.start());
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertEquals(IndexerState.INDEXING, indexer.getState());
+        // stop the indexer thread once it kicks off
+        var startLatch = indexer.createAwaitForStartLatch(1);
+        assertEquals(IndexerState.STARTED, indexer.start());
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(IndexerState.INDEXING, indexer.getState());
 
-            // stop the indexer, equivalent to _stop?wait_for_checkpoint=true
-            context.setShouldStopAtCheckpoint(true);
-            CountDownLatch stopLatch = new CountDownLatch(1);
-            countResponse(listener -> setStopAtCheckpoint(indexer, true, listener), stopLatch);
+        // stop the indexer, equivalent to _stop?wait_for_checkpoint=true
+        context.setShouldStopAtCheckpoint(true);
+        CountDownLatch stopLatch = new CountDownLatch(1);
+        countResponse(listener -> setStopAtCheckpoint(indexer, true, listener), stopLatch);
 
-            // now let the indexer thread run
-            indexer.finishCheckpoint();
-            startLatch.countDown();
+        // now let the indexer thread run
+        indexer.finishCheckpoint();
+        startLatch.countDown();
 
-            // wait for all listeners
-            assertTrue("timed out after 5s", stopLatch.await(5, TimeUnit.SECONDS));
+        // wait for all listeners
+        assertTrue("timed out after 5s", stopLatch.await(5, TimeUnit.SECONDS));
 
-            // there should be no listeners waiting
-            assertEquals(0, indexer.getSaveStateListenerCount());
+        // there should be no listeners waiting
+        assertEquals(0, indexer.getSaveStateListenerCount());
 
-            // listener must have been called by the indexing thread between timesStopAtCheckpointChanged and 6 times
-            // this is not exact, because we do not know _when_ the other thread persisted the flag
-            assertThat(indexer.getSaveStateListenerCallCount(), lessThanOrEqualTo(1));
+        // listener must have been called by the indexing thread between timesStopAtCheckpointChanged and 6 times
+        // this is not exact, because we do not know _when_ the other thread persisted the flag
+        assertThat(indexer.getSaveStateListenerCallCount(), lessThanOrEqualTo(1));
 
-            assertBusy(() -> {
-                assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
-                assertThat(indexer.getLastCheckpoint().getCheckpoint(), equalTo(1L));
-            });
-        }
+        assertBusy(() -> {
+            assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
+            assertThat(indexer.getLastCheckpoint().getCheckpoint(), equalTo(1L));
+        });
     }
 
     @TestIssueLogging(
@@ -985,7 +983,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         return indexer;
     }
 
-    private TransformConfig createTransformConfig() {
+    private static TransformConfig createTransformConfig() {
         return new TransformConfig(
             randomAlphaOfLength(10),
             randomSourceConfig(),

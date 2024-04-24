@@ -67,7 +67,7 @@ import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailu
  * a callback. The entry points for all Elasticsearch APIs are callback-based (e.g. REST APIs all start at {@link
  * org.elasticsearch.rest.BaseRestHandler}{@code #prepareRequest} and transport APIs all start at {@link
  * org.elasticsearch.action.support.TransportAction}{@code #doExecute} and the whole system fundamentally works in terms of an event loop
- * (an {@code io.netty.channel.EventLoop} which processes network events via callbacks.
+ * (an {@code io.netty.channel.EventLoop}) which processes network events via callbacks.
  * </p>
  * <p>
  * {@link ActionListener} is not an <i>ad-hoc</i> invention. Formally speaking, it is our implementation of the general concept of a

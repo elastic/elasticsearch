@@ -53,7 +53,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
 
     private int position(long p) throws EOFException {
         if (p < 0) {
-            throw new IllegalArgumentException("Seeking to negative position: " + pos);
+            throw new IllegalArgumentException("Seeking to negative position: " + p);
         } else if (p > length) {
             throw new EOFException("seek past EOF");
         }
@@ -67,22 +67,22 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
 
     @Override
     public byte readByte(long pos) throws IOException {
-        return bytes[position(pos)];
+        return bytes[offset + position(pos)];
     }
 
     @Override
     public short readShort(long pos) throws IOException {
-        return (short) BitUtil.VH_LE_SHORT.get(bytes, position(pos));
+        return (short) BitUtil.VH_LE_SHORT.get(bytes, offset + position(pos));
     }
 
     @Override
     public int readInt(long pos) throws IOException {
-        return (int) BitUtil.VH_LE_INT.get(bytes, position(pos));
+        return (int) BitUtil.VH_LE_INT.get(bytes, offset + position(pos));
     }
 
     @Override
     public long readLong(long pos) throws IOException {
-        return (long) BitUtil.VH_LE_LONG.get(bytes, position(pos));
+        return (long) BitUtil.VH_LE_LONG.get(bytes, offset + position(pos));
     }
 
     @Override

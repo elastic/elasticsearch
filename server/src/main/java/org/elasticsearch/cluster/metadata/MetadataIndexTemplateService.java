@@ -791,7 +791,8 @@ public class MetadataIndexTemplateService {
             );
     }
 
-    private static void validateLifecycle(
+    // Visible for testing
+    static void validateLifecycle(
         Metadata metadata,
         String indexTemplateName,
         ComposableIndexTemplate template,

@@ -14,11 +14,9 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTest
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -33,27 +31,17 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.*;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCase<DataStreamLifecycle> {
-
-    @Override
-    protected boolean enableWarningsCheck() {
-        // this is a low level test for the deprecation logger, setup and checks are done manually
-        return false;
-    }
 
     @Override
     protected Writeable.Reader<DataStreamLifecycle> instanceReader() {
@@ -353,80 +341,6 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
-    public void testNoHeaderWarning() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-
-        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
-        noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(null);
-        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-        assertThat(responseHeaders.isEmpty(), is(true));
-
-        TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
-        DataStreamLifecycle lifecycleWithRetention = DataStreamLifecycle.newBuilder()
-            .dataRetention(dataStreamRetention)
-            .downsampling(randomDownsampling())
-            .build();
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
-            TimeValue.timeValueDays(2),
-            TimeValue.timeValueDays(dataStreamRetention.days() + randomIntBetween(1, 5))
-        );
-        lifecycleWithRetention.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
-    }
-
-    public void testDefaultRetentionHeaderWarning() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-
-        DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
-            randomTimeValue(2, 10, TimeUnit.DAYS),
-            randomBoolean() ? null : TimeValue.timeValueDays(20)
-        );
-        noRetentionLifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
-        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-        assertThat(responseHeaders.size(), is(1));
-        assertThat(
-            responseHeaders.get("Warning").get(0),
-            containsString(
-                "Infinite retention is not allowed for this project. The default retention of ["
-                    + globalRetention.getDefaultRetention().getStringRep()
-                    + "] will be applied."
-            )
-        );
-    }
-
-    public void testMaxRetentionHeaderWarning() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-
-        DataStreamLifecycle lifecycle = randomLifecycle();
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
-            null,
-            lifecycle.getDataStreamRetention() == null
-                ? randomTimeValue(10, 20, TimeUnit.DAYS)
-                : TimeValue.timeValueDays(lifecycle.getDataStreamRetention().days() - 1)
-        );
-        lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
-        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-        assertThat(responseHeaders.size(), is(1));
-        String userConfiguredRetention = lifecycle.getDataStreamRetention() == null
-            ? "infinite"
-            : lifecycle.getDataStreamRetention().getStringRep();
-        assertThat(
-            responseHeaders.get("Warning").get(0),
-            containsString(
-                "The retention provided ["
-                    + userConfiguredRetention
-                    + "] is exceeding the max allowed data retention of this project ["
-                    + globalRetention.getMaxRetention().getStringRep()
-                    + "]. The max retention of ["
-                    + globalRetention.getMaxRetention().getStringRep()
-                    + "] will be applied"
-            )
-        );
-    }
-
     @Nullable
     public static DataStreamLifecycle randomLifecycle() {
         return DataStreamLifecycle.newBuilder()
@@ -446,7 +360,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
     }
 
     @Nullable
-    private static DataStreamLifecycle.Downsampling randomDownsampling() {
+    static DataStreamLifecycle.Downsampling randomDownsampling() {
         return switch (randomInt(2)) {
             case 0 -> null;
             case 1 -> DataStreamLifecycle.Downsampling.NULL;

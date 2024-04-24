@@ -14,7 +14,11 @@ steps:
       sudo yum install -y dnsmasq bind-utils
       echo 'addn-hosts=/etc/dnsmasq.hosts' | sudo tee -a /etc/dnsmasq.conf
       echo "$(hostname -i | cut -d' ' -f 2)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
-      sudo service dnsmasq restart
+      sudo bash -c "echo 'nameserver 169.254.169.253' > /etc/resolv.dnsmasq"
+      sudo systemctl restart dnsmasq.service
+
+      sudo bash -c "echo 'supersede domain-name-servers 127.0.0.1, 169.254.169.253;' >> /etc/dhcp/dhclient.conf"
+      sudo dhclient
 
       hostname -f
       hostname -A

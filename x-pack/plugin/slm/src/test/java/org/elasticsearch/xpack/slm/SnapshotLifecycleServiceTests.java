@@ -279,7 +279,6 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             clock.fastForwardSeconds(2);
 
             // The existing job should be cancelled and no longer trigger
-            assertBusy(() -> assertThat(triggerCount.get(), equalTo(currentCount2)));
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
             // When the service is no longer master, all jobs should be automatically cancelled

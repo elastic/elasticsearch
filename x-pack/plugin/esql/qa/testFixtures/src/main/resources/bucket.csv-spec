@@ -213,7 +213,9 @@ FROM sample_data
 //end::docsBucketLast24hr[]
 ;
 
+//tag::docsBucketLast24hr-result[]
    COUNT(*):long    |    bucket:date
+//end::docsBucketLast24hr-result[]
 ;
 
 docsGettingStartedBucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]

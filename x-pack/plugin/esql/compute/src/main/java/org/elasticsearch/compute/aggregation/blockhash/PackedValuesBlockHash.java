@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BatchEncoder;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
@@ -91,7 +91,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
     }
 
-    class AddWork extends LongLongBlockHash.AbstractAddBlock {
+    class AddWork extends AbstractAddBlock {
         final int positionCount;
         int position;
 

@@ -1,4 +1,4 @@
-metaFunctionsSynopsis#[skip:-8.13.99]
+metaFunctionsSynopsis#[skip:-8.14.99]
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -109,7 +109,7 @@ double tau()
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 ;
 
-metaFunctionsArgs#[skip:-8.13.99]
+metaFunctionsArgs#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -121,21 +121,21 @@ asin          |number                              |"double|integer|long|unsigne
 atan          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 atan2         |[y_coordinate, x_coordinate]        |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |[y coordinate. If `null`\, the function returns `null`., x coordinate. If `null`\, the function returns `null`.]
 avg           |number                              |"double|integer|long"                                                                                                             |[""]
-bin           |[field, buckets, from, to]          |["integer|long|double|date", "integer|double|date_period|time_duration", "integer|long|double|date", "integer|long|double|date"]  |["", "", "", ""]
-bucket        |[field, buckets, from, to]          |["integer|long|double|date", "integer|double|date_period|time_duration", "integer|long|double|date", "integer|long|double|date"]  |["", "", "", ""]
+bin           |[field, buckets, from, to]          |["integer|long|double|date", "integer|double|date_period|time_duration", "integer|long|double|date", "integer|long|double|date"]  |[Numeric or date expression from which to derive buckets., Target number of buckets., Start of the range. Can be a number or a date expressed as a string., End of the range. Can be a number or a date expressed as a string.]
+bucket        |[field, buckets, from, to]          |["integer|long|double|date", "integer|double|date_period|time_duration", "integer|long|double|date", "integer|long|double|date"]  |[Numeric or date expression from which to derive buckets., Target number of buckets., Start of the range. Can be a number or a date expressed as a string., End of the range. Can be a number or a date expressed as a string.]
 case          |[condition, trueValue]              |[boolean, "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"]                     |["", ""]
 ceil          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 cidr_match    |[ip, blockX]                        |[ip, "keyword|text"]                                                                                                              |[, CIDR block to test the IP against.]
 coalesce      |first                               |"boolean|text|integer|keyword|long"                                                                                               |Expression to evaluate
-concat        |[string1, string2]                  |["keyword|text", "keyword|text"]                                                                                                  |[, ]
+concat        |[string1, string2]                  |["keyword|text", "keyword|text"]                                                                                                  |[Strings to concatenate., Strings to concatenate.]
 cos           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 cosh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 count         |field                               |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                                |Column or literal for which to count the number of values.
 count_distinct|[field, precision]                  |["boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version", integer]                                   |[Column or literal for which to count the number of distinct values., ]
-date_diff     |[unit, startTimestamp, endTimestamp]|["keyword|text", date, date]                                                                                                      |[A valid date unit, A string representing a start timestamp, A string representing an end timestamp]
-date_extract  |[datePart, date]                    |["keyword|text", date]                                                                                                            |[Part of the date to extract. Can be: aligned_day_of_week_in_month; aligned_day_of_week_in_year; aligned_week_of_month; aligned_week_of_year; ampm_of_day; clock_hour_of_ampm; clock_hour_of_day; day_of_month; day_of_week; day_of_year; epoch_day; era; hour_of_ampm; hour_of_day; instant_seconds; micro_of_day; micro_of_second; milli_of_day; milli_of_second; minute_of_day; minute_of_hour; month_of_year; nano_of_day; nano_of_second; offset_seconds; proleptic_month; second_of_day; second_of_minute; year; or year_of_era., Date expression]
-date_format   |[dateFormat, date]                  |["keyword|text", date]                                                                                                            |[A valid date pattern, Date expression]
-date_parse    |[datePattern, dateString]           |["keyword|text", "keyword|text"]                                                                                                  |[A valid date pattern, A string representing a date]
+date_diff     |[unit, startTimestamp, endTimestamp]|["keyword|text", date, date]                                                                                                      |[Time difference unit, A string representing a start timestamp, A string representing an end timestamp]
+date_extract  |[datePart, date]                    |["keyword|text", date]                                                                                                            |[Part of the date to extract.  Can be: `aligned_day_of_week_in_month`\, `aligned_day_of_week_in_year`\, `aligned_week_of_month`\, `aligned_week_of_year`\, `ampm_of_day`\, `clock_hour_of_ampm`\, `clock_hour_of_day`\, `day_of_month`\, `day_of_week`\, `day_of_year`\, `epoch_day`\, `era`\, `hour_of_ampm`\, `hour_of_day`\, `instant_seconds`\, `micro_of_day`\, `micro_of_second`\, `milli_of_day`\, `milli_of_second`\, `minute_of_day`\, `minute_of_hour`\, `month_of_year`\, `nano_of_day`\, `nano_of_second`\, `offset_seconds`\, `proleptic_month`\, `second_of_day`\, `second_of_minute`\, `year`\, or `year_of_era`. Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField] for a description of these values.  If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
+date_format   |[dateFormat, date]                  |["keyword|text", date]                                                                                                            |[Date format (optional).  If no format is specified\, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
+date_parse    |[datePattern, dateString]           |["keyword|text", "keyword|text"]                                                                                                  |[The date format. Refer to the https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`\, the function returns `null`., Date expression as a string. If `null` or an empty string\, the function returns `null`.]
 date_trunc    |[interval, date]                    |["date_period|time_duration", date]                                                                                               |[Interval; expressed using the timespan literal syntax., Date expression]
 e             |null                                |null                                                                                                                              |null
 ends_with     |[str, suffix]                       |["keyword|text", "keyword|text"]                                                                                                  |[, ]
@@ -144,11 +144,11 @@ from_base64   |string                              |"keyword|text"              
 greatest      |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 least         |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
-length        |string                              |"keyword|text"                                                                                                                    |[""]
+length        |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 locate        |[string, substring, start]          |["keyword|text", "keyword|text", "integer"]                                                                                       |[An input string, A substring to locate in the input string, The start index]
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
-ltrim         |string                              |"keyword|text"                                                                                                                    |[""]
+ltrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 max           |number                              |"double|integer|long"                                                                                                             |[""]
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
@@ -170,15 +170,15 @@ now           |null                                |null                        
 percentile    |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[, ]
 pi            |null                                |null                                                                                                                              |null
 pow           |[base, exponent]                    |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |["Numeric expression for the base. If `null`\, the function returns `null`.", "Numeric expression for the exponent. If `null`\, the function returns `null`."]
-replace       |[string, regex, newString]          |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[, , ]
-right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[, ]
+replace       |[string, regex, newString]          |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[String expression., Regular expression., Replacement string.]
+right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to returns a substring., The number of characters to return.]
 round         |[number, decimals]                  |["double|integer|long|unsigned_long", integer]                                                                                    |["The numeric value to round. If `null`\, the function returns `null`.", "The number of decimal places to round to. Defaults to 0. If `null`\, the function returns `null`."]
-rtrim         |string                              |"keyword|text"                                                                                                                    |[""]
+rtrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 signum        |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 sin           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 sinh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
-split         |[string, delim]                     |["keyword|text", "keyword|text"]                                                                                                  |[, ]
-sqrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
+split         |[string, delim]                     |["keyword|text", "keyword|text"]                                                                                                  |[String expression. If `null`\, the function returns `null`., Delimiter. Only single byte delimiters are currently supported.]
+sqrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 st_centroid_ag|field                               |"geo_point|cartesian_point"                                                                                                       |[""]
 st_contains   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_disjoint   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
@@ -187,42 +187,42 @@ st_within     |[geomA, geomB]                      |["geo_point|cartesian_point|
 st_x          |point                               |"geo_point|cartesian_point"                                                                                                       |[""]
 st_y          |point                               |"geo_point|cartesian_point"                                                                                                       |[""]
 starts_with   |[str, prefix]                       |["keyword|text", "keyword|text"]                                                                                                  |[, ]
-substring     |[string, start, length]             |["keyword|text", integer, integer]                                                                                                |[, , ]
+substring     |[string, start, length]             |["keyword|text", integer, integer]                                                                                                |[String expression. If `null`\, the function returns `null`., Start position., Length of the substring from the start position. Optional; if omitted\, all positions after `start` are returned.]
 sum           |number                              |"double|integer|long"                                                                                                             |[""]
 tan           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 tanh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 tau           |null                                |null                                                                                                                              |null
 to_base64     |string                              |"keyword|text"                                                                                                                    |A string.
-to_bool       |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |[""]
-to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |[""]
-to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |[""]
-to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |[""]
-to_datetime   |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |[""]
-to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_degrees    |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-to_double     |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_dt         |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |[""]
-to_geopoint   |field                               |"geo_point|keyword|text"                                                                                                          |[""]
-to_geoshape   |field                               |"geo_point|geo_shape|keyword|text"                                                                                                |[""]
-to_int        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_integer    |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_ip         |field                               |"ip|keyword|text"                                                                                                                 |[""]
-to_long       |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_lower      |str                                 |"keyword|text"                                                                                                                    |The input string
-to_radians    |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |[""]
-to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |[""]
-to_ul         |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_ulong      |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_unsigned_lo|field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |[""]
-to_upper      |str                                 |"keyword|text"                                                                                                                    |The input string
-to_ver        |field                               |"keyword|text|version"                                                                                                            |[""]
-to_version    |field                               |"keyword|text|version"                                                                                                            |[""]
-trim          |string                              |"keyword|text"                                                                                                                    |[""]
+to_bool       |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_cartesiansh|field                               |"cartesian_point|cartesian_shape|keyword|text"                                                                                    |Input value. The input can be a single- or multi-valued column or an expression.
+to_datetime   |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_dbl        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_degrees    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
+to_double     |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_dt         |field                               |"date|keyword|text|double|long|unsigned_long|integer"                                                                             |Input value. The input can be a single- or multi-valued column or an expression.
+to_geopoint   |field                               |"geo_point|keyword|text"                                                                                                          |Input value. The input can be a single- or multi-valued column or an expression.
+to_geoshape   |field                               |"geo_point|geo_shape|keyword|text"                                                                                                |Input value. The input can be a single- or multi-valued column or an expression.
+to_int        |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_integer    |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_ip         |field                               |"ip|keyword|text"                                                                                                                 |Input value. The input can be a single- or multi-valued column or an expression.
+to_long       |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_lower      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
+to_radians    |number                              |"double|integer|long|unsigned_long"                                                                                               |Input value. The input can be a single- or multi-valued column or an expression.
+to_str        |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_string     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Input value. The input can be a single- or multi-valued column or an expression.
+to_ul         |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_ulong      |field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_unsigned_lo|field                               |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                                                     |Input value. The input can be a single- or multi-valued column or an expression.
+to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
+to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
+to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
+trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 ;
 
-metaFunctionsDescription#[skip:-8.13.99]
+metaFunctionsDescription#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, description
@@ -246,10 +246,10 @@ cos           |Returns the {wikipedia}/Sine_and_cosine[cosine] of an angle.
 cosh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of an angle.
 count         |Returns the total number (count) of input values.
 count_distinct|Returns the approximate number of distinct values.
-date_diff     |Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument
+date_diff     |Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`. If `startTimestamp` is later than the `endTimestamp`, negative values are returned.
 date_extract  |Extracts parts of a date, like year, month, day, hour.
 date_format   |Returns a string representation of a date, in the provided format.
-date_parse    |Parses a string into a date value
+date_parse    |Returns a date by parsing the second argument using the format specified in the first argument.
 date_trunc    |Rounds down a date to the closest interval.
 e             |Returns {wikipedia}/E_(mathematical_constant)[Euler's number].
 ends_with     |Returns a boolean that indicates whether a keyword string ends with another string
@@ -284,15 +284,15 @@ now           |Returns current date and time.
 percentile    |The value at which a certain percentage of observed values occur.
 pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
 pow           |Returns the value of `base` raised to the power of `exponent`.
-replace       |The function substitutes in the string any match of the regular expression with the replacement string.
-right         |Return the substring that extracts length chars from the string starting from the right.
+replace       |The function substitutes in the string `str` any match of the regular expression `regex` with the replacement string `newStr`.
+right         |Return the substring that extracts 'length' chars from 'str' starting from the right.
 round         |Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.
 rtrim         |Removes trailing whitespaces from a string.
 signum        |Returns the sign of the given number. It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.
 sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.
 sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
 split         |Split a single valued string into multiple strings.
-sqrt          |Returns the square root of a number.
+sqrt          |Returns the square root of a number. The input can be any numeric value, the return value is always a double. Square roots of negative numbers and infinites are null.
 st_centroid_ag|The centroid of a spatial field.
 st_contains   |Returns whether the first geometry contains the second geometry.
 st_disjoint   |Returns whether the two geometries or geometry columns are disjoint.
@@ -300,35 +300,35 @@ st_intersects |Returns whether the two geometries or geometry columns intersect.
 st_within     |Returns whether the first geometry is within the second geometry.
 st_x          |Extracts the x-coordinate from a point geometry.
 st_y          |Extracts the y-coordinate from a point geometry.
-starts_with  |Returns a boolean that indicates whether a keyword string starts with another string
+starts_with   |Returns a boolean that indicates whether a keyword string starts with another string
 substring     |Returns a substring of a string, specified by a start position and an optional length
 sum           |The sum of a numeric field.
 tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.
 tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
-tau           |The ratio of a circle’s circumference to its radius.
+tau           |Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
 to_base64     |Encode a string to a base64 string.
-to_bool       |Converts an input value to a boolean value.
-to_boolean    |Converts an input value to a boolean value.
-to_cartesianpo|Converts an input value to a point value.
-to_cartesiansh|Converts an input value to a shape value.
-to_datetime   |Converts an input value to a date value.
-to_dbl        |Converts an input value to a double value.
-to_degrees    |Converts a number in radians to degrees.
-to_double     |Converts an input value to a double value.
-to_dt         |Converts an input value to a date value.
-to_geopoint   |Converts an input value to a geo_point value.
-to_geoshape   |Converts an input value to a geo_shape value.
-to_int        |Converts an input value to an integer value.
-to_integer    |Converts an input value to an integer value.
+to_bool       |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
+to_boolean    |Converts an input value to a boolean value. A string value of *true* will be case-insensitive converted to the Boolean *true*. For anything else, including the empty string, the function will return *false*. The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.
+to_cartesianpo|Converts an input value to a `cartesian_point` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
+to_cartesiansh|Converts an input value to a `cartesian_shape` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+to_datetime   |Converts an input value to a date value. A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use <<esql-date_parse>>.
+to_dbl        |Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
+to_degrees    |Converts a number in {wikipedia}/Radian[radians] to {wikipedia}/Degree_(angle)[degrees].
+to_double     |Converts an input value to a double value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.
+to_dt         |Converts an input value to a date value. A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use <<esql-date_parse>>.
+to_geopoint   |Converts an input value to a `geo_point` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
+to_geoshape   |Converts an input value to a `geo_shape` value. A string will only be successfully converted if it respects the {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+to_int        |Converts an input value to an integer value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to integer. Boolean *true* will be converted to integer *1*, *false* to *0*.
+to_integer    |Converts an input value to an integer value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to integer. Boolean *true* will be converted to integer *1*, *false* to *0*.
 to_ip         |Converts an input string to an IP value.
-to_long       |Converts an input value to a long value.
+to_long       |Converts an input value to a long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to long. Boolean *true* will be converted to long *1*, *false* to *0*.
 to_lower      |Returns a new string representing the input string converted to lower case.
-to_radians    |Converts a number in degrees to radians.
-to_str        |Converts a field into a string.
-to_string     |Converts a field into a string.
-to_ul         |Converts an input value to an unsigned long value.
-to_ulong      |Converts an input value to an unsigned long value.
-to_unsigned_lo|Converts an input value to an unsigned long value.
+to_radians    |Converts a number in {wikipedia}/Degree_(angle)[degrees] to {wikipedia}/Radian[radians].
+to_str        |Converts an input value into a string.
+to_string     |Converts an input value into a string.
+to_ul         |Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
+to_ulong      |Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
+to_unsigned_lo|Converts an input value to an unsigned long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long. Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
 to_upper      |Returns a new string representing the input string converted to upper case.
 to_ver        |Converts an input string to a version value.
 to_version    |Converts an input string to a version value.
@@ -336,7 +336,7 @@ trim          |Removes leading and trailing whitespaces from a string.
 values        |Collect values for a field.
 ;
 
-metaFunctionsRemaining#[skip:-8.13.99]
+metaFunctionsRemaining#[skip:-8.14.99]
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *
@@ -451,7 +451,7 @@ trim          |"keyword|text"                                                   
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 ;
 
-metaFunctionsFiltered#[skip:-8.13.99]
+metaFunctionsFiltered#[skip:-8.14.99]
 META FUNCTIONS
 | WHERE STARTS_WITH(name, "sin")
 ;
@@ -463,7 +463,7 @@ sinh         |"double sinh(angle:double|integer|long|unsigned_long)"  |angle    
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.13.99, reason:BIN added]
+countFunctions#[skip:-8.14.99, reason:BIN added]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long

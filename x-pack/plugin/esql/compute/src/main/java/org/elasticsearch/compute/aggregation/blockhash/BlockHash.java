@@ -70,7 +70,7 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
      * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
      *                      explosion of groups caused by multivalued fields
-     * @param allowBrokenOptimizations true ot allow optimizations with bad null handling. We will fix their
+     * @param allowBrokenOptimizations true to allow optimizations with bad null handling. We will fix their
      *                                 null handling and remove this flag, but we need to disable these in
      *                                 production until we can. And this lets us continue to compile and
      *                                 test them.

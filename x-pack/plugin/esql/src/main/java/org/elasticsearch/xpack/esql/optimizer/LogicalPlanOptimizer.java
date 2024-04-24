@@ -1684,7 +1684,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * 1. replaces reference to field attributes with their source
      * 2. in case of Count, aligns the various forms (Count(1), Count(0), Count(), Count(*)) to Count(*)
      */
-    // TODO waiting on https://github.com/elastic/elasticsearch/issues/100634
+    // TODO still needed?
     static class NormalizeAggregate extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override

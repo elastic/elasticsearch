@@ -176,6 +176,30 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                         b.endObject();
                     }
                     b.endObject();
+                }),
+                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
+                    b.field("type", fieldType);
+                    b.field("store", "false");
+                    b.startObject("fields");
+                    {
+                        b.startObject("kwd");
+                        b.field("type", "keyword");
+                        b.field("doc_values", "false");
+                        b.endObject();
+                    }
+                    b.endObject();
+                }),
+                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
+                    b.field("type", fieldType);
+                    b.startObject("fields");
+                    {
+                        b.startObject("kwd");
+                        b.field("type", "keyword");
+                        b.field("doc_values", "false");
+                        b.field("store", "false");
+                        b.endObject();
+                    }
+                    b.endObject();
                 })
             );
         }

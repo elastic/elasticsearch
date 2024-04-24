@@ -86,7 +86,7 @@ multiple values in stored annotated_text field:
         id: 1
         refresh: true
         body:
-          annotated_text: ["world", "hello"]
+          annotated_text: ["world", "hello", "world"]
 
   - do:
       search:
@@ -94,7 +94,7 @@ multiple values in stored annotated_text field:
 
   - match:
       hits.hits.0._source:
-        annotated_text: ["world", "hello"]
+        annotated_text: ["world", "hello", "world"]
 
 ---
 multiple values in annotated_text field with keyword multi-field:
@@ -118,7 +118,7 @@ multiple values in annotated_text field with keyword multi-field:
         id: 1
         refresh: true
         body:
-          annotated_text: ["world", "hello"]
+          annotated_text: ["world", "hello", "world"]
 
   - do:
       search:
@@ -153,7 +153,7 @@ multiple values in annotated_text field with stored keyword multi-field:
         id: 1
         refresh: true
         body:
-          annotated_text: ["world", "hello"]
+          annotated_text: ["world", "hello", "world"]
 
   - do:
       search:
@@ -161,4 +161,37 @@ multiple values in annotated_text field with stored keyword multi-field:
 
   - match:
       hits.hits.0._source:
-        annotated_text: ["world", "hello"]
+        annotated_text: ["world", "hello", "world"]
+
+---
+multiple values in stored annotated_text field with keyword multi-field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              annotated_text:
+                type: annotated_text
+                store: true
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          annotated_text: ["world", "hello", "world"]
+
+  - do:
+      search:
+        index: test
+
+  - match:
+      hits.hits.0._source:
+        annotated_text: ["world", "hello", "world"]

@@ -938,9 +938,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     if (randomBoolean()) {
                         RemoteClusterServiceTests.updateSkipUnavailable(remoteClusterService, "remote" + i, true);
                     }
-
                 }
             }
+
             // put the following in assert busy as connections are lazily reestablished
             assertBusy(() -> {
                 SearchRequest searchRequest = new SearchRequest();

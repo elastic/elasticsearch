@@ -258,18 +258,10 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertThat(settings, is(new OpenAiEmbeddingsServiceSettings("m", (URI) null, null, null, null, null, true, null)));
     }
 
-    public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> OpenAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.DIMENSIONS, 1, ServiceFields.MODEL_ID, "m")),
-                ConfigurationParseContext.PERSISTENT
-            )
-        );
-
-        assertThat(
-            exception.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] does not contain the required setting [dimensions_set_by_user];")
+    public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsSetByUserIsNull() {
+        OpenAiEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(Map.of(ServiceFields.DIMENSIONS, 1, ServiceFields.MODEL_ID, "m")),
+            ConfigurationParseContext.PERSISTENT
         );
     }
 

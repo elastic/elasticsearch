@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;

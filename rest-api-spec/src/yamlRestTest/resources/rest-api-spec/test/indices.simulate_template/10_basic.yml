@@ -201,10 +201,10 @@
 
 ---
 "Simulate template with lifecycle and include defaults":
-  - skip:
-      version: " - 8.13.99"
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
-      features: ["default_shards"]
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Lifecycle is only available in 8.11+"
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
@@ -223,6 +223,4 @@
 
   - match: {template.lifecycle.enabled: true}
   - match: {template.lifecycle.data_retention: "7d"}
-  - match: {template.lifecycle.effective_retention: "7d"}
-  - match: {template.lifecycle.retention_determined_by: "data_stream_configuration"}
   - is_true: template.lifecycle.rollover

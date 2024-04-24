@@ -57,7 +57,7 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
         }
-        updateDatafeedRequest.timeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.timeout()));
+        updateDatafeedRequest.ackTimeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.ackTimeout()));
         updateDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", updateDatafeedRequest.masterNodeTimeout()));
 
         return channel -> client.execute(UpdateDatafeedAction.INSTANCE, updateDatafeedRequest, new RestToXContentListener<>(channel));

@@ -8,14 +8,20 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -24,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
@@ -46,17 +53,16 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -88,7 +94,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -110,8 +115,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var resolution = new Batch<>("Resolution", new ResolveTable(), new ResolveEnrich(), new ResolveFunctions(), new ResolveRefs());
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
+        var resolution = new Batch<>(
+            "Resolution",
+            new ResolveTable(),
+            new ResolveEnrich(),
+            new ResolveFunctions(),
+            new ResolveRefs(),
+            new ImplicitCasting()
+        );
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
         rules = List.of(resolution, finish);
     }
 
@@ -765,58 +777,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class PromoteStringsInDateComparisons extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformExpressionsUp(BinaryComparison.class, PromoteStringsInDateComparisons::promote);
-        }
-
-        private static Expression promote(BinaryComparison cmp) {
-            if (cmp.resolved() == false) {
-                return cmp;
-            }
-            var left = cmp.left();
-            var right = cmp.right();
-            boolean modified = false;
-            if (left.dataType() == DATETIME) {
-                if (right.dataType() == KEYWORD && right.foldable()) {
-                    right = stringToDate(right);
-                    modified = true;
-                }
-            } else {
-                if (right.dataType() == DATETIME) {
-                    if (left.dataType() == KEYWORD && left.foldable()) {
-                        left = stringToDate(left);
-                        modified = true;
-                    }
-                }
-            }
-            return modified ? cmp.replaceChildren(List.of(left, right)) : cmp;
-        }
-
-        private static Expression stringToDate(Expression stringExpression) {
-            var str = stringExpression.fold().toString();
-
-            Long millis = null;
-            // TODO: better control over this string format - do we want this to be flexible or always redirect folks to use date parsing
-            try {
-                millis = str == null ? null : dateTimeToLong(str);
-            } catch (Exception ex) { // in case of exception, millis will be null which will trigger an error
-            }
-
-            var source = stringExpression.source();
-            Expression result;
-            if (millis == null) {
-                var errorMessage = format(null, "Invalid date [{}]", str);
-                result = new UnresolvedAttribute(source, source.text(), null, errorMessage);
-            } else {
-                result = new Literal(source, millis, DATETIME);
-            }
-            return result;
-        }
-    }
-
     private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
         // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
         if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
@@ -824,5 +784,108 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
         plan.forEachDown(p -> FeatureMetric.set(p, b));
         return b;
+    }
+
+    private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformExpressionsUp(
+                ScalarFunction.class,
+                e -> ImplicitCasting.cast(e, (EsqlFunctionRegistry) context.functionRegistry())
+            );
+        }
+
+        private static Expression cast(ScalarFunction f, EsqlFunctionRegistry registry) {
+            if (f instanceof EsqlScalarFunction esf) {
+                return processScalarFunction(esf, registry);
+            }
+            if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
+                return processBinaryOperator((BinaryOperator) f);
+            }
+            return f;
+        }
+
+        private static Expression processScalarFunction(EsqlScalarFunction f, EsqlFunctionRegistry registry) {
+            List<Expression> args = f.arguments();
+            List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(f.getClass());
+            if (targetDataTypes == null || targetDataTypes.isEmpty()) {
+                return f;
+            }
+            List<Expression> newChildren = new ArrayList<>(args.size());
+            boolean childrenChanged = false;
+            DataType targetDataType = DataTypes.NULL;
+            Expression arg;
+            for (int i = 0; i < args.size(); i++) {
+                arg = args.get(i);
+                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
+                    if (i < targetDataTypes.size()) {
+                        targetDataType = targetDataTypes.get(i);
+                    }
+                    if (targetDataType != DataTypes.NULL && targetDataType != DataTypes.UNSUPPORTED) {
+                        Expression e = castStringLiteral(arg, targetDataType);
+                        childrenChanged = true;
+                        newChildren.add(e);
+                        continue;
+                    }
+                }
+                newChildren.add(args.get(i));
+            }
+            return childrenChanged ? f.replaceChildren(newChildren) : f;
+        }
+
+        private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o) {
+            Expression left = o.left();
+            Expression right = o.right();
+            if (left.resolved() == false || right.resolved() == false) {
+                return o;
+            }
+            List<Expression> newChildren = new ArrayList<>(2);
+            boolean childrenChanged = false;
+            DataType targetDataType = DataTypes.NULL;
+            Expression from = Literal.NULL;
+
+            if (left.dataType() == KEYWORD
+                && left.foldable()
+                && (right.dataType().isNumeric() || right.dataType() == DATETIME)
+                && ((left instanceof EsqlScalarFunction) == false)) {
+                targetDataType = right.dataType();
+                from = left;
+            }
+            if (right.dataType() == KEYWORD
+                && right.foldable()
+                && (left.dataType().isNumeric() || left.dataType() == DATETIME)
+                && ((right instanceof EsqlScalarFunction) == false)) {
+                targetDataType = left.dataType();
+                from = right;
+            }
+            if (from != Literal.NULL) {
+                Expression e = castStringLiteral(from, targetDataType);
+                newChildren.add(from == left ? e : left);
+                newChildren.add(from == right ? e : right);
+                childrenChanged = true;
+            }
+            return childrenChanged ? o.replaceChildren(newChildren) : o;
+        }
+
+        public static Expression castStringLiteral(Expression from, DataType target) {
+            assert from.foldable();
+            try {
+                Object to = EsqlDataTypeConverter.convert(from.fold(), target);
+                return new Literal(from.source(), to, target);
+            } catch (Exception e) {
+                String message = LoggerMessageFormat.format(
+                    "Cannot convert string [{}] to [{}], error [{}]",
+                    from.fold(),
+                    target,
+                    e.getMessage()
+                );
+                return new UnsupportedAttribute(
+                    from.source(),
+                    String.valueOf(from.fold()),
+                    new UnsupportedEsField(String.valueOf(from.fold()), from.dataType().typeName()),
+                    message
+                );
+            }
+        }
     }
 }

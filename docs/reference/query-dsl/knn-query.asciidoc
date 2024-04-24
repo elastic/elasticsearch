@@ -96,7 +96,7 @@ Either this or `query_vector_builder` must be provided.
 +
 --
 (Optional, object) Query vector builder.
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
 --
 
 

@@ -265,7 +265,7 @@ class RequestExecutorService implements RequestExecutor {
      * @param listener an {@link ActionListener<InferenceServiceResults>} for the response or failure
      */
     public void execute(
-        ExecutableRequestCreator requestCreator,
+        RequestManager requestCreator,
         InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

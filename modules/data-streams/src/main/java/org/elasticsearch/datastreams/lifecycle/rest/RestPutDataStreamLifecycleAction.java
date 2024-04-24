@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.datastreams.lifecycle.rest;
 
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -42,7 +42,7 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
             PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(parser);
             putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
             putLifecycleRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
-            putLifecycleRequest.timeout(request.paramAsTime("timeout", putLifecycleRequest.timeout()));
+            putLifecycleRequest.ackTimeout(request.paramAsTime("timeout", putLifecycleRequest.ackTimeout()));
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
             return channel -> client.execute(
                 PutDataStreamLifecycleAction.INSTANCE,

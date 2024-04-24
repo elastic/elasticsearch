@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: networks
@@ -115,6 +115,7 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | eval ip_str = to_string(ip) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
+          version: 2024.04.01
 
   - match: { columns.0.name: "ip" }
   - match: { columns.0.type: "ip" }
@@ -133,8 +134,8 @@ teardown:
 
 ---
 "IP text fields":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "ENRICH support for TEXT fields was added in 8.14.0"
 
   - do:
@@ -143,6 +144,7 @@ teardown:
       esql.query:
         body:
           query: 'FROM events_text | ENRICH networks-policy ON ip_text | sort @timestamp | KEEP ip_text, name, department, message'
+          version: 2024.04.01
 
   - match: { columns.0.name: "ip_text" }
   - match: { columns.0.type: "text" }
@@ -161,8 +163,8 @@ teardown:
 
 ---
 "Invalid IP strings":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "IP range ENRICH support was added in 8.14.0"
 
   - do:
@@ -170,11 +172,12 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | eval ip_str = concat("invalid_", to_string(ip)) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
+          version: 2024.04.01
 
 ---
 "IP":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "IP range ENRICH support was added in 8.14.0"
 
   - do:
@@ -183,6 +186,7 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | ENRICH networks-policy ON ip | sort @timestamp | KEEP ip, name, department, message'
+          version: 2024.04.01
 
   - match: { columns.0.name: "ip" }
   - match: { columns.0.type: "ip" }

@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
@@ -242,6 +243,18 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     public void testSupportsNonDefaultParameterValues() throws IOException {
         Settings settings = Settings.builder().put(SourceFieldMapper.LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, false).build();
+        {
+            var sourceFieldMapper = createMapperService(settings, topMapping(b -> b.startObject("_source").endObject())).documentMapper()
+                .sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
+        {
+            var sourceFieldMapper = createMapperService(
+                settings,
+                topMapping(b -> b.startObject("_source").field("mode", randomBoolean() ? "synthetic" : "stored").endObject())
+            ).documentMapper().sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
         Exception e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(settings, topMapping(b -> b.startObject("_source").field("enabled", false).endObject()))

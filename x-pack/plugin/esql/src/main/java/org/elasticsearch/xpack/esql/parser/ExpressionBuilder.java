@@ -487,6 +487,28 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
+        Source source = source(ctx);
+        DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
+        var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
+        if (converterToFactory == null) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
+        Expression expr = expression(ctx.primaryExpression());
+        return converterToFactory.apply(source, expr);
+    }
+
+    @Override
+    public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
+        String typeName = visitIdentifier(ctx.identifier());
+        DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
+        if (dataType == DataTypes.UNSUPPORTED) {
+            throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
+        }
+        return dataType;
+    }
+
+    @Override
     public Expression visitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) {
         int type = ctx.operator.getType();
         Source source = source(ctx);

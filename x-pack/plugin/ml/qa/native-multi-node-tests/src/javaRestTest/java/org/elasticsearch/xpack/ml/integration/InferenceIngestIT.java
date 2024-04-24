@@ -283,6 +283,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(stats.toString(), (Integer) XContentMapValues.extractValue("inference_stats.cache_miss_count", stats), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105955")
     public void testSimulate() throws IOException {
         String classificationModelId = "test_classification_simulate";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
@@ -387,6 +388,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(responseString, containsString("Could not find trained model [test_classification_missing]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105955")
     public void testSimulateWithDefaultMappedField() throws IOException {
         String classificationModelId = "test_classification_default_mapped_field";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);

@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -44,8 +46,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -1003,13 +1003,7 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where emp_no COMPARISON "foo"
                 """.replace("COMPARISON", comparison)));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "first argument of [emp_no COMPARISON \"foo\"] is [numeric] so second argument must also be [numeric] but was [keyword]"
-                        .replace("COMPARISON", comparison)
-                )
-            );
+            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
         }
     }
 
@@ -1019,13 +1013,7 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where "foo" COMPARISON emp_no
                 """.replace("COMPARISON", comparison)));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "first argument of [\"foo\" COMPARISON emp_no] is [keyword] so second argument must also be [keyword] but was [integer]"
-                        .replace("COMPARISON", comparison)
-                )
-            );
+            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
         }
     }
 
@@ -1051,11 +1039,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testCompareDateToStringFails() {
         for (String comparison : COMPARISONS) {
-            verifyUnsupported("""
-                from test
-                | where date COMPARISON "not-a-date"
-                | keep date
-                """.replace("COMPARISON", comparison), "Invalid date [not-a-date]", "mapping-multi-field-variation.json");
+            verifyUnsupported(
+                """
+                    from test
+                    | where date COMPARISON "not-a-date"
+                    | keep date
+                    """.replace("COMPARISON", comparison),
+                "Cannot convert string [not-a-date] to [DATETIME]",
+                "mapping-multi-field-variation.json"
+            );
         }
     }
 

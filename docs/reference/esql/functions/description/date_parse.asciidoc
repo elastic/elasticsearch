@@ -2,4 +2,4 @@
 
 *Description*
 
-Parses a string into a date value
+Returns a date by parsing the second argument using the format specified in the first argument.

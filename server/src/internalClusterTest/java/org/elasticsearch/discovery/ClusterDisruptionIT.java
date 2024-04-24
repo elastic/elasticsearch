@@ -326,7 +326,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(prepareCreate("test").setSettings(indexSettings(3, 2)));
         ensureGreen();
-        String nonMasterNodeId = internalCluster().clusterService(nonMasterNode).localNode().getId();
+        String nonMasterNodeId = getNodeId(nonMasterNode);
 
         // fail a random shard
         ShardRouting failedShard = randomFrom(

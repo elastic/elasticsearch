@@ -6,14 +6,6 @@
 |===
 field | buckets | from | to | result
 datetime | integer | datetime | datetime | datetime
-datetime | integer | datetime | keyword | datetime
-datetime | integer | datetime | text | datetime
-datetime | integer | keyword | datetime | datetime
-datetime | integer | keyword | keyword | datetime
-datetime | integer | keyword | text | datetime
-datetime | integer | text | datetime | datetime
-datetime | integer | text | keyword | datetime
-datetime | integer | text | text | datetime
 double | integer | double | double | double
 double | integer | double | integer | double
 double | integer | double | long | double

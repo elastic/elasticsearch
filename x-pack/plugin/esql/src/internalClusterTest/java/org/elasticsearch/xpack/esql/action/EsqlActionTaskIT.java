@@ -368,7 +368,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         try {
             scriptPermits.release(numberOfDocs()); // do not block Lucene operators
             Client client = client(coordinator);
-            EsqlQueryRequest request = new EsqlQueryRequest();
+            EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
             client().admin()
                 .indices()
                 .prepareUpdateSettings("test")
@@ -451,6 +451,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107293")
     public void testTaskContentsForLimitQuery() throws Exception {
         String limit = Integer.toString(randomIntBetween(pageSize() + 1, 2 * numberOfDocs()));
         READ_DESCRIPTION = """

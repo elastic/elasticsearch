@@ -89,7 +89,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             listener.onResponse(new OpenIndexResponse(true, true));
             return;
         }
-        OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
+        OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices)
             .waitForActiveShards(request.waitForActiveShards());

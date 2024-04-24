@@ -16,6 +16,7 @@ import org.gradle.testfixtures.ProjectBuilder
 
 import static org.elasticsearch.gradle.internal.doc.RestTestsFromDocSnippetTask.replaceBlockQuote
 import static org.elasticsearch.gradle.internal.doc.RestTestsFromDocSnippetTask.shouldAddShardFailureCheck
+import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 class RestTestsFromDocSnippetTaskSpec extends Specification {
 
@@ -59,9 +60,7 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
         def build = ProjectBuilder.builder().build()
         given:
         def task = build.tasks.create("restTestFromSnippet", RestTestsFromDocSnippetTask)
-//        def task = build.tasks.create("restTestFromSnippet", RestTestsFromSnippetsTask)
         task.expectedUnconvertedCandidates = ["ml-update-snapshot.asciidoc", "reference/security/authorization/run-as-privilege.asciidoc"]
-//
         docs()
         task.docs = build.fileTree(new File(tempDir, "docs"))
         task.testRoot.convention(build.getLayout().buildDirectory.dir("rest-tests"));
@@ -72,7 +71,7 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
 
         then:
         restSpec.exists()
-        restSpec.text == """---
+        normalizeString(restSpec.text, tempDir) == """---
 "line_22":
   - skip:
       features:
@@ -143,11 +142,10 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
             }
           },
           "status": 400
-        }
-"""
+        }"""
         def restSpec2 = new File(task.testRoot.get().getAsFile(), "rest-api-spec/test/ml-update-snapshot.yml")
         restSpec2.exists()
-        restSpec2.text == """---
+        normalizeString(restSpec2.text, tempDir) == """---
 "line_50":
   - skip:
       features:
@@ -167,11 +165,10 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
             "description": "Snapshot 1",
             "retain": true
           }
-  - is_false: _shards.failures
-"""
+  - is_false: _shards.failures"""
         def restSpec3 = new File(task.testRoot.get().getAsFile(), "rest-api-spec/test/reference/sql/getting-started.yml")
         restSpec3.exists()
-        restSpec3.text == """---
+        normalizeString(restSpec3.text, tempDir) == """---
 "line_10":
   - skip:
       features:
@@ -205,15 +202,13 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
   - is_false: _shards.failures
   - match:
       \$body:
-        /    \\s+author     \\s+\\|     \\s+name      \\s+\\|  \\s+page_count   \\s+\\| \\s+release_date\\s*
-         ---------------\\+---------------\\+---------------\\+------------------------\\s*
-         Dan \\s+Simmons    \\s+\\|Hyperion       \\s+\\|482            \\s+\\|1989-05-26T00:00:00.000Z\\s*
-         Frank \\s+Herbert  \\s+\\|Dune           \\s+\\|604            \\s+\\|1965-06-01T00:00:00.000Z\\s*/
-"""
-
+        /    /s+author     /s+/|     /s+name      /s+/|  /s+page_count   /s+/| /s+release_date/s*
+         ---------------/+---------------/+---------------/+------------------------/s*
+         Dan /s+Simmons    /s+/|Hyperion       /s+/|482            /s+/|1989-05-26T00:00:00.000Z/s*
+         Frank /s+Herbert  /s+/|Dune           /s+/|604            /s+/|1965-06-01T00:00:00.000Z/s*/"""
     def restSpec4 = new File(task.testRoot.get().getAsFile(), "rest-api-spec/test/reference/security/authorization/run-as-privilege.yml")
     restSpec4.exists()
-    restSpec4.text == """---
+    normalizeString(restSpec4.text, tempDir) == """---
 "line_51":
   - skip:
       features:
@@ -356,8 +351,7 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
             "full_name": "Monday Jaffe",
             "metadata": { "innovation" : 8}
           }
-  - is_false: _shards.failures
-"""
+  - is_false: _shards.failures"""
 }
 
     File docFile(String fileName, String docContent) {
@@ -460,11 +454,11 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-update-snapshot-request-body]]
 == {api-request-body-title}
@@ -476,7 +470,7 @@ The following properties can be updated after the model snapshot is created:
 
 `retain`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 
 [[ml-update-snapshot-example]]

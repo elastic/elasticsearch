@@ -1,7 +1,7 @@
 ---
 "Help":
   - requires:
-      cluster_features: ["cat_shards_dataset_size"]
+      cluster_features: ["gte_v8.11.0"]
       reason:  dataset size was added in 8.11.0
   - do:
       cat.shards:
@@ -91,7 +91,7 @@
 ---
 "Test cat shards output":
   - requires:
-      cluster_features: [ "cat_shards_dataset_size" ]
+      cluster_features: [ "gte_v8.11.0" ]
       reason:  dataset size was added in 8.11.0
 
   - do:
@@ -188,7 +188,7 @@
 ---
 "Test cat shards sort":
   - requires:
-      cluster_features: [ "cat_shards_dataset_size" ]
+      cluster_features: [ "gte_v8.11.0" ]
       reason:  dataset size was added in 8.11.0
 
   - do:
@@ -241,7 +241,7 @@
 ---
 "Test cat shards with hidden indices":
   - requires:
-      cluster_features: ["cat_shards_fix_hidden_indices"]
+      cluster_features: ["gte_v8.3.0"]
       reason:  hidden indices were misreported in versions before 8.3.0
 
   - do:

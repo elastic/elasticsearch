@@ -1093,6 +1093,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }
 
+    public static String getNodeId(String nodeName) {
+        return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
+    }
+
     /**
      * Waits until at least a give number of document is visible for searchers
      *

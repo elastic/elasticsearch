@@ -17,7 +17,6 @@ Boolean operators for comparing against one or multiple expressions.
 * <<esql-in-operator>>
 * <<esql-like-operator>>
 * <<esql-rlike-operator>>
-* <<esql-starts_with>>
 // end::op_list[]
 
 include::binary.asciidoc[]
@@ -29,4 +28,3 @@ include::ends_with.asciidoc[]
 include::in.asciidoc[]
 include::like.asciidoc[]
 include::rlike.asciidoc[]
-include::starts_with.asciidoc[]

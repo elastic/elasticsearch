@@ -17,6 +17,7 @@
 * <<esql-right>>
 * <<esql-rtrim>>
 * <<esql-split>>
+* <<esql-starts_with>>
 * <<esql-substring>>
 * <<esql-to_lower>>
 * <<esql-to_upper>>
@@ -32,6 +33,7 @@ include::layout/replace.asciidoc[]
 include::layout/right.asciidoc[]
 include::layout/rtrim.asciidoc[]
 include::layout/split.asciidoc[]
+include::starts_with.asciidoc[]
 include::layout/substring.asciidoc[]
 include::layout/to_lower.asciidoc[]
 include::layout/to_upper.asciidoc[]

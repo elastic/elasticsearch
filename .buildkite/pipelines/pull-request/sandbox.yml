@@ -1,0 +1,14 @@
+steps:
+  - label: "aws"
+    command: |
+      set +e
+      hostname -f
+      hostname -A
+      hostname -I
+      nslookup $(hostname -f)
+      curl -vvv $(hostname -f)
+      cat /etc/hosts
+    timeout_in_minutes: 420
+    agents:
+      provider: aws
+      imagePrefix: elasticsearch-amazonlinux-2

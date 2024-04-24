@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -41,10 +42,22 @@ public class ToBoolean extends AbstractConvertFunction {
         Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "boolean", description = "Converts an input value to a boolean value.")
+    @FunctionInfo(
+        returnType = "boolean",
+        description = """
+            Converts an input value to a boolean value.
+            A string value of *true* will be case-insensitive converted to the Boolean *true*.
+            For anything else, including the empty string, the function will return *false*.
+            The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.""",
+        examples = @Example(file = "boolean", tag = "to_boolean")
+    )
     public ToBoolean(
         Source source,
-        @Param(name = "field", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(
+            name = "field",
+            type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
     ) {
         super(source, field);
     }

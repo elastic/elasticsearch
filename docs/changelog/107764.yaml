@@ -1,0 +1,5 @@
+pr: 107764
+summary: Increase size of big arrays only when there is an actual value in the aggregators
+area: Aggregations
+type: enhancement
+issues: []

@@ -118,8 +118,12 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
     }
 
     /**
-     * Returns the metadata found in the cluster state or null.
+     * Returns the metadata found in the cluster state or null. When trying to retrieve the effective global retention,
+     * prefer to use the {@link DataStreamGlobalRetentionResolver#resolve(ClusterState)} because it takes into account
+     * the factory retention settings as well. Only use this, if you only want to know the global retention settings
+     * stored in the cluster metadata.
      */
+    @Nullable
     public static DataStreamGlobalRetention getFromClusterState(ClusterState clusterState) {
         return clusterState.custom(DataStreamGlobalRetention.TYPE);
     }

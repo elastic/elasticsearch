@@ -69,7 +69,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-//TODO: add remote cluster tests here too (don't rely on NONE)
 public class RoleDescriptorTests extends ESTestCase {
 
     public void testIndexGroup() throws Exception {
@@ -249,6 +248,24 @@ public class RoleDescriptorTests extends ESTestCase {
                   "clusters": ["*"]
                 }
               ],
+              "remote_cluster": [
+                {
+                  "privileges": [
+                      "monitor_enrich"
+                  ],
+                  "clusters": [
+                      "one"
+                  ]
+                },
+                {
+                  "privileges": [
+                      "monitor_enrich"
+                  ],
+                  "clusters": [
+                      "two", "three"
+                  ]
+                }
+              ],
               "restriction":{
                 "workflows": ["search_application_query"]
               }
@@ -258,10 +275,15 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(3, rd.getIndicesPrivileges().length);
         assertEquals(3, rd.getRemoteIndicesPrivileges().length);
+        assertEquals(2, rd.getRemoteClusterPermissions().groups().size());
         assertArrayEquals(new String[] { "r1" }, rd.getRemoteIndicesPrivileges()[0].remoteClusters());
         assertArrayEquals(new String[] { "r1", "*-*" }, rd.getRemoteIndicesPrivileges()[1].remoteClusters());
         assertArrayEquals(new String[] { "*" }, rd.getRemoteIndicesPrivileges()[2].remoteClusters());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
+        assertArrayEquals(new String[] { "one" }, rd.getRemoteClusterPermissions().groups().get(0).remoteClusterAliases());
+        assertArrayEquals(new String[] { "monitor_enrich" }, rd.getRemoteClusterPermissions().groups().get(0).clusterPrivileges());
+        assertArrayEquals(new String[] { "two", "three" }, rd.getRemoteClusterPermissions().groups().get(1).remoteClusterAliases());
+        assertArrayEquals(new String[] { "monitor_enrich" }, rd.getRemoteClusterPermissions().groups().get(1).clusterPrivileges());
         assertThat(rd.hasRestriction(), equalTo(true));
         assertThat(rd.getRestriction().hasWorkflows(), equalTo(true));
         assertArrayEquals(new String[] { "search_application_query" }, rd.getRestriction().getWorkflows());
@@ -455,6 +477,72 @@ public class RoleDescriptorTests extends ESTestCase {
             pex2.getMessage(),
             containsString("failed to parse restriction for role [test_empty_workflows]. [workflows] cannot be an empty array")
         );
+    }
+
+    public void testParseInvalidRemoteCluster() throws IOException {
+        // missing clusters
+        String q = """
+            {
+              "remote_cluster": [
+                {
+                  "privileges": [
+                      "monitor_enrich"
+                  ]
+                }
+              ]
+            }""";
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q), XContentType.JSON)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("failed to parse remote_cluster for role [test]. " + "[clusters] must be defined when [privileges] are defined")
+        );
+
+        // missing privileges
+        String q2 = """
+            {
+              "remote_cluster": [
+                {
+                  "clusters": [
+                      "two", "three"
+                  ]
+                }
+              ]
+            }""";
+        exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q2), XContentType.JSON)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("failed to parse remote_cluster for role [test]. " + "[privileges] must be defined when [clusters] are defined")
+        );
+
+        // missing both does not cause an exception while parsing. However, we generally want to avoid any assumptions about the behavior
+        // and is allowed for legacy reasons to better match how other fields work
+        String q3 = """
+            {
+              "remote_cluster": []
+            }""";
+        RoleDescriptor rd = RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q3), XContentType.JSON);
+        assertThat(rd.getRemoteClusterPermissions().groups().size(), equalTo(0));
+        assertThat(rd.getRemoteClusterPermissions(), equalTo(RemoteClusterPermissions.NONE));
+        if (assertsAreEnabled) {
+            expectThrows(AssertionError.class, () -> rd.getRemoteClusterPermissions().validate());
+        }
+        // similarly, missing both but with a group placeholder does not cause an exception while parsing but will still raise an exception
+        String q4 = """
+            {
+              "remote_cluster": [{}]
+            }""";
+
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q4), XContentType.JSON)
+        );
+        assertThat(illegalArgumentException.getMessage(), containsString("remote cluster groups must not be null or empty"));
     }
 
     public void testParsingFieldPermissionsUsesCache() throws IOException {
@@ -1072,6 +1160,7 @@ public class RoleDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
 
@@ -1099,8 +1188,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
-            null, // TODO: add tests here
-            booleans.get(7) ? null : RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
+            booleans.get(7) ? null : randomRemoteClusterPermissions(5),
+            booleans.get(8) ? null : RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
         );
 
         if (booleans.stream().anyMatch(e -> e.equals(false))) {

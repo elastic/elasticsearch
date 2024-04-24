@@ -70,6 +70,39 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
         }
     }
 
+    public void testNullAndEmptyArgs() {
+        final ThrowingRunnable nullGroup = randomFrom(
+            () -> new RemoteClusterPermissionGroup(null, null),
+            () -> new RemoteClusterPermissionGroup(new String[] {}, new String[] {}),
+            () -> new RemoteClusterPermissionGroup(null, new String[] {}),
+            () -> new RemoteClusterPermissionGroup(new String[] {}, null)
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, nullGroup);
+        assertEquals("remote cluster groups must not be null or empty", e.getMessage());
+    }
+
+    public void testInvalidValues() {
+        final ThrowingRunnable invalidClusterAlias = randomFrom(
+            () -> new RemoteClusterPermissionGroup(new String[] { "foo" }, new String[] { null }),
+            () -> new RemoteClusterPermissionGroup(new String[] { "foo" }, new String[] { "bar", null }),
+            () -> new RemoteClusterPermissionGroup(new String[] { "foo" }, new String[] { "bar", "" }),
+            () -> new RemoteClusterPermissionGroup(new String[] { "foo" }, new String[] { "bar", " " })
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidClusterAlias);
+        assertEquals("remote_cluster clusters aliases must not valid non-empty, non-null values", e.getMessage());
+
+        final ThrowingRunnable invalidPermission = randomFrom(
+            () -> new RemoteClusterPermissionGroup(new String[] { null }, new String[] { "bar" }),
+            () -> new RemoteClusterPermissionGroup(new String[] { "foo", null }, new String[] { "bar" }),
+            () -> new RemoteClusterPermissionGroup(new String[] { "foo", "" }, new String[] { "bar" }),
+            () -> new RemoteClusterPermissionGroup(new String[] { "foo", " " }, new String[] { "bar" })
+        );
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, invalidPermission);
+        assertEquals("remote_cluster privileges must not valid non-empty, non-null values", e2.getMessage());
+    }
+
     @Override
     protected Writeable.Reader<RemoteClusterPermissionGroup> instanceReader() {
         return RemoteClusterPermissionGroup::new;

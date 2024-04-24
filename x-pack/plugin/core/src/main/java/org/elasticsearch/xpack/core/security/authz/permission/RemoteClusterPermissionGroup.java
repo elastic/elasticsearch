@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,22 +47,22 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
      * @param remoteClusterAliases The list of remote clusters that the privileges apply to. must not be null or empty.
      */
     public RemoteClusterPermissionGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
-        this(clusterPrivileges, remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
-    }
+        if (clusterPrivileges == null
+            || remoteClusterAliases == null
+            || clusterPrivileges.length <= 0
+            || remoteClusterAliases.length <= 0) {
+            throw new IllegalArgumentException("remote cluster groups must not be null or empty");
+        }
+        if (Arrays.stream(clusterPrivileges).anyMatch(s -> Strings.hasText(s) == false)) {
+            throw new IllegalArgumentException("remote_cluster privileges must not valid non-empty, non-null values");
+        }
+        if (Arrays.stream(remoteClusterAliases).anyMatch(s -> Strings.hasText(s) == false)) {
+            throw new IllegalArgumentException("remote_cluster clusters aliases must not valid non-empty, non-null values");
+        }
 
-    private RemoteClusterPermissionGroup(
-        String[] clusterPrivileges,
-        String[] remoteClusterAliases,
-        StringMatcher remoteClusterAliasMatcher
-    ) {
-        assert clusterPrivileges != null;
-        assert remoteClusterAliases != null;
-        assert remoteClusterAliasMatcher != null;
-        assert clusterPrivileges.length > 0;
-        assert remoteClusterAliases.length > 0;
         this.clusterPrivileges = clusterPrivileges;
         this.remoteClusterAliases = remoteClusterAliases;
-        this.remoteClusterAliasMatcher = remoteClusterAliasMatcher;
+        this.remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
     }
 
     /**

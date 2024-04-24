@@ -12,6 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -46,9 +48,16 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
 
-    // remove the old parsers completely in v9
-    @UpdateForV9
+    private static final Logger log = LogManager.getLogger(DateFormatters.class);
+
+    @UpdateForV9    // remove the old parsers completely in v9
     private static final boolean FALLBACK_TO_OLD_PARSERS = Booleans.parseBoolean(System.getProperty("es.datetime.fallback_parsers"), false);
+
+    static {
+        if (FALLBACK_TO_OLD_PARSERS) {
+            log.warn("Using fallback datetime parsers. This option will be removed in Elasticsearch v9");
+        }
+    }
 
     private static DateFormatter newDateFormatter(String format, DateTimeFormatter formatter) {
         return new JavaDateFormatter(format, new JavaTimeDateTimePrinter(formatter), new JavaTimeDateTimeParser(formatter));

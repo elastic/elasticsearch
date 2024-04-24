@@ -1135,8 +1135,8 @@ public abstract class Engine implements Closeable {
         KnnVectorsFormat format;
         if (codec instanceof Elasticsearch814Codec esCodec) {
             format = esCodec.getKnnVectorsFormatForField(name);
-        } else if (codec instanceof LegacyPerFieldMapperCodec) {
-            format = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
+        } else if (codec instanceof LegacyPerFieldMapperCodec legacy) {
+            format = legacy.getKnnVectorsFormatForField(name);
         } else {
             format = codec.knnVectorsFormat();
         }

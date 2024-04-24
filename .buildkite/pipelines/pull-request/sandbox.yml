@@ -9,6 +9,7 @@ steps:
       nslookup $(hostname -f)
       curl -vvv $(hostname -f)
       cat /etc/hosts
+      dig +noall +stats $(hostname -f)
 
       sudo yum install -y dnsmasq bind-utils
       echo 'addn-hosts=/etc/dnsmasq.hosts' | sudo tee -a /etc/dnsmasq.conf
@@ -20,6 +21,7 @@ steps:
       hostname -I
       nslookup $(hostname -f)
       curl -vvv $(hostname -f)
+      dig +noall +stats $(hostname -f)
 
     timeout_in_minutes: 420
     agents:

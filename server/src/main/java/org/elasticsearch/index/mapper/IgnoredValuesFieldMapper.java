@@ -150,6 +150,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
             // This mapper doesn't contribute to source directly as it has no access to the
             // object structure. Instead, it's accessed by object mappers to decode
             // and write its fields within the appropriate object.
+            assert false : "IgnoredValuesFieldMapper::write should never be called";
         }
 
         public void trackObjectsWithIgnoredFields() {

@@ -214,7 +214,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         );
         dataLifecycleInitialisationService.get().init();
         dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService());
-        dataStreamGlobalRetentionService.set(new UpdateDataStreamGlobalRetentionService(services.clusterService()));
+        dataStreamGlobalRetentionService.set(
+            new UpdateDataStreamGlobalRetentionService(services.clusterService(), services.dataStreamGlobalRetentionResolver())
+        );
 
         components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());

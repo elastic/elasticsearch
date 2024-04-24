@@ -31,7 +31,7 @@ public class DataStreamGlobalRetentionResolver {
      */
     @Nullable
     public DataStreamGlobalRetention resolve(ClusterState clusterState) {
-        DataStreamGlobalRetention globalRetentionFromClusterState = clusterState.custom(DataStreamGlobalRetention.TYPE);
+        DataStreamGlobalRetention globalRetentionFromClusterState = DataStreamGlobalRetention.getFromClusterState(clusterState);
         if (globalRetentionFromClusterState != null || factoryRetention.isDefined() == false) {
             return globalRetentionFromClusterState;
         }

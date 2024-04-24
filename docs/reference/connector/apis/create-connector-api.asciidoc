@@ -7,7 +7,7 @@
 preview::[]
 
 Creates an Elastic connector.
-Connectors are third-party {es} integrations which can be deployed on {ecloud} or hosted on your own infrastructure:
+Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
 
 * *Native connectors* are a managed service on {ecloud}
 * *Connector clients* are self-managed on your infrastructure
@@ -43,6 +43,8 @@ DELETE _connector/my-connector
 
 * To sync data using connectors, it's essential to have the Elastic connectors service running.
 * The `service_type` parameter should reference an existing connector service type.
+//// the restrictions of service_type should be better explained
+
 
 
 [[create-connector-api-desc]]
@@ -66,19 +68,22 @@ Creates a connector document in the internal index and initializes its configura
 
 `index_name`::
 (Required, string) The target index for syncing data by the connector.
-
+// making this required does not align with the BYOI for connectors. I believe we discussed we're making this optional. 
+In Kibana, attaching an index also creates the index, if we specify an index here, will it be created? When? 
 `name`::
 (Optional, string) The name of the connector.
+// having an optional name Killed my Kibana experience. Without an index or a name, there is no way for me to go to connector Overview.
 
 `is_native`::
 (Optional, boolean) Indicates if it's a native connector. Defaults to `false`.
 
 `language`::
 (Optional, string) Language analyzer for the data. Limited to supported languages.
+// Is the connector doing anything with the language analyzer? Shouldn't this be specific for the index?
 
 `service_type`::
 (Optional, string) Connector service type. Can reference Elastic-supported connector types or a custom connector type.
-
+// I believe this defaults to UNKNOWN if empty
 
 [role="child_attributes"]
 [[create-connector-api-response-body]]

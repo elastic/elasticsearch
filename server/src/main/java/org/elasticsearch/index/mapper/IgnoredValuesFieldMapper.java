@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -96,7 +95,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static String encode(Values values) {
+    static byte[] encode(Values values) {
         assert values.parentOffset < PARENT_OFFSET_IN_NAME_OFFSET;
         assert values.parentOffset * (long) PARENT_OFFSET_IN_NAME_OFFSET < Integer.MAX_VALUE;
 
@@ -105,11 +104,11 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         ByteUtils.writeIntLE(values.name.length() + PARENT_OFFSET_IN_NAME_OFFSET * values.parentOffset, bytes, 0);
         System.arraycopy(nameBytes, 0, bytes, 4, nameBytes.length);
         System.arraycopy(values.value.bytes, values.value.offset, bytes, 4 + nameBytes.length, values.value.length);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return bytes;
     }
 
     static Values decode(Object field) {
-        byte[] bytes = Base64.getUrlDecoder().decode((String) field);
+        byte[] bytes = ((BytesRef) field).bytes;
         int encodedSize = ByteUtils.readIntLE(bytes, 0);
         int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
         int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;

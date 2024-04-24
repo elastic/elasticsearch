@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -22,6 +23,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -122,8 +124,14 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
-    public static String mustBeNonNonNull(String settingName, String scope) {
-        return Strings.format("[%s] Invalid value empty string. [%s] must be non-null", scope, settingName);
+    public static String invalidTimeValueMsg(String timeValueStr, String settingName, String scope, String exceptionMsg) {
+        return Strings.format(
+            "[%s] Invalid time value [%s]. [%s] must be a valid time value string: %s",
+            scope,
+            timeValueStr,
+            settingName,
+            exceptionMsg
+        );
     }
 
     public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
@@ -137,6 +145,10 @@ public class ServiceUtils {
             settingName,
             String.join(", ", copyOfRequiredValues)
         );
+    }
+
+    public static String invalidSettingError(String settingName, String scope) {
+        return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
     }
 
     // TODO improve URI validation logic
@@ -184,6 +196,21 @@ public class ServiceUtils {
         }
 
         return new SecureString(Objects.requireNonNull(requiredField).toCharArray());
+    }
+
+    public static SecureString extractOptionalSecureString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String optionalField = extractOptionalString(map, settingName, scope, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false || optionalField == null) {
+            return null;
+        }
+
+        return new SecureString(optionalField.toCharArray());
     }
 
     public static SimilarityMeasure extractSimilarity(Map<String, Object> map, String scope, ValidationException validationException) {
@@ -246,7 +273,7 @@ public class ServiceUtils {
         Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class);
 
         if (optionalField != null && optionalField <= 0) {
-            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, optionalField));
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, scope, optionalField));
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -298,18 +325,34 @@ public class ServiceUtils {
         return optionalField;
     }
 
+    public static TimeValue extractOptionalTimeValue(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        var timeValueString = extractOptionalString(map, settingName, scope, validationException);
+        if (timeValueString == null) {
+            return null;
+        }
+
+        try {
+            return TimeValue.parseTimeValue(timeValueString, settingName);
+        } catch (Exception e) {
+            validationException.addValidationError(invalidTimeValueMsg(timeValueString, settingName, scope, e.getMessage()));
+        }
+
+        return null;
+    }
+
     private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
         if (validValues.contains(enumValue) == false) {
             throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));
         }
     }
 
-    public static String mustBeAPositiveNumberErrorMessage(String settingName, int value) {
-        if (value <= 0) {
-            return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
-        } else {
-            throw new IllegalArgumentException("Value [" + value + "] is not a positive integer");
-        }
+    public static String mustBeAPositiveNumberErrorMessage(String settingName, String scope, int value) {
+        return format("[%s] Invalid value [%s]. [%s] must be a positive integer", scope, value, settingName);
     }
 
     /**
@@ -383,4 +426,9 @@ public class ServiceUtils {
     }
 
     private static final String TEST_EMBEDDING_INPUT = "how big";
+
+    public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
+        // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
+        return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
+    }
 }

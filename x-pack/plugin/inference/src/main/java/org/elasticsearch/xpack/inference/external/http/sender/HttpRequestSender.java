@@ -124,7 +124,7 @@ public class HttpRequestSender implements Sender {
      */
     @Override
     public void send(
-        ExecutableRequestCreator requestCreator,
+        RequestManager requestCreator,
         InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

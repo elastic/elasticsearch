@@ -11,7 +11,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.13/release-highlights.html[8.13]
+{ref-bare}/8.14/release-highlights.html[8.14]
+| {ref-bare}/8.13/release-highlights.html[8.13]
 | {ref-bare}/8.12/release-highlights.html[8.12]
 | {ref-bare}/8.11/release-highlights.html[8.11]
 | {ref-bare}/8.10/release-highlights.html[8.10]
@@ -28,24 +29,13 @@ Other versions:
 
 endif::[]
 
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-
-[discrete]
-[[add_global_retention_in_data_stream_lifecycle]]
-=== Add global retention in data stream lifecycle
-Data stream lifecycle now supports configuring retention on a cluster level, namely global retention. Global retention 
-allows us to configure two different retentions:
-
-- `default_retention` is applied to all data streams managed by the data stream lifecycle that do not have retention
-defined on the data stream level.
-- `max_retention` is applied to all data streams managed by the data stream lifecycle and it allows any data stream 
-data to be deleted after the `max_retention` has passed.
-
-Furthermore, we introduce the term `effective_retention` which is the retention applied at a certain moment to a data
-stream considering all the available retention configurations.
-
-{es-pull}105682[#105682]
-
+// [discrete]
+// === Heading
+//
+// Description.
 // end::notable-highlights[]
 
 

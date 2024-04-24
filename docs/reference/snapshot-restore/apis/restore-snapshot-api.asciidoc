@@ -113,7 +113,7 @@ Name of the snapshot to restore.
 [[restore-snapshot-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request returns a response when the restore

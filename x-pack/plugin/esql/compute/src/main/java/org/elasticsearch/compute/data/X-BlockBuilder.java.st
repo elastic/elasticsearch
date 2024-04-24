@@ -295,5 +295,11 @@ $if(BytesRef)$
     public void extraClose() {
         Releasables.closeExpectNoException(values);
     }
+$elseif(int)$
+
+    @Override
+    public long estimatedBytes() {
+        return estimatedBytes;
+    }
 $endif$
 }

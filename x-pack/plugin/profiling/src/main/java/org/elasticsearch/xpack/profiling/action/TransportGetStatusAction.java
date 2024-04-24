@@ -77,7 +77,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ActionListener<GetStatusAction.Response> listener
     ) {
         if (request.waitForResourcesCreated()) {
-            createAndRegisterListener(listener, request.timeout());
+            createAndRegisterListener(listener, request.ackTimeout());
         } else {
             resolver.execute(state, listener);
         }

@@ -159,6 +159,10 @@ settings belong in the `elasticsearch.yml` file.
     of data over an established, open connection to the repository before it closes the
     connection. The default value is 50 seconds.
 
+`max_connections`::
+
+    The maximum number of concurrent connections to S3. The default value is `50`.
+
 `max_retries`::
 
     The number of retries to use when an S3 request fails. The default value is

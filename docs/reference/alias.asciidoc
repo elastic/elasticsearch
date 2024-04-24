@@ -308,7 +308,7 @@ POST _aliases
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT _data_stream\/logs-my_app-default\n/]
 
-include::{es-repo-dir}/indices/aliases.asciidoc[tag=write-index-defaults]
+include::{es-ref-dir}/indices/aliases.asciidoc[tag=write-index-defaults]
 
 TIP: We recommend using data streams to store append-only time series data. If
 you need to update or delete existing time series data, you can perform update or delete operations

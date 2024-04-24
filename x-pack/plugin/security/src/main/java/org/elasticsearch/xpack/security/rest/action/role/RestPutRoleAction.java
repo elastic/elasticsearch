@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,17 +34,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     private final PutRoleRequestBuilderFactory builderFactory;
-    private final FileRolesStore fileRolesStore;
 
-    public RestPutRoleAction(
-        Settings settings,
-        XPackLicenseState licenseState,
-        PutRoleRequestBuilderFactory builderFactory,
-        FileRolesStore fileRolesStore
-    ) {
+    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState, PutRoleRequestBuilderFactory builderFactory) {
         super(settings, licenseState);
         this.builderFactory = builderFactory;
-        this.fileRolesStore = fileRolesStore;
     }
 
     @Override

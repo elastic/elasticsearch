@@ -529,13 +529,15 @@ GET /_analyze
     {
       "type": "mapping",
       "mappings": [
-        "٠ => 0",
-        "١ => 1",
-        "٢ => 2"
+        "e => 0",
+        "m => 1",
+        "p => 2",
+        "t => 3",
+        "y => 4"
       ]
     }
   ],
-  "text": "My license plate is ٢٥٠١٥"
+  "text": "My license plate is empty"
 }
 ----
 """
@@ -551,13 +553,15 @@ GET /_analyze
     {
       "type": "mapping",
       "mappings": [
-        "٠ => 0",
-        "١ => 1",
-        "٢ => 2"
+        "e => 0",
+        "m => 1",
+        "p => 2",
+        "t => 3",
+        "y => 4"
       ]
     }
   ],
-  "text": "My license plate is ٢٥٠١٥"
+  "text": "My license plate is empty"
 }"""
     }
 

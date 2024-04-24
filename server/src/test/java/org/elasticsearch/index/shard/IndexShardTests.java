@@ -89,6 +89,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -155,6 +156,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -192,6 +194,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -3996,6 +3999,42 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         });
         closeShards(shard);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107462")
+    public void testFlushTimeExcludingWaiting() throws Exception {
+        IndexShard shard = newStartedShard();
+        for (int i = 0; i < randomIntBetween(4, 10); i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+        }
+
+        int numFlushes = randomIntBetween(2, 5);
+        var flushesLatch = new CountDownLatch(numFlushes);
+        var executor = Executors.newFixedThreadPool(numFlushes);
+        try {
+            for (int i = 0; i < numFlushes; i++) {
+                executor.submit(() -> {
+                    shard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+                    flushesLatch.countDown();
+                });
+            }
+            safeAwait(flushesLatch);
+
+            FlushStats flushStats = shard.flushStats();
+            assertThat(
+                "Flush time excluding waiting should be captured",
+                flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
+                greaterThan(0L)
+            );
+            assertThat(
+                "Flush time excluding waiting should less than flush time with waiting",
+                flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
+                lessThan(flushStats.getTotalTime().millis())
+            );
+        } finally {
+            closeShards(shard);
+            executor.shutdown();
+        }
     }
 
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")

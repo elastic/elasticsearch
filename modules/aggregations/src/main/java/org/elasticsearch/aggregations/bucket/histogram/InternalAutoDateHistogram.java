@@ -134,10 +134,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             return Long.compare(key, other.key);
         }
 
-        public DocValueFormat getFormatter() {
-            return format;
-        }
-
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 key,
@@ -279,7 +275,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return targetBuckets;
     }
 
-    public BucketInfo getBucketInfo() {
+    BucketInfo getBucketInfo() {
         return bucketInfo;
     }
 

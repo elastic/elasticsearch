@@ -37,6 +37,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -147,9 +148,16 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
-        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-        PerFieldMapperCodec perFieldCodec = (PerFieldMapperCodec) codec;
-        assertThat(perFieldCodec.getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
+        } else {
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            assertThat(
+                ((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"),
+                instanceOf(Completion99PostingsFormat.class)
+            );
+        }
     }
 
     public void testDefaultConfiguration() throws IOException {

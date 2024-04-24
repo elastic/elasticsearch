@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -28,8 +29,8 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 /**
  * {code left(foo, len)} is an alias to {code substring(foo, 0, len)}
@@ -113,7 +114,7 @@ public class Left extends EsqlScalarFunction {
             return resolution;
         }
 
-        resolution = isInteger(length, sourceText(), SECOND);
+        resolution = TypeResolutions.isType(length, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
         if (resolution.unresolved()) {
             return resolution;
         }

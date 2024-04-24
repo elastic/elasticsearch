@@ -11,9 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -110,6 +112,15 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
                 .toList(),
             DataTypes.DOUBLE,
             bytesRef -> Double.valueOf(((BytesRef) bytesRef).utf8ToString()),
+            List.of()
+        );
+
+        TestCaseSupplier.unary(
+            suppliers,
+            "noop",
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, EsqlDataTypes.COUNTER_DOUBLE)),
+            DataTypes.DOUBLE,
+            l -> l,
             List.of()
         );
 

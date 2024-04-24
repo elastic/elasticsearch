@@ -51,6 +51,10 @@ public final class EsqlDataTypes {
     public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
     public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, true);
 
+    public static final DataType COUNTER_LONG = new DataType("counter_long", LONG.size(), false, false, true);
+    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", INTEGER.size(), false, false, true);
+    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", DOUBLE.size(), false, false, true);
+
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
         UNSUPPORTED,
@@ -77,7 +81,10 @@ public final class EsqlDataTypes {
         GEO_POINT,
         CARTESIAN_POINT,
         CARTESIAN_SHAPE,
-        GEO_SHAPE
+        GEO_SHAPE,
+        COUNTER_LONG,
+        COUNTER_INTEGER,
+        COUNTER_DOUBLE
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
@@ -212,7 +219,8 @@ public final class EsqlDataTypes {
             && t != FLOAT
             && t != SCALED_FLOAT
             && t != SOURCE
-            && t != HALF_FLOAT;
+            && t != HALF_FLOAT
+            && isCounterType(t) == false;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -231,5 +239,13 @@ public final class EsqlDataTypes {
             return DOUBLE;
         }
         return type;
+    }
+
+    public static DataType getCounterType(String typeName) {
+        return fromTypeName("counter_" + typeName);
+    }
+
+    public static boolean isCounterType(DataType dt) {
+        return dt == COUNTER_LONG || dt == COUNTER_INTEGER || dt == COUNTER_DOUBLE;
     }
 }

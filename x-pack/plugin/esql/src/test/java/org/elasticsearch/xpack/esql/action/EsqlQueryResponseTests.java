@@ -125,7 +125,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private ColumnInfo randomColumnInfo() {
         DataType type = randomValueOtherThanMany(
-            t -> false == DataTypes.isPrimitive(t) || t == EsqlDataTypes.DATE_PERIOD || t == EsqlDataTypes.TIME_DURATION,
+            t -> false == DataTypes.isPrimitive(t)
+                || t == EsqlDataTypes.DATE_PERIOD
+                || t == EsqlDataTypes.TIME_DURATION
+                || EsqlDataTypes.isCounterType(t),
             () -> randomFrom(EsqlDataTypes.types())
         );
         type = EsqlDataTypes.widenSmallNumericTypes(type);

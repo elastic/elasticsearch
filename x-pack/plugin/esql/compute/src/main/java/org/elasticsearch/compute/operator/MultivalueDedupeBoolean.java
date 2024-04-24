@@ -43,7 +43,7 @@ public class MultivalueDedupeBoolean {
      * Dedupe values using an adaptive algorithm based on the size of the input list.
      */
     public BooleanBlock dedupeToBlock(BlockFactory blockFactory) {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }

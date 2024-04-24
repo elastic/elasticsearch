@@ -80,6 +80,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -809,7 +810,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
     }
 
-    record SearchPowerSteps(int sp, IndexMetadata expectedAdditionalIndex) {}
+    private record SearchPowerSteps(int sp, IndexMetadata expectedAdditionalIndex) {}
 
     /**
      * Test that increases search power in steps and asserts that indices that
@@ -852,10 +853,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
         addShard(shards, ds2BackingIndex2, 0, 250, 500);
         service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", shards));
 
-        Map<String, Integer> expected = new HashMap<>();
         service.updateSearchPower(100);
 
-        assertEquals(expected, service.getNumberOfReplicaChanges());
+        assertEquals(Collections.emptyMap(), service.getNumberOfReplicaChanges());
 
         List<SearchPowerSteps> steps = List.of(
             new SearchPowerSteps(125, systemIndex),
@@ -867,10 +867,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
             new SearchPowerSteps(250, ds2BackingIndex1)
         );
 
+        List<String> indices = new ArrayList<>();
         steps.forEach(step -> {
             service.updateSearchPower(step.sp);
-            expected.put(step.expectedAdditionalIndex.getIndex().getName(), 2);
-            assertEquals("Searchpower " + step.sp, expected, service.getNumberOfReplicaChanges());
+            indices.add(step.expectedAdditionalIndex.getIndex().getName());
+            assertEquals(1, service.getNumberOfReplicaChanges().size());
+            List<String> twoReplicasIndices = service.getNumberOfReplicaChanges().get(2);
+            assertThat("Searchpower " + step.sp, indices, containsInAnyOrder(twoReplicasIndices.toArray(new String[0])));
         });
 
         // check that size changes affect the ranking.
@@ -894,13 +897,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
             new SearchPowerSteps(250, ds2BackingIndex1)
         );
 
-        expected.clear();
+        indices.clear();
         steps.forEach(step -> {
             service.updateSearchPower(step.sp);
-            expected.put(step.expectedAdditionalIndex.getIndex().getName(), 2);
-            assertEquals("Searchpower " + step.sp, expected, service.getNumberOfReplicaChanges());
+            indices.add(step.expectedAdditionalIndex.getIndex().getName());
+            List<String> twoReplicasIndices = service.getNumberOfReplicaChanges().get(2);
+            assertThat("Searchpower " + step.sp, indices, containsInAnyOrder(twoReplicasIndices.toArray(new String[0])));
         });
-
     }
 
     /**
@@ -953,16 +956,17 @@ public class SearchMetricsServiceTests extends ESTestCase {
             new SearchPowerSteps(100, systemIndex)
         );
 
-        Map<String, Integer> expected = new HashMap<>();
-
         service.updateSearchPower(250);
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
-        assertEquals(expected, service.getNumberOfReplicaChanges());
+        assertEquals(Collections.emptyMap(), service.getNumberOfReplicaChanges());
 
+        List<String> indices = new ArrayList<>();
         steps.forEach(step -> {
             service.updateSearchPower(step.sp);
-            expected.put(step.expectedAdditionalIndex.getIndex().getName(), 1);
-            assertEquals("Searchpower " + step.sp, expected, service.getNumberOfReplicaChanges());
+            indices.add(step.expectedAdditionalIndex.getIndex().getName());
+            assertEquals(1, service.getNumberOfReplicaChanges().size());
+            List<String> oneReplicaIndices = service.getNumberOfReplicaChanges().get(1);
+            assertThat("Searchpower " + step.sp, indices, containsInAnyOrder(oneReplicaIndices.toArray(new String[0])));
         });
     }
 
@@ -1004,9 +1008,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.updateSearchPowerMax(500);
         service.updateSearchPowerMin(250);
         {
-            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            Map<Integer, List<String>> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
-            assertEquals(2, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+            assertEquals(List.of(withinBoostWindowMetadata.getIndex().getName()), numberOfReplicaChanges.get(2));
         }
 
         // simulate updating replica count according to last decision
@@ -1018,9 +1022,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.updateSearchPowerMax(50);
         service.updateSearchPowerMin(150);
         {
-            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            Map<Integer, List<String>> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
-            assertEquals(1, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+            assertEquals(List.of(withinBoostWindowMetadata.getIndex().getName()), numberOfReplicaChanges.get(1));
         }
     }
 
@@ -1233,9 +1237,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
             )
         );
         {
-            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            Map<Integer, List<String>> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
-            assertEquals(2, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+            assertEquals(List.of(withinBoostWindowMetadata.getIndex().getName()), numberOfReplicaChanges.get(2));
         }
 
         // simulate updating replica count according to last decision
@@ -1260,9 +1264,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
             )
         );
         {
-            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            Map<Integer, List<String>> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
             assertEquals(1, numberOfReplicaChanges.size());
-            assertEquals(1, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+            assertEquals(List.of(withinBoostWindowMetadata.getIndex().getName()), numberOfReplicaChanges.get(1));
         }
     }
 

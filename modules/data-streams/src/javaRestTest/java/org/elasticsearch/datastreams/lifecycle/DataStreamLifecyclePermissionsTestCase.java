@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -24,6 +23,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -32,9 +32,15 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
+/**
+ * This test case sets up users with different privileges respective to managing a data stream's lifecycle. Furthermore,
+ * it provides some helper methods and sets up a data stream.
+ */
+public abstract class DataStreamLifecyclePermissionsTestCase extends ESRestTestCase {
 
     private static final String PASSWORD = "secret-test-password";
+    // Needs to match the pattern of the names in roles.yml
+    static final String DATA_STREAM_NAME = "data-stream-lifecycle-test";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -50,6 +56,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
         .user("test_non_privileged", PASSWORD, "under_privilged", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
+    String index;
 
     @Override
     protected String getTestRestCluster() {
@@ -87,90 +94,32 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
         }
     }
 
-    private Settings restPrivilegedClientSettings() {
+    Settings restPrivilegedClientSettings() {
         // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_data_stream_lifecycle", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    private Settings restUnprivilegedClientSettings() {
+    Settings restUnprivilegedClientSettings() {
         // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Before
     @SuppressWarnings("unchecked")
-    public void testManageDataStreamLifecycle() throws Exception {
-        {
-            /*
-             * This test checks that a user with the "manage_data_stream_lifecycle" index privilege on "data-stream-lifecycle-*" data
-             * streams can delete and put a lifecycle on the "data-stream-lifecycle-test" data stream, while a user with who does not have
-             * that privilege (but does have all the other same "data-stream-lifecycle-*" privileges) cannot delete or put a lifecycle on
-             * that data stream.
-             */
-            String dataStreamName = "data-stream-lifecycle-test"; // Needs to match the pattern of the names in roles.yml
-            createDataStreamAsAdmin(dataStreamName);
-            Response getDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
-            final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDataStreamResponse).evaluate("data_streams");
-            String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
-
-            Request explainLifecycleRequest = new Request("GET", "/" + randomFrom("_all", "*", index) + "/_lifecycle/explain");
-            Request getLifecycleRequest = new Request("GET", "_data_stream/" + randomFrom("_all", "*", dataStreamName) + "/_lifecycle");
-            Request deleteLifecycleRequest = new Request(
-                "DELETE",
-                "_data_stream/" + randomFrom("_all", "*", dataStreamName) + "/_lifecycle"
-            );
-            Request putLifecycleRequest = new Request("PUT", "_data_stream/" + randomFrom("_all", "*", dataStreamName) + "/_lifecycle");
-            putLifecycleRequest.setJsonEntity("{}");
-
-            makeRequest(client(), explainLifecycleRequest, true);
-            makeRequest(client(), getLifecycleRequest, true);
-            makeRequest(client(), deleteLifecycleRequest, true);
-            makeRequest(client(), putLifecycleRequest, true);
-
-            try (
-                RestClient nonDataStreamLifecycleManagerClient = buildClient(
-                    restUnprivilegedClientSettings(),
-                    getClusterHosts().toArray(new HttpHost[0])
-                )
-            ) {
-                makeRequest(nonDataStreamLifecycleManagerClient, explainLifecycleRequest, true);
-                makeRequest(nonDataStreamLifecycleManagerClient, getLifecycleRequest, true);
-                makeRequest(nonDataStreamLifecycleManagerClient, deleteLifecycleRequest, false);
-                makeRequest(nonDataStreamLifecycleManagerClient, putLifecycleRequest, false);
-            }
-        }
-        try (
-            RestClient dataStreamLifecycleManagerClient = buildClient(
-                restPrivilegedClientSettings(),
-                getClusterHosts().toArray(new HttpHost[0])
-            )
-        ) {
-            // Now test that the user who has the manage_data_stream_lifecycle privilege on data-stream-lifecycle-* data streams cannot
-            // manage other data streams:
-            String otherDataStreamName = "other-data-stream-lifecycle-test";
-            createDataStreamAsAdmin(otherDataStreamName);
-            Response getOtherDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + otherDataStreamName));
-            final List<Map<String, Object>> otherNodes = ObjectPath.createFromResponse(getOtherDataStreamResponse).evaluate("data_streams");
-            String otherIndex = (String) ((List<Map<String, Object>>) otherNodes.get(0).get("indices")).get(0).get("index_name");
-            Request putOtherLifecycleRequest = new Request("PUT", "_data_stream/" + otherDataStreamName + "/_lifecycle");
-            putOtherLifecycleRequest.setJsonEntity("{}");
-            makeRequest(dataStreamLifecycleManagerClient, new Request("GET", "/" + otherIndex + "/_lifecycle/explain"), false);
-            makeRequest(dataStreamLifecycleManagerClient, new Request("GET", "_data_stream/" + otherDataStreamName + "/_lifecycle"), false);
-            makeRequest(
-                dataStreamLifecycleManagerClient,
-                new Request("DELETE", "_data_stream/" + otherDataStreamName + "/_lifecycle"),
-                false
-            );
-            makeRequest(dataStreamLifecycleManagerClient, putOtherLifecycleRequest, false);
-        }
+    public void setup() throws IOException {
+        createDataStreamAsAdmin(DATA_STREAM_NAME);
+        Response getDataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
+        final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(getDataStreamResponse).evaluate("data_streams");
+        index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
     }
 
     /*
      * This makes the given request with the given client. It asserts a 200 response if expectSuccess is true, and asserts an exception
      * with a 403 response if expectStatus is false.
      */
-    private void makeRequest(RestClient client, Request request, boolean expectSuccess) throws IOException {
+    void makeRequest(RestClient client, Request request, boolean expectSuccess) throws IOException {
         if (expectSuccess) {
             Response response = client.performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
@@ -180,7 +129,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
         }
     }
 
-    private void createDataStreamAsAdmin(String name) throws IOException {
+    void createDataStreamAsAdmin(String name) throws IOException {
         String mappingsTemplateName = name + "_mappings";
         Request mappingsRequest = new Request("PUT", "/_component_template/" + mappingsTemplateName);
         mappingsRequest.setJsonEntity("""

@@ -65,11 +65,12 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays().grow(counts, bucket + 1);
-                sums = bigArrays().grow(sums, bucket + 1);
-                compensations = bigArrays().grow(compensations, bucket + 1);
-
                 if (values.advanceExact(doc)) {
+                    if (bucket >= counts.size()) {
+                        counts = bigArrays().grow(counts, bucket + 1);
+                        sums = bigArrays().grow(sums, bucket + 1);
+                        compensations = bigArrays().grow(compensations, bucket + 1);
+                    }
                     final int valueCount = values.docValueCount();
                     counts.increment(bucket, valueCount);
                     // Compute the sum of double values with Kahan summation algorithm which is more

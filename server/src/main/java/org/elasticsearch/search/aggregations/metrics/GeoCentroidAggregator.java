@@ -65,8 +65,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                growBucket(bucket);
                 if (values.advanceExact(doc)) {
+                    growBucket(bucket);
                     final int valueCount = values.docValueCount();
                     // increment by the number of points for this document
                     counts.increment(bucket, valueCount);
@@ -96,8 +96,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                growBucket(bucket);
                 if (values.advanceExact(doc)) {
+                    growBucket(bucket);
                     // increment by the number of points for this document
                     counts.increment(bucket, 1);
                     // Compute the sum of double values with Kahan summation algorithm which is more

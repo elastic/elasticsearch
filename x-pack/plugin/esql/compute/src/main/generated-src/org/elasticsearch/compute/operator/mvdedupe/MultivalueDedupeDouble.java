@@ -247,6 +247,7 @@ public class MultivalueDedupeDouble {
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
+        block.incRef();
         return new BatchEncoder.Doubles(batchSize) {
             @Override
             protected void readNextBatch() {
@@ -295,6 +296,10 @@ public class MultivalueDedupeDouble {
                 }
             }
 
+            @Override
+            public void close() {
+                block.decRef();
+            }
         };
     }
 

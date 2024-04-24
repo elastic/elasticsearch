@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.cache.action;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesXContentResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,19 +29,11 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
 public class ClearBlobCacheNodesResponse extends BaseNodesXContentResponse<ClearBlobCacheNodeResponse> implements ChunkedToXContentObject {
-    public ClearBlobCacheNodesResponse(StreamInput in) throws IOException {
-        super(
-            new ClusterName(in),
-            in.readCollectionAsList(ClearBlobCacheNodeResponse::new),
-            in.readCollectionAsList(FailedNodeException::new)
-        );
-    }
 
     public ClearBlobCacheNodesResponse(
         ClusterName clusterName,
@@ -51,13 +44,13 @@ public class ClearBlobCacheNodesResponse extends BaseNodesXContentResponse<Clear
     }
 
     @Override
-    protected List<ClearBlobCacheNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(ClearBlobCacheNodeResponse::new);
+    protected List<ClearBlobCacheNodeResponse> readNodesFrom(StreamInput in) {
+        return TransportAction.localOnly();
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<ClearBlobCacheNodeResponse> nodes) throws IOException {
-        out.writeCollection(nodes);
+    protected void writeNodesTo(StreamOutput out, List<ClearBlobCacheNodeResponse> nodes) {
+        TransportAction.localOnly();
     }
 
     @Override

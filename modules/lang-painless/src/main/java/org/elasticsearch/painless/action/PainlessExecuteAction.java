@@ -91,7 +91,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
-import org.elasticsearch.script.TermStatsReader;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -640,10 +639,7 @@ public class PainlessExecuteAction {
                     ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
                     SearchLookup lookup = context.lookup();
                     ScoreScript.LeafFactory leafFactory = factory.newFactory(request.getScript().getParams(), lookup);
-                    ScoreScript scoreScript = leafFactory.newInstance(
-                        new DocValuesDocReader(lookup, leafReaderContext),
-                        new TermStatsReader()
-                    );
+                    ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
                     if (request.contextSetup.query != null) {

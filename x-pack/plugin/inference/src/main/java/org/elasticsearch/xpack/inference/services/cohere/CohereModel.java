@@ -22,30 +22,44 @@ import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class CohereModel extends Model {
     private final SecureString apiKey;
+    private final CohereRateLimitServiceSettings rateLimitServiceSettings;
 
-    public CohereModel(ModelConfigurations configurations, ModelSecrets secrets, @Nullable ApiKeySecrets apiKeySecrets) {
+    public CohereModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        @Nullable ApiKeySecrets apiKeySecrets,
+        CohereRateLimitServiceSettings rateLimitServiceSettings
+    ) {
         super(configurations, secrets);
 
+        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
     }
 
     protected CohereModel(CohereModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
     }
 
     protected CohereModel(CohereModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
     }
 
     public SecureString apiKey() {
         return apiKey;
+    }
+
+    public CohereRateLimitServiceSettings rateLimitServiceSettings() {
+        return rateLimitServiceSettings;
     }
 
     public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);

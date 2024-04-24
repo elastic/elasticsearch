@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -866,18 +865,12 @@ public class BlockHashTests extends ESTestCase {
             LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(8);
             BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(8)
         ) {
-            b1.appendLong(0);
-            b2.appendBytesRef(new BytesRef("cat"));
-            b1.appendLong(1);
-            b2.appendBytesRef(new BytesRef("cat"));
-            b1.appendLong(0);
-            b2.appendBytesRef(new BytesRef("cat"));
-            b1.appendLong(1);
-            b2.appendBytesRef(new BytesRef("dog"));
-            b1.appendLong(0);
-            b2.appendBytesRef(new BytesRef("dog"));
-            b1.appendLong(1);
-            b2.appendBytesRef(new BytesRef("dog"));
+            append(b1, b2, new long[] { 0 }, new String[] { "cat" });
+            append(b1, b2, new long[] { 1 }, new String[] { "cat" });
+            append(b1, b2, new long[] { 0 }, new String[] { "cat" });
+            append(b1, b2, new long[] { 1 }, new String[] { "dog" });
+            append(b1, b2, new long[] { 0 }, new String[] { "dog" });
+            append(b1, b2, new long[] { 1 }, new String[] { "dog" });
             Object[][] expectedKeys = {
                 new Object[] { 0L, "cat" },
                 new Object[] { 1L, "cat" },
@@ -906,16 +899,11 @@ public class BlockHashTests extends ESTestCase {
             LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(2);
             BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(2)
         ) {
-            b1.appendLong(1);
-            b2.appendBytesRef(new BytesRef("cat"));
-            b1.appendNull();
-            b2.appendNull();
-            b1.appendLong(0);
-            b2.appendBytesRef(new BytesRef("dog"));
-            b1.appendLong(0);
-            b2.appendNull();
-            b1.appendNull();
-            b2.appendBytesRef(new BytesRef("vanish"));
+            append(b1, b2, new long[] { 1 }, new String[] { "cat" });
+            append(b1, b2, null, null);
+            append(b1, b2, new long[] { 0 }, new String[] { "dog" });
+            append(b1, b2, new long[] { 0 }, null);
+            append(b1, b2, null, new String[] { "nn" });
 
             hash((OrdsAndKeys ordsAndKeys) -> {
                 if (forcePackedHash) {
@@ -929,18 +917,21 @@ public class BlockHashTests extends ESTestCase {
                             new Object[] { null, null },
                             new Object[] { 0L, "dog" },
                             new Object[] { 1L, null },
-                            new Object[] { null, "vanish" } }
+                            new Object[] { null, "nn" } }
                     );
                     assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 5)));
                 } else {
                     assertThat(
                         ordsAndKeys.description,
-                        startsWith("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=2, size=")
+                        startsWith("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=3, size=")
                     );
                     assertThat(ordsAndKeys.description, endsWith("b}"));
-                    assertOrds(ordsAndKeys.ords, 0, null, 1, null, null);
-                    assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { 1L, "cat" }, new Object[] { 0L, "dog" } });
-                    assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 2)));
+                    assertOrds(ordsAndKeys.ords, 0, null, 1, 2, null);
+                    assertKeys(
+                        ordsAndKeys.keys,
+                        new Object[][] { new Object[] { 1L, "cat" }, new Object[] { 0L, "dog" }, new Object[] { 0L, null } }
+                    );
+                    assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 3)));
                 }
             }, b1, b2);
         }
@@ -1022,7 +1013,7 @@ public class BlockHashTests extends ESTestCase {
                 } else {
                     assertThat(
                         ordsAndKeys.description,
-                        equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=8, size=491b}")
+                        equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=491b}")
                     );
                     assertOrds(
                         ordsAndKeys.ords,
@@ -1031,10 +1022,10 @@ public class BlockHashTests extends ESTestCase {
                         new int[] { 0, 2 },
                         new int[] { 0 },
                         null,
-                        null,
+                        new int[] { 4 },
                         new int[] { 0 },
                         new int[] { 0, 1, 2, 3 },
-                        new int[] { 4, 5, 6, 0, 1, 7 }
+                        new int[] { 5, 6, 7, 0, 1, 8 }
                     );
                     assertKeys(
                         ordsAndKeys.keys,
@@ -1043,12 +1034,13 @@ public class BlockHashTests extends ESTestCase {
                             new Object[] { 2L, "a" },
                             new Object[] { 1L, "b" },
                             new Object[] { 2L, "b" },
+                            new Object[] { 1L, null },
                             new Object[] { 1L, "c" },
                             new Object[] { 2L, "c" },
                             new Object[] { 3L, "c" },
                             new Object[] { 3L, "a" }, }
                     );
-                    assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 8)));
+                    assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 9)));
                 }
             }, b1, b2);
         }
@@ -1151,9 +1143,9 @@ public class BlockHashTests extends ESTestCase {
 
     private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) {
         try {
-            List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(values.length);
+            List<BlockHash.GroupSpec> specs = new ArrayList<>(values.length);
             for (int c = 0; c < values.length; c++) {
-                specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
+                specs.add(new BlockHash.GroupSpec(c, values[c].elementType()));
             }
             try (
                 BlockHash blockHash = forcePackedHash

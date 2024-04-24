@@ -12,6 +12,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -41,11 +42,17 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     private final Expression field;
     private final Expression format;
 
-    @FunctionInfo(returnType = "keyword", description = "Returns a string representation of a date, in the provided format.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Returns a string representation of a date, in the provided format.",
+        examples = @Example(file = "date", tag = "docsDateFormat")
+    )
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = "A valid date pattern") Expression format,
-        @Param(name = "date", type = { "date" }, description = "Date expression") Expression date,
+        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """
+            Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
+            If `null`, the function returns `null`.""") Expression format,
+        @Param(name = "date", type = { "date" }, description = "Date expression. If `null`, the function returns `null`.") Expression date,
         Configuration configuration
     ) {
         super(source, date != null ? List.of(format, date) : List.of(format), configuration);
@@ -64,15 +71,17 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+        TypeResolution resolution;
         if (format != null) {
             resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
+        }
+
+        resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
         return TypeResolution.TYPE_RESOLVED;

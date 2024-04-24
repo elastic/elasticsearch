@@ -631,7 +631,7 @@ public class Stateless extends Plugin
                 SHARD_READ_THREAD_POOL,
                 4,
                 shardReadMaxThreads,
-                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueMinutes(5),
                 true,
                 SHARD_READ_THREAD_POOL_SETTING
             ),
@@ -639,7 +639,7 @@ public class Stateless extends Plugin
                 TRANSLOG_THREAD_POOL,
                 translogCoreThreads,
                 translogMaxThreads,
-                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueMinutes(5),
                 true,
                 TRANSLOG_THREAD_POOL_SETTING
             ),
@@ -647,7 +647,7 @@ public class Stateless extends Plugin
                 SHARD_WRITE_THREAD_POOL,
                 shardWriteCoreThreads,
                 shardWriteMaxThreads,
-                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueMinutes(5),
                 true,
                 SHARD_WRITE_THREAD_POOL_SETTING
             ),
@@ -655,7 +655,7 @@ public class Stateless extends Plugin
                 CLUSTER_STATE_READ_WRITE_THREAD_POOL,
                 clusterStateReadWriteCoreThreads,
                 clusterStateReadWriteMaxThreads,
-                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueMinutes(5),
                 true,
                 CLUSTER_STATE_READ_WRITE_THREAD_POOL_SETTING
             ),
@@ -663,15 +663,17 @@ public class Stateless extends Plugin
                 GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
                 getVirtualBatchedCompoundCommitChunkCoreThreads,
                 getVirtualBatchedCompoundCommitChunkMaxThreads,
-                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueMinutes(5),
                 true,
                 GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
                 PREWARM_THREAD_POOL,
-                0,
+                // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
+                // threads around to reduce churn and re-use the existing buffers more
+                prewarmMaxThreads / 2,
                 prewarmMaxThreads,
-                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueMinutes(5),
                 true,
                 PREWARM_THREAD_POOL_SETTING
             ) };

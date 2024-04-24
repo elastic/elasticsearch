@@ -1,13 +1,25 @@
 steps:
   - label: "aws"
     command: |
-      set +e
+      set +xe
       hostname -f
       hostname -A
       hostname -I
       nslookup $(hostname -f)
       curl -vvv $(hostname -f)
       cat /etc/hosts
+
+      sudo yum install -y dnsmasq bind-utils
+      echo 'addn-hosts=/etc/dnsmasq.hosts' | sudo tee -a /etc/dnsmasq.conf
+      echo "$(hostname -i)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
+      sudo service dnsmasq restart
+
+      hostname -f
+      hostname -A
+      hostname -I
+      nslookup $(hostname -f)
+      curl -vvv $(hostname -f)
+
     timeout_in_minutes: 420
     agents:
       provider: aws

@@ -97,7 +97,6 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -870,6 +869,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(from == left ? e : left);
                 newChildren.add(from == right ? e : right);
                 childrenChanged = true;
+                System.err.println("cast string to " + targetDataType.toString() + " : from : " + from.fold() + " : to : " + e.fold());
             }
             return childrenChanged ? o.replaceChildren(newChildren) : o;
         }
@@ -899,7 +899,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean canCastTo(DataType type) {
-            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN || isSpatial(type);
+            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 
         public static Expression castStringLiteral(Expression from, DataType target) {

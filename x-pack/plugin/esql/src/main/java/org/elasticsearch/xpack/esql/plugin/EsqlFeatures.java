@@ -137,6 +137,7 @@ public class EsqlFeatures implements FeatureSpecification {
             ST_CONTAINS_WITHIN,
             ST_DISJOINT,
             STRING_LITERAL_AUTO_CASTING,
+            STRING_LITERAL_AUTO_CASTING_815,
             CASTING_OPERATOR
         );
     }

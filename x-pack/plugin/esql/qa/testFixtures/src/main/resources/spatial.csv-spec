@@ -1733,29 +1733,3 @@ wkt:keyword                |pt:cartesian_point
 "POINT(111)"               |null
 // end::to_cartesianpoint-str-parse-error-result[]
 ;
-
-implicitCastingEqual
-required_feature: esql.string_literal_auto_casting_8_15_0
-from airports | where location == "POINT(42.97109630194 14.7552534413725)" | sort name | keep name, location | limit 2;
-
-name:text      | location:geo_point
-Hodeidah Int'l | POINT(42.97109630194 14.7552534413725)
-;
-
-implicitCastingNotEqual
-required_feature: esql.string_literal_auto_casting_8_15_0
-from airports | where city_location != "POINT(78.178 26.2215)" | sort name | keep name, city_location | limit 2;
-
-name:text                | city_location:geo_point
-Aba Tenna D. Yilma Int'l | POINT(41.8667 9.6)
-Abdul Rachman Saleh      | POINT(112.62 -7.98)
-;
-
-implicitCastingIn
-required_feature: esql.string_literal_auto_casting_8_15_0
-from airports | where city_location in ( "POINT(78.178 26.2215)", "POINT(48.6692 31.3203)" ) | sort name | keep name, city_location | limit 2;
-
-name:text | city_location:geo_point
-Ahwaz     | POINT(48.6692 31.3203)
-Gwalior   | POINT(78.178 26.2215)
-;

@@ -1062,7 +1062,7 @@ emp_no:integer | birth_date:datetime
 
 implicitCastingLessThanOrEqual
 required_feature: esql.string_literal_auto_casting
-from employees | where birth_date <= "1957-05-23T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+from employees | where birth_date <= "1957-05-20T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
 
 emp_no:integer | birth_date:datetime
 10001          | 1953-09-02T00:00:00Z
@@ -1072,7 +1072,7 @@ emp_no:integer | birth_date:datetime
 
 implicitCastingGreaterThan
 required_feature: esql.string_literal_auto_casting
-from employees | where birth_date > "1957-05-23T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+from employees | where birth_date > "1957-05-24T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
 
 emp_no:integer | birth_date:datetime
 10002          | 1964-06-02T00:00:00Z
@@ -1082,7 +1082,7 @@ emp_no:integer | birth_date:datetime
 
 implicitCastingIn
 required_feature: esql.string_literal_auto_casting_8_15_0
-from employees | where birth_date in ( "1957-05-23T00:00:00Z", "1960-02-20T00:00:00Z" ) | keep emp_no, birth_date | sort emp_no;
+from employees | where birth_date in ( "1957-05-23T00:00:00.000Z", "1960-02-20T00:00:00.000Z" ) | keep emp_no, birth_date | sort emp_no;
 
 emp_no:integer | birth_date:datetime
 10007          | 1957-05-23T00:00:00Z

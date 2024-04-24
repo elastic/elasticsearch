@@ -124,16 +124,11 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                     For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
                     Combine`BUCKET` with <<esql-where>> to filter rows."""
             ),
-            @Example(
-                description = """
-                    If the desired bucket size is known in advance, simply provide it as the second
-                    argument, leaving the range out:""",
-                file = "bucket",
-                tag = "docsBucketWeeklyHistogramWithSpan",
-                explanation = """
-                    NOTE: When providing the bucket size as the second parameter, its type must be
-                    of a time duration or date period type."""
-            ),
+            @Example(description = """
+                If the desired bucket size is known in advance, simply provide it as the second
+                argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
+                NOTE: When providing the bucket size as the second parameter, its type must be
+                of a time duration or date period type."""),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
                 file = "bucket",
@@ -142,16 +137,11 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                     Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
                     You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."""
             ),
-            @Example(
-                description = """
-                    If the desired bucket size is known in advance, simply provide it as the second
-                    argument, leaving the range out:""",
-                file = "bucket",
-                tag = "docsBucketNumericWithSpan",
-                explanation = """
-                    NOTE: When providing the bucket size as the second parameter, its type must be
-                    of a floating type."""
-            ),
+            @Example(description = """
+                If the desired bucket size is known in advance, simply provide it as the second
+                argument, leaving the range out:""", file = "bucket", tag = "docsBucketNumericWithSpan", explanation = """
+                NOTE: When providing the bucket size as the second parameter, its type must be
+                of a floating type."""),
             @Example(
                 description = "Create hourly buckets for the last 24 hours, and calculate the number of events per hour:",
                 file = "bucket",

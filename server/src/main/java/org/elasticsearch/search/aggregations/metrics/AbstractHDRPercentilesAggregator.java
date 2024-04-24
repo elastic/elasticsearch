@@ -67,8 +67,8 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                DoubleHistogram state = getExistingOrNewHistogram(bigArrays(), bucket);
                 if (values.advanceExact(doc)) {
+                    DoubleHistogram state = getExistingOrNewHistogram(bigArrays(), bucket);
                     final int valueCount = values.docValueCount();
                     for (int i = 0; i < valueCount; i++) {
                         state.recordValue(values.nextValue());

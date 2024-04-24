@@ -155,7 +155,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
             ),
             // security : role-mappings
-            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),

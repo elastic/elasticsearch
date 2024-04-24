@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,18 +21,21 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 
-public final class RoleMappingMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
+
+public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "role_mappings";
 
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
-        return clusterState.custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
+        return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
     private final Set<ExpressionRoleMapping> roleMappings;
@@ -55,14 +59,14 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<ClusterStat
     public ClusterState updateClusterState(ClusterState clusterState) {
         if (isEmpty()) {
             // prefer no role mapping custom metadata to the empty role mapping metadata
-            return clusterState.copyAndUpdate(b -> b.removeCustom(RoleMappingMetadata.TYPE));
+            return clusterState.copyAndUpdateMetadata(b -> b.removeCustom(RoleMappingMetadata.TYPE));
         } else {
-            return clusterState.copyAndUpdate(b -> b.putCustom(RoleMappingMetadata.TYPE, this));
+            return clusterState.copyAndUpdateMetadata(b -> b.putCustom(RoleMappingMetadata.TYPE, this));
         }
     }
 
-    public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(ClusterState.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
     }
 
     @Override
@@ -111,5 +115,15 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<ClusterStat
             firstEntry = false;
         }
         return builder.append("]]").toString();
+    }
+
+    @Override
+    public EnumSet<Metadata.XContentContext> context() {
+        // It is safest to have this persisted to gateway and snapshots, although maybe redundant.
+        // The persistence can become an issue in cases where {@link ReservedStateMetadata}
+        // (which records the names of the role mappings last applied) is persisted,
+        // but the role mappings themselves (stored here by the {@link RoleMappingMetadata})
+        // are not persisted.
+        return ALL_CONTEXTS;
     }
 }

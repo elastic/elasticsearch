@@ -250,6 +250,7 @@ public class MultivalueDedupeBytesRef {
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
+        block.incRef();
         return new BatchEncoder.BytesRefs(batchSize) {
             @Override
             protected void readNextBatch() {
@@ -304,6 +305,11 @@ public class MultivalueDedupeBytesRef {
                     size += work[i].length;
                 }
                 return size;
+            }
+
+            @Override
+            public void close() {
+                block.decRef();
             }
         };
     }

@@ -11,7 +11,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,17 +22,19 @@ import static org.elasticsearch.search.rank.RankDoc.NO_RANK;
 /**
  * Executes queries and generates results on the shard for RRF.
  */
-public class RRFRankShardContext extends RankShardContext {
+public class RRFQueryPhaseRankShardContext extends QueryPhaseRankShardContext {
 
-    protected final int rankConstant;
+    private final int rankConstant;
+    private final int from;
 
-    public RRFRankShardContext(List<Query> queries, int from, int windowSize, int rankConstant) {
-        super(queries, from, windowSize);
+    public RRFQueryPhaseRankShardContext(List<Query> queries, int from, int windowSize, int rankConstant) {
+        super(queries, windowSize);
+        this.from = from;
         this.rankConstant = rankConstant;
     }
 
     @Override
-    public RRFRankShardResult combine(List<TopDocs> rankResults) {
+    public RRFRankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query

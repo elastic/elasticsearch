@@ -112,7 +112,12 @@ public class ReservedClusterStateService {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(
+                namespace,
+                ReservedStateMetadata.STATE_VERSION_EMPTY,
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -134,7 +139,12 @@ public class ReservedClusterStateService {
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(
+                namespace,
+                ReservedStateMetadata.STATE_VERSION_EMPTY,
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -148,7 +158,7 @@ public class ReservedClusterStateService {
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
-        var missingVersion = new ReservedStateVersion(-1L, Version.CURRENT);
+        var missingVersion = new ReservedStateVersion(ReservedStateMetadata.STATE_VERSION_EMPTY, Version.CURRENT);
         var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
         updateTaskQueue.submitTask(
             "empty initial cluster state [" + namespace + "]",

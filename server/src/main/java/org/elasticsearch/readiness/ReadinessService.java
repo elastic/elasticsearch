@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
@@ -254,7 +255,12 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // protected to allow mock service to override
     protected boolean areFileSettingsApplied(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-        return fileSettingsMetadata != null;
+        return fileSettingsMetadata != null
+            // do not consider file settings applied if at version -1 (empty) with a parsing error present.
+            // in that case the cluster is in a broken state with no file settings ever applied despite attempting to do so.
+            && (fileSettingsMetadata.version() == ReservedStateMetadata.STATE_VERSION_EMPTY
+                && fileSettingsMetadata.errorMetadata() != null
+                && fileSettingsMetadata.errorMetadata().errorKind() == ReservedStateErrorMetadata.ErrorKind.PARSING) == false;
     }
 
     private void setReady(boolean ready) {

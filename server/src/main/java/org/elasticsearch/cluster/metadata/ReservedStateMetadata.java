@@ -46,6 +46,9 @@ public record ReservedStateMetadata(
     ReservedStateErrorMetadata errorMetadata
 ) implements SimpleDiffable<ReservedStateMetadata>, ToXContentFragment {
 
+    public static final long STATE_VERSION_SNAPSHOT_RESTORE = 0;
+    public static final long STATE_VERSION_EMPTY = -1;
+
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField HANDLERS = new ParseField("handlers");
     private static final ParseField ERRORS_METADATA = new ParseField("errors");

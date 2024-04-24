@@ -50,8 +50,9 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
     static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
         return (existingMetadata == null
             || existingMetadata.errorMetadata() == null
-            || newStateVersion <= 0 // version will be -1 when we can't even parse the file, it might be 0 on snapshot restore
-            || existingMetadata.errorMetadata().version() < newStateVersion);
+            || existingMetadata.errorMetadata().version() < newStateVersion
+            // version will be -1 (empty) when we can't even parse the file, it might be 0 on snapshot restore
+            || newStateVersion <= ReservedStateMetadata.STATE_VERSION_SNAPSHOT_RESTORE);
     }
 
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {

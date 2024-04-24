@@ -48,7 +48,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.PARSING;
 import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.STATE_VERSION_EMPTY;
 
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
@@ -59,8 +61,15 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     private static Metadata emptyReservedStateMetadata;
     static {
-        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(-1L);
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(STATE_VERSION_EMPTY);
         emptyReservedStateMetadata = new Metadata.Builder().put(fileSettingsState.build()).build();
+    }
+
+    private static Metadata initialReservedStateParsingErrorMetadata;
+    static {
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(STATE_VERSION_EMPTY)
+            .errorMetadata(new ReservedStateErrorMetadata(STATE_VERSION_EMPTY, PARSING, List.of("error")));
+        initialReservedStateParsingErrorMetadata = new Metadata.Builder().put(fileSettingsState.build()).build();
     }
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
@@ -222,6 +231,15 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         readinessService.clusterChanged(event);
 
         // sending a cluster state with active master should not yet bring up the service, file settings still are not applied
+        assertFalse(readinessService.ready());
+
+        ClusterState errorFileSettingsState = ClusterState.builder(noFileSettingsState)
+            .metadata(initialReservedStateParsingErrorMetadata)
+            .build();
+        event = new ClusterChangedEvent("test", errorFileSettingsState, noFileSettingsState);
+        readinessService.clusterChanged(event);
+
+        // sending a cluster state with active master and empty file settings containing a parsing error should not yet bring up the service
         assertFalse(readinessService.ready());
 
         ClusterState completeState = ClusterState.builder(noFileSettingsState).metadata(emptyReservedStateMetadata).build();

@@ -366,6 +366,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1801")
     public void testMetricsRemainExactAfterAMasterFailover() throws Exception {
         var masterNode2 = startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);

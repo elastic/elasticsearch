@@ -6,8 +6,10 @@
 
 preview::[]
 
-Removes a connector and its associated data.
+Removes a connector and associated sync jobs.
 This is a destructive action that is not recoverable.
+
+Note: this action doesn't delete any API key, ingest pipeline or data index associated with the connector. These need to be removed manually.
 
 [[delete-connector-api-request]]
 ==== {api-request-title}
@@ -17,7 +19,7 @@ This is a destructive action that is not recoverable.
 [[delete-connector-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[delete-connector-api-path-params]]

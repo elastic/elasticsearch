@@ -122,7 +122,7 @@ public class SearchMetricsService implements ClusterStateListener {
         ClusterService clusterService,
         MemoryMetricsService memoryMetricsService
     ) {
-        var service = new SearchMetricsService(clusterSettings, threadPool::relativeTimeInNanos, memoryMetricsService);
+        SearchMetricsService service = new SearchMetricsService(clusterSettings, threadPool::relativeTimeInNanos, memoryMetricsService);
         clusterService.addListener(service);
         return service;
     }
@@ -488,14 +488,14 @@ public class SearchMetricsService implements ClusterStateListener {
 
     record IndexRankingProperties(IndexProperties indexProperties, long interactiveSize) {}
 
-    Map<String, Integer> getNumberOfReplicaChanges() {
-        Map<String, Integer> numReplicaChanges = new HashMap<>();
+    Map<Integer, List<String>> getNumberOfReplicaChanges() {
+        Map<Integer, List<String>> numReplicaChanges = new HashMap<>(2);
         if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
             for (Map.Entry<Index, IndexProperties> entry : indices.entrySet()) {
                 Index index = entry.getKey();
                 IndexProperties settings = entry.getValue();
                 if (settings.replicas != 1) {
-                    numReplicaChanges.put(index.getName(), 1);
+                    setNumReplicasForIndex(index.getName(), 1, numReplicaChanges);
                 }
             }
         } else if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
@@ -517,11 +517,11 @@ public class SearchMetricsService implements ClusterStateListener {
                 }
                 if (indexInteractive) {
                     if (indexProperties.replicas != 2) {
-                        numReplicaChanges.put(index.getName(), 2);
+                        setNumReplicasForIndex(index.getName(), 2, numReplicaChanges);
                     }
                 } else {
                     if (indexProperties.replicas != 1) {
-                        numReplicaChanges.put(index.getName(), 1);
+                        setNumReplicasForIndex(index.getName(), 1, numReplicaChanges);
                     }
                 }
             }
@@ -560,15 +560,25 @@ public class SearchMetricsService implements ClusterStateListener {
                 int replicas = rankedIndex.indexProperties.replicas;
                 if (rankedIndex.interactiveSize > 0 && twoReplicaEligibleIndices.contains(indexName)) {
                     if (replicas != 2) {
-                        numReplicaChanges.put(indexName, 2);
+                        setNumReplicasForIndex(indexName, 2, numReplicaChanges);
                     }
                 } else {
                     if (replicas != 1) {
-                        numReplicaChanges.put(indexName, 1);
+                        setNumReplicasForIndex(indexName, 1, numReplicaChanges);
                     }
                 }
             }
         }
         return numReplicaChanges;
+    }
+
+    private static void setNumReplicasForIndex(String index, int numReplicas, Map<Integer, List<String>> numReplicaChanges) {
+        numReplicaChanges.compute(numReplicas, (integer, strings) -> {
+            if (strings == null) {
+                strings = new ArrayList<>();
+            }
+            strings.add(index);
+            return strings;
+        });
     }
 }

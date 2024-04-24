@@ -7,7 +7,7 @@
 
 preview::[]
 
-Returns information about all stored connectors.
+Returns information about all created connectors.
 
 
 [[list-connector-api-request]]
@@ -18,25 +18,33 @@ Returns information about all stored connectors.
 [[list-connector-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, it's required to have the Elastic connectors service running.
 
 [[list-connector-api-path-params]]
 ==== {api-path-parms-title}
 
 `size`::
 (Optional, integer) Maximum number of results to retrieve.
+// Is there a default?
 
 `from`::
 (Optional, integer) The offset from the first result to fetch.
 
 `index_name`::
-(Optional, string) A comma-separated list of data index names associated with connectors, used to filter search results.
+(Optional, string) A comma-separated list of index names associated with connectors, used to filter search results.
+// What is the maximum number of index names that can be specified?
+// Does this have to be an exact match or are regexes also accepted?
+// "data index" - I don't believe we refer to indices as data indices anywhere else
 
 `connector_name`::
 (Optional, string) A comma-separated list of connector names, used to filter search results.
+// What is the maximum number of names that can be specified?
+// Does this have to be an exact match or are regexes also accepted?
+// If we accept any name as connector name, what encoding is accepted as parameter? e.g. how would a request for a connector named "My test connector" look like?
 
 `service_type`::
 (Optional, string) A comma-separated list of connector service types, used to filter search results.
+// What is the maximum number that can be specified?
 
 [[list-connector-api-example]]
 ==== {api-examples-title}
@@ -81,10 +89,12 @@ The following example lists the first two connectors:
 
 [source,console]
 ----
-GET _connector/?from=0&size=2
+GET _connector?from=0&size=2
 ----
+// Usually the last '/' is not required before specifying params - any reason to add it in all examples?
 
-An example to list connectors associated with `search-google-drive` data index name:
+An example to list the connector associated with `search-google-drive` index name:
+// there should really be only one connector ever associated with 1 index
 
 [source,console]
 ----

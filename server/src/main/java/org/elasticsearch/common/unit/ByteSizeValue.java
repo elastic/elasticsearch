@@ -204,6 +204,14 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         return Strings.format1Decimals(value, suffix);
     }
 
+    public static String bytesToString(long size) {
+        if (size < 0) {
+            size = -size;
+            return "-" + ofBytes(size).toString();
+        }
+        return ofBytes(size).toString();
+    }
+
     public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
         return parseBytesSizeValue(sValue, null, settingName);
     }

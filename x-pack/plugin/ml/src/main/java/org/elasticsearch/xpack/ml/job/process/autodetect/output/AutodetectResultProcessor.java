@@ -465,7 +465,7 @@ public class AutodetectResultProcessor {
                         jobId,
                         Messages.getMessage(
                             Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2,
-                            ByteSizeValue.ofBytes(modelSizeStats.getModelBytes()).toString()
+                            ByteSizeValue.bytesToString(modelSizeStats.getModelBytes())
                         )
                     );
                 } else {
@@ -473,8 +473,8 @@ public class AutodetectResultProcessor {
                         jobId,
                         Messages.getMessage(
                             Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT,
-                            ByteSizeValue.ofBytes(modelSizeStats.getModelBytesMemoryLimit()).toString(),
-                            ByteSizeValue.ofBytes(modelSizeStats.getModelBytesExceeded()).toString()
+                            ByteSizeValue.bytesToString(modelSizeStats.getModelBytesMemoryLimit()),
+                            ByteSizeValue.bytesToString(modelSizeStats.getModelBytesExceeded())
                         )
                     );
                 }

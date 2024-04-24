@@ -246,11 +246,11 @@ public class JobNodeSelector {
                         + "memory required by existing jobs [%s (%s)], "
                         + "estimated memory required for this job [%s (%s)].",
                     currentLoad.getMaxMlMemory(),
-                    ByteSizeValue.ofBytes(currentLoad.getMaxMlMemory()).toString(),
+                    ByteSizeValue.bytesToString(currentLoad.getMaxMlMemory()),
                     currentLoad.getAssignedJobMemory(),
-                    ByteSizeValue.ofBytes(currentLoad.getAssignedJobMemory()).toString(),
+                    ByteSizeValue.bytesToString(currentLoad.getAssignedJobMemory()),
                     requiredMemoryForJob,
-                    ByteSizeValue.ofBytes(requiredMemoryForJob).toString()
+                    ByteSizeValue.bytesToString(requiredMemoryForJob)
                 );
                 logger.trace(reason);
                 reasons.put(node.getName(), reason);

@@ -425,11 +425,11 @@ class TrainedModelAssignmentRebalancer {
                         + "estimated memory required for this model [{} ({})].",
                     new Object[] {
                         load.getMaxMlMemory(),
-                        ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
+                        ByteSizeValue.bytesToString(load.getMaxMlMemory()),
                         nodeFreeMemory,
-                        ByteSizeValue.ofBytes(nodeFreeMemory).toString(),
+                        ByteSizeValue.bytesToString(nodeFreeMemory),
                         requiredMemory,
-                        ByteSizeValue.ofBytes(requiredMemory).toString() }
+                        ByteSizeValue.bytesToString(requiredMemory) }
                 )
             );
         }

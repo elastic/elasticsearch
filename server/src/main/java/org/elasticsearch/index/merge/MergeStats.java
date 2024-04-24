@@ -242,7 +242,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.TOTAL_STOPPED_TIME_IN_MILLIS, Fields.TOTAL_STOPPED_TIME, getTotalStoppedTime());
         builder.humanReadableField(Fields.TOTAL_THROTTLED_TIME_IN_MILLIS, Fields.TOTAL_THROTTLED_TIME, getTotalThrottledTime());
         if (builder.humanReadable() && totalBytesPerSecAutoThrottle != -1) {
-            builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC).value(ByteSizeValue.ofBytes(totalBytesPerSecAutoThrottle).toString());
+            builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC).value(ByteSizeValue.bytesToString(totalBytesPerSecAutoThrottle));
         }
         builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, totalBytesPerSecAutoThrottle);
         builder.endObject();

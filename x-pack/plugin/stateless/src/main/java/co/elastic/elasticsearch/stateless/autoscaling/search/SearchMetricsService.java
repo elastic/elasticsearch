@@ -28,6 +28,8 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -47,7 +49,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
@@ -56,6 +61,7 @@ import java.util.function.LongSupplier;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.getRankedIndicesBelowThreshold;
 
 /**
  * This service is responsible for receiving raw shard sizes notification from the search nodes
@@ -83,13 +89,23 @@ public class SearchMetricsService implements ClusterStateListener {
     );
     private static final ShardSize ZERO_SHARD_SIZE = new ShardSize(0, 0, PrimaryTermAndGeneration.ZERO);
 
+    /**
+     * Search power setting below which we only have 1 replica for all interactive indices
+     */
+    public static final int SEARCH_POWER_MIN_NO_REPLICATION = 100;
+
+    /**
+     * Search power setting at which we want to replicate all interactive indices with a factor of 2
+     */
+    public static final int SEARCH_POWER_MIN_FULL_REPLICATION = 250;
+
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
 
     private volatile boolean shardMetricsInitialized = false;
     private volatile boolean loadMetricsInitialized = false;
 
-    private final ConcurrentMap<Index, IndexShardsSettings> indices = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Index, IndexProperties> indices = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, NodeTimingForShardMetrics> nodeTimingForShardMetrics = new ConcurrentHashMap<>();
     private final ConcurrentMap<ShardId, ShardMetrics> shardMetrics = new ConcurrentHashMap<>();
     private final Map<String, NodeSearchLoad> nodeSearchLoads = new ConcurrentHashMap<>();
@@ -209,16 +225,31 @@ public class SearchMetricsService implements ClusterStateListener {
                     ? newIndexShardMetricFactory()
                     : shardId -> new ShardMetrics();
 
+                SortedMap<String, IndexAbstraction> indicesLookup = state.metadata().getIndicesLookup();
                 for (IndexMetadata metadata : state.metadata().indices().values()) {
                     int shardCopies = getNumberOfReplicas(metadata);
                     if (shardCopies == 0) {
                         continue;
                     }
 
-                    indices.put(metadata.getIndex(), new IndexShardsSettings(metadata.getNumberOfShards(), shardCopies));
                     for (int i = 0; i < metadata.getNumberOfShards(); i++) {
                         shardMetrics.computeIfAbsent(new ShardId(metadata.getIndex(), i), newShardMetricFactory);
                     }
+
+                    IndexAbstraction indexAbstraction = indicesLookup.get(metadata.getIndex().getName());
+                    assert indexAbstraction.getType() != IndexAbstraction.Type.ALIAS : "we shouldn't see aliases here";
+                    long indexRecency = getRecency(metadata, indexAbstraction);
+                    indices.put(
+                        metadata.getIndex(),
+                        new IndexProperties(
+                            metadata.getIndex().getName(),
+                            metadata.getNumberOfShards(),
+                            shardCopies,
+                            metadata.isSystem(),
+                            indexAbstraction.getParentDataStream() != null,
+                            indexRecency
+                        )
+                    );
                 }
             }
             if (event.nodesChanged() || shardMetricsInitialized == false) {
@@ -259,6 +290,19 @@ public class SearchMetricsService implements ClusterStateListener {
                 }
             }
         }
+    }
+
+    /**
+     * Use the creation date of an index as its recency by default.
+     * Check if this is a data stream write index, in this case use {@link Long#MAX_VALUE} so we always order
+     * write indices first.
+     */
+    private static long getRecency(IndexMetadata metadata, IndexAbstraction indexAbstraction) {
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        if (parentDataStream != null && metadata.getIndex().equals(parentDataStream.getWriteIndex())) {
+            return Long.MAX_VALUE;
+        }
+        return metadata.getCreationDate();
     }
 
     /**
@@ -369,7 +413,7 @@ public class SearchMetricsService implements ClusterStateListener {
     }
 
     class NodeSearchLoad {
-        private String nodeId;
+        private final String nodeId;
         private double searchLoad;
         private long latestSampleTimeInNanos;
         private long maxSeqNo = Long.MIN_VALUE;
@@ -412,7 +456,7 @@ public class SearchMetricsService implements ClusterStateListener {
         return relativeTimeInNanosSupplier.getAsLong();
     }
 
-    private record IndexShardsSettings(int shards, int replicas) {}
+    record IndexProperties(String name, int shards, int replicas, boolean isSystem, boolean isDataStream, long recency) {}
 
     private static boolean hasZeroReplicas(Index index, ClusterState state) {
         return getNumberOfReplicas(state.metadata().index(index)) == 0;
@@ -426,7 +470,7 @@ public class SearchMetricsService implements ClusterStateListener {
     }
 
     // visible for testing
-    ConcurrentMap<Index, IndexShardsSettings> getIndices() {
+    ConcurrentMap<Index, IndexProperties> getIndices() {
         return indices;
     }
 
@@ -442,49 +486,85 @@ public class SearchMetricsService implements ClusterStateListener {
         return node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
     }
 
+    record IndexRankingProperties(IndexProperties indexProperties, long interactiveSize) {}
+
     Map<String, Integer> getNumberOfReplicaChanges() {
         Map<String, Integer> numReplicaChanges = new HashMap<>();
-        if (searchPowerMinSetting < 100) {
-            for (Map.Entry<Index, IndexShardsSettings> entry : indices.entrySet()) {
+        if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
+            for (Map.Entry<Index, IndexProperties> entry : indices.entrySet()) {
                 Index index = entry.getKey();
-                IndexShardsSettings settings = entry.getValue();
+                IndexProperties settings = entry.getValue();
                 if (settings.replicas != 1) {
                     numReplicaChanges.put(index.getName(), 1);
                 }
             }
-        } else {
-            for (Map.Entry<Index, IndexShardsSettings> entry : indices.entrySet()) {
+        } else if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
+            for (Map.Entry<Index, IndexProperties> entry : indices.entrySet()) {
                 Index index = entry.getKey();
-                IndexShardsSettings settings = entry.getValue();
-                boolean isWithinBoostWindow = false;
-                for (int i = 0; i < settings.shards; i++) {
+                IndexProperties indexProperties = entry.getValue();
+                boolean indexInteractive = false;
+                for (int i = 0; i < indexProperties.shards; i++) {
                     ShardMetrics shardMetrics = this.shardMetrics.get(new ShardId(index, i));
                     if (shardMetrics == null) {
                         // move to the next index if shard metrics for the current index are not found: they could have been removed
                         // because the index has been removed, or because it has now zero replicas.
-                        continue;
+                        break;
                     }
                     if (shardMetrics.shardSize.interactiveSizeInBytes() > 0) {
-                        // one shard has interactive data -> its index is within the boost window
-                        isWithinBoostWindow = true;
+                        indexInteractive = true;
                         break;
                     }
                 }
-                if (isWithinBoostWindow) {
-                    if (searchPowerMinSetting >= 250) {
-                        if (settings.replicas != 2) {
-                            numReplicaChanges.put(index.getName(), 2);
-                        }
-                    } else {
-                        assert searchPowerMinSetting >= 100 : "search power < 100 should be handled elsewhere";
-                        // TODO assign replicas based on index ranking, for now it's always 1, same as < 100
-                        if (settings.replicas != 1) {
-                            numReplicaChanges.put(index.getName(), 1);
-                        }
+                if (indexInteractive) {
+                    if (indexProperties.replicas != 2) {
+                        numReplicaChanges.put(index.getName(), 2);
                     }
                 } else {
-                    if (settings.replicas != 1) {
+                    if (indexProperties.replicas != 1) {
                         numReplicaChanges.put(index.getName(), 1);
+                    }
+                }
+            }
+        } else {
+            // search power should be between 100 and 250 here
+            long allIndicesInteractiveSize = 0;
+            List<IndexRankingProperties> rankingProperties = new ArrayList<>();
+            for (Map.Entry<Index, IndexProperties> entry : indices.entrySet()) {
+                Index index = entry.getKey();
+                IndexProperties indexProperties = entry.getValue();
+                long totalIndexInteractiveSize = 0;
+                boolean indexSizeValid = true;
+                for (int i = 0; i < indexProperties.shards; i++) {
+                    ShardMetrics shardMetrics = this.shardMetrics.get(new ShardId(index, i));
+                    if (shardMetrics == null) {
+                        // move to the next index if shard metrics for the current index are not found: they could have been removed
+                        // because the index has been removed, or because it has now zero replicas.
+                        indexSizeValid = false;
+                        break;
+                    }
+                    totalIndexInteractiveSize += shardMetrics.shardSize.interactiveSizeInBytes();
+                }
+                if (indexSizeValid) {
+                    rankingProperties.add(new IndexRankingProperties(indexProperties, totalIndexInteractiveSize));
+                    allIndicesInteractiveSize += totalIndexInteractiveSize;
+                } else {
+                    // TODO if we detect an index with invalid shard metrics, should we reset its replica setting to 1 or
+                    // trust that it will get removed from state and this.indices map in an upcoming cluster state update?
+                }
+            }
+            final long threshold = allIndicesInteractiveSize * (searchPowerMinSetting - SEARCH_POWER_MIN_NO_REPLICATION)
+                / (SEARCH_POWER_MIN_FULL_REPLICATION - SEARCH_POWER_MIN_NO_REPLICATION);
+            Set<String> twoReplicaEligibleIndices = getRankedIndicesBelowThreshold(rankingProperties, threshold);
+            for (var rankedIndex : rankingProperties) {
+                String indexName = rankedIndex.indexProperties.name;
+                int replicas = rankedIndex.indexProperties.replicas;
+                if (rankedIndex.interactiveSize > 0 && twoReplicaEligibleIndices.contains(indexName)) {
+                    if (replicas != 2) {
+                        numReplicaChanges.put(indexName, 2);
+                    }
+                } else {
+                    if (replicas != 1) {
+                        numReplicaChanges.put(indexName, 1);
                     }
                 }
             }

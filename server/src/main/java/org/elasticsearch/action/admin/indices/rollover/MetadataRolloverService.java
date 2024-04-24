@@ -523,7 +523,9 @@ public class MetadataRolloverService {
         if (settings != null) {
             b.put(settings);
         }
-        return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).ackTimeout(createIndexRequest.timeout())
+        return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName).ackTimeout(
+            createIndexRequest.ackTimeout()
+        )
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
             .settings(b.build())
             .aliases(createIndexRequest.aliases())

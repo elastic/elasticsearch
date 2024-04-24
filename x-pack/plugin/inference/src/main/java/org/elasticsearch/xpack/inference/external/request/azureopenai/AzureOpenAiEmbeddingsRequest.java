@@ -39,14 +39,9 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
     private final URI uri;
     private final AzureOpenAiEmbeddingsModel model;
 
-    public AzureOpenAiEmbeddingsRequest(
-        Truncator truncator,
-        AzureOpenAiAccount account,
-        Truncator.TruncationResult input,
-        AzureOpenAiEmbeddingsModel model
-    ) {
+    public AzureOpenAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, AzureOpenAiEmbeddingsModel model) {
         this.truncator = Objects.requireNonNull(truncator);
-        this.account = Objects.requireNonNull(account);
+        this.account = AzureOpenAiAccount.fromModel(model);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
         this.uri = model.getUri();
@@ -100,7 +95,7 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new AzureOpenAiEmbeddingsRequest(truncator, account, truncatedInput, model);
+        return new AzureOpenAiEmbeddingsRequest(truncator, truncatedInput, model);
     }
 
     @Override

@@ -419,6 +419,7 @@ public final class ApiKey implements ToXContentObject {
             + "]";
     }
 
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
     static final ConstructingObjectParser<ApiKey, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>("api_key", true, ApiKey::new);
@@ -443,7 +444,7 @@ public final class ApiKey implements ToXContentObject {
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
         parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
             p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
+            return ROLE_DESCRIPTOR_PARSER.parse(n, p);
         }, new ParseField("role_descriptors"));
         parser.declareField(
             optionalConstructorArg(),

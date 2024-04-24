@@ -30,6 +30,11 @@ public @interface FunctionInfo {
     String description() default "";
 
     /**
+     * Detailed descriptions of the function rendered in the docs.
+     */
+    String detailedDescription() default "";
+
+    /**
      * A {@code NOTE} that's added after the {@link #description} in the docs.
      */
     String note() default "";

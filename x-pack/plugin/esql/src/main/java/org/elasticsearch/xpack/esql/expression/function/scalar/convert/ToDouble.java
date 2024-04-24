@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -44,12 +45,28 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new) // CastIntToDoubleEvaluator would be a candidate, but not MV'd
     );
 
-    @FunctionInfo(returnType = "double", description = "Converts an input value to a double value.")
+    @FunctionInfo(
+        returnType = "double",
+        description = """
+            Converts an input value to a double value. If the input parameter is of a date type,
+            its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch],
+            converted to double. Boolean *true* will be converted to double *1.0*, *false* to *0.0*.""",
+        examples = @Example(file = "floats", tag = "to_double-str", explanation = """
+            Note that in this example, the last conversion of the string isn't possible.
+            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            The header will provide information on the source of the failure:
+
+            `"Line 1:115: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded."`
+
+            A following header will contain the failure reason and the offending value:
+            `"java.lang.NumberFormatException: For input string: \"foo\""`""")
+    )
     public ToDouble(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);

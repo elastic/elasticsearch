@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -85,12 +86,16 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ActionListener<NodesStatsResponse> listener
     ) {
         Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
-        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
+        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)
+            || NodesStatsRequestParameters.Metric.FS.containedIn(metrics)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
                 new TransportGetAllocationStatsAction.Request(new TaskId(clusterService.localNode().getId(), task.getId())),
                 listener.delegateFailure((l, r) -> {
-                    ActionListener.respondAndRelease(l, newResponse(request, merge(responses, r.getNodeAllocationStats()), failures));
+                    ActionListener.respondAndRelease(
+                        l,
+                        newResponse(request, merge(responses, r.getNodeAllocationStats(), r.getDiskThresholdSettings()), failures)
+                    );
                 })
             );
         } else {
@@ -98,9 +103,13 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         }
     }
 
-    private static List<NodeStats> merge(List<NodeStats> responses, Map<String, NodeAllocationStats> allocationStats) {
+    private static List<NodeStats> merge(
+        List<NodeStats> responses,
+        Map<String, NodeAllocationStats> allocationStats,
+        DiskThresholdSettings masterThresholdSettings
+    ) {
         return responses.stream()
-            .map(response -> response.withNodeAllocationStats(allocationStats.get(response.getNode().getId())))
+            .map(response -> response.withNodeAllocationStats(allocationStats.get(response.getNode().getId()), masterThresholdSettings))
             .toList();
     }
 
@@ -144,8 +153,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     public static class NodeStatsRequest extends TransportRequest {
 
-        private NodesStatsRequestParameters nodesStatsRequestParameters;
-        private String[] nodesIds;
+        private final NodesStatsRequestParameters nodesStatsRequestParameters;
+        private final String[] nodesIds;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);

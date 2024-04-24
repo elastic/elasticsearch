@@ -644,7 +644,7 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    public void testDependentKeyDeadlock() {
+    public void testDependentKeyDeadlock() throws InterruptedException {
         class Key {
             private final int key;
 
@@ -673,6 +673,7 @@ public class CacheTests extends ESTestCase {
         final Cache<Key, Integer> cache = CacheBuilder.<Key, Integer>builder().build();
 
         CopyOnWriteArrayList<ExecutionException> failures = new CopyOnWriteArrayList<>();
+        AtomicBoolean reachedTimeLimit = new AtomicBoolean();
 
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         CountDownLatch deadlockLatch = new CountDownLatch(numberOfThreads);
@@ -682,7 +683,7 @@ public class CacheTests extends ESTestCase {
                 try {
                     safeAwait(barrier);
                     Random random = new Random(random().nextLong());
-                    for (int j = 0; j < numberOfEntries; j++) {
+                    for (int j = 0; j < numberOfEntries && reachedTimeLimit.get() == false; j++) {
                         Key key = new Key(random.nextInt(numberOfEntries));
                         try {
                             cache.computeIfAbsent(key, k -> {
@@ -734,7 +735,12 @@ public class CacheTests extends ESTestCase {
         // everything is setup, release the hounds
         safeAwait(barrier);
 
-        // wait for either deadlock to be detected or the threads to terminate
+        // run the test for a limited amount of time; if threads are still running after that, let them know and exit gracefully
+        if (deadlockLatch.await(1, TimeUnit.SECONDS) == false) {
+            reachedTimeLimit.set(true);
+        }
+
+        // wait for either deadlock to be detected or the threads to terminate (end operations or time limit reached)
         safeAwait(deadlockLatch);
 
         // shutdown the watchdog service

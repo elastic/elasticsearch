@@ -339,6 +339,10 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         });
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1730",
+        value = "co.elastic.elasticsearch.stateless.autoscaling.indexing:TRACE"
+    )
     public void testMasterFailoverWithOnGoingMetricPublication() throws Exception {
         for (int i = 0; i < 2; i++) {
             startMasterNode();
@@ -366,8 +370,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             TransportService.class
         );
         mockTransportService.addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
-            if (request instanceof PublishNodeIngestLoadRequest publishRequest && publishRequest.getIngestionLoad() > 0) {
-                firstNonZeroPublishIndexLoadLatch.countDown();
+            if (request instanceof PublishNodeIngestLoadRequest publishRequest) {
+                logger.trace("Reported ingestion load: {}", publishRequest.getIngestionLoad());
+                if (publishRequest.getIngestionLoad() > 0) {
+                    firstNonZeroPublishIndexLoadLatch.countDown();
+                }
             }
         });
 

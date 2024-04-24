@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -62,6 +61,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.codec.CodecService;
@@ -83,6 +83,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -101,6 +102,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
+import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL_SETTING;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
@@ -312,7 +315,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             nodeEnvironment,
             indexSettings.getSettings(),
             threadPool,
-            Stateless.SHARD_READ_THREAD_POOL,
+            SHARD_READ_THREAD_POOL,
             BlobCacheMetrics.NOOP
         );
         var directory = new SearchDirectory(
@@ -375,13 +378,29 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected EngineConfig searchConfig() {
+        return searchConfig(MutableObjectStoreUploadTracker.ALWAYS_UPLOADED);
+    }
+
+    protected EngineConfig searchConfig(MutableObjectStoreUploadTracker objectStoreUploadTracker) {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
-        var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][search]"));
+        var threadPool = registerThreadPool(
+            new TestThreadPool(
+                getTestName() + "[" + shardId + "][search]",
+                new ScalingExecutorBuilder(
+                    SHARD_READ_THREAD_POOL,
+                    1,
+                    2,
+                    TimeValue.timeValueSeconds(30L),
+                    true,
+                    SHARD_READ_THREAD_POOL_SETTING
+                )
+            )
+        );
         var directory = new SearchDirectory(
             sharedBlobCacheService,
             new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class)),
-            MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+            objectStoreUploadTracker,
             shardId
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));

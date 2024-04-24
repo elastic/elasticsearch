@@ -17,6 +17,10 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequestTests;
+import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.CheckIndex;
@@ -25,14 +29,16 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -58,15 +65,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
 public class SearchEngineTests extends AbstractEngineTestCase {
 
     private static long getCurrentGeneration(SearchEngine engine) {
         return engine.getCurrentPrimaryTermAndGeneration().generation();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testCommitNotifications() throws IOException {
         final var indexConfig = indexConfig();
         final var searchTaskQueue = new DeterministicTaskQueue();
@@ -110,6 +120,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testCommitNotificationsAfterCorruption() throws IOException {
         final var indexConfig = indexConfig();
 
@@ -151,6 +162,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testFailEngineWithCorruption() throws IOException {
         final SearchEngine searchEngine = newSearchEngine();
         try (searchEngine) {
@@ -171,6 +183,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         verify(sharedBlobCacheService).forceEvict(any());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testMarkedStoreCorrupted() throws IOException {
         final SearchEngine searchEngine = newSearchEngine();
         try (searchEngine) {
@@ -200,6 +213,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         };
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testAcquiredPrimaryTermAndGenerations() throws IOException {
         final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
         final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
@@ -293,6 +307,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testDoesNotRegisterListenersWithOldPrimaryTerm() throws Exception {
         AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 100L));
         long initialPrimaryTerm = primaryTerm.get();
@@ -441,6 +456,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
      * 3. Check that checkIndex does fail when removing one random (non-segments_N) file
      *    (i.e., check that we removed all the necessary files).
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testPruneFileMetadata() throws IOException {
         final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
         final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
@@ -505,6 +521,67 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             assertThat(checkIndex.checkIndex().clean, is(false));
         }
+    }
+
+    public void testLatestUploadedTermAndGenUpdatedOnCommitNotification() throws IOException {
+        final var objectStoreUploadTracker = spy(new AtomicMutableObjectStoreUploadTracker());
+        final SearchEngine searchEngine = spy(newSearchEngineFromIndexEngine(searchConfig(objectStoreUploadTracker)));
+        // Disable commit notification processing to show latestUploadedGen does not depend on it
+        doReturn(false).when(searchEngine).addOrExecuteSegmentGenerationListener(any(), anyActionListener());
+        try (searchEngine) {
+            final var indexShardRoutingTable = NewCommitNotificationRequestTests.randomIndexShardRoutingTable();
+            final long primaryTerm = randomLongBetween(10, 42);
+            final long ccGen = randomLongBetween(10, 100);
+            final long bccGen = randomLongBetween(5, ccGen);
+
+            // 1st notification for commit creation
+            final long latestUploadedGen = bccGen - 1;
+            final var latestUploadedTermAndGen = new PrimaryTermAndGeneration(primaryTerm, latestUploadedGen);
+            final var latestUploadedTermAndGenPlus1 = new PrimaryTermAndGeneration(primaryTerm, latestUploadedGen + 1);
+
+            final var compoundCommit = buildCompoundCommit(indexShardRoutingTable.shardId(), primaryTerm, ccGen);
+            searchEngine.onCommitNotification(
+                new NewCommitNotificationRequest(indexShardRoutingTable, compoundCommit, bccGen, latestUploadedTermAndGen),
+                new PlainActionFuture<>()
+            );
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploaded(latestUploadedTermAndGen);
+            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGen), is(true));
+            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenPlus1), is(false));
+
+            // 2nd notification for commit upload
+            Mockito.clearInvocations(objectStoreUploadTracker);
+            searchEngine.onCommitNotification(
+                new NewCommitNotificationRequest(indexShardRoutingTable, compoundCommit, bccGen, latestUploadedTermAndGenPlus1),
+                new PlainActionFuture<>()
+            );
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploaded(latestUploadedTermAndGenPlus1);
+            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGen), is(true));
+            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenPlus1), is(true));
+
+            // 3rd notification is a delayed one that has smaller uploaded bcc gen, ensure we do not go backwards in terms of tracking
+            Mockito.clearInvocations(objectStoreUploadTracker);
+            final var latestUploadedTermAndGenMinusN = new PrimaryTermAndGeneration(
+                primaryTerm,
+                latestUploadedGen - randomLongBetween(0, 2)
+            );
+            searchEngine.onCommitNotification(
+                new NewCommitNotificationRequest(
+                    indexShardRoutingTable,
+                    buildCompoundCommit(indexShardRoutingTable.shardId(), primaryTerm, ccGen - 1),
+                    latestUploadedTermAndGenMinusN.generation(),
+                    latestUploadedTermAndGenMinusN
+                ),
+                new PlainActionFuture<>()
+            );
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploaded(latestUploadedTermAndGenMinusN);
+            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenMinusN), is(true));
+            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGen), is(true));
+            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenPlus1), is(true));
+        }
+    }
+
+    private StatelessCompoundCommit buildCompoundCommit(ShardId shardId, long primaryTerm, long ccGen) {
+        return new StatelessCompoundCommit(shardId, ccGen, primaryTerm, randomUUID(), Map.of(), randomLongBetween(10, 100), Set.of());
     }
 
     private static List<String> listFiles(Engine engine) {

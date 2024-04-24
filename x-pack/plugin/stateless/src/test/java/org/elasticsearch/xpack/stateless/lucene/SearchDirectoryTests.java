@@ -218,6 +218,9 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 logger.debug("--> update commit with file [{}]", fileName);
                 // bypass index directory so that files remain on disk and can be read again by ChecksumedFilesInputStream
+                searchDirectory.updateLatestUploadedTermAndGen(
+                    randomBoolean() ? null : new PrimaryTermAndGeneration(primaryTerm, generation)
+                );
                 searchDirectory.updateCommit(
                     new StatelessCompoundCommit(
                         node.shardId,
@@ -233,8 +236,7 @@ public class SearchDirectoryTests extends ESTestCase {
                             ),
                         blobLength,
                         files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet())
-                    ),
-                    randomBoolean() ? null : new PrimaryTermAndGeneration(primaryTerm, generation)
+                    )
                 );
                 generation += 1L;
 

@@ -237,6 +237,7 @@ public class SearchEngine extends Engine {
      * is visible to searches.
      */
     public void onCommitNotification(NewCommitNotificationRequest request, ActionListener<Void> listener) {
+        directory.updateLatestUploadedTermAndGen(request.getLatestUploadedBatchedCompoundCommitTermAndGen());
         if (addOrExecuteSegmentGenerationListener(request.getCompoundCommit().primaryTermAndGeneration(), listener.map(g -> null))) {
             commitNotifications.add(request);
             if (pendingCommitNotifications.incrementAndGet() == 1) {
@@ -289,7 +290,7 @@ public class SearchEngine extends Engine {
                 store.incRef();
                 try {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    if (directory.updateCommit(latestCommit, latestRequest.getLatestUploadedBatchedCompoundCommitTermAndGen())) {
+                    if (directory.updateCommit(latestCommit)) {
                         // if this index has been recently searched, and this commit hasn't been superseded, then
                         // prefetch the new commit files
                         // todo: disabled pre-fetching new commits, see https://github.com/elastic/elasticsearch-serverless/issues/1006

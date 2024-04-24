@@ -81,6 +81,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     @Before
     public void setup() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
+        nodeLevelReduction = randomBoolean();
         READ_DESCRIPTION = """
             \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
@@ -92,11 +93,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             \\_ProjectOperator[projection = [0]]
             \\_LimitOperator[limit = 1000]
             \\_OutputOperator[columns = [sum(pause_me)]]""";
-        REDUCE_DESCRIPTION = """
-            \\_ExchangeSourceOperator[]
-            \\_AggregationOperator[mode = INTERMEDIATE, aggs = sum of longs]
-            \\_ExchangeSinkOperator""";
-        nodeLevelReduction = randomBoolean();
+        REDUCE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
+            + (nodeLevelReduction ? "\\_AggregationOperator[mode = INTERMEDIATE, aggs = sum of longs]\n" : "")
+            + "\\_ExchangeSinkOperator";
+
     }
 
     public void testTaskContents() throws Exception {

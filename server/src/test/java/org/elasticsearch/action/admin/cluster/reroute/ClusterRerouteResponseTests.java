@@ -189,6 +189,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                               "system": false,
                               "timestamp_range": {
                                 "shards": []
+                              },
+                              "event_ingested_range": {
+                                "shards": []
                               }
                             }
                           },
@@ -267,6 +270,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           "rollover_info" : { },
                           "system" : false,
                           "timestamp_range" : {
+                            "shards" : [ ]
+                          },
+                          "event_ingested_range" : {
                             "shards" : [ ]
                           }
                         }

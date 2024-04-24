@@ -125,11 +125,13 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testValidationErrorWithEmptyClustersInRemoteCluster() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions().addGroup(
-            new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "valid" })
-        ).addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "" }));
-        request.addRemoteCluster(remoteClusterPermissions);
-        assertValidationError("remote_cluster - cluster alias cannot be an empty string", request);
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "valid" })
+            ).addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "" }))
+        );
+        assertThat(iae.getMessage(), containsString("remote_cluster clusters aliases must not valid non-empty, non-null values"));
     }
 
     public void testValidationSuccessWithCorrectRemoteIndexPrivilegeClusters() {

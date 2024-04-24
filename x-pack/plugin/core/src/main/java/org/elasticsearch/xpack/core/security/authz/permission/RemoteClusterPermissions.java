@@ -110,11 +110,6 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
                     + " is allowed"
             );
         }
-        for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
-            if (Arrays.asList(group.remoteClusterAliases()).contains("")) {
-                throw new IllegalArgumentException("remote_cluster - cluster alias cannot be an empty string");
-            }
-        }
     }
 
     /**

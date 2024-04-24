@@ -54,52 +54,50 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1670")
     public void testSearchMetricsArePublishedEventually() throws Exception {
         startMasterAndIndexNode();
         startSearchNode(
-            // Reduce the time between publications, so we can expect at least one publication per second.
             Settings.builder()
-                .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );
 
-        final AtomicInteger searchLoadPublishSent = new AtomicInteger(0);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        assertBusy(() -> {
+            var loadsBeforeSearch = getNodeSearchLoad();
+            assertThat(loadsBeforeSearch.size(), equalTo(1));
+            assertThat(loadsBeforeSearch.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsBeforeSearch.get(0).load(), equalTo(0.0));
+        });
+
+        indexDocs(indexName, 4000);
+        refresh(indexName);
+
+        var firstNonZeroPublishSearchLoadLatch = new CountDownLatch(1);
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(TransportPublishSearchLoads.NAME)) {
-                    searchLoadPublishSent.incrementAndGet();
+            MockTransportService mockTransportService2 = (MockTransportService) transportService;
+            mockTransportService2.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (request instanceof PublishNodeSearchLoadRequest publishRequest && publishRequest.getSearchLoad() > 0) {
+                    firstNonZeroPublishSearchLoadLatch.countDown();
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
         }
 
-        assertBusy(() -> assertThat(searchLoadPublishSent.get(), equalTo(1)));
-        var metrics = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class).getSearchTierMetrics();
-        assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
-        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
-
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 1).build());
-        ensureGreen(indexName);
-        int bulkRequests = randomIntBetween(10, 20);
-        for (int i = 0; i < bulkRequests; i++) {
-            indexDocs(indexName, randomIntBetween(100, 1000));
+        for (var i = 0; i < 10; i++) {
+            assertNoFailures(prepareSearch(indexName).setQuery(QueryBuilders.termQuery("field", i)));
         }
-        refresh(indexName);
 
-        assertNoFailures(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()));
+        safeAwait(firstNonZeroPublishSearchLoadLatch);
 
-        // Wait for at least one more publish
-        assertBusy(() -> assertThat(searchLoadPublishSent.get(), greaterThan(1)));
-        // We'd need an assertBusy since the second publish might still miss the recent load.
         assertBusy(() -> {
-            var metricsAfter = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class).getSearchTierMetrics();
-            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
-            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-            assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), greaterThan(0.0));
+            List<NodeSearchLoadSnapshot> loadsAfterSearch = getNodeSearchLoad();
+            assertThat(loadsAfterSearch.size(), equalTo(1));
+            assertThat(loadsAfterSearch.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterSearch.get(0).load(), greaterThan(0.0));
         });
     }
 

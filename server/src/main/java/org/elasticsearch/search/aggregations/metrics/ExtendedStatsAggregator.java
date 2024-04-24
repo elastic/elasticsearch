@@ -82,21 +82,20 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= counts.size()) {
-                    final long from = counts.size();
-                    final long overSize = BigArrays.overSize(bucket + 1);
-                    counts = bigArrays().resize(counts, overSize);
-                    sums = bigArrays().resize(sums, overSize);
-                    compensations = bigArrays().resize(compensations, overSize);
-                    mins = bigArrays().resize(mins, overSize);
-                    maxes = bigArrays().resize(maxes, overSize);
-                    sumOfSqrs = bigArrays().resize(sumOfSqrs, overSize);
-                    compensationOfSqrs = bigArrays().resize(compensationOfSqrs, overSize);
-                    mins.fill(from, overSize, Double.POSITIVE_INFINITY);
-                    maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
-                }
-
                 if (values.advanceExact(doc)) {
+                    if (bucket >= counts.size()) {
+                        final long from = counts.size();
+                        final long overSize = BigArrays.overSize(bucket + 1);
+                        counts = bigArrays().resize(counts, overSize);
+                        sums = bigArrays().resize(sums, overSize);
+                        compensations = bigArrays().resize(compensations, overSize);
+                        mins = bigArrays().resize(mins, overSize);
+                        maxes = bigArrays().resize(maxes, overSize);
+                        sumOfSqrs = bigArrays().resize(sumOfSqrs, overSize);
+                        compensationOfSqrs = bigArrays().resize(compensationOfSqrs, overSize);
+                        mins.fill(from, overSize, Double.POSITIVE_INFINITY);
+                        maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+                    }
                     final int valuesCount = values.docValueCount();
                     counts.increment(bucket, valuesCount);
                     double min = mins.get(bucket);

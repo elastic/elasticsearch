@@ -19,8 +19,8 @@ import java.util.Objects;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
- * Abstract class that allows to mark action requests that support acknowledgements.
- * Facilitates consistency across different api.
+ * Abstract base class for action requests that track acknowledgements of cluster state updates: such a request is acknowledged only once
+ * the cluster state update is committed and all relevant nodes have applied it and acknowledged its application to the elected master..
  */
 public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
     implements
@@ -57,19 +57,6 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
      * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
      * this to the elected master.
      *
-     * @param timeout timeout as a {@link TimeValue}
-     * @return this request, for method chaining.
-     * @deprecated use {@link #ackTimeout()} instead.
-     */
-    @Deprecated(forRemoval = true)
-    public final Request timeout(TimeValue timeout) {
-        return ackTimeout(timeout);
-    }
-
-    /**
-     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
-     * this to the elected master.
-     *
      * @param ackTimeout timeout as a {@link TimeValue}
      * @return this request, for method chaining.
      */
@@ -77,15 +64,6 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     public final Request ackTimeout(TimeValue ackTimeout) {
         this.ackTimeout = Objects.requireNonNull(ackTimeout);
         return (Request) this;
-    }
-
-    /**
-     * @return the current ack timeout as a {@link TimeValue}
-     * @deprecated use {@link #ackTimeout()} instead.
-     */
-    @Deprecated(forRemoval = true)
-    public final TimeValue timeout() {
-        return ackTimeout();
     }
 
     /**

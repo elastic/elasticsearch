@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -17,11 +18,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.GRACE_PERIOD_ADDED_VERSION;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
@@ -95,7 +99,14 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.gracePeriod = gracePeriod;
         }
 
+        @UpdateForV9 // TODO call super(in) instead of explicitly reading superclass contents once bwc no longer needed
         public Request(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.PUT_SHUTDOWN_REQUEST_TIMEOUTS_FIX)) {
+                // effectively super(in):
+                setParentTask(TaskId.readFromStream(in));
+                masterNodeTimeout(in.readTimeValue());
+                ackTimeout(in.readTimeValue());
+            }
             this.nodeId = in.readString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
@@ -114,6 +125,9 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PUT_SHUTDOWN_REQUEST_TIMEOUTS_FIX)) {
+                super.writeTo(out);
+            }
             out.writeString(nodeId);
             if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)
                 && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
@@ -207,5 +221,6 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
                 return null;
             }
         }
+
     }
 }

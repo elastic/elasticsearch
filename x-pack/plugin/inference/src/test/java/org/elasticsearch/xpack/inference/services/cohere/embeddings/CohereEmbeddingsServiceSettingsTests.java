@@ -292,7 +292,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "int8")),
                 ConfigurationParseContext.PERSISTENT
             ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.INT8))
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), CohereEmbeddingType.INT8))
         );
     }
 

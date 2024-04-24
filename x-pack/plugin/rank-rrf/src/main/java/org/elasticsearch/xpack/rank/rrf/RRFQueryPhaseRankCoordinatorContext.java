@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankCoordinatorContext;
+import org.elasticsearch.search.rank.RankDoc.RankKey;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,22 +25,21 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRankDoc.NO_RANK;
 /**
  * Ranks and decorates search hits for RRF results on the coordinator.
  */
-public class RRFRankCoordinatorContext extends RankCoordinatorContext {
+public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinatorContext {
 
+    private final int size;
+    private final int from;
     private final int rankConstant;
 
-    public RRFRankCoordinatorContext(int size, int from, int windowSize, int rankConstant) {
-        super(size, from, windowSize);
+    public RRFQueryPhaseRankCoordinatorContext(int size, int from, int windowSize, int rankConstant) {
+        super(windowSize);
+        this.size = size;
+        this.from = from;
         this.rankConstant = rankConstant;
     }
 
-    // used for faster hash lookup in a map of ranked documents
-    protected record RankKey(int doc, int shardIndex) {
-
-    }
-
     @Override
-    public SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocsStats) {
+    public ScoreDoc[] rankQueryPhaseResults(List<QuerySearchResult> querySearchResults, TopDocsStats topDocsStats) {
         // for each shard we check to see if it timed out to skip
         // if it didn't time out then we need to split the results into
         // a priority queue per query, so we can do global ranking
@@ -96,7 +96,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
         // return early if we have no valid results
         if (queues.isEmpty()) {
-            return SortedTopDocs.EMPTY;
+            return new ScoreDoc[0];
         }
 
         // rank the global doc sets using RRF from the previously
@@ -163,6 +163,6 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
         // return the top results where sort, collapse fields,
         // and completion suggesters are not allowed
-        return new SortedTopDocs(topResults, false, null, null, null, 0);
+        return topResults;
     }
 }

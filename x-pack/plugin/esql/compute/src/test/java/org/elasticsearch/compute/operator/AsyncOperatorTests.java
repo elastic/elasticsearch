@@ -72,6 +72,7 @@ public class AsyncOperatorTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107847")
     public void testBasic() {
         BlockFactory globalBlockFactory = blockFactory();
         LocalCircuitBreaker localBreaker = null;

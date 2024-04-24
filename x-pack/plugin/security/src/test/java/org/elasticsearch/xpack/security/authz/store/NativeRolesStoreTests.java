@@ -50,6 +50,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -388,64 +390,97 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertTrue(future.actionGet());
     }
 
-    public void testPutRoleWithRemoteIndicesUnsupportedMinNodeVersion() {
-        final Client client = mock(Client.class);
-        final TransportVersion transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-        );
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            transportVersionBeforeAdvancedRemoteClusterSecurity
-        );
-        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(minTransportVersion);
-
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
-
-        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, clusterService);
-        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
-
-        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex, clusterService) {
-            @Override
-            void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-                if (methodCalled.compareAndSet(false, true)) {
-                    listener.onResponse(true);
-                } else {
-                    fail("method called more than once!");
+    public void testPutRoleWithRemotePrivsUnsupportedMinNodeVersion() {
+        enum TEST_MODE {
+            REMOTE_INDICES_PRIVS,
+            REMOTE_CLUSTER_PRIVS,
+            REMOTE_INDICES_AND_CLUSTER_PRIVS
+        }
+        for (TEST_MODE testMode : TEST_MODE.values()) {
+            // default to both remote indices and cluster privileges and use the switch below to remove one or the other
+            TransportVersion transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
+                TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+            );
+            RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = new RoleDescriptor.RemoteIndicesPrivileges[] {
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() };
+            RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(
+                    RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                    new String[] { "remote" }
+                )
+            );
+            switch (testMode) {
+                case REMOTE_CLUSTER_PRIVS -> {
+                    transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
+                        TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
+                    );
+                    remoteIndicesPrivileges = null;
                 }
+                case REMOTE_INDICES_PRIVS -> remoteClusterPermissions = null;
             }
-        };
-        // setup the roles store so the security index exists
-        securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
+            final Client client = mock(Client.class);
 
-        PutRoleRequest putRoleRequest = new PutRoleRequest();
-        RoleDescriptor remoteIndicesRole = new RoleDescriptor(
-            "remote",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            new RoleDescriptor.RemoteIndicesPrivileges[] {
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() },
-            null, // TODO: more tests here
-            null
-        );
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
-        IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-                    + "] or higher to support remote indices privileges"
-            )
-        );
+            final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.MINIMUM_COMPATIBLE,
+                transportVersionBeforeAdvancedRemoteClusterSecurity
+            );
+            final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(minTransportVersion);
+
+            final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            final AtomicBoolean methodCalled = new AtomicBoolean(false);
+
+            final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
+            systemIndices.init(client, clusterService);
+            final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+
+            final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex, clusterService) {
+                @Override
+                void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+                    if (methodCalled.compareAndSet(false, true)) {
+                        listener.onResponse(true);
+                    } else {
+                        fail("method called more than once!");
+                    }
+                }
+            };
+            // setup the roles store so the security index exists
+            securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
+
+            PutRoleRequest putRoleRequest = new PutRoleRequest();
+            RoleDescriptor remoteIndicesRole = new RoleDescriptor(
+                "remote",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                remoteIndicesPrivileges,
+                remoteClusterPermissions,
+                null
+            );
+            PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                String.format("expected IllegalStateException, but not thrown for mode [%s]", testMode),
+                future::actionGet
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "all nodes must have transport version ["
+                        + (TEST_MODE.REMOTE_CLUSTER_PRIVS.equals(testMode)
+                            ? TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
+                            : TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+                        + "] or higher to support remote "
+                        + (remoteIndicesPrivileges != null ? "indices" : "cluster")
+                        + " privileges"
+                )
+            );
+        }
     }
 
     public void testGetRoleWhenDisabled() throws Exception {

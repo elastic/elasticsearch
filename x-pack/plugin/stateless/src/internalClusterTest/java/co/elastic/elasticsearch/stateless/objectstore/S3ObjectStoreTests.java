@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -37,6 +39,7 @@ import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTes
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -186,6 +189,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final String masterAndIndexNode = startMasterAndIndexNode();
         final String searchNode = startSearchNode();
 
+        dropNewCommitNotificationForNonUploadedCommits(searchNode);
+
         final var mockLogAppender = new MockLogAppender();
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 
@@ -293,6 +298,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final String masterAndIndexNode = startMasterAndIndexNode();
         final String searchNode = startSearchNode();
 
+        dropNewCommitNotificationForNonUploadedCommits(searchNode);
+
         final var mockLogAppender = new MockLogAppender();
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 
@@ -346,6 +353,18 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             internalCluster().stopNode(searchNode);
             internalCluster().stopNode(masterAndIndexNode);
         }
+    }
+
+    private static void dropNewCommitNotificationForNonUploadedCommits(String searchNode) {
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                if (((NewCommitNotificationRequest) request).isUploaded()) {
+                    handler.messageReceived(request, channel, task);
+                } else {
+                    // Drop the notification for non-uploaded commits to force the search node reading from the object store
+                    channel.sendResponse(new RuntimeException("fail"));
+                }
+            });
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

@@ -49,5 +49,7 @@ public class RoleMappingMetadataTests extends ESTestCase {
         Set<ExpressionRoleMapping> roleMappings2 = randomSet(0, 3, () -> randomRoleMapping(true));
         assumeFalse("take 2 different role mappings", roleMappings1.equals(roleMappings2));
         assertThat(new RoleMappingMetadata(roleMappings1).equals(new RoleMappingMetadata(roleMappings2)), is(false));
+        assertThat(new RoleMappingMetadata(roleMappings1).equals(new RoleMappingMetadata(roleMappings1)), is(true));
+        assertThat(new RoleMappingMetadata(roleMappings2).equals(new RoleMappingMetadata(roleMappings2)), is(true));
     }
 }

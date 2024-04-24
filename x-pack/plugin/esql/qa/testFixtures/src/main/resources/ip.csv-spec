@@ -432,3 +432,13 @@ required_feature: esql.agg_values
 [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1, fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | epsilon
 fe80::cae2:65ff:fece:feb9 | gamma
 ;
+
+implictCastingStringToIP
+from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0;
+
+host:keyword | ip0:ip
+alpha        | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+;

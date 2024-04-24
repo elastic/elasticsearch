@@ -370,3 +370,11 @@ version:version | name:keyword
            null | lllll
           5.2.9 | mmmmm
 ;
+
+implictCastingStringToVersion
+from apps | where version == "1.2.3.4" | sort name | keep name, version;
+
+name:keyword | version:version
+aaaaa        | 1.2.3.4
+hhhhh        | 1.2.3.4
+;

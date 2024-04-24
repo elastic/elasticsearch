@@ -105,6 +105,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
@@ -846,14 +847,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (left.dataType() == KEYWORD
                 && left.foldable()
-                && (right.dataType().isNumeric() || right.dataType() == DATETIME)
+                && (isSupportedCastingForBinaryComparison(right.dataType()))
                 && ((left instanceof EsqlScalarFunction) == false)) {
                 targetDataType = right.dataType();
                 from = left;
             }
             if (right.dataType() == KEYWORD
                 && right.foldable()
-                && (left.dataType().isNumeric() || left.dataType() == DATETIME)
+                && (isSupportedCastingForBinaryComparison(left.dataType()))
                 && ((right instanceof EsqlScalarFunction) == false)) {
                 targetDataType = left.dataType();
                 from = right;
@@ -865,6 +866,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenChanged = true;
             }
             return childrenChanged ? o.replaceChildren(newChildren) : o;
+        }
+
+        private static boolean isSupportedCastingForBinaryComparison(DataType type) {
+            return type.isNumeric() || type == DATETIME || type == IP || type == VERSION;
         }
 
         public static Expression castStringLiteral(Expression from, DataType target) {

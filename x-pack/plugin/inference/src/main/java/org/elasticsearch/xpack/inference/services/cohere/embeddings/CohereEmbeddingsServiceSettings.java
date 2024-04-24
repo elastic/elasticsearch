@@ -152,7 +152,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        commonSettings.toXContentFragment(builder);
+        commonSettings.toXContentFragment(builder, params);
         builder.field(EMBEDDING_TYPE, elementType());
 
         builder.endObject();

@@ -200,6 +200,5 @@ public class CollectionUtilsTests extends ESTestCase {
         final String[] extraElements = randomArray(2, 4, String[]::new, () -> randomAlphaOfLength(10));
         final List<String> newList = appendToCopyNoNullElements(oldList, extraElements);
         assertThat(newList, equalTo(concatLists(oldList, List.of(extraElements))));
-
     }
 }

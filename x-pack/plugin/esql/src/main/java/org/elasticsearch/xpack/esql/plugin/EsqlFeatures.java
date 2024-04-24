@@ -115,6 +115,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature CASTING_OPERATOR = new NodeFeature("esql.casting_operator");
 
+    /**
+     * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_815 = new NodeFeature("esql.string_literal_auto_casting_8_15_0");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(

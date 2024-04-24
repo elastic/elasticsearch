@@ -385,7 +385,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testWrongInputParam() {
         assertEquals(
-            "1:29: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]",
+            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
             error("from test | where emp_no == ?", "foo")
         );
 

@@ -205,6 +205,27 @@ FROM employees
 //end::docsBucketWeeklyHistogram-result[]
 ;
 
+// bucketing in span mode (identical results to above)
+docsBucketWeeklyHistogramWithSpan#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+//tag::docsBucketWeeklyHistogramWithSpan[]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, 1 week)
+| SORT week
+//end::docsBucketWeeklyHistogramWithSpan[]
+;
+
+//tag::docsBucketWeeklyHistogramWithSpan-result[]
+  hires_per_week:long    |    week:date
+2              |1985-02-18T00:00:00.000Z
+1              |1985-05-13T00:00:00.000Z
+1              |1985-07-08T00:00:00.000Z
+1              |1985-09-16T00:00:00.000Z
+2              |1985-10-14T00:00:00.000Z
+4              |1985-11-18T00:00:00.000Z
+//end::docsBucketWeeklyHistogramWithSpan-result[]
+;
+
 docsBucketLast24hr#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketLast24hr[]
 FROM sample_data 
@@ -216,17 +237,6 @@ FROM sample_data
 //tag::docsBucketLast24hr-result[]
    COUNT(*):long    |    bucket:date
 //end::docsBucketLast24hr-result[]
-;
-
-docsGettingStartedBucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-// tag::gs-bucket[]
-FROM sample_data
-| STATS BY bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
-// end::gs-bucket[]
-| LIMIT 0
-;
-
-bucket:date
 ;
 
 docsGettingStartedBucketStatsBy#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
@@ -352,12 +362,15 @@ FROM employees
 
 // bucketing in span mode (identical results to above)
 bucketNumericWithSpan#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+//tag::docsBucketNumericWithSpan[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS c = COUNT(1) BY b = BUCKET(salary, 5000.)
 | SORT b
+//end::docsBucketNumericWithSpan[]
 ;
 
+//tag::docsBucketNumericWithSpan-result[]
        c:long  |       b:double
 1              |25000.0
 1              |30000.0
@@ -368,6 +381,7 @@ FROM employees
 1              |60000.0
 1              |65000.0
 1              |70000.0
+//end::docsBucketNumericWithSpan-result[]
 ;
 
 bucketNumericMixedTypes#[skip:-8.13.99, reason:BUCKET extended in 8.14]

@@ -396,7 +396,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         // no lock to acquire here, we are emulating the lack of read/read and read/write contention in cloud repositories
-        doCompareAndExchangeRegisterUnderLock(key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
+        doCompareAndExchangeRegisterUnderLock(path.resolve(key), BytesArray.EMPTY, BytesArray.EMPTY, listener);
     }
 
     private static final KeyedLock<Path> writeMutexes = new KeyedLock<>();
@@ -411,25 +411,26 @@ public class FsBlobContainer extends AbstractBlobContainer {
     ) {
         // Emulate write/write contention as might happen in cloud repositories, at least for the case where the writers are all in this
         // JVM (e.g. for an ESIntegTestCase).
-        try (var mutex = writeMutexes.tryAcquire(path.resolve(key))) {
+        final var registerPath = path.resolve(key);
+        try (var mutex = writeMutexes.tryAcquire(registerPath)) {
             if (mutex == null) {
                 listener.onResponse(OptionalBytesReference.MISSING);
             } else {
-                doCompareAndExchangeRegisterUnderLock(key, expected, updated, ActionListener.runBefore(listener, mutex::close));
+                doCompareAndExchangeRegisterUnderLock(registerPath, expected, updated, ActionListener.runBefore(listener, mutex::close));
             }
         }
     }
 
     @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
-    private void doCompareAndExchangeRegisterUnderLock(
-        String key,
+    private static void doCompareAndExchangeRegisterUnderLock(
+        Path registerPath,
         BytesReference expected,
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             BlobContainerUtils.ensureValidRegisterContent(updated);
-            try (LockedFileChannel lockedFileChannel = LockedFileChannel.open(path.resolve(key))) {
+            try (LockedFileChannel lockedFileChannel = LockedFileChannel.open(registerPath)) {
                 final FileChannel fileChannel = lockedFileChannel.fileChannel();
                 final ByteBuffer readBuf = ByteBuffer.allocate(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH);
                 while (readBuf.remaining() > 0) {

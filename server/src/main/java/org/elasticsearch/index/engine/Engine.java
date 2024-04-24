@@ -58,7 +58,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.Elasticsearch814Codec;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -1096,14 +1097,14 @@ public abstract class Engine implements Closeable {
         segment.attributes.putAll(info.info.getAttributes());
         Codec codec = info.info.getCodec();
         Map<String, List<String>> knnFormats = null;
-        if (includeVectorFormatsInfo && codec instanceof PerFieldMapperCodec) {
+        if (includeVectorFormatsInfo) {
             try {
                 FieldInfos fieldInfos = segmentReader.getFieldInfos();
                 if (fieldInfos.hasVectorValues()) {
                     for (FieldInfo fieldInfo : fieldInfos) {
                         String name = fieldInfo.getName();
                         if (fieldInfo.hasVectorValues()) {
-                            KnnVectorsFormat knnVectorsFormatForField = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
+                            KnnVectorsFormat knnVectorsFormatForField = getKnnVectorsFormatForField(codec, name);
                             if (knnFormats == null) {
                                 knnFormats = new HashMap<>();
                             }
@@ -1128,6 +1129,18 @@ public abstract class Engine implements Closeable {
         }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
+    }
+
+    private static KnnVectorsFormat getKnnVectorsFormatForField(Codec codec, String name) {
+        KnnVectorsFormat format;
+        if (codec instanceof Elasticsearch814Codec) {
+            format = ((Elasticsearch814Codec) codec).getKnnVectorsFormatForField(name);
+        } else if (codec instanceof LegacyPerFieldMapperCodec) {
+            format = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
+        } else {
+            format = codec.knnVectorsFormat();
+        }
+        return format;
     }
 
     /**

@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
  * We test the warnings added when user configured retention exceeds the global retention in this test,
  * so we can disable the warning check without impacting all the other test cases
  */
-public class DataStreamLifecycleWithWarningsTests extends ESTestCase {
+public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
     @Override
     protected boolean enableWarningsCheck() {
         // this test expects warnings
@@ -92,7 +92,7 @@ public class DataStreamLifecycleWithWarningsTests extends ESTestCase {
         assertThat(
             responseHeaders.get("Warning").get(0),
             containsString(
-                "Infinite retention is not allowed for this project. The default retention of ["
+                "Not providing a retention is not allowed for this project. The default retention of ["
                     + globalRetention.getDefaultRetention().getStringRep()
                     + "] will be applied."
             )
@@ -111,20 +111,16 @@ public class DataStreamLifecycleWithWarningsTests extends ESTestCase {
         lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
-        String userRetentionStringRep = lifecycle.getDataStreamRetention() == null
-            ? "infinite"
-            : lifecycle.getDataStreamRetention().getStringRep();
+        String userRetentionPart = lifecycle.getDataStreamRetention() == null
+            ? "Not providing a retention is not allowed for this project."
+            : "The retention provided ["
+                + lifecycle.getDataStreamRetention().getStringRep()
+                + "] is exceeding the max allowed data retention of this project ["
+                + maxRetention.getStringRep()
+                + "].";
         assertThat(
             responseHeaders.get("Warning").get(0),
-            containsString(
-                "The retention provided ["
-                    + userRetentionStringRep
-                    + "] is exceeding the max allowed data retention of this project ["
-                    + maxRetention.getStringRep()
-                    + "]. The max retention of ["
-                    + maxRetention.getStringRep()
-                    + "] will be applied"
-            )
+            containsString(userRetentionPart + " The max retention of [" + maxRetention.getStringRep() + "] will be applied")
         );
     }
 
@@ -162,7 +158,7 @@ public class DataStreamLifecycleWithWarningsTests extends ESTestCase {
         assertThat(
             responseHeaders.get("Warning").get(0),
             containsString(
-                "Infinite retention is not allowed for this project. The default retention of ["
+                "Not providing a retention is not allowed for this project. The default retention of ["
                     + defaultRetention.getStringRep()
                     + "] will be applied."
             )
@@ -188,7 +184,7 @@ public class DataStreamLifecycleWithWarningsTests extends ESTestCase {
         assertThat(
             responseHeaders.get("Warning").get(0),
             containsString(
-                "Infinite retention is not allowed for this project. The default retention of ["
+                "Not providing a retention is not allowed for this project. The default retention of ["
                     + defaultRetention.getStringRep()
                     + "] will be applied."
             )
@@ -257,7 +253,7 @@ public class DataStreamLifecycleWithWarningsTests extends ESTestCase {
         assertThat(
             responseHeaders.get("Warning").get(0),
             containsString(
-                "Infinite retention is not allowed for this project. The default retention of ["
+                "Not providing a retention is not allowed for this project. The default retention of ["
                     + defaultRetention.getStringRep()
                     + "] will be applied."
             )

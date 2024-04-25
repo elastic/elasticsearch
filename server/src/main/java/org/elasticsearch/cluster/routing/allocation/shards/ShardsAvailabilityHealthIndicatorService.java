@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -440,7 +441,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
-            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state);
+            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state)
+                && isNewlyCreatedAndInitializingReplica(routing, state) == false;
             if (allUnavailable) {
                 indicesWithAllShardsUnavailable.add(routing.getIndexName());
             }
@@ -498,7 +500,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * example: if a replica is passed then this will return true if ALL replicas are unassigned,
      * but if at least one is assigned, it will return false.
      */
-    private boolean areAllShardsOfThisTypeUnavailable(ShardRouting routing, ClusterState state) {
+    boolean areAllShardsOfThisTypeUnavailable(ShardRouting routing, ClusterState state) {
         return StreamSupport.stream(
             state.routingTable().allActiveShardsGrouped(new String[] { routing.getIndexName() }, true).spliterator(),
             false
@@ -507,6 +509,29 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             .filter(sr -> sr.shardId().equals(routing.shardId()))
             .filter(sr -> sr.primary() == routing.primary())
             .allMatch(ShardRouting::unassigned);
+    }
+
+    /**
+     * Returns true if the given shard is a replica that is only unassigned due to its primary being
+     * newly created. See {@link ClusterShardHealth#getInactivePrimaryHealth(ShardRouting)} for more
+     * information.
+     *
+     * We use this information when considering whether a cluster should turn red. For some cases
+     * (a newly created index having unassigned replicas for example), we don't want the cluster
+     * to turn "unhealthy" for the tiny amount of time before the shards are allocated.
+     */
+    static boolean isNewlyCreatedAndInitializingReplica(ShardRouting routing, ClusterState state) {
+        if (routing.active()) {
+            return false;
+        }
+        if (routing.primary()) {
+            return false;
+        }
+        ShardRouting primary = state.routingTable().shardRoutingTable(routing.shardId()).primaryShard();
+        if (primary.active()) {
+            return false;
+        }
+        return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {

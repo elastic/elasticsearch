@@ -168,12 +168,12 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         TestTransportBroadcastByNodeAction(String actionName) {
             super(
                 actionName,
-                clusterService,
-                transportService,
+                TransportBroadcastByNodeActionTests.this.clusterService,
+                TransportBroadcastByNodeActionTests.this.transportService,
                 new ActionFilters(Set.of()),
                 new MyResolver(),
                 Request::new,
-                transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
+                TransportBroadcastByNodeActionTests.this.transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
             );
         }
 

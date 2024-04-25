@@ -19,10 +19,12 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -46,13 +48,13 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
     }
 
-    private static CohereEmbeddingType parseEmbeddingType(
+    static CohereEmbeddingType parseEmbeddingType(
         Map<String, Object> map,
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
-        if (context == ConfigurationParseContext.REQUEST) {
-            return Objects.requireNonNullElse(
+        return switch (context) {
+            case REQUEST -> Objects.requireNonNullElse(
                 extractOptionalEnum(
                     map,
                     EMBEDDING_TYPE,
@@ -63,21 +65,46 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
                 ),
                 CohereEmbeddingType.FLOAT
             );
+            case PERSISTENT -> {
+                var embeddingType = ServiceUtils.extractOptionalString(
+                    map,
+                    EMBEDDING_TYPE,
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    validationException
+                );
+                yield fromCohereOrDenseVectorEnumValues(embeddingType, validationException);
+            }
+
+        };
+    }
+
+    /**
+     * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
+     * type was persisted as a CohereEmbeddingType enum. After
+     * DenseVectorFieldMapper.ElementType was used.
+     *
+     * Parse either and convert to a CohereEmbeddingType
+     */
+    static CohereEmbeddingType fromCohereOrDenseVectorEnumValues(String enumString, ValidationException validationException) {
+        if (enumString == null) {
+            return CohereEmbeddingType.FLOAT;
         }
 
-        DenseVectorFieldMapper.ElementType elementType = Objects.requireNonNullElse(
-            extractOptionalEnum(
-                map,
-                EMBEDDING_TYPE,
-                ModelConfigurations.SERVICE_SETTINGS,
-                DenseVectorFieldMapper.ElementType::fromString,
-                CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES,
-                validationException
-            ),
-            DenseVectorFieldMapper.ElementType.FLOAT
-        );
-
-        return CohereEmbeddingType.fromElementType(elementType);
+        try {
+            return CohereEmbeddingType.fromString(enumString);
+        } catch (IllegalArgumentException ae) {
+            try {
+                return CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.fromString(enumString));
+            } catch (IllegalArgumentException iae) {
+                var validValuesAsStrings = CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
+                    .map(value -> value.toString().toLowerCase(Locale.ROOT))
+                    .toArray(String[]::new);
+                validationException.addValidationError(
+                    ServiceUtils.invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
+                );
+                return null;
+            }
+        }
     }
 
     private final CohereServiceSettings commonSettings;
@@ -125,7 +152,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        commonSettings.toXContentFragment(builder);
+        commonSettings.toXContentFragment(builder, params);
         builder.field(EMBEDDING_TYPE, elementType());
 
         builder.endObject();

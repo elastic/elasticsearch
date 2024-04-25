@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -32,8 +33,22 @@ public class ToCartesianPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "cartesian_point", description = "Converts an input value to a point value.")
-    public ToCartesianPoint(Source source, @Param(name = "field", type = { "cartesian_point", "keyword", "text" }) Expression field) {
+    @FunctionInfo(
+        returnType = "cartesian_point",
+        description = """
+            Converts an input value to a `cartesian_point` value.
+            A string will only be successfully converted if it respects the
+            {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.""",
+        examples = @Example(file = "spatial", tag = "to_cartesianpoint-str")
+    )
+    public ToCartesianPoint(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "cartesian_point", "keyword", "text" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

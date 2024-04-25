@@ -109,7 +109,7 @@ force merge to one segment, the kNN search only need to check a single,
 all-inclusive HNSW graph. Force merging `dense_vector` fields is an expensive
 operation that can take significant time to complete.
 
-include::{es-repo-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
+include::{es-ref-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
 
 [discrete]
 ==== Create large segments during bulk indexing

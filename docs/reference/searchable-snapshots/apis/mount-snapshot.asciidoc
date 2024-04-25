@@ -40,7 +40,7 @@ to mount.
 [[searchable-snapshots-api-mount-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.

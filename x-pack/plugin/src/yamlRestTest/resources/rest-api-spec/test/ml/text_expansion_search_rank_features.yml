@@ -1,8 +1,8 @@
 # This test uses the simple model defined in
 # TextExpansionQueryIT.java to create the token weights.
 setup:
-  - skip:
-      version: ' - 8.10.99'
+  - requires:
+      cluster_features: "gte_v8.11.0"
       reason: "sparse_vector field type reintroduced in 8.11"
       features: headers
   - do:

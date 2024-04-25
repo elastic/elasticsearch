@@ -296,6 +296,24 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
+    public void testFromMap_PersistentReadsInt8() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "int8")),
+                ConfigurationParseContext.PERSISTENT
+            ),
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.INT8))
+        );
+    }
+
+    public void testFromCohereOrDenseVectorEnumValues() {
+        var validation = new ValidationException();
+        assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte", validation));
+        assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8", validation));
+        assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float", validation));
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
     @Override
     protected Writeable.Reader<CohereEmbeddingsServiceSettings> instanceReader() {
         return CohereEmbeddingsServiceSettings::new;

@@ -136,7 +136,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[copy_to] may not be used to copy from a multi-field: [foo.hidden]"));
     }
 
-    public void testSyntheticSourceMetrics() throws Exception {
+    public void testSyntheticSourceTelemetry() throws Exception {
         var testTelemetry = new TestTelemetryPlugin();
         var sourceFieldMetrics = new SourceFieldMetrics(
             testTelemetry.getTelemetryProvider(Settings.EMPTY).getMeterRegistry(),
@@ -153,7 +153,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(
             syntheticSourceMapping(b -> { b.startObject("kwd").field("type", "keyword").endObject(); })
         );
-        try (var ignored = MapperMetrics.SOURCE_FIELD_METRICS.withOverride(sourceFieldMetrics)) {
+        try (var ignored = MapperMetrics.INSTANCE.initForTest(new MapperMetrics(sourceFieldMetrics))) {
             assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
                 {"kwd":"foo"}"""));
 

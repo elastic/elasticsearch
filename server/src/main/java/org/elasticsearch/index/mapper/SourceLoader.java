@@ -113,7 +113,7 @@ public interface SourceLoader {
 
             @Override
             public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
-                SourceFieldMetrics metrics = MapperMetrics.SOURCE_FIELD_METRICS.get();
+                SourceFieldMetrics metrics = MapperMetrics.INSTANCE.get().getSyntheticSourceMetrics();
                 long startTime = metrics.getRelativeTimeSupplier().getAsLong();
 
                 var source = leaf.source(storedFields, docId);

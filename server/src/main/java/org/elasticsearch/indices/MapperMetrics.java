@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.common.util.ValueWithThreadLocalOverride;
+import org.elasticsearch.common.metrics.MetricAccessor;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 
 /**
@@ -16,15 +16,21 @@ import org.elasticsearch.index.mapper.SourceFieldMetrics;
  * Main purpose of this class is to avoid verbosity of passing individual metric instances around.
  */
 public class MapperMetrics {
-    public static MapperMetrics NOOP = new MapperMetrics();
+    public static MapperMetrics NOOP = new MapperMetrics(SourceFieldMetrics.NOOP);
 
-    public static ValueWithThreadLocalOverride<SourceFieldMetrics> SOURCE_FIELD_METRICS = new ValueWithThreadLocalOverride<>(
-        SourceFieldMetrics.NOOP
-    );
+    public static MetricAccessor<MapperMetrics> INSTANCE = new MetricAccessor<>(NOOP);
 
     public static void init(SourceFieldMetrics sourceFieldMetrics) {
-        SOURCE_FIELD_METRICS = new ValueWithThreadLocalOverride<>(sourceFieldMetrics);
+        INSTANCE = new MetricAccessor<>(new MapperMetrics(sourceFieldMetrics));
     }
 
-    private MapperMetrics() {}
+    private final SourceFieldMetrics sourceFieldMetrics;
+
+    public MapperMetrics(SourceFieldMetrics sourceFieldMetrics) {
+        this.sourceFieldMetrics = sourceFieldMetrics;
+    }
+
+    public SourceFieldMetrics getSyntheticSourceMetrics() {
+        return sourceFieldMetrics;
+    }
 }

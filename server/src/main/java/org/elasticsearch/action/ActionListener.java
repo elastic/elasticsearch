@@ -101,6 +101,15 @@ import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailu
  * channel with which to pass the response back to the network caller. Netty has a many-to-one association of network callers to channels,
  * so a call taking a long time generally won't hog resources: it's cheap. A transport action can take hours to respond and that's alright,
  * barring caller timeouts.
+ * </p>
+ * <p>
+ * Note that we explicitly avoid {@link java.util.concurrent.CompletableFuture} and other similar mechanisms as much as possible. They
+ * can achieve the same goals as {@link ActionListener}, but can also easily be misused in various ways that lead to severe bugs. In
+ * particular, futures support blocking while waiting for a result, but this is almost never appropriate in Elasticsearch's production code
+ * where threads are such a precious resource. Moreover if something throws an {@link Error} then the JVM should exit pretty much straight
+ * away, but {@link java.util.concurrent.CompletableFuture} can catch an {@link Error} which delays the JVM exit until its result is
+ * observed. This may be much later, or possibly even never. It's not possible to introduce such bugs when using {@link ActionListener}.
+ * </p>
  */
 public interface ActionListener<Response> {
     /**

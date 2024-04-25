@@ -1237,9 +1237,9 @@ public class TokenServiceTests extends ESTestCase {
                 assertThat(refreshFilter.fieldName(), is("refresh_token.token"));
                 final SearchHits hits;
                 if (storedRefreshToken.equals(refreshFilter.value())) {
-                    SearchHit hit = new SearchHit(randomInt(), "token_" + userToken.getId());
+                    SearchHit hit = SearchHit.unpooled(randomInt(), "token_" + userToken.getId());
                     hit.sourceRef(docSource);
-                    hits = new SearchHits(new SearchHit[] { hit }, null, 1);
+                    hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1);
                 } else {
                     hits = SearchHits.EMPTY_WITH_TOTAL_HITS;
                 }

@@ -20,7 +20,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -47,6 +46,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public Block filter(int... positions) {
         return new DocBlock(asVector().filter(positions));
+    }
+
+    @Override
+    public DocBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override
@@ -145,11 +150,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            throw new UnsupportedOperationException("DocBlock doesn't support appendBlockAndMerge");
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do
@@ -189,5 +189,15 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public int getPositionCount() {
+        return vector.getPositionCount();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

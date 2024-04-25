@@ -13,10 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
+@FunctionName("to_geopoint")
 public class ToGeoPointTests extends AbstractFunctionTestCase {
     public ToGeoPointTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -54,20 +57,22 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             }
         );
         // strings that are geo point representations
-        TestCaseSupplier.unary(
-            suppliers,
-            evaluatorName.apply("FromString"),
-            List.of(
-                new TestCaseSupplier.TypedDataSupplier(
-                    "<geo point as string>",
-                    () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())),
-                    DataTypes.KEYWORD
-                )
-            ),
-            EsqlDataTypes.GEO_POINT,
-            bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
-            List.of()
-        );
+        for (DataType dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
+            TestCaseSupplier.unary(
+                suppliers,
+                evaluatorName.apply("FromString"),
+                List.of(
+                    new TestCaseSupplier.TypedDataSupplier(
+                        "<geo point as string>",
+                        () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())),
+                        dt
+                    )
+                ),
+                EsqlDataTypes.GEO_POINT,
+                bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
+                List.of()
+            );
+        }
 
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }

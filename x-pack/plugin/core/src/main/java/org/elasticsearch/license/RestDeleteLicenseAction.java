@@ -7,9 +7,9 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -35,8 +35,8 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DeleteLicenseRequest deleteLicenseRequest = new DeleteLicenseRequest();
-        deleteLicenseRequest.timeout(request.paramAsTime("timeout", deleteLicenseRequest.timeout()));
+        AcknowledgedRequest.Plain deleteLicenseRequest = new AcknowledgedRequest.Plain();
+        deleteLicenseRequest.ackTimeout(request.paramAsTime("timeout", deleteLicenseRequest.ackTimeout()));
         deleteLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteLicenseRequest.masterNodeTimeout()));
 
         return channel -> client.admin()

@@ -29,7 +29,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ChunkedRestResponseBodyTests extends ESTestCase {
 
@@ -51,59 +50,39 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
         }
         final var bytesDirect = BytesReference.bytes(builderDirect);
 
-        final var isClosed = new AtomicBoolean();
-        try (
-            var chunkedResponse = ChunkedRestResponseBody.fromXContent(
-                chunkedToXContent,
-                ToXContent.EMPTY_PARAMS,
-                new FakeRestChannel(
-                    new FakeRestRequest.Builder(xContentRegistry()).withContent(BytesArray.EMPTY, randomXContent.type()).build(),
-                    randomBoolean(),
-                    1
-                ),
-                () -> assertTrue(isClosed.compareAndSet(false, true))
+        var chunkedResponse = ChunkedRestResponseBody.fromXContent(
+            chunkedToXContent,
+            ToXContent.EMPTY_PARAMS,
+            new FakeRestChannel(
+                new FakeRestRequest.Builder(xContentRegistry()).withContent(BytesArray.EMPTY, randomXContent.type()).build(),
+                randomBoolean(),
+                1
             )
-        ) {
+        );
 
-            final List<BytesReference> refsGenerated = new ArrayList<>();
-            while (chunkedResponse.isDone() == false) {
-                refsGenerated.add(chunkedResponse.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
-            }
-
-            assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
-            assertFalse(isClosed.get());
+        final List<BytesReference> refsGenerated = new ArrayList<>();
+        while (chunkedResponse.isDone() == false) {
+            refsGenerated.add(chunkedResponse.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
         }
-        assertTrue(isClosed.get());
+
+        assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
     }
 
     public void testFromTextChunks() throws IOException {
         final var chunks = randomList(1000, () -> randomUnicodeOfLengthBetween(1, 100));
-        final var isClosed = new AtomicBoolean();
-        try (
-            var body = ChunkedRestResponseBody.fromTextChunks(
-                "text/plain",
-                Iterators.map(chunks.iterator(), s -> w -> w.write(s)),
-                () -> assertTrue(isClosed.compareAndSet(false, true))
-            )
-        ) {
-            final List<BytesReference> refsGenerated = new ArrayList<>();
-            while (body.isDone() == false) {
-                refsGenerated.add(body.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
-            }
-            final BytesReference chunkedBytes = CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0]));
-
-            try (
-                var outputStream = new ByteArrayOutputStream();
-                var writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)
-            ) {
-                for (final var chunk : chunks) {
-                    writer.write(chunk);
-                }
-                writer.flush();
-                assertEquals(new BytesArray(outputStream.toByteArray()), chunkedBytes);
-            }
-            assertFalse(isClosed.get());
+        var body = ChunkedRestResponseBody.fromTextChunks("text/plain", Iterators.map(chunks.iterator(), s -> w -> w.write(s)));
+        final List<BytesReference> refsGenerated = new ArrayList<>();
+        while (body.isDone() == false) {
+            refsGenerated.add(body.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
         }
-        assertTrue(isClosed.get());
+        final BytesReference chunkedBytes = CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0]));
+
+        try (var outputStream = new ByteArrayOutputStream(); var writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)) {
+            for (final var chunk : chunks) {
+                writer.write(chunk);
+            }
+            writer.flush();
+            assertEquals(new BytesArray(outputStream.toByteArray()), chunkedBytes);
+        }
     }
 }

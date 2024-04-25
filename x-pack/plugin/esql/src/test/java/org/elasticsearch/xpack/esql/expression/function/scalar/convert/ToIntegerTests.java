@@ -71,7 +71,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: For input string: \"" + bytesRef.utf8ToString() + "\""
+                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [" + bytesRef.utf8ToString() + "]"
             )
         );
         // from doubles within Integer's range
@@ -178,7 +178,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE)
+            TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
@@ -196,7 +196,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Integer.MIN_VALUE, Integer.MAX_VALUE)
+            TestCaseSupplier.doubleCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
@@ -214,7 +214,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Integer.MIN_VALUE - 1d)
+            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Integer.MIN_VALUE - 1d, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
@@ -228,14 +228,16 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: For input string: \"" + ((BytesRef) bytesRef).utf8ToString() + "\""
+                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number ["
+                    + ((BytesRef) bytesRef).utf8ToString()
+                    + "]"
             )
         );
         // strings of random doubles outside Integer's range, positive
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Integer.MAX_VALUE + 1d, Double.POSITIVE_INFINITY)
+            TestCaseSupplier.doubleCases(Integer.MAX_VALUE + 1d, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
@@ -249,7 +251,9 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: For input string: \"" + ((BytesRef) bytesRef).utf8ToString() + "\""
+                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number ["
+                    + ((BytesRef) bytesRef).utf8ToString()
+                    + "]"
             )
         );
 

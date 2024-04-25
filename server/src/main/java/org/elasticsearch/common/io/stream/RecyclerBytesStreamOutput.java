@@ -43,9 +43,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
-        try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
-            pageSize = obtain.v().length;
-        }
+        this.pageSize = recycler.pageSize();
         this.currentPageOffset = pageSize;
     }
 

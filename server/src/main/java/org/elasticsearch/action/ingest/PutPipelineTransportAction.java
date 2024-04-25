@@ -34,7 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 
 public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeAction<PutPipelineRequest> {
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/ingest/pipeline/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/put");
     private final IngestService ingestService;
     private final OriginSettingClient client;
 

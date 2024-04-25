@@ -18,16 +18,18 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arith
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
-abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
+public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
     /**
      * The only role of this enum is to fit the super constructor that expects a BinaryOperation which is
@@ -69,14 +71,15 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     /** Arithmetic (quad) function. */
-    interface ArithmeticEvaluator {
+    @FunctionalInterface
+    public interface BinaryEvaluator {
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
     }
 
-    private final ArithmeticEvaluator ints;
-    private final ArithmeticEvaluator longs;
-    private final ArithmeticEvaluator ulongs;
-    private final ArithmeticEvaluator doubles;
+    private final BinaryEvaluator ints;
+    private final BinaryEvaluator longs;
+    private final BinaryEvaluator ulongs;
+    private final BinaryEvaluator doubles;
 
     private DataType dataType;
 
@@ -85,10 +88,10 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         Expression left,
         Expression right,
         OperationSymbol op,
-        ArithmeticEvaluator ints,
-        ArithmeticEvaluator longs,
-        ArithmeticEvaluator ulongs,
-        ArithmeticEvaluator doubles
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles
     ) {
         super(source, left, right, op);
         this.ints = ints;
@@ -110,6 +113,38 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
+    protected TypeResolution resolveType() {
+        TypeResolution typeResolution = super.resolveType();
+        if (typeResolution.unresolved()) {
+            return typeResolution;
+        }
+
+        return checkCompatibility();
+    }
+
+    /**
+     * Check if the two input types are compatible for this operation
+     *
+     * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
+     */
+    protected TypeResolution checkCompatibility() {
+        // This checks that unsigned longs should only be compatible with other unsigned longs
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+        }
+
+        // at this point, left should be null, and right should be null or numeric.
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    public static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
+        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
+    }
+
+    @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
@@ -118,7 +153,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
 
-            ArithmeticEvaluator eval;
+            BinaryEvaluator eval;
             if (commonType == INTEGER) {
                 eval = ints;
             } else if (commonType == LONG) {

@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportActions;
@@ -51,7 +51,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportBulkAction.unwrappingSingleItemBulkResponse;
@@ -60,12 +60,11 @@ import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.t
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
     public static final String NAME = "indices:data/write/update";
-    public static final ActionType<UpdateResponse> TYPE = new ActionType<>(NAME, UpdateResponse::new);
+    public static final ActionType<UpdateResponse> TYPE = new ActionType<>(NAME);
     private final AutoCreateIndex autoCreateIndex;
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
     private final NodeClient client;
-    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateAction(
@@ -84,13 +83,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
-        this.clusterService = clusterService;
     }
 
     @Override
-    protected String executor(ShardId shardId) {
+    protected Executor executor(ShardId shardId) {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE;
+        return threadPool.executor(indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE);
     }
 
     @Override
@@ -189,7 +187,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 client.bulk(
                     toSingleItemBulkRequest(upsertRequest),
-                    unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                    unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -231,7 +229,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BytesReference indexSourceBytes = indexRequest.source();
                 client.bulk(
                     toSingleItemBulkRequest(indexRequest),
-                    unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                    unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -321,9 +319,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.id()
             );
 
-            final ExecutorService executor;
+            final Executor executor;
             try {
-                executor = threadPool.executor(executor(request.getShardId()));
+                executor = executor(request.getShardId());
             } catch (Exception e) {
                 // might fail if shard no longer exists locally, in which case we cannot retry
                 e.addSuppressed(versionConflictEngineException);

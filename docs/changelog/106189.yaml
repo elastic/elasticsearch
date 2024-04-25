@@ -1,0 +1,6 @@
+pr: 106189
+summary: Fix numeric sorts in `_cat/nodes`
+area: CAT APIs
+type: bug
+issues:
+ - 48070

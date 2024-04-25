@@ -53,6 +53,15 @@ public final class PlanStreamOutput extends StreamOutput {
         writeNamed(PhysicalPlan.class, physicalPlan);
     }
 
+    public void writeOptionalPhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
+        if (physicalPlan == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writePhysicalPlanNode(physicalPlan);
+        }
+    }
+
     public void writeSource(Source source) throws IOException {
         writeBoolean(true);
         writeSourceNoText(this, source);

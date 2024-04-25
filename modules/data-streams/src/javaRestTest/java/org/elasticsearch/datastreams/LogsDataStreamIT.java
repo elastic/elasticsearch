@@ -19,9 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
@@ -714,6 +716,53 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
         assertEquals(0, results.size());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIgnoreDynamicBeyondLimit() throws Exception {
+        Request request = new Request("POST", "/_component_template/logs@custom");
+        request.setJsonEntity("""
+            {
+              "template": {
+                "settings": {
+                  "index.mapping.total_fields.limit": 10
+                }
+              }
+            }
+            """);
+        assertOK(client.performRequest(request));
+
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "field1": "foo",
+              "field2": "foo",
+              "field3": "foo",
+              "field4": "foo",
+              "field5": "foo",
+              "field6": "foo",
+              "field7": "foo",
+              "field8": "foo",
+              "field9": "foo",
+              "field10": "foo"
+            }
+            """);
+
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "match_all": { }
+              },
+              "fields": ["*"]
+            }
+            """);
+        assertEquals(1, results.size());
+        List<String> ignored = (List<String>) ((Map<String, ?>) results.get(0)).get("_ignored");
+        assertThat(ignored, not(empty()));
+        assertThat(ignored.stream().filter(i -> i.startsWith("field") == false).toList(), empty());
     }
 
     static void waitForLogs(RestClient client) throws Exception {

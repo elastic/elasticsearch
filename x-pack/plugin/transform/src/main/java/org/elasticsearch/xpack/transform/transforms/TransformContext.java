@@ -39,6 +39,9 @@ public class TransformContext {
     private final AtomicInteger statePersistenceFailureCount = new AtomicInteger();
     private final AtomicReference<Throwable> lastStatePersistenceFailure = new AtomicReference<>();
     private volatile Instant lastStatePersistenceFailureStartTime;
+    private final AtomicInteger startUpFailureCount = new AtomicInteger();
+    private final AtomicReference<Throwable> lastStartUpFailure = new AtomicReference<>();
+    private volatile Instant startUpFailureTime;
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
@@ -212,6 +215,37 @@ public class TransformContext {
 
     Instant getLastStatePersistenceFailureStartTime() {
         return lastStatePersistenceFailureStartTime;
+    }
+
+    void resetStartUpFailureCount() {
+        startUpFailureCount.set(0);
+        lastStartUpFailure.set(null);
+        startUpFailureTime = null;
+    }
+
+    int getStartUpFailureCount() {
+        return startUpFailureCount.get();
+    }
+
+    Throwable getStartUpFailure() {
+        return lastStartUpFailure.get();
+    }
+
+    int incrementAndGetStartUpFailureCount(Throwable failure) {
+        lastStartUpFailure.set(failure);
+        int newFailureCount = startUpFailureCount.incrementAndGet();
+        if (newFailureCount == 1) {
+            startUpFailureTime = Instant.now();
+        }
+        return newFailureCount;
+    }
+
+    Instant getStartUpFailureTime() {
+        return startUpFailureTime;
+    }
+
+    boolean doesNotHaveFailures() {
+        return getFailureCount() == 0 && getStatePersistenceFailureCount() == 0 && getStartUpFailureCount() == 0;
     }
 
     void shutdown() {

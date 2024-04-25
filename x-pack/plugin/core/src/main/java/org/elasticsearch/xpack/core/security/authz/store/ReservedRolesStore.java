@@ -374,6 +374,32 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 )
             ),
             entry(
+                "inference_admin",
+                new RoleDescriptor(
+                    "inference_admin",
+                    new String[] { "manage_inference" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null
+                )
+            ),
+            entry(
+                "inference_user",
+                new RoleDescriptor(
+                    "inference_user",
+                    new String[] { "monitor_inference" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null
+                )
+            ),
+            entry(
                 "machine_learning_user",
                 new RoleDescriptor(
                     "machine_learning_user",

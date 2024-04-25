@@ -99,8 +99,8 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -128,6 +128,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                         };
                     }
                 });
+                assertEquals(2, results.size());
             }
         }
     }
@@ -141,7 +142,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     public void testFetch() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("""
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("""
                 {"foo": {"coordinates": [[45.0, 45.0], [0.0, 0.0]], "type" : "LineString"}}"""))));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -162,8 +163,8 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -196,8 +197,8 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(2));

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
-public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSLMStatusAction.Request, GetSLMStatusAction.Response> {
+public class TransportGetSLMStatusAction extends TransportMasterNodeAction<AcknowledgedRequest.Plain, GetSLMStatusAction.Response> {
 
     @Inject
     public TransportGetSLMStatusAction(
@@ -40,7 +41,7 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSL
             clusterService,
             threadPool,
             actionFilters,
-            GetSLMStatusAction.Request::new,
+            AcknowledgedRequest.Plain::new,
             indexNameExpressionResolver,
             GetSLMStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -50,7 +51,7 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSL
     @Override
     protected void masterOperation(
         Task task,
-        GetSLMStatusAction.Request request,
+        AcknowledgedRequest.Plain request,
         ClusterState state,
         ActionListener<GetSLMStatusAction.Response> listener
     ) {
@@ -58,7 +59,7 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSL
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetSLMStatusAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(AcknowledgedRequest.Plain request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

@@ -3,18 +3,18 @@
 # For more info, see https://help.github.com/articles/about-codeowners/
 
 # Stack Monitoring index templates
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-alerts-7.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-beats-mb.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-beats.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-ent-search-mb.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-es-mb.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-es.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-kibana-mb.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-kibana.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-logstash-mb.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-logstash.json @elastic/infra-monitoring-ui
-x-pack/plugin/core/template-resources/src/main/resources/monitoring-mb-ilm-policy.json @elastic/infra-monitoring-ui
-x-pack/plugin/monitoring/src/main/java/org/elasticsearch/xpack/monitoring/MonitoringTemplateRegistry.java @elastic/infra-monitoring-ui
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-alerts-7.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-beats-mb.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-beats.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-ent-search-mb.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-es-mb.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-es.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-kibana-mb.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-kibana.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-logstash-mb.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-logstash.json @elastic/stack-monitoring
+x-pack/plugin/core/template-resources/src/main/resources/monitoring-mb-ilm-policy.json @elastic/stack-monitoring
+x-pack/plugin/monitoring/src/main/java/org/elasticsearch/xpack/monitoring/MonitoringTemplateRegistry.java @elastic/stack-monitoring
 
 # Fleet
 x-pack/plugin/fleet/src/main/java/org/elasticsearch/xpack/fleet @elastic/fleet
@@ -39,3 +39,23 @@ build-tools-internal @elastic/es-delivery
 distribution/src @elastic/es-delivery
 distribution/packages/src @elastic/es-delivery
 distribution/docker/src @elastic/es-delivery
+
+# Core/Infra
+distribution/tools @elastic/es-core-infra
+libs/core @elastic/es-core-infra
+libs/logging @elastic/es-core-infra
+libs/native @elastic/es-core-infra
+libs/plugin-analysis-api @elastic/es-core-infra
+libs/plugin-api @elastic/es-core-infra
+libs/plugin-classloader @elastic/es-core-infra
+libs/plugin-scanner @elastic/es-core-infra
+libs/x-content @elastic/es-core-infra
+modules/lang-expression @elastic/es-core-infra
+modules/lang-mustache @elastic/es-core-infra
+modules/lang-painless @elastic/es-core-infra
+modules/rest-root @elastic/es-core-infra
+modules/systemd @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/bootstrap @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/node @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/plugins @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra

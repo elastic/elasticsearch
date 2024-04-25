@@ -26,7 +26,7 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
     public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_policy";
 
     private GetAutoscalingPolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {

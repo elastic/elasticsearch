@@ -458,7 +458,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
                     if (preserveDataDir) {
-                        Files.list(workingDir).filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
+                        try (var files = Files.list(workingDir)) {
+                            files.filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
+                        }
                     } else {
                         deleteWithRetry(workingDir);
                     }

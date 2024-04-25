@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RedirectToLocalClusterRemoteClusterClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -162,8 +164,12 @@ public class SourceDestValidatorTests extends ESTestCase {
         }
 
         @Override
-        public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-            return this;
+        public RemoteClusterClient getRemoteClusterClient(
+            String clusterAlias,
+            Executor responseExecutor,
+            RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+        ) {
+            return new RedirectToLocalClusterRemoteClusterClient(this);
         }
 
         @SuppressWarnings("unchecked")

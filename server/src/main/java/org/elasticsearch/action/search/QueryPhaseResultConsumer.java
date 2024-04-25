@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankCoordinatorContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final CircuitBreaker circuitBreaker;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
-    private final RankCoordinatorContext rankCoordinatorContext;
+    private final QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -93,10 +93,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchSourceBuilder source = request.source();
         int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
         int from = source == null || source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
-        this.rankCoordinatorContext = source == null || source.rankBuilder() == null
+        this.queryPhaseRankCoordinatorContext = source == null || source.rankBuilder() == null
             ? null
-            : source.rankBuilder().buildRankCoordinatorContext(size, from);
-        this.hasTopDocs = (source == null || size != 0) && rankCoordinatorContext == null;
+            : source.rankBuilder().buildQueryPhaseCoordinatorContext(size, from);
+        this.hasTopDocs = (source == null || size != 0) && queryPhaseRankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
@@ -105,11 +105,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     @Override
     protected void doClose() {
-        try {
-            super.doClose();
-        } finally {
-            pendingMerges.close();
-        }
+        pendingMerges.close();
     }
 
     @Override
@@ -132,23 +128,28 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         pendingMerges.sortBuffer();
         final TopDocsStats topDocsStats = pendingMerges.consumeTopDocsStats();
         final List<TopDocs> topDocsList = pendingMerges.consumeTopDocs();
-        final List<InternalAggregations> aggsList = pendingMerges.consumeAggs();
+        SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = pendingMerges.circuitBreakerBytes;
-        if (hasAggs) {
-            // Add an estimate of the final reduce size
-            breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+        try {
+            final List<DelayableWriteable<InternalAggregations>> aggsList = pendingMerges.getAggs();
+            if (hasAggs) {
+                // Add an estimate of the final reduce size
+                breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+            }
+            reducePhase = SearchPhaseController.reducedQueryPhase(
+                results.asList(),
+                aggsList,
+                topDocsList,
+                topDocsStats,
+                pendingMerges.numReducePhases,
+                false,
+                aggReduceContextBuilder,
+                queryPhaseRankCoordinatorContext,
+                performFinalReduce
+            );
+        } finally {
+            pendingMerges.releaseAggs();
         }
-        SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(
-            results.asList(),
-            aggsList,
-            topDocsList,
-            topDocsStats,
-            pendingMerges.numReducePhases,
-            false,
-            aggReduceContextBuilder,
-            rankCoordinatorContext,
-            performFinalReduce
-        );
         if (hasAggs
             // reduced aggregations can be null if all shards failed
             && reducePhase.aggregations() != null) {
@@ -208,14 +209,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         final InternalAggregations newAggs;
         if (hasAggs) {
-            List<InternalAggregations> aggsList = new ArrayList<>();
-            if (lastMerge != null) {
-                aggsList.add(lastMerge.reducedAggs);
+            try {
+                final List<DelayableWriteable<InternalAggregations>> aggsList = new ArrayList<>();
+                if (lastMerge != null) {
+                    aggsList.add(DelayableWriteable.referencing(lastMerge.reducedAggs));
+                }
+                for (QuerySearchResult result : toConsume) {
+                    aggsList.add(result.getAggs());
+                }
+                newAggs = InternalAggregations.topLevelReduceDelayable(aggsList, aggReduceContextBuilder.forPartialReduction());
+            } finally {
+                for (QuerySearchResult result : toConsume) {
+                    result.releaseAggs();
+                }
             }
-            for (QuerySearchResult result : toConsume) {
-                aggsList.add(result.consumeAggs());
-            }
-            newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
         } else {
             newAggs = null;
         }
@@ -498,18 +505,26 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return topDocsList;
         }
 
-        public synchronized List<InternalAggregations> consumeAggs() {
+        public synchronized List<DelayableWriteable<InternalAggregations>> getAggs() {
             if (hasAggs == false) {
                 return Collections.emptyList();
             }
-            List<InternalAggregations> aggsList = new ArrayList<>();
+            List<DelayableWriteable<InternalAggregations>> aggsList = new ArrayList<>();
             if (mergeResult != null) {
-                aggsList.add(mergeResult.reducedAggs);
+                aggsList.add(DelayableWriteable.referencing(mergeResult.reducedAggs));
             }
             for (QuerySearchResult result : buffer) {
-                aggsList.add(result.consumeAggs());
+                aggsList.add(result.getAggs());
             }
             return aggsList;
+        }
+
+        public synchronized void releaseAggs() {
+            if (hasAggs) {
+                for (QuerySearchResult result : buffer) {
+                    result.releaseAggs();
+                }
+            }
         }
     }
 

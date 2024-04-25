@@ -1778,7 +1778,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                   "properties": {
                     "field2": {
                       "type": "object",
-                                  "subobjects": false,
+                      "subobjects": false,
                       "properties": {
                         "foo": {
                           "type": "integer"
@@ -1803,12 +1803,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 {
                       "properties": {
                         "field2": {
-                                  "type": "object",
-                                  "properties": {
-                                    "bar": {
-                                      "type": "object"
-                                    }
-                                  }
+                          "type": "object",
+                          "properties": {
+                            "bar": {
+                              "type": "nested"
+                            }
+                          }
                         }
                       }
                     }"""), null))
@@ -1834,7 +1834,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause());
         assertThat(
             e.getCause().getCause().getMessage(),
-            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
+            containsString("Tried to add nested object [bar] to object [field2] which does not support subobjects")
         );
     }
 
@@ -1920,12 +1920,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
               "properties": {
                 "field2": {
-                                  "type": "object",
-                                  "properties": {
-                                    "bar": {
-                                      "type": "object"
-                                    }
-                                  }
+                  "type": "object",
+                  "properties": {
+                    "bar": {
+                      "type": "nested"
+                    }
+                  }
                 }
               }
             }
@@ -1951,7 +1951,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
+            containsString("Tried to add nested object [bar] to object [field2] which does not support subobjects")
         );
     }
 

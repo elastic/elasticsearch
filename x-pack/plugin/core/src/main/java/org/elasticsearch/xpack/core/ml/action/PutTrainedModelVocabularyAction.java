@@ -34,7 +34,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/vocabulary/put";
 
     private PutTrainedModelVocabularyAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

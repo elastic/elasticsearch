@@ -16,6 +16,6 @@ public class SnapshottableFeaturesAction extends ActionType<GetSnapshottableFeat
     public static final String NAME = "cluster:admin/features/get";
 
     private SnapshottableFeaturesAction() {
-        super(NAME, GetSnapshottableFeaturesResponse::new);
+        super(NAME);
     }
 }

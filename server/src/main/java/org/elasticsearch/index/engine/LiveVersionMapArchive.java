@@ -42,21 +42,21 @@ public interface LiveVersionMapArchive {
     /**
      * Returns the total memory usage if the Archive.
      */
-    default long getMemoryBytesUsed() {
+    default long getRamBytesUsed() {
         return 0L;
     }
 
     /**
      * Returns how much memory could be freed up by creating a new commit and issuing a new unpromotable refresh.
      */
-    default long getReclaimableMemoryBytes() {
+    default long getReclaimableRamBytes() {
         return 0;
     }
 
     /**
      * Returns how much memory will be freed once the current ongoing unpromotable refresh is finished.
      */
-    default long getRefreshingMemoryBytes() {
+    default long getRefreshingRamBytes() {
         return 0;
     }
 

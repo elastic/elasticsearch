@@ -11,11 +11,10 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class InternalStatsBucket extends InternalStats implements StatsBucket {
@@ -44,7 +43,8 @@ public class InternalStatsBucket extends InternalStats implements StatsBucket {
     }
 
     @Override
-    public InternalStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Not supported");
     }
+
 }

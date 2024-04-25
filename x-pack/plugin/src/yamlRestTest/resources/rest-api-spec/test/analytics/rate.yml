@@ -36,8 +36,8 @@
 
 ---
 "rate with doc_count":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: bug fixed in 7.16.0
   - do:
       bulk:
@@ -208,10 +208,10 @@
 
 ---
 "rate aggregation on counter field":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:
@@ -331,10 +331,10 @@
 
 ---
 "rate aggregation on counter field with unit":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:
@@ -445,10 +445,10 @@
 
 ---
 "rate aggregation on counter field partial bucket":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:

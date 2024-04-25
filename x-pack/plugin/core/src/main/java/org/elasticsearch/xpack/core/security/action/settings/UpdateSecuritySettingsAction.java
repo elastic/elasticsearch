@@ -45,7 +45,7 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
     );
 
     public UpdateSecuritySettingsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

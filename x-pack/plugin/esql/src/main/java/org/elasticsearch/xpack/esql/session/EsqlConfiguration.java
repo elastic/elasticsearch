@@ -67,7 +67,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.resultTruncationMaxSize = in.readVInt();
         this.resultTruncationDefaultSize = in.readVInt();
         this.query = readQuery(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.profile = in.readBoolean();
         } else {
             this.profile = false;
@@ -87,7 +87,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         out.writeVInt(resultTruncationMaxSize);
         out.writeVInt(resultTruncationDefaultSize);
         writeQuery(out, query);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(profile);
         }
     }

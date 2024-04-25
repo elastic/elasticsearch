@@ -1,6 +1,0 @@
-pr: 103150
-summary: "ES|QL: Fix NPE on single value detection"
-area: ES|QL
-type: bug
-issues:
- - 103141

@@ -22,15 +22,15 @@ to be provided with a dedicated directive:
 
 [source,esql]
 ----
-FROM index [METADATA _index, _id]
+FROM index METADATA _index, _id
 ----
 
 Metadata fields are only available if the source of the data is an index.
 Consequently, `FROM` is the only source commands that supports the `METADATA`
 directive.
 
-Once enabled, the fields are then available to subsequent processing commands, just
-like the other index fields:
+Once enabled, these fields will be available to subsequent processing commands, just
+like other index fields:
 
 [source.merge.styled,esql]
 ----
@@ -41,9 +41,9 @@ include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices]
 include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices-result]
 |===
 
-Also, similar to the index fields, once an aggregation is performed, a
+Similar to index fields, once an aggregation is performed, a
 metadata field will no longer be accessible to subsequent commands, unless
-used as grouping field:
+used as a grouping field:
 
 [source.merge.styled,esql]
 ----

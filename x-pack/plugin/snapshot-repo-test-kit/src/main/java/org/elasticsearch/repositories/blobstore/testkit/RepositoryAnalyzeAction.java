@@ -96,7 +96,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
     private static final Logger logger = LogManager.getLogger(RepositoryAnalyzeAction.class);
 
-    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = ActionType.localOnly("cluster:admin/repository/analyze");
+    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
@@ -504,7 +504,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     }
                 }
 
-                if (minClusterTransportVersion.onOrAfter(TransportVersions.UNCONTENDED_REGISTER_ANALYSIS_ADDED)) {
+                if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
                     new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
                 }
             }
@@ -913,7 +913,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 registerOperationCount = in.readVInt();
             } else {
                 registerOperationCount = concurrency;
@@ -945,7 +945,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeVInt(registerOperationCount);
             } else if (registerOperationCount != concurrency) {
                 throw new IllegalArgumentException(

@@ -32,13 +32,13 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -46,10 +46,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasks
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
@@ -64,48 +64,48 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
@@ -118,6 +118,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStore
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -125,17 +126,17 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
+import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -164,10 +165,10 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -194,7 +195,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -213,10 +213,10 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -429,12 +429,12 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public ActionFuture<BulkResponse> bulk(final BulkRequest request) {
-        return execute(BulkAction.INSTANCE, request);
+        return execute(TransportBulkAction.TYPE, request);
     }
 
     @Override
     public void bulk(final BulkRequest request, final ActionListener<BulkResponse> listener) {
-        execute(BulkAction.INSTANCE, request, listener);
+        execute(TransportBulkAction.TYPE, request, listener);
     }
 
     @Override
@@ -690,12 +690,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
-            return execute(ClusterRerouteAction.INSTANCE, request);
+            return execute(TransportClusterRerouteAction.TYPE, request);
         }
 
         @Override
         public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
-            execute(ClusterRerouteAction.INSTANCE, request, listener);
+            execute(TransportClusterRerouteAction.TYPE, request, listener);
         }
 
         @Override
@@ -758,7 +758,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
-            execute(ClusterStatsAction.INSTANCE, request, listener);
+            execute(TransportClusterStatsAction.TYPE, request, listener);
         }
 
         @Override
@@ -783,12 +783,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<GetTaskResponse> getTask(final GetTaskRequest request) {
-            return execute(GetTaskAction.INSTANCE, request);
+            return execute(TransportGetTaskAction.TYPE, request);
         }
 
         @Override
         public void getTask(final GetTaskRequest request, final ActionListener<GetTaskResponse> listener) {
-            execute(GetTaskAction.INSTANCE, request, listener);
+            execute(TransportGetTaskAction.TYPE, request, listener);
         }
 
         @Override
@@ -803,12 +803,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<ListTasksResponse> cancelTasks(CancelTasksRequest request) {
-            return execute(CancelTasksAction.INSTANCE, request);
+            return execute(TransportCancelTasksAction.TYPE, request);
         }
 
         @Override
         public void cancelTasks(CancelTasksRequest request, ActionListener<ListTasksResponse> listener) {
-            execute(CancelTasksAction.INSTANCE, request, listener);
+            execute(TransportCancelTasksAction.TYPE, request, listener);
         }
 
         @Override
@@ -818,7 +818,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void searchShards(final ClusterSearchShardsRequest request, final ActionListener<ClusterSearchShardsResponse> listener) {
-            execute(ClusterSearchShardsAction.INSTANCE, request, listener);
+            execute(TransportClusterSearchShardsAction.TYPE, request, listener);
         }
 
         @Override
@@ -838,12 +838,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<CreateSnapshotResponse> createSnapshot(CreateSnapshotRequest request) {
-            return execute(CreateSnapshotAction.INSTANCE, request);
+            return execute(TransportCreateSnapshotAction.TYPE, request);
         }
 
         @Override
         public void createSnapshot(CreateSnapshotRequest request, ActionListener<CreateSnapshotResponse> listener) {
-            execute(CreateSnapshotAction.INSTANCE, request, listener);
+            execute(TransportCreateSnapshotAction.TYPE, request, listener);
         }
 
         @Override
@@ -863,7 +863,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void getSnapshots(GetSnapshotsRequest request, ActionListener<GetSnapshotsResponse> listener) {
-            execute(GetSnapshotsAction.INSTANCE, request, listener);
+            execute(TransportGetSnapshotsAction.TYPE, request, listener);
         }
 
         @Override
@@ -918,17 +918,17 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void cleanupRepository(CleanupRepositoryRequest request, ActionListener<CleanupRepositoryResponse> listener) {
-            execute(CleanupRepositoryAction.INSTANCE, request, listener);
+            execute(TransportCleanupRepositoryAction.TYPE, request, listener);
         }
 
         @Override
         public ActionFuture<RestoreSnapshotResponse> restoreSnapshot(RestoreSnapshotRequest request) {
-            return execute(RestoreSnapshotAction.INSTANCE, request);
+            return execute(TransportRestoreSnapshotAction.TYPE, request);
         }
 
         @Override
         public void restoreSnapshot(RestoreSnapshotRequest request, ActionListener<RestoreSnapshotResponse> listener) {
-            execute(RestoreSnapshotAction.INSTANCE, request, listener);
+            execute(TransportRestoreSnapshotAction.TYPE, request, listener);
         }
 
         @Override
@@ -938,7 +938,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void snapshotsStatus(SnapshotsStatusRequest request, ActionListener<SnapshotsStatusResponse> listener) {
-            execute(SnapshotsStatusAction.INSTANCE, request, listener);
+            execute(TransportSnapshotsStatusAction.TYPE, request, listener);
         }
 
         @Override
@@ -1084,12 +1084,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> aliases(final IndicesAliasesRequest request) {
+        public ActionFuture<IndicesAliasesResponse> aliases(final IndicesAliasesRequest request) {
             return execute(TransportIndicesAliasesAction.TYPE, request);
         }
 
         @Override
-        public void aliases(final IndicesAliasesRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        public void aliases(final IndicesAliasesRequest request, final ActionListener<IndicesAliasesResponse> listener) {
             execute(TransportIndicesAliasesAction.TYPE, request, listener);
         }
 
@@ -1115,7 +1115,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<BroadcastResponse> clearCache(final ClearIndicesCacheRequest request) {
-            return execute(ClearIndicesCacheAction.INSTANCE, request);
+            return execute(TransportClearIndicesCacheAction.TYPE, request);
         }
 
         @Override
@@ -1135,7 +1135,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void clearCache(final ClearIndicesCacheRequest request, final ActionListener<BroadcastResponse> listener) {
-            execute(ClearIndicesCacheAction.INSTANCE, request, listener);
+            execute(TransportClearIndicesCacheAction.TYPE, request, listener);
         }
 
         @Override
@@ -1145,12 +1145,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<CreateIndexResponse> create(final CreateIndexRequest request) {
-            return execute(CreateIndexAction.INSTANCE, request);
+            return execute(TransportCreateIndexAction.TYPE, request);
         }
 
         @Override
         public void create(final CreateIndexRequest request, final ActionListener<CreateIndexResponse> listener) {
-            execute(CreateIndexAction.INSTANCE, request, listener);
+            execute(TransportCreateIndexAction.TYPE, request, listener);
         }
 
         @Override
@@ -1205,7 +1205,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener) {
-            execute(AddIndexBlockAction.INSTANCE, request, listener);
+            execute(TransportAddIndexBlockAction.TYPE, request, listener);
         }
 
         @Override
@@ -1449,7 +1449,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener) {
+        public void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener) {
             execute(ResizeAction.INSTANCE, request, listener);
         }
 

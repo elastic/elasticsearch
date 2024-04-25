@@ -43,7 +43,7 @@ fix problems that an {es} deployment might encounter.
 [[troubleshooting-snapshot]]
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
-* <<add-repository,Multiple deployments writing to the same snapshot repository>>
+* <<add-repository,Troubleshooting broken repositories>>
 * <<repeated-snapshot-failures,Troubleshooting repeated snapshot failures>>
 
 [discrete]
@@ -56,6 +56,7 @@ fix problems that an {es} deployment might encounter.
 * <<watcher-troubleshooting,Troubleshooting Watcher>>
 * <<troubleshooting-searches,Troubleshooting searches>>
 * <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>
+* <<troubleshooting-unbalanced-cluster,Troubleshooting an unbalanced cluster>>
 * <<remote-clusters-troubleshooting,Troubleshooting remote clusters>>
 
 [discrete]
@@ -135,3 +136,5 @@ include::watcher/troubleshooting.asciidoc[]
 include::troubleshooting/troubleshooting-searches.asciidoc[]
 
 include::troubleshooting/troubleshooting-shards-capacity.asciidoc[]
+
+include::troubleshooting/troubleshooting-unbalanced-cluster.asciidoc[]

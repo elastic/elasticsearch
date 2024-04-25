@@ -11,9 +11,9 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -125,8 +125,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
             if (mode == AggregateExec.Mode.FINAL) {
                 for (var agg : aggregates) {
-                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        layout.append(alias);
+                    if (Alias.unwrap(agg) instanceof AggregateFunction) {
+                        layout.append(agg);
                     }
                 }
             } else {
@@ -289,11 +289,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     }
 
     private record GroupSpec(Integer channel, Attribute attribute) {
-        HashAggregationOperator.GroupSpec toHashGroupSpec() {
+        BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-            return new HashAggregationOperator.GroupSpec(channel, elementType());
+            return new BlockHash.GroupSpec(channel, elementType());
         }
 
         ElementType elementType() {

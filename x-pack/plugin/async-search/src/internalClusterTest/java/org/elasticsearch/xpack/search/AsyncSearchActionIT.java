@@ -442,7 +442,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
             assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId(), TimeValue.timeValueDays(10));
             assertTrue(statusResponse.isRunning());
             assertTrue(statusResponse.isPartial());
             assertThat(statusResponse.getExpirationTime(), greaterThan(expirationTime));
@@ -456,13 +456,34 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             response.decRef();
         }
 
-        final AsyncSearchResponse response2 = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
         try {
-            assertThat(response2.getExpirationTime(), lessThan(expirationTime));
-            ensureTaskNotRunning(response2.getId());
-            ensureTaskRemoval(response2.getId());
+            if (randomBoolean()) {
+                final AsyncSearchResponse response2 = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
+                try {
+                    assertThat(response2.getExpirationTime(), lessThan(expirationTime));
+                    ensureTaskNotRunning(response2.getId());
+                    ensureTaskRemoval(response2.getId());
+                } finally {
+                    response2.decRef();
+                }
+            } else {
+                try {
+                    AsyncStatusResponse statusResponse = getAsyncStatus(response.getId(), TimeValue.timeValueMillis(5));
+                    assertThat(statusResponse.getExpirationTime(), lessThan(expirationTime));
+                } catch (ExecutionException e) {
+                    Throwable cause = ExceptionsHelper.unwrap(e, ResourceNotFoundException.class);
+                    // The 'get async search' method first updates the expiration time, then gets the response. So the
+                    // maintenance service might remove the document right after it's updated, which means the get request
+                    // fails with a 'not found' error. For now we allow this behavior, since it will be very rare in practice.
+                    assertNotNull(
+                        "ResourceNotFoundException is expected in some cases. Any other exception is not expected. Got: " + e,
+                        cause
+                    );
+                }
+            }
         } finally {
-            response2.decRef();
+            ensureTaskNotRunning(response.getId());
+            ensureTaskRemoval(response.getId());
         }
     }
 
@@ -510,11 +531,16 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         }
 
         try {
-            AsyncSearchResponse finalResponse = getAsyncSearch(searchId, TimeValue.timeValueMillis(1));
-            try {
-                assertThat(finalResponse.getExpirationTime(), lessThan(expirationTime));
-            } finally {
-                finalResponse.decRef();
+            if (randomBoolean()) {
+                AsyncSearchResponse finalResponse = getAsyncSearch(searchId, TimeValue.timeValueMillis(1));
+                try {
+                    assertThat(finalResponse.getExpirationTime(), lessThan(expirationTime));
+                } finally {
+                    finalResponse.decRef();
+                }
+            } else {
+                AsyncStatusResponse statusResponse = getAsyncStatus(searchId, TimeValue.timeValueMillis(5));
+                assertThat(statusResponse.getExpirationTime(), lessThan(expirationTime));
             }
         } catch (ExecutionException e) {
             // The 'get async search' method first updates the expiration time, then gets the response. So the

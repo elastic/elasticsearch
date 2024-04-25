@@ -15,9 +15,11 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -37,17 +39,23 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private final NodeService nodeService;
     private final List<AutoCloseable> metrics;
     private NodeStatsCache stats;
+    private final TimeValue cacheExpiry;
 
     /**
      * Constructs a new NodeMetrics instance.
      *
-     * @param meterRegistry The MeterRegistry used to register metrics.
-     * @param nodeService   The NodeService for interacting with the Elasticsearch node and extracting statistics.
-     */
-    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
+     * @param meterRegistry     The MeterRegistry used to register metrics.
+     * @param nodeService       The NodeService for interacting with the Elasticsearch node and extracting statistics.
+     * @param metricsInterval   The interval at which the agent sends metrics to the APM Server
+     * */
+    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, TimeValue metricsInterval) {
         this.registry = meterRegistry;
         this.nodeService = nodeService;
         this.metrics = new ArrayList<>(17);
+        // we set the cache to expire after half the interval at which the agent sends
+        // metrics to the APM Server so that there is enough time for the cache not
+        // update during the same poll period and that expires before a new poll period
+        this.cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
     }
 
     /**
@@ -57,10 +65,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * @param registry The MeterRegistry used to register and collect metrics.
      */
     private void registerAsyncMetrics(MeterRegistry registry) {
-        // Agent should poll stats every 4 minutes and being this cache is lazy we need a
-        // number high enough so that the cache does not update during the same poll
-        // period and that expires before a new poll period, therefore we choose 1 minute.
-        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
+        this.stats = new NodeStatsCache(cacheExpiry);
         metrics.add(
             registry.registerLongAsyncCounter(
                 "es.indices.get.total",
@@ -524,6 +529,27 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
+            registry.registerDoubleGauge(
+                "es.indexing.coordinating_operations.rejections.ratio",
+                "Ratio of rejected coordinating operations",
+                "ratio",
+                () -> {
+                    var totalCoordinatingOperations = Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getTotalCoordinatingOps)
+                        .orElse(0L);
+                    var totalCoordinatingRejections = Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getCoordinatingRejections)
+                        .orElse(0L);
+                    // rejections do not count towards `totalCoordinatingOperations`
+                    var totalOps = totalCoordinatingOperations + totalCoordinatingRejections;
+                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0);
+                }
+            )
+        );
+
+        metrics.add(
             registry.registerLongAsyncCounter(
                 "es.indexing.primary_operations.size",
                 "Total number of memory bytes consumed by primary operations",
@@ -594,6 +620,27 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
+            registry.registerDoubleGauge(
+                "es.indexing.primary_operations.document.rejections.ratio",
+                "Ratio of rejected primary operations",
+                "ratio",
+                () -> {
+                    var totalPrimaryOperations = Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getTotalPrimaryOps)
+                        .orElse(0L);
+                    var totalPrimaryDocumentRejections = Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getPrimaryDocumentRejections)
+                        .orElse(0L);
+                    // primary document rejections do not count towards `totalPrimaryOperations`
+                    var totalOps = totalPrimaryOperations + totalPrimaryDocumentRejections;
+                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryDocumentRejections / totalOps : 0.0);
+                }
+            )
+        );
+
+        metrics.add(
             registry.registerLongGauge(
                 "es.indexing.memory.limit.size",
                 "Current memory limit for primary and coordinating operations",
@@ -604,6 +651,29 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeInMillis() : 0L
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total_excluding_lock_waiting.time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null
+                        ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingOnLockMillis()
+                        : 0L
+                )
+            )
+        );
     }
 
     /**
@@ -633,6 +703,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private NodeStats getNodeStats() {
         CommonStatsFlags flags = new CommonStatsFlags(
             CommonStatsFlags.Flag.Indexing,
+            CommonStatsFlags.Flag.Flush,
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -67,7 +68,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -248,7 +248,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Opens one or more indices based on their index name.
      *
-     * @param indices The name of the indices to close
+     * @param indices The name of the indices to open
      */
     OpenIndexRequestBuilder prepareOpen(String... indices);
 
@@ -372,7 +372,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request The index aliases request
      * @return The result future
      */
-    ActionFuture<AcknowledgedResponse> aliases(IndicesAliasesRequest request);
+    ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -380,7 +380,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  The index aliases request
      * @param listener A listener to be notified with a result
      */
-    void aliases(IndicesAliasesRequest request, ActionListener<AcknowledgedResponse> listener);
+    void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -588,7 +588,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener);
+    void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied

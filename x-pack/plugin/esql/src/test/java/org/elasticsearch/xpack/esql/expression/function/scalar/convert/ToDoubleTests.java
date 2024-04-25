@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -55,7 +57,10 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         );
         // random strings that don't look like a double
         TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("String"), DataTypes.DOUBLE, bytesRef -> null, bytesRef -> {
-            var exception = expectThrows(NumberFormatException.class, () -> Double.parseDouble(bytesRef.utf8ToString()));
+            var exception = expectThrows(
+                InvalidArgumentException.class,
+                () -> EsqlDataTypeConverter.stringToDouble(bytesRef.utf8ToString())
+            );
             return List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: " + exception

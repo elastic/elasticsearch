@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -16,7 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public abstract class RationalUnaryPredicate extends UnaryScalarFunction implements EvaluatorMapper {
+public abstract class RationalUnaryPredicate extends UnaryScalarFunction {
     public RationalUnaryPredicate(Source source, Expression field) {
         super(source, field);
     }
@@ -33,10 +32,5 @@ public abstract class RationalUnaryPredicate extends UnaryScalarFunction impleme
     @Override
     public final DataType dataType() {
         return DataTypes.BOOLEAN;
-    }
-
-    @Override
-    public final Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 }

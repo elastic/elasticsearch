@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -115,8 +115,10 @@ public class QuerySearchResultTests extends ESTestCase {
                 assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
                 if (deserialized.hasAggs()) {
                     assertThat(deserialized.aggregations().isSerialized(), is(delayed));
-                    Aggregations aggs = querySearchResult.consumeAggs();
-                    Aggregations deserializedAggs = deserialized.consumeAggs();
+                    InternalAggregations aggs = querySearchResult.getAggs().expand();
+                    querySearchResult.releaseAggs();
+                    InternalAggregations deserializedAggs = deserialized.getAggs().expand();
+                    deserialized.releaseAggs();
                     assertEquals(aggs.asList(), deserializedAggs.asList());
                     assertThat(deserialized.aggregations(), is(nullValue()));
                 }

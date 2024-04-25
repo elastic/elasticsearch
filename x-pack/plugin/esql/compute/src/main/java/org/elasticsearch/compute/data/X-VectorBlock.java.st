@@ -24,7 +24,6 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     $Type$VectorBlock($Type$Vector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -44,7 +43,7 @@ $endif$
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -56,6 +55,12 @@ $endif$
     @Override
     public $Type$Block filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public $Type$Block expand() {
+        incRef();
+        return this;
     }
 
     @Override

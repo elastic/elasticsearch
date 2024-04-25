@@ -35,7 +35,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
     public static final ParseField EVENTS = new ParseField("events");
 
     private PostCalendarEventsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -62,8 +62,8 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
             return new Request(calendarId, events.stream().map(ScheduledEvent.Builder::build).collect(Collectors.toList()));
         }
 
-        private String calendarId;
-        private List<ScheduledEvent> scheduledEvents;
+        private final String calendarId;
+        private final List<ScheduledEvent> scheduledEvents;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -120,12 +120,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<ScheduledEvent> scheduledEvents;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            in.readCollectionAsList(ScheduledEvent::new);
-        }
+        private final List<ScheduledEvent> scheduledEvents;
 
         public Response(List<ScheduledEvent> scheduledEvents) {
             this.scheduledEvents = scheduledEvents;

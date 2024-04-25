@@ -15,6 +15,6 @@ public class UpdateByQueryAction extends ActionType<BulkByScrollResponse> {
     public static final String NAME = "indices:data/write/update/byquery";
 
     private UpdateByQueryAction() {
-        super(NAME, BulkByScrollResponse::new);
+        super(NAME);
     }
 }

@@ -1010,7 +1010,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 .values()
                 .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             builder.nodeFeatures(ClusterFeatures.readFrom(in));
         }
         builder.blocks = ClusterBlocks.readFrom(in);
@@ -1056,7 +1056,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeMap(compatibilityVersions, (streamOutput, versions) -> versions.writeTo(streamOutput));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             clusterFeatures.writeTo(out);
         }
         blocks.writeTo(out);
@@ -1125,7 +1125,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             } else {
                 versions = null;   // infer at application time
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 features = ClusterFeatures.readDiffFrom(in);
             } else {
                 features = null;    // fill in when nodes re-register with a master that understands features
@@ -1149,7 +1149,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeOptionalWriteable(versions);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 features.writeTo(out);
             }
             metadata.writeTo(out);

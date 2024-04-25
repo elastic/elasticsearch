@@ -352,6 +352,7 @@ public abstract class CoreTestTranslater {
                     defaultPipeline,
                     null,
                     null,
+                    null,
                     true,
                     XContentType.JSON,
                     (index, type) -> indexRequests.add(index),

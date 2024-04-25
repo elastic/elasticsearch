@@ -1,0 +1,5 @@
+pr: 107007
+summary: "ESQL: Support ST_DISJOINT"
+area: ES|QL
+type: enhancement
+issues: []

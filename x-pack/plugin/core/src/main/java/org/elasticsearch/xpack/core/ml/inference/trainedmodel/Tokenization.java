@@ -52,7 +52,11 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
-    record SpanSettings(@Nullable Integer maxSequenceLength, int span) implements Writeable {
+    public record SpanSettings(@Nullable Integer maxSequenceLength, int span) implements Writeable {
+
+        public SpanSettings(@Nullable Integer maxSequenceLength) {
+            this(maxSequenceLength, UNSET_SPAN_VALUE);
+        }
 
         SpanSettings(StreamInput in) throws IOException {
             this(in.readOptionalVInt(), in.readVInt());
@@ -72,11 +76,11 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     public static final ParseField TRUNCATE = new ParseField("truncate");
     public static final ParseField SPAN = new ParseField("span");
 
-    private static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
+    public static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
     private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;
-    private static final int UNSET_SPAN_VALUE = -1;
+    public static final int UNSET_SPAN_VALUE = -1;
 
     static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);
@@ -141,9 +145,8 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
      * @param update The settings to update
      * @return An updated Tokenization
      */
-    public Tokenization updateSpanSettings(SpanSettings update) {
+    public Tokenization updateWindowSettings(SpanSettings update) {
         int maxLength = update.maxSequenceLength() == null ? this.maxSequenceLength : update.maxSequenceLength();
-        validateSpanAndMaxSequenceLength(maxLength, span);
         if (update.maxSequenceLength() != null && update.maxSequenceLength() > this.maxSequenceLength) {
             throw new ElasticsearchStatusException(
                 "Updated max sequence length [{}] cannot be greater " + "than the model's max sequence length [{}]",
@@ -153,7 +156,9 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
             );
         }
 
-        return buildWindowingTokenization(maxLength, update.span());
+        int updatedSpan = update.span() == UNSET_SPAN_VALUE ? this.span : update.span();
+        validateSpanAndMaxSequenceLength(maxLength, updatedSpan);
+        return buildWindowingTokenization(maxLength, updatedSpan);
     }
 
     /**
@@ -252,6 +257,10 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
 
     public int getSpan() {
         return span;
+    }
+
+    public int getMaxSequenceLength() {
+        return maxSequenceLength;
     }
 
     public void validateVocabulary(PutTrainedModelVocabularyAction.Request request) {

@@ -171,6 +171,9 @@ deprecated[7.5] Use `manage_transform` instead.
 `manage_enrich`::
 All operations related to managing and executing enrich policies.
 
+`manage_data_stream_global_retention`::
+All operations related to managing the data stream global retention settings.
+
 `manage_watcher`::
 All watcher operations, such as putting watches, executing, activate or acknowledging.
 +
@@ -205,6 +208,9 @@ All read-only operations related to the <<find-structure,find structure API>>.
 
 `monitor_transform`::
 All read-only operations related to {transforms}.
+
+`monitor_data_stream_global_retention`::
+Allows the retrieval of the data stream global retention settings.
 
 `monitor_watcher`::
 All read-only watcher operations, such as getting a watch and watcher stats.

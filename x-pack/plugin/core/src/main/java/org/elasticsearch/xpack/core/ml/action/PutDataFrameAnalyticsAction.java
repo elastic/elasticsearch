@@ -32,7 +32,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/put";
 
     private PutDataFrameAnalyticsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -156,13 +156,11 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private DataFrameAnalyticsConfig config;
+        private final DataFrameAnalyticsConfig config;
 
         public Response(DataFrameAnalyticsConfig config) {
             this.config = config;
         }
-
-        Response() {}
 
         public Response(StreamInput in) throws IOException {
             super(in);

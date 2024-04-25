@@ -17,12 +17,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -70,7 +72,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     private static final Set<Integer> upgradedNodes = new HashSet<>();
-    private static final Set<String> oldClusterFeatures = new HashSet<>();
+    private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
 
@@ -82,8 +84,8 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Before
     public void extractOldClusterFeatures() {
-        if (isOldCluster() && oldClusterFeatures.isEmpty()) {
-            oldClusterFeatures.addAll(testFeatureService.getAllSupportedFeatures());
+        if (isOldCluster() && oldClusterTestFeatureService == null) {
+            oldClusterTestFeatureService = testFeatureService;
         }
     }
 
@@ -99,12 +101,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             Map<String, Object> nodeMap = objectPath.evaluate("nodes");
             for (String id : nodeMap.keySet()) {
                 Number ix = objectPath.evaluate("nodes." + id + ".index_version");
-                IndexVersion version;
+                final IndexVersion version;
                 if (ix != null) {
                     version = IndexVersion.fromId(ix.intValue());
                 } else {
                     // it doesn't have index version (pre 8.11) - just infer it from the release version
-                    version = IndexVersion.fromId(getOldClusterVersion().id);
+                    version = parseLegacyVersion(getOldClusterVersion()).map(v -> IndexVersion.fromId(v.id))
+                        .orElse(IndexVersions.MINIMUM_COMPATIBLE);
                 }
 
                 if (indexVersion == null) {
@@ -147,18 +150,18 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     public static void resetNodes() {
         oldIndexVersion = null;
         upgradedNodes.clear();
-        oldClusterFeatures.clear();
+        oldClusterTestFeatureService = null;
         upgradeFailed = false;
     }
 
     @Deprecated // Use the new testing framework and oldClusterHasFeature(feature) instead
-    protected static org.elasticsearch.Version getOldClusterVersion() {
-        return org.elasticsearch.Version.fromString(OLD_CLUSTER_VERSION);
+    protected static String getOldClusterVersion() {
+        return OLD_CLUSTER_VERSION;
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterFeatures.isEmpty() == false;
-        return oldClusterFeatures.contains(featureId);
+        assert oldClusterTestFeatureService != null;
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
     protected static boolean oldClusterHasFeature(NodeFeature feature) {

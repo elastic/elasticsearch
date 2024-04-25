@@ -12,10 +12,11 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.TransportVersion;
@@ -28,10 +29,10 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -42,37 +43,56 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene99Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
     }
 
     public void testDefault() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("default");
-        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
+        assertEquals(
+            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
+            codec.storedFieldsFormat().toString()
+        );
     }
 
     public void testBestCompression() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
+        assertEquals(
+            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
+            codec.storedFieldsFormat().toString()
+        );
     }
 
-    // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene99Codec.Mode expected, Codec actual) throws Exception {
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(null);
-        iwc.setCodec(actual);
-        IndexWriter iw = new IndexWriter(dir, iwc);
-        iw.addDocument(new Document());
-        iw.commit();
-        iw.close();
-        DirectoryReader ir = DirectoryReader.open(dir);
-        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
-        assertNotNull(v);
-        assertEquals(expected, Lucene99Codec.Mode.valueOf(v));
-        ir.close();
-        dir.close();
+    public void testLegacyDefault() throws Exception {
+        Codec codec = createCodecService().codec("legacy_default");
+        assertThat(codec, Matchers.instanceOf(Lucene99Codec.class));
+        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        // Make sure the legacy codec is writable
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
+            Document doc = new Document();
+            doc.add(new KeywordField("string_field", "abc", Field.Store.YES));
+            doc.add(new IntField("int_field", 42, Field.Store.YES));
+            w.addDocument(doc);
+            try (DirectoryReader r = DirectoryReader.open(w)) {}
+        }
+    }
+
+    public void testLegacyBestCompression() throws Exception {
+        Codec codec = createCodecService().codec("legacy_best_compression");
+        assertThat(codec, Matchers.instanceOf(Lucene99Codec.class));
+        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        // Make sure the legacy codec is writable
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
+            Document doc = new Document();
+            doc.add(new KeywordField("string_field", "abc", Field.Store.YES));
+            doc.add(new IntField("int_field", 42, Field.Store.YES));
+            w.addDocument(doc);
+            try (DirectoryReader r = DirectoryReader.open(w)) {}
+        }
     }
 
     private CodecService createCodecService() throws IOException {
@@ -95,8 +115,7 @@ public class CodecTests extends ESTestCase {
             mapperRegistry,
             () -> null,
             settings.getMode().idFieldMapperWithoutFieldData(),
-            ScriptCompiler.NONE,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            ScriptCompiler.NONE
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }

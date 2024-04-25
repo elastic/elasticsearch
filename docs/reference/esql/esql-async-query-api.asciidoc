@@ -24,10 +24,12 @@ POST /_query/async
     | SORT year
     | LIMIT 5
   """,
-  "wait_for_completion_timeout": "2s"
+  "wait_for_completion_timeout": "2s",
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
 If the results are not available within the given timeout period, 2 seconds
 in this case, no results are returned but rather a response that

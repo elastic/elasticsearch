@@ -76,7 +76,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -91,8 +90,6 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -115,6 +112,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -1291,72 +1289,19 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 b -> {},
                 PipelineTree.EMPTY
             );
-            for (InternalAggregation internalAgg : aggs) {
-                InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
-                assertTrue(mergedAggs instanceof DoubleTerms);
-                long expected = numLongs + numDoubles;
-                List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
-                assertEquals(4, buckets.size());
-                assertEquals("1.0", buckets.get(0).getKeyAsString());
-                assertEquals(expected, buckets.get(0).getDocCount());
-                assertEquals("10.0", buckets.get(1).getKeyAsString());
-                assertEquals(expected * 2, buckets.get(1).getDocCount());
-                assertEquals("100.0", buckets.get(2).getKeyAsString());
-                assertEquals(expected * 2, buckets.get(2).getDocCount());
-                assertEquals("1000.0", buckets.get(3).getKeyAsString());
-                assertEquals(expected, buckets.get(3).getDocCount());
-            }
-        }
-    }
-
-    public void testGlobalAggregationWithScore() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("a")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("c")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
-                indexWriter.addDocument(document);
-                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
-                    Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
-                    GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
-                        new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
-                            .executionHint(executionHint)
-                            .collectMode(collectionMode)
-                            .field("keyword")
-                            .order(BucketOrder.key(true))
-                            .subAggregation(
-                                new TermsAggregationBuilder("sub_terms").userValueTypeHint(ValueType.STRING)
-                                    .executionHint(executionHint)
-                                    .collectMode(collectionMode)
-                                    .field("keyword")
-                                    .order(BucketOrder.key(true))
-                                    .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"))
-                            )
-                    );
-
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
-
-                    InternalGlobal result = searchAndReduce(indexReader, new AggTestConfig(globalBuilder, fieldType));
-                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                    assertThat(terms.getBuckets().size(), equalTo(3));
-                    for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                        InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
-                        assertThat(subTerms.getBuckets().size(), equalTo(1));
-                        MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
-                        InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
-                        assertThat(topHits.getHits().getHits().length, equalTo(1));
-                        for (SearchHit hit : topHits.getHits()) {
-                            assertThat(hit.getScore(), greaterThan(0f));
-                        }
-                    }
-                }
-            }
+            InternalAggregation mergedAggs = InternalAggregationTestCase.reduce(aggs, ctx);
+            assertTrue(mergedAggs instanceof DoubleTerms);
+            long expected = numLongs + numDoubles;
+            List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
+            assertEquals(4, buckets.size());
+            assertEquals("1.0", buckets.get(0).getKeyAsString());
+            assertEquals(expected, buckets.get(0).getDocCount());
+            assertEquals("10.0", buckets.get(1).getKeyAsString());
+            assertEquals(expected * 2, buckets.get(1).getDocCount());
+            assertEquals("100.0", buckets.get(2).getKeyAsString());
+            assertEquals(expected * 2, buckets.get(2).getDocCount());
+            assertEquals("1000.0", buckets.get(3).getKeyAsString());
+            assertEquals(expected, buckets.get(3).getDocCount());
         }
     }
 

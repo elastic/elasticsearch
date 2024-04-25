@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -210,7 +209,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
     }
 
     public void testConcurrentConnects() throws Exception {
-        Set<Transport.Connection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<Transport.Connection> connections = ConcurrentCollections.newConcurrentSet();
 
         DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         doAnswer(invocationOnMock -> {
@@ -470,7 +469,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {
@@ -548,7 +547,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {

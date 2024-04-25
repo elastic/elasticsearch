@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
  */
 public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/xpack/security/user/set_enabled");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/xpack/security/user/set_enabled");
     private final Settings settings;
     private final SecurityContext securityContext;
     private final NativeUsersStore usersStore;

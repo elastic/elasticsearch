@@ -43,6 +43,11 @@ public interface DoubleArray extends BigArray, Writeable {
     void fill(long fromIndex, long toIndex, double value);
 
     /**
+     * Alternative of {@link DoubleArray#readFrom(StreamInput)} where the written bytes are loaded into an existing {@link DoubleArray}
+     */
+    void fillWith(StreamInput in) throws IOException;
+
+    /**
      * Bulk set.
      */
     void set(long index, byte[] buf, int offset, int len);

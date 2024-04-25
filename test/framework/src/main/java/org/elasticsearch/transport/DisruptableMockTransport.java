@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.transport.MockTransport;
@@ -263,24 +264,28 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(final TransportResponse response) {
+                response.mustIncRef();
+                final var releasable = Releasables.assertOnce(response::decRef);
                 execute(new RebootSensitiveRunnable() {
                     @Override
                     public void ifRebooted() {
-                        response.decRef();
-                        cleanupResponseHandler(requestId);
+                        try (releasable) {
+                            cleanupResponseHandler(requestId);
+                        }
                     }
 
                     @Override
                     public void run() {
-                        final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
-                        switch (connectionStatus) {
-                            case CONNECTED, BLACK_HOLE_REQUESTS_ONLY -> handleResponse(requestId, response);
-                            case BLACK_HOLE, DISCONNECTED -> {
-                                response.decRef();
-                                logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
-                                onBlackholedDuringSend(requestId, action, destinationTransport);
+                        try (releasable) {
+                            final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
+                            switch (connectionStatus) {
+                                case CONNECTED, BLACK_HOLE_REQUESTS_ONLY -> handleResponse(requestId, response);
+                                case BLACK_HOLE, DISCONNECTED -> {
+                                    logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
+                                    onBlackholedDuringSend(requestId, action, destinationTransport);
+                                }
+                                default -> throw new AssertionError("unexpected status: " + connectionStatus);
                             }
-                            default -> throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 

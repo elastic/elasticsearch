@@ -9,9 +9,11 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
@@ -38,24 +40,45 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
             positionCount,
             firstValueIndexes,
             nulls,
-            mvOrdering,
-            blockFactory
+            mvOrdering
         );
     }
 
     private BytesRefArrayBlock(
-        BytesRefArrayVector vector,
+        BytesRefArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
-        MvOrdering mvOrdering,
-        BlockFactory blockFactory
+        MvOrdering mvOrdering
     ) {
-        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
+        super(positionCount, firstValueIndexes, nulls, mvOrdering);
         this.vector = vector;
         assert firstValueIndexes == null
             ? vector.getPositionCount() == getPositionCount()
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
+    }
+
+    static BytesRefArrayBlock readArrayBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
+        final SubFields sub = new SubFields(blockFactory, in);
+        BytesRefArrayVector vector = null;
+        boolean success = false;
+        try {
+            vector = BytesRefArrayVector.readArrayVector(sub.vectorPositions(), in, blockFactory);
+            var block = new BytesRefArrayBlock(vector, sub.positionCount, sub.firstValueIndexes, sub.nullsMask, sub.mvOrdering);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - vector.ramBytesUsed() - sub.bytesReserved);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(vector);
+                blockFactory.adjustBreaker(-sub.bytesReserved);
+            }
+        }
+    }
+
+    void writeArrayBlock(StreamOutput out) throws IOException {
+        writeSubFields(out);
+        vector.writeArrayVector(vector.getPositionCount(), out);
     }
 
     @Override
@@ -119,8 +142,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
             expandedPositionCount,
             null,
             shiftNullsToExpandedPositions(),
-            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
-            blockFactory()
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
         blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
@@ -164,8 +186,12 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
 
     @Override
     public void allowPassingToDifferentDriver() {
-        super.allowPassingToDifferentDriver();
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

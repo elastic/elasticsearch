@@ -80,6 +80,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
+        boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(
@@ -89,6 +90,7 @@ public class RestBulkAction extends BaseRestHandler {
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
+            defaultRequireDataStream,
             defaultListExecutedPipelines,
             allowExplicitIndex,
             request.getXContentType(),

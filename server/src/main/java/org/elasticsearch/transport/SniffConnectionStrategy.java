@@ -478,7 +478,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return managementExecutor;
         }
     }

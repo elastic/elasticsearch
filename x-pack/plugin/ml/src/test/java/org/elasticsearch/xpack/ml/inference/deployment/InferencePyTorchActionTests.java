@@ -95,6 +95,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -117,6 +118,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -140,6 +142,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -172,6 +175,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TrainedModelPrefixStrings.PrefixType.NONE,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -191,6 +195,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TrainedModelPrefixStrings.PrefixType.NONE,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -235,6 +240,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             cancellableTask,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -261,7 +267,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
         when(nlpProcessor.getRequestBuilder(any())).thenReturn(requestBuilder);
 
         NlpTask.Request builtRequest = new NlpTask.Request(mock(TokenizationResult.class), mock(BytesReference.class));
-        when(requestBuilder.buildRequest(anyList(), anyString(), any(), anyInt())).thenReturn(builtRequest);
+        when(requestBuilder.buildRequest(anyList(), anyString(), any(), anyInt(), anyInt())).thenReturn(builtRequest);
 
         when(processContext.getNlpTaskProcessor()).thenReturn(new SetOnce<>(nlpProcessor));
         PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
@@ -286,6 +292,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TrainedModelPrefixStrings.PrefixType.SEARCH,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -313,6 +320,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TrainedModelPrefixStrings.PrefixType.INGEST,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -336,6 +344,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TrainedModelPrefixStrings.PrefixType.NONE,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -363,6 +372,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 isForSearch ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -394,6 +404,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 isForSearch ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();

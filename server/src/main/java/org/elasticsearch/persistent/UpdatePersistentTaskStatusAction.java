@@ -36,7 +36,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
     public static final String NAME = "cluster:admin/persistent/update_status";
 
     private UpdatePersistentTaskStatusAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

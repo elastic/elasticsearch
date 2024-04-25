@@ -50,6 +50,9 @@ using metrics.
   `adaptive_selection`::
       Statistics about <<search-adaptive-replica,adaptive replica selection>>.
 
+  `allocations`::
+      Statistics about allocated shards
+
   `breaker`::
       Statistics about the field data circuit breaker.
 
@@ -124,31 +127,31 @@ using metrics.
     * `dense_vector`
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=level]
 
 `types`::
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
@@ -241,11 +244,11 @@ node.
 =======
 `count`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 =======
 
 `store`::
@@ -623,6 +626,7 @@ Total time spent performing flush operations.
 (integer)
 Total time in milliseconds
 spent performing flush operations.
+
 =======
 
 `warmer`::
@@ -1792,14 +1796,14 @@ Total number of unallocated bytes in all file stores.
 `available`::
 (<<byte-units,byte value>>)
 Total disk space available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free`. This is the actual amount of free disk
 space the {es} node can utilise.
 
 `available_in_bytes`::
 (integer)
 Total number of bytes available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
 =======
@@ -1849,6 +1853,68 @@ store.
 (integer)
 Total number of bytes available to this Java virtual machine on this file
 store.
+
+`low_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective low disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the low watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`low_watermark_free_space_in_bytes`::
+(integer)
+The effective low disk watermark, in bytes, for this data path on this node:
+when a node has less free space than this value for at least one data path, its
+disk usage has exceeded the low watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard
+allocation.
+
+`high_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective high disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the high watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`high_watermark_free_space_in_bytes`::
+(integer)
+The effective high disk watermark, in bytes, for this data path on this node:
+when a node has less free space than this value for at least one data path, its
+disk usage has exceeded the high watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard
+allocation.
+
+`flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on this node: when
+a node has less free space than this value for at least one data path, its disk
+usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
+
+`flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark, in bytes, for this data path on this
+node: when a node has less free space than this value for at least one data
+path, its disk usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
+
+`frozen_flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on a dedicated
+frozen node: when a dedicated frozen node has less free space than this value
+for at least one data path, its disk usage has exceeded the flood stage
+watermark. See <<disk-based-shard-allocation>> for more information about disk
+watermarks and their effects on shard allocation.
+
+`frozen_flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark, in bytes, for this data path on a
+dedicated frozen node: when a dedicated frozen node has less free space than
+this value for at least one data path, its disk usage has exceeded the flood
+stage watermark. See <<disk-based-shard-allocation>> for more information about
+disk watermarks and their effects on shard allocation.
 =======
 
 `io_stats` (Linux only)::
@@ -2801,6 +2867,44 @@ search requests on the keyed node.
 (string)
 The rank of this node; used for shard selection when routing search
 requests.
+======
+
+[[cluster-nodes-stats-api-response-body-allocations]]
+`allocations`::
+(object)
+Contains allocations statistics for the node.
++
+.Properties of `allocations`
+[%collapsible%open]
+======
+`shards`::
+(integer)
+The number of shards currently allocated to this node
+
+`undesired_shards`::
+(integer)
+The amount of shards that are scheduled to be moved elsewhere in the cluster
+if desired balance allocator is used or -1 if any other allocator is used.
+
+`forecasted_ingest_load`::
+(double)
+Total forecasted ingest load of all shards assigned to this node
+
+`forecasted_disk_usage`::
+(<<byte-units,byte value>>)
+Forecasted size of all shards assigned to the node
+
+`forecasted_disk_usage_bytes`::
+(integer)
+Forecasted size, in bytes, of all shards assigned to the node
+
+`current_disk_usage`::
+(<<byte-units,byte value>>)
+Current size of all shards assigned to the node
+
+`current_disk_usage_bytes`::
+(integer)
+Current size, in bytes, of all shards assigned to the node
 ======
 =====
 ====

@@ -78,7 +78,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
@@ -153,7 +152,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = createClusterState(tasksCustomMetadata);
 
         int numPipelinesToBeReloaded = randomInt(4);
-        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
 
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
@@ -208,7 +207,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -228,7 +227,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -243,7 +242,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), empty());
+            assertThat(files.toList(), empty());
         }
     }
 
@@ -290,7 +289,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testUpdateDatabase() throws Exception {
         int numPipelinesToBeReloaded = randomInt(4);
-        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
 
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
@@ -318,7 +317,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
-            SearchHit hit = new SearchHit(i);
+            SearchHit hit = SearchHit.unpooled(i);
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(Map.of("data", chunk));
                 builder.flush();
@@ -328,7 +327,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
             SearchResponse searchResponse = new SearchResponse(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, null, null);
             toRelease.add(searchResponse::decRef);
             @SuppressWarnings("unchecked")

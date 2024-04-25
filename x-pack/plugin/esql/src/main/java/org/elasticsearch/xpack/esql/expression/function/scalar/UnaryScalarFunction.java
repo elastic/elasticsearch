@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -19,7 +17,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public abstract class UnaryScalarFunction extends ScalarFunction {
+public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     protected final Expression field;
 
     public UnaryScalarFunction(Source source, Expression field) {
@@ -62,10 +60,5 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
         }
         UnaryScalarFunction other = (UnaryScalarFunction) obj;
         return Objects.equals(other.field, field);
-    }
-
-    @Override
-    public final ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 }

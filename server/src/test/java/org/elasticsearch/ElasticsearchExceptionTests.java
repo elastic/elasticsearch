@@ -43,6 +43,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -67,8 +68,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ElasticsearchExceptionTests extends ESTestCase {
@@ -722,6 +726,48 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             cause.getMessage(),
             "Elasticsearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testToXContentWithObjectCycles() throws Exception {
+        ElasticsearchException root = new ElasticsearchException("root exception");
+
+        ElasticsearchException suppressed1 = new ElasticsearchException("suppressed#1", root);
+
+        ElasticsearchException suppressed2 = new ElasticsearchException("suppressed#2");
+        ElasticsearchException suppressed3 = new ElasticsearchException("suppressed#3");
+        suppressed3.addSuppressed(suppressed2);
+        suppressed2.addSuppressed(suppressed3);
+
+        root.addSuppressed(suppressed1);
+        root.addSuppressed(suppressed2);
+        root.addSuppressed(suppressed3);
+
+        // Because we support up to 100 nested exceptions, this JSON ends up very long.
+        // Rather than assert the full content, we check that
+        // (a) it generated successfully (no StackOverflowErrors)
+        BytesReference xContent = XContentHelper.toXContent(root, XContentType.JSON, randomBoolean());
+        // (b) it's valid JSON
+        final Map<String, Object> map = XContentHelper.convertToMap(xContent, false, XContentType.JSON).v2();
+        // (c) it contains the right content
+        assertThat(ObjectPath.eval("type", map), equalTo("exception"));
+        assertThat(ObjectPath.eval("reason", map), equalTo("root exception"));
+        assertThat(ObjectPath.eval("suppressed.0.reason", map), equalTo("suppressed#1"));
+        assertThat(ObjectPath.eval("suppressed.0.caused_by.reason", map), equalTo("root exception"));
+        assertThat(ObjectPath.eval("suppressed.0.caused_by.suppressed.0.reason", map), equalTo("suppressed#1"));
+        assertThat(ObjectPath.eval("suppressed.1.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.1.suppressed.0.reason", map), equalTo("suppressed#3"));
+        assertThat(ObjectPath.eval("suppressed.1.suppressed.0.suppressed.0.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.2.reason", map), equalTo("suppressed#3"));
+        assertThat(ObjectPath.eval("suppressed.2.suppressed.0.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.2.suppressed.0.suppressed.0.reason", map), equalTo("suppressed#3"));
+
+        String tailExceptionPath = ".suppressed.0.caused_by".repeat(50).substring(1) + ".suppressed.0";
+        final Object tailException = ObjectPath.eval(tailExceptionPath, map);
+        assertThat(tailException, not(nullValue()));
+        assertThat(tailException, instanceOf(Map.class));
+        assertThat((Map<String, Object>) tailException, hasEntry("reason", "too many nested exceptions"));
+        assertThat((Map<String, Object>) tailException, hasEntry("type", "illegal_state_exception"));
     }
 
     public void testFromXContent() throws IOException {

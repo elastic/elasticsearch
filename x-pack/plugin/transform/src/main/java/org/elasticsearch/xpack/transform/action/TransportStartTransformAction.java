@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -143,7 +144,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 waitForTransformTaskStarted(
                     task.getId(),
                     transformTask,
-                    request.timeout(),
+                    request.ackTimeout(),
                     ActionListener.wrap(taskStarted -> listener.onResponse(new StartTransformAction.Response(true)), listener::onFailure)
                 );
             }, listener::onFailure);
@@ -159,6 +160,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     transformTask.getId(),
                     TransformTaskParams.NAME,
                     transformTask,
+                    null,
                     newPersistentTaskActionListener
                 );
             } else {
@@ -186,7 +188,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(transformConfigHolder.get().getSettings())) {
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
@@ -204,7 +206,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 createOrGetIndexListener
             );
         }, e -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(transformConfigHolder.get().getSettings())) {
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
@@ -258,7 +260,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 client,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, false, request.timeout()),
+                new ValidateTransformAction.Request(config, false, request.ackTimeout()),
                 validationListener
             );
         }, listener::onFailure);
@@ -267,7 +269,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
             transformConfigHolder.set(config);
 
-            if (Boolean.TRUE.equals(config.getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(config.getSettings())) {
                 // We do not fail the _start request of the unattended transform due to permission issues,
                 // we just let it run
                 fetchAuthStateListener.onResponse(null);
@@ -286,7 +288,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(taskId, null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in canceling the persistent task, but the

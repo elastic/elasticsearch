@@ -39,7 +39,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     )
     public MvConcat(
         Source source,
-        @Param(name = "v", type = { "text", "keyword" }, description = "values to join") Expression field,
+        @Param(name = "string", type = { "text", "keyword" }, description = "values to join") Expression field,
         @Param(name = "delim", type = { "text", "keyword" }, description = "delimiter") Expression delim
     ) {
         super(source, field, delim);

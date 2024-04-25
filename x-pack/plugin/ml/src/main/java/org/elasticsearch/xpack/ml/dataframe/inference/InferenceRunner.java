@@ -153,7 +153,7 @@ public class InferenceRunner {
             config.getHeaders(),
             ClientHelper.ML_ORIGIN,
             client,
-            () -> client.search(searchRequest).actionGet()
+            client.search(searchRequest)::actionGet
         );
         try {
             Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);

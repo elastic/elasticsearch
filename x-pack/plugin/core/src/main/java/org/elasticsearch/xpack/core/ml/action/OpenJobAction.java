@@ -39,7 +39,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
 
     private OpenJobAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {

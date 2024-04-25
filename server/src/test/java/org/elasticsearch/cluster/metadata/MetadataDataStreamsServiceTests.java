@@ -63,7 +63,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         ClusterState newState = MetadataDataStreamsService.modifyDataStream(
             originalState,
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
-            this::getMapperService
+            this::getMapperService,
+            Settings.EMPTY
         );
 
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -106,7 +107,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         ClusterState newState = MetadataDataStreamsService.modifyDataStream(
             originalState,
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
-            this::getMapperService
+            this::getMapperService,
+            Settings.EMPTY
         );
 
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -152,7 +154,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             () -> MetadataDataStreamsService.modifyDataStream(
                 originalState,
                 List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
-                this::getMapperService
+                this::getMapperService,
+                Settings.EMPTY
             )
         );
 
@@ -203,7 +206,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName()),
                 DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())
             ),
-            this::getMapperService
+            this::getMapperService,
+            Settings.EMPTY
         );
 
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -253,17 +257,20 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         ClusterState newState = MetadataDataStreamsService.modifyDataStream(
             originalState,
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
-            this::getMapperService
+            this::getMapperService,
+            Settings.EMPTY
         );
         newState = MetadataDataStreamsService.modifyDataStream(
             newState,
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
-            this::getMapperService
+            this::getMapperService,
+            Settings.EMPTY
         );
         newState = MetadataDataStreamsService.modifyDataStream(
             newState,
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
-            this::getMapperService
+            this::getMapperService,
+            Settings.EMPTY
         );
 
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -301,7 +308,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             () -> MetadataDataStreamsService.modifyDataStream(
                 originalState,
                 List.of(DataStreamAction.addBackingIndex(missingDataStream, indexToAdd.getIndex().getName())),
-                this::getMapperService
+                this::getMapperService,
+                Settings.EMPTY
             )
         );
 
@@ -333,7 +341,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             () -> MetadataDataStreamsService.modifyDataStream(
                 originalState,
                 List.of(DataStreamAction.addBackingIndex(dataStreamName, missingIndex)),
-                this::getMapperService
+                this::getMapperService,
+                Settings.EMPTY
             )
         );
 
@@ -344,26 +353,16 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         var dataStreamName = "my-logs";
         var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
         var original = state.getMetadata().dataStreams().get(dataStreamName);
-        var broken = new DataStream(
-            original.getName(),
-            List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
-            original.getGeneration(),
-            original.getMetadata(),
-            original.isHidden(),
-            original.isReplicated(),
-            original.isSystem(),
-            original.isAllowCustomRouting(),
-            original.getIndexMode(),
-            original.getLifecycle(),
-            original.isFailureStore(),
-            original.getFailureIndices()
-        );
+        var broken = original.copy()
+            .setIndices(List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)))
+            .build();
         var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
 
         var result = MetadataDataStreamsService.modifyDataStream(
             brokenState,
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
-            this::getMapperService
+            this::getMapperService,
+            Settings.EMPTY
         );
         assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
         assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices().get(0), equalTo(original.getIndices().get(1)));
@@ -379,7 +378,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             () -> MetadataDataStreamsService.modifyDataStream(
                 state,
                 List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove)),
-                this::getMapperService
+                this::getMapperService,
+                Settings.EMPTY
             )
         );
         assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));

@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +40,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static final ParseField DATABASES = new ParseField("databases");
 
-    static final GeoIpTaskState EMPTY = new GeoIpTaskState(Collections.emptyMap());
+    static final GeoIpTaskState EMPTY = new GeoIpTaskState(Map.of());
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GeoIpTaskState, Void> PARSER = new ConstructingObjectParser<>(

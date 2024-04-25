@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -36,12 +35,12 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     public static final String NAME = "cluster:admin/ilm/get";
 
     protected GetLifecycleAction() {
-        super(NAME, GetLifecycleAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
-        private List<LifecyclePolicyResponseItem> policies;
+        private final List<LifecyclePolicyResponseItem> policies;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -102,7 +101,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
-        private String[] policyNames;
+        private final String[] policyNames;
 
         public Request(String... policyNames) {
             if (policyNames == null) {
@@ -127,11 +126,6 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         public String[] getPolicyNames() {
             return policyNames;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

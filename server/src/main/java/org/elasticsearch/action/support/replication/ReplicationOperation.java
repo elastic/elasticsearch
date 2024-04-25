@@ -466,14 +466,13 @@ public class ReplicationOperation<
 
     private void finish() {
         if (finished.compareAndSet(false, true)) {
-            final ReplicationResponse.ShardInfo.Failure[] failuresArray;
-            if (shardReplicaFailures.isEmpty()) {
-                failuresArray = ReplicationResponse.NO_FAILURES;
-            } else {
-                failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
-                shardReplicaFailures.toArray(failuresArray);
-            }
-            primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(totalShards.get(), successfulShards.get(), failuresArray));
+            primaryResult.setShardInfo(
+                ReplicationResponse.ShardInfo.of(
+                    totalShards.get(),
+                    successfulShards.get(),
+                    shardReplicaFailures.toArray(ReplicationResponse.NO_FAILURES)
+                )
+            );
             resultListener.onResponse(primaryResult);
         }
     }

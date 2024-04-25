@@ -504,7 +504,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     public static class TransportTestAction extends HandledTransportAction<TestRequest, TestResponse> {
 
-        public static ActionType<TestResponse> ACTION = new ActionType<>("internal::test_action", TestResponse::new);
+        public static ActionType<TestResponse> ACTION = new ActionType<>("internal::test_action");
         private final TransportService transportService;
         private final NodeClient client;
 

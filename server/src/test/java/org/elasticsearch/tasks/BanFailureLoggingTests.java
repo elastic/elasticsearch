@@ -229,7 +229,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return TransportResponseHandler.TRANSPORT_WORKER;
         }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +33,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class AbstractXContentTestCase<T extends ToXContent> extends ESTestCase {
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
+    public static final int NUMBER_OF_TEST_RUNS = 20;
 
     public static <T> XContentTester<T> xContentTester(
         CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
@@ -326,7 +327,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
      */
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> false;
+        return Predicates.never();
     }
 
     /**

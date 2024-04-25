@@ -24,6 +24,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -114,6 +115,20 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(docToIndex, sourceOptions, expectedFetchedSource, "\"long\"", 7L, true);
     }
 
+    public void testGetFromTranslogWithDenseVector() throws IOException {
+        float[] vector = new float[2048];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = randomFloat();
+        }
+        String docToIndex = Strings.format("""
+            {
+                "bar": %s,
+                "foo": "foo"
+            }
+            """, Arrays.toString(vector));
+        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
+    }
+
     private void runGetFromTranslogWithOptions(
         String docToIndex,
         String sourceOptions,
@@ -122,23 +137,48 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Object expectedFooVal,
         boolean sourceOnlyFetchCreatesInMemoryReader
     ) throws IOException {
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(Strings.format("""
-            {
-              "properties": {
-                "foo": {
-                  "type": %s,
-                  "store": true
-                },
-                "bar": { "type": %s }
-              },
-              "_source": { %s }
-              }
-            }""", fieldType, fieldType, sourceOptions)).settings(indexSettings(IndexVersion.current(), 1, 1)).primaryTerm(0, 1).build();
+        runGetFromTranslogWithOptions(
+            docToIndex,
+            sourceOptions,
+            expectedResult,
+            fieldType,
+            expectedFooVal,
+            fieldType,
+            sourceOnlyFetchCreatesInMemoryReader
+        );
+    }
+
+    private void runGetFromTranslogWithOptions(
+        String docToIndex,
+        String sourceOptions,
+        String expectedResult,
+        String fieldTypeFoo,
+        Object expectedFooVal,
+        String fieldTypeBar,
+        boolean sourceOnlyFetchCreatesInMemoryReader
+    ) throws IOException {
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping(Strings.format("""
+                {
+                  "properties": {
+                    "foo": {
+                      "type": %s,
+                      "store": true
+                    },
+                    "bar": { "type": %s }
+                  },
+                  "_source": { %s }
+                  }
+                }""", fieldTypeFoo, fieldTypeBar, sourceOptions))
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .primaryTerm(0, 1)
+            .build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
         long translogInMemorySegmentCountExpected = 0;
-        indexDoc(primary, "test", "0", docToIndex);
+        Engine.IndexResult res = indexDoc(primary, "test", "0", docToIndex);
+        assertTrue(res.isCreated());
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
@@ -224,7 +264,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         InternalEngine engine = (InternalEngine) primary.getEngineOrNull();
 
         // Initially there hasn't been any switches from unsafe to safe maps in the live version map
-        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), -1);
+        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), engine.getLastCommittedSegmentInfos().getGeneration());
         var map = engine.getLiveVersionMap();
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -24,7 +25,6 @@ import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.license.TransportDeleteLicenseAction;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -57,7 +57,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
     }
 
     public void testFailRestoreOnInvalidLicense() throws Exception {
-        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new DeleteLicenseRequest()).get());
+        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
 
         ensureClusterSizeConsistency();
@@ -93,7 +93,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new DeleteLicenseRequest()).get());
+        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
 
         ensureClusterSizeConsistency();

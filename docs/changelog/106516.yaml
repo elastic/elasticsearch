@@ -1,0 +1,5 @@
+pr: 106516
+summary: "ESQL: perform a reduction on the data node"
+area: ES|QL
+type: enhancement
+issues: []

@@ -174,6 +174,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         return client().execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id)).get();
     }
 
+    protected AsyncStatusResponse getAsyncStatus(String id, TimeValue keepAlive) throws ExecutionException, InterruptedException {
+        return client().execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id).setKeepAlive(keepAlive)).get();
+    }
+
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
         return client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(id)).get();
     }

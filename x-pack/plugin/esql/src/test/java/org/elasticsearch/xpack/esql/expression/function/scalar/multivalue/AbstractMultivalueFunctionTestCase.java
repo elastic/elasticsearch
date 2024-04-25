@@ -474,7 +474,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             EsqlDataTypes.GEO_SHAPE,
             expectedDataType,
             GEO,
-            () -> GeometryTestUtils.randomGeometry(randomBoolean()),
+            () -> rarely() ? GeometryTestUtils.randomGeometry(randomBoolean()) : GeometryTestUtils.randomPoint(),
             matcher
         );
     }
@@ -498,7 +498,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             EsqlDataTypes.CARTESIAN_SHAPE,
             expectedDataType,
             CARTESIAN,
-            () -> ShapeTestUtils.randomGeometry(randomBoolean()),
+            () -> rarely() ? ShapeTestUtils.randomGeometry(randomBoolean()) : ShapeTestUtils.randomPoint(),
             matcher
         );
     }
@@ -615,6 +615,9 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 var dedup = new HashSet<>(mvData);
                 mvData.clear();
                 mvData.addAll(dedup);
+                Collections.sort(mvData);
+            }
+            case SORTED_ASCENDING -> {
                 Collections.sort(mvData);
             }
             default -> throw new UnsupportedOperationException("unsupported ordering [" + ordering + "]");

@@ -10,9 +10,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.inference.InferenceService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,6 +49,7 @@ public final class MappingLookup {
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
+    private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -55,6 +58,7 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
     private final Set<String> completionFields;
+    private final int totalFieldsCount;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -83,12 +87,12 @@ public final class MappingLookup {
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers
     ) {
-        if (mapper instanceof ObjectMapper) {
-            objectMappers.add((ObjectMapper) mapper);
-        } else if (mapper instanceof FieldMapper) {
-            fieldMappers.add((FieldMapper) mapper);
-        } else if (mapper instanceof FieldAliasMapper) {
-            fieldAliasMappers.add((FieldAliasMapper) mapper);
+        if (mapper instanceof ObjectMapper objectMapper) {
+            objectMappers.add(objectMapper);
+        } else if (mapper instanceof FieldMapper fieldMapper) {
+            fieldMappers.add(fieldMapper);
+        } else if (mapper instanceof FieldAliasMapper fieldAliasMapper) {
+            fieldAliasMappers.add(fieldAliasMapper);
         } else {
             throw new IllegalStateException("Unrecognized mapper type [" + mapper.getClass().getSimpleName() + "].");
         }
@@ -127,6 +131,7 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers
     ) {
+        this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -172,6 +177,15 @@ public final class MappingLookup {
 
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFields);
+
+        Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
+        for (FieldMapper mapper : mappers) {
+            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+                inferenceFields.put(mapper.name(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.name())));
+            }
+        }
+        this.inferenceFields = Map.copyOf(inferenceFields);
+
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
@@ -223,6 +237,14 @@ public final class MappingLookup {
      * Returns the total number of fields defined in the mappings, including field mappers, object mappers as well as runtime fields.
      */
     public long getTotalFieldsCount() {
+        return totalFieldsCount;
+    }
+
+    /**
+     * Returns the total number of mappers defined in the mappings, including field mappers and their sub-fields
+     * (which are not explicitly defined in the mappings), multi-fields, object mappers, runtime fields and metadata field mappers.
+     */
+    public long getTotalMapperCount() {
         return fieldMappers.size() + objectMappers.size() + runtimeFieldMappersCount;
     }
 
@@ -271,7 +293,7 @@ public final class MappingLookup {
     }
 
     void checkFieldLimit(long limit, int additionalFieldsToAdd) {
-        if (getTotalFieldsCount() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
+        if (exceedsLimit(limit, additionalFieldsToAdd)) {
             throw new IllegalArgumentException(
                 "Limit of total fields ["
                     + limit
@@ -279,6 +301,14 @@ public final class MappingLookup {
                     + (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : "")
             );
         }
+    }
+
+    boolean exceedsLimit(long limit, int additionalFieldsToAdd) {
+        return remainingFieldsUntilLimit(limit) < additionalFieldsToAdd;
+    }
+
+    long remainingFieldsUntilLimit(long mappingTotalFieldsLimit) {
+        return mappingTotalFieldsLimit - totalFieldsCount;
     }
 
     private void checkDimensionFieldLimit(long limit) {
@@ -342,6 +372,13 @@ public final class MappingLookup {
         return objectMappers;
     }
 
+    /**
+     * Returns a map containing all fields that require to run inference (through the {@link InferenceService} prior to indexation.
+     */
+    public Map<String, InferenceFieldMetadata> inferenceFields() {
+        return inferenceFields;
+    }
+
     public NestedLookup nestedLookup() {
         return nestedLookup;
     }
@@ -379,6 +416,13 @@ public final class MappingLookup {
      */
     public Set<String> getMatchingFieldNames(String pattern) {
         return fieldTypeLookup.getMatchingFieldNames(pattern);
+    }
+
+    /**
+     * @return A map from field name to the MappedFieldType
+     */
+    public Map<String, MappedFieldType> getFullNameToFieldType() {
+        return fieldTypeLookup.getFullNameToFieldType();
     }
 
     /**

@@ -57,7 +57,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
 
-    private static ObjectParser<UpdateRequest, Void> PARSER;
+    private static final ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
     private static final ParseField SCRIPTED_UPSERT_FIELD = new ParseField("scripted_upsert");
@@ -182,6 +182,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
 
         if (ifSeqNo != UNASSIGNED_SEQ_NO) {
             if (retryOnConflict > 0) {
@@ -703,6 +705,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(BytesReference source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
+        return this;
+    }
+
+    /**
      * Sets the index request to be used if the document does not exists. Otherwise, a
      * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */
@@ -829,6 +839,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public boolean isRequireDataStream() {
+        // Always false because data streams cannot accept update operations
+        return false;
     }
 
     @Override

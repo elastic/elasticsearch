@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.slice;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -41,6 +41,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -283,13 +284,11 @@ public class SearchSliceIT extends ESIntegTestCase {
 
     public void testInvalidQuery() throws Exception {
         setupIndex(0, 1);
-        SearchPhaseExecutionException exc = expectThrows(
-            SearchPhaseExecutionException.class,
+        ActionRequestValidationException exc = expectThrows(
+            ActionRequestValidationException.class,
             prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10))
         );
-        Throwable rootCause = findRootCause(exc);
-        assertThat(rootCause.getClass(), equalTo(SearchException.class));
-        assertThat(rootCause.getMessage(), equalTo("[slice] can only be used with [scroll] or [point-in-time] requests"));
+        assertThat(exc.getMessage(), containsString("[slice] can only be used with [scroll] or [point-in-time] requests"));
     }
 
     private Throwable findRootCause(Exception e) {

@@ -61,7 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
 
 /**
@@ -71,11 +71,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     private static final Logger logger = LogManager.getLogger(TestTaskPlugin.class);
 
-    public static final ActionType<NodesResponse> TEST_TASK_ACTION = ActionType.localOnly("cluster:admin/tasks/test");
-    public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>(
-        "cluster:admin/tasks/testunblock",
-        UnblockTestTasksResponse::new
-    );
+    public static final ActionType<NodesResponse> TEST_TASK_ACTION = new ActionType<>("cluster:admin/tasks/test");
+    public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>("cluster:admin/tasks/testunblock");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -394,7 +391,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 UnblockTestTasksRequest::new,
-                UnblockTestTasksResponse::new,
                 UnblockTestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );

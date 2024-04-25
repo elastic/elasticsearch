@@ -15,13 +15,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,7 +39,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -119,7 +117,7 @@ public class Recall implements EvaluationMetric {
     }
 
     @Override
-    public void process(Aggregations aggs) {
+    public void process(InternalAggregations aggs) {
         final Aggregation byClass = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
         final Aggregation avgRecall = aggs.get(AVG_RECALL_AGG_NAME);
         if (result.get() == null
@@ -174,22 +172,6 @@ public class Recall implements EvaluationMetric {
 
         private static final ParseField CLASSES = new ParseField("classes");
         private static final ParseField AVG_RECALL = new ParseField("avg_recall");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
-            "recall_result",
-            true,
-            a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1])
-        );
-
-        static {
-            PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
-            PARSER.declareDouble(constructorArg(), AVG_RECALL);
-        }
-
-        public static Result fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
 
         /** List of per-class results. */
         private final List<PerClassSingleValue> classes;

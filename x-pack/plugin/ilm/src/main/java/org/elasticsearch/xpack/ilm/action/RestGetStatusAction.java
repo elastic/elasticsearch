@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -31,8 +32,8 @@ public class RestGetStatusAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetStatusAction.Request request = new GetStatusAction.Request();
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        AcknowledgedRequest.Plain request = new AcknowledgedRequest.Plain();
+        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(GetStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

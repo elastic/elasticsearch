@@ -43,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
     TransportDeleteComposableIndexTemplateAction.Request> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("indices:admin/index_template/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/index_template/delete");
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject

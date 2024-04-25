@@ -144,4 +144,21 @@ public final class GrokCaptureConfig {
          */
         T forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter);
     }
+
+    /**
+     * Creates a {@linkplain GrokCaptureExtracter} that will call {@code emit} with the
+     * extracted range (offset and length) when it extracts text.
+     */
+    public GrokCaptureExtracter rangeExtracter(Consumer<Object> emit) {
+        return (utf8Bytes, offset, region) -> {
+            for (int number : backRefs) {
+                if (region.beg[number] >= 0) {
+                    int matchOffset = offset + region.beg[number];
+                    int matchLength = region.end[number] - region.beg[number];
+                    String match = new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8);
+                    emit.accept(new GrokCaptureExtracter.Range(match, matchOffset, matchLength));
+                }
+            }
+        };
+    }
 }

@@ -51,7 +51,7 @@ include::remote-clusters-api-key.asciidoc[tag=remote-cluster-steps]
 [[remote-clusters-migration-stop]]
 ==== Stop cross-cluster operations
 
-On the local cluster, stop any persistent tasks that refer to the remote 
+On the local cluster, stop any persistent tasks that refer to the remote
 cluster:
 
 * Use the <<stop-transform>> API to stop any transforms.
@@ -74,13 +74,13 @@ roles used for cross-cluster operations. You should be able to copy these
 privileges from the original roles on the remote cluster, where they are defined
 under the certification based security model.
 ** The roles on the local cluster can't exceed the `access` privilege granted by
-the cross-cluster API key. Any extra local privileges will be suppressed by the 
+the cross-cluster API key. Any extra local privileges will be suppressed by the
 cross-cluster API key's privileges.
 ** No update is needed if the {ccr} or {ccs} tasks have been configured with a
 `superuser` role. The `superuser` role is automatically updated to allow access
 to all remote indices.
 ** Tasks that are run as regular users with named roles are immediately updated
-with the new privileges. A task will load a new definition the next time it 
+with the new privileges. A task will load a new definition the next time it
 runs.
 ** You need to restart tasks that are run using an API key (done in a later
 step).
@@ -123,7 +123,7 @@ created on the remote cluster earlier.
 . If you've dynamically configured the remote cluster (via the cluster settings
 API):
 
-.. Restart the local cluster to load changes to the keystore.
+.. Restart the local cluster to load changes to the keystore and settings.
 
 .. Re-add the remote cluster. Use the same remote cluster alias, and change the
 transport port into the remote cluster port. For example:
@@ -188,7 +188,7 @@ remote cluster:
 ----
 // TEST[skip:TODO]
 <1> The remote cluster is connected.
-<2> If present, indicates the remote cluster has connected using API key 
+<2> If present, indicates the remote cluster has connected using API key
 authentication.
 
 [[remote-clusters-migration-resume]]
@@ -204,7 +204,7 @@ task will update the task with the updated API key.
 * Use the <<start-transform>> API to start any transforms.
 * Use the <<ml-open-job>> API to open any anomaly detection jobs.
 * Use the <<ccr-post-resume-follow>> API to resume any auto-follow {ccr}.
-* Use the <<ccr-resume-auto-follow-pattern>> API to resume any manual {ccr} or 
+* Use the <<ccr-resume-auto-follow-pattern>> API to resume any manual {ccr} or
 existing indices that were created from the auto-follow pattern.
 
 [[remote-clusters-migration-disable-cert]]
@@ -232,8 +232,8 @@ or distributed, is no longer trusted.
 Another solution is to apply IP filters to the transport interface, blocking
 traffic from outside the cluster.
 
-. Optionally, delete any roles on the remote cluster that were only used for 
-cross-cluster operations. These roles are no longer used under the API key based 
+. Optionally, delete any roles on the remote cluster that were only used for
+cross-cluster operations. These roles are no longer used under the API key based
 security model.
 
 [[remote-clusters-migration-rollback]]
@@ -252,7 +252,7 @@ the migration.
 . On each node, remove the `remote_cluster_client.ssl.*` settings from
 `elasticsearch.yml`.
 
-. Restart the local cluster to apply changes to the keystore and 
+. Restart the local cluster to apply changes to the keystore and
 `elasticsearch.yml`.
 
 . On the local cluster, apply the original remote cluster settings. If the

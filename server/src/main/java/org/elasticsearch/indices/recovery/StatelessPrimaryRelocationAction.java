@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -23,7 +22,7 @@ import java.util.Objects;
 
 public class StatelessPrimaryRelocationAction {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse(
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
         "internal:index/shard/recovery/stateless_primary_relocation"
     );
 
@@ -49,11 +48,7 @@ public class StatelessPrimaryRelocationAction {
             shardId = new ShardId(in);
             targetNode = new DiscoveryNode(in);
             targetAllocationId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
-                clusterStateVersion = in.readVLong();
-            } else {
-                clusterStateVersion = 0L; // temporary bwc: do not wait for cluster state to be applied
-            }
+            clusterStateVersion = in.readVLong();
         }
 
         @Override
@@ -68,9 +63,7 @@ public class StatelessPrimaryRelocationAction {
             shardId.writeTo(out);
             targetNode.writeTo(out);
             out.writeString(targetAllocationId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
-                out.writeVLong(clusterStateVersion);
-            } // temporary bwc: just omit it, the receiver doesn't wait for a cluster state anyway
+            out.writeVLong(clusterStateVersion);
         }
 
         public long recoveryId() {

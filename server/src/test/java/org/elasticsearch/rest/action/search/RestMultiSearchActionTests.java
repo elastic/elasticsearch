@@ -10,7 +10,6 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
@@ -30,11 +29,9 @@ import static org.mockito.Mockito.mock;
 public final class RestMultiSearchActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
-    private RestMultiSearchAction action;
-
     @Before
     public void setUpAction() {
-        action = new RestMultiSearchAction(Settings.EMPTY, new UsageService().getSearchUsageHolder(), mock(NamedWriteableRegistry.class));
+        RestMultiSearchAction action = new RestMultiSearchAction(Settings.EMPTY, new UsageService().getSearchUsageHolder(), nf -> false);
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(MultiSearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(MultiSearchResponse.class));

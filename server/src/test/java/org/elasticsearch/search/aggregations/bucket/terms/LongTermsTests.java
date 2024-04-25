@@ -64,11 +64,6 @@ public class LongTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected Class<ParsedLongTerms> implementationClass() {
-        return ParsedLongTerms.class;
-    }
-
-    @Override
     protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
         if (instance instanceof LongTerms longTerms) {
             String name = longTerms.getName();

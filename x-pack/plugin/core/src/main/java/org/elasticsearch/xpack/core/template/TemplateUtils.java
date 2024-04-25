@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
@@ -110,7 +109,7 @@ public class TemplateUtils {
      * Replaces all occurrences of given variable with the value
      */
     public static String replaceVariable(String input, String variable, String value) {
-        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
+        return input.replace("${" + variable + "}", value);
     }
 
     /**

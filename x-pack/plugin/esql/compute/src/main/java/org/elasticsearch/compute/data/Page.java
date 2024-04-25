@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -223,6 +224,10 @@ public final class Page implements Writeable {
         }
     }
 
+    public long ramBytesUsedByBlocks() {
+        return Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
+    }
+
     /**
      * Release all blocks in this page, decrementing any breakers accounting for these blocks.
      */
@@ -246,5 +251,12 @@ public final class Page implements Writeable {
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
         }
+    }
+
+    public Page shallowCopy() {
+        for (Block b : blocks) {
+            b.incRef();
+        }
+        return new Page(blocks);
     }
 }

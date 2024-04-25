@@ -10,7 +10,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -82,12 +82,12 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     1238.49922909,
                     ByteSizeValue.ofGb(32),
                     ByteSizeValue.ofGb(128),
-                    Version.CURRENT
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                 )
             )
             .toList();
 
-        if (isMixedCluster() || isUpgradedCluster()) {
+        if (isMixedCluster()) {
             updateDesiredNodes(desiredNodes, desiredNodesVersion - 1);
         }
         for (int i = 0; i < 2; i++) {
@@ -153,7 +153,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                         processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : 0.5f,
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                         ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                        Version.CURRENT
+                        clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                     )
                 )
                 .toList();
@@ -167,7 +167,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     new DesiredNode.ProcessorsRange(minProcessors, minProcessors + randomIntBetween(10, 20)),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                     ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    Version.CURRENT
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                 );
             }).toList();
         }
@@ -182,7 +182,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     randomIntBetween(1, 24),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                     ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    Version.CURRENT
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                 )
             )
             .toList();
@@ -196,6 +196,11 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
             builder.xContentList(UpdateDesiredNodesRequest.NODES_FIELD.getPreferredName(), nodes);
             builder.endObject();
             request.setJsonEntity(Strings.toString(builder));
+            request.setOptions(
+                expectVersionSpecificWarnings(
+                    v -> v.compatible("[version removal] Specifying node_version in desired nodes requests is deprecated.")
+                )
+            );
             final var response = client().performRequest(request);
             final var statusCode = response.getStatusLine().getStatusCode();
             assertThat(statusCode, equalTo(200));

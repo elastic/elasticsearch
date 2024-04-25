@@ -654,7 +654,7 @@ public class MetadataIndexStateService {
             if (shardRoutingTable.primaryShard().unassigned()) {
                 logger.debug("primary shard {} is unassigned, ignoring", shardId);
                 final ReplicationResponse response = new ReplicationResponse();
-                response.setShardInfo(new ReplicationResponse.ShardInfo(shardRoutingTable.size(), shardRoutingTable.size()));
+                response.setShardInfo(ReplicationResponse.ShardInfo.allSuccessful(shardRoutingTable.size()));
                 listener.onResponse(response);
                 return;
             }
@@ -786,7 +786,7 @@ public class MetadataIndexStateService {
             if (shardRoutingTable.primaryShard().unassigned()) {
                 logger.debug("primary shard {} is unassigned, ignoring", shardId);
                 final ReplicationResponse response = new ReplicationResponse();
-                response.setShardInfo(new ReplicationResponse.ShardInfo(shardRoutingTable.size(), shardRoutingTable.size()));
+                response.setShardInfo(ReplicationResponse.ShardInfo.allSuccessful(shardRoutingTable.size()));
                 listener.onResponse(response);
                 return;
             }

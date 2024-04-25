@@ -25,8 +25,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -288,6 +290,36 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             },
             mappedFieldTypes
         );
+    }
+
+    public void testGlobalOrdinals() throws IOException {
+        // aggregation with minimum precision so we don't need to generate too many distinct values
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value")
+            .precisionThreshold(1);
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+
+        // range big enough that will force force promotion to HHL the time to time
+        final BytesRef[] differentValues = new BytesRef[randomIntBetween(10, 30)];
+        for (int i = 0; i < differentValues.length; i++) {
+            differentValues[i] = new BytesRef(randomAlphaOfLength(8));
+        }
+        // large number of documents to force global ordinals
+        final int numDocs = randomIntBetween(1000, 10000);
+        final HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.MIN_PRECISION, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+        final CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < numDocs; i++) {
+                final BytesRef value = differentValues[i % differentValues.length];
+                MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                hll.collect(0, hash.h1);
+                iw.addDocument(List.of(new SortedDocValuesField("str_value", value)));
+            }
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(hll.cardinality(0), card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
     }
 
     public void testIndexedSingleValuedIP() throws IOException {

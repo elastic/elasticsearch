@@ -8,7 +8,6 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -31,7 +30,7 @@ public final class RestDeleteByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestDeleteByQueryAction(mock(NamedWriteableRegistry.class)));
+        controller().registerHandler(new RestDeleteByQueryAction(nf -> false));
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(BulkByScrollResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(BulkByScrollResponse.class));
     }

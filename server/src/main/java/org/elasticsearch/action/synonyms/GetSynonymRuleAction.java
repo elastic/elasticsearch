@@ -29,7 +29,7 @@ public class GetSynonymRuleAction extends ActionType<GetSynonymRuleAction.Respon
     public static final String NAME = "cluster:admin/synonym_rules/get";
 
     public GetSynonymRuleAction() {
-        super(NAME, GetSynonymRuleAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

@@ -94,8 +94,8 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
-                name,
-                new HistogramFieldType(context.buildFullName(name), meta.getValue()),
+                name(),
+                new HistogramFieldType(context.buildFullName(name()), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 this
@@ -394,7 +394,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     );
                 } else if (count > 0) {
                     // we do not add elements with count == 0
-                    if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.LONG_COUNT_IN_HISTOGRAM_ADDED)) {
+                    if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                         streamOutput.writeVLong(count);
                     } else {
                         streamOutput.writeVInt(Math.toIntExact(count));
@@ -455,7 +455,7 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public boolean next() throws IOException {
             if (streamInput.available() > 0) {
-                if (streamInput.getTransportVersion().onOrAfter(TransportVersions.LONG_COUNT_IN_HISTOGRAM_ADDED)) {
+                if (streamInput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                     count = streamInput.readVLong();
                 } else {
                     count = streamInput.readVInt();

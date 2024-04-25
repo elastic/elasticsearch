@@ -43,7 +43,9 @@ Sets the address of this node for both HTTP and transport traffic. The node
 will bind to this address and will also use it as its publish address. Accepts
 an IP address, a hostname, or a <<network-interface-values,special value>>.
 +
-Defaults to `_local_`.
+Defaults to `_local_`. However, note that <<configuring-stack-security,security
+auto-configuration>> will add `http.host: 0.0.0.0` to your `elasticsearch.yml`
+configuration file, which overrides this default for HTTP traffic.
 
 `http.port`::
 (<<static-cluster-setting,Static>>, integer)

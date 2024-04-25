@@ -2273,6 +2273,39 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate());
     }
 
+    public void testSubobjectsFalseFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("attributes");
+            {
+                b.field("dynamic", false);
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("simple.attribute");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("complex.attribute");
+                    b.field("type", "flattened");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "attributes": {
+                "complex.attribute": {
+                  "foo" : "bar"
+                },
+                "simple.attribute": "foo"
+              }
+            }
+            """));
+        assertNotNull(doc.rootDoc().getField("attributes.complex.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.simple.attribute"));
+    }
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");
@@ -2580,7 +2613,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertArrayEquals(new String[] { "LongField <foo.bar.baz:1>", "LongField <foo.bar.baz:2>" }, fieldStrings);
 
         // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
-        Mapping newMapping = MapperService.mergeMappings(mapperService.documentMapper(), mapping, MapperService.MergeReason.MAPPING_UPDATE);
+        Mapping newMapping = MapperService.mergeMappings(
+            mapperService.documentMapper(),
+            mapping,
+            MapperService.MergeReason.MAPPING_UPDATE,
+            mapperService.getIndexSettings()
+        );
         DocumentMapper newDocMapper = new DocumentMapper(
             mapperService.documentParser(),
             newMapping,

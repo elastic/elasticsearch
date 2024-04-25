@@ -9,10 +9,7 @@ package org.elasticsearch.nodesinfo;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESIntegTestCase;
-
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.notNullValue;
@@ -20,13 +17,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ComponentVersionsNodesInfoIT extends ESIntegTestCase {
 
     public void testNodesInfoComponentVersions() {
-        List<String> nodesIds = internalCluster().startNodes(1);
-        final String node_1 = nodesIds.get(0);
+        final String node_1 = internalCluster().startNode();
 
         ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("1").get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
-        String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().getLocalNodeId();
+        String server1NodeId = getNodeId(node_1);
         logger.info("--> started nodes: {}", server1NodeId);
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();

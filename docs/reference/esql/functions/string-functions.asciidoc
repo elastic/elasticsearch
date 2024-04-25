@@ -9,6 +9,7 @@
 
 // tag::string_list[]
 * <<esql-concat>>
+* <<esql-ends_with>>
 * <<esql-from_base64>>
 * <<esql-left>>
 * <<esql-length>>
@@ -18,6 +19,7 @@
 * <<esql-right>>
 * <<esql-rtrim>>
 * <<esql-split>>
+* <<esql-starts_with>>
 * <<esql-substring>>
 * <<esql-to_base64>>
 * <<esql-to_lower>>
@@ -26,6 +28,7 @@
 // end::string_list[]
 
 include::layout/concat.asciidoc[]
+include::ends_with.asciidoc[]
 include::layout/from_base64.asciidoc[]
 include::layout/left.asciidoc[]
 include::layout/length.asciidoc[]
@@ -35,6 +38,7 @@ include::layout/replace.asciidoc[]
 include::layout/right.asciidoc[]
 include::layout/rtrim.asciidoc[]
 include::layout/split.asciidoc[]
+include::starts_with.asciidoc[]
 include::layout/substring.asciidoc[]
 include::layout/to_base64.asciidoc[]
 include::layout/to_lower.asciidoc[]

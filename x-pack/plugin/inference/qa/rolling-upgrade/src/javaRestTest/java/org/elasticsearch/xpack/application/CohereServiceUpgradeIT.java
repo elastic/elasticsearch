@@ -169,6 +169,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testRerank() throws IOException {
         var rerankSupported = getOldClusterTestVersion().onOrAfter(COHERE_RERANK_ADDED);
         assumeTrue("Cohere rerank service added in " + COHERE_RERANK_ADDED, rerankSupported);

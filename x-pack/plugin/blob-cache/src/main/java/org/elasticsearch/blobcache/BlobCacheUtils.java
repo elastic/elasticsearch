@@ -33,14 +33,14 @@ public class BlobCacheUtils {
     }
 
     /**
-     * Round down the size to the nearest aligned size <= size.
+     * Round down the size to the nearest aligned size &lt;= size.
      */
     public static long roundDownToAlignedSize(long size, long alignment) {
         return size / alignment * alignment;
     }
 
     /**
-     * Round up the size to the nearest aligned size >= size
+     * Round up the size to the nearest aligned size &gt;= size
      */
     public static long roundUpToAlignedSize(long size, long alignment) {
         return (((size - 1) / alignment) + 1) * alignment;

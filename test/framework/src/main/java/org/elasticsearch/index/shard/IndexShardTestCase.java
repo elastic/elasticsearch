@@ -30,6 +30,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureTestUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -91,6 +93,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -686,7 +689,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static void closeShard(IndexShard indexShard, String reason, boolean flushEngine) throws IOException {
-        indexShard.close(reason, flushEngine);
+        final var future = new PlainActionFuture<Void>();
+        indexShard.close(reason, flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertTrue(future.isDone());
+        FutureTestUtils.uninterruptibleIOGet(future);
     }
 
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {

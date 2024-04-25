@@ -583,9 +583,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
+                    final var hasStoreRef = store != null && store.tryIncRef();
                     try {
                         // only flush if we are closed (closed index or shutdown) and if we are not deleted
                         final boolean flushEngine = deleted.get() == false && closed.get();
+                        
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
                         logger.debug(() -> "[" + shardId + "] failed to close index shard", e);

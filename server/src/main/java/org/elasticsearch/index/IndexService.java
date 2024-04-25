@@ -567,7 +567,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
         shards = Maps.copyMapWithRemovedEntry(shards, shardId);
-        closeShard(reason, indexShard.shardId(), indexShard, indexShard.store(), indexShard.getIndexEventListener());
+        closeShard(
+            reason,
+            indexShard.shardId(),
+            indexShard,
+            indexShard.store(),
+            indexShard.getIndexEventListener(),
+            null /*TODO*/,
+            null/*TODO*/
+        );
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 

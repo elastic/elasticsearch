@@ -282,6 +282,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107782")
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+    }
+
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((ScoreFunctionBuilder<?>) null));

@@ -296,14 +296,13 @@ public class ServiceUtils {
             return null;
         }
 
-        var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
-
         try {
             var createdEnum = constructor.apply(enumString);
             validateEnumValue(createdEnum, validValues);
 
             return createdEnum;
         } catch (IllegalArgumentException e) {
+            var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
             validationException.addValidationError(invalidValue(settingName, scope, enumString, validValuesAsStrings));
         }
 

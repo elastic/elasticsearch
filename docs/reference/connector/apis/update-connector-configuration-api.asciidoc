@@ -36,7 +36,7 @@ Updates a connector's `configuration`, allowing for config value updates within 
 (Optional, object) Configuration values for the connector, represented as a mapping of configuration fields to their respective values within a registered schema.
 
 `configuration`::
-(Optional, object) The configuration schema definition for the connector. The configuration field is a map where each key represents a specific configuration field name, and the value is a `ConnectorConfiguration` object. For connector management use `values` to pass config values, `configuration` object is used by Elastic connector service to register the connector configuration schema.
+(Optional, object) The configuration schema definition for the connector. The configuration field is a map where each key represents a specific configuration field name, and the value is a `ConnectorConfiguration` object. For connector management use `values` to pass config values. The `configuration` object is used by the Elastic connector service to register the connector configuration schema.
 
 
 [[update-connector-configuration-api-response-codes]]

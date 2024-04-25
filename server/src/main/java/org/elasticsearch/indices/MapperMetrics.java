@@ -16,6 +16,8 @@ import org.elasticsearch.index.mapper.SourceFieldMetrics;
  * Main purpose of this class is to avoid verbosity of passing individual metric instances around.
  */
 public class MapperMetrics {
+    public static MapperMetrics NOOP = new MapperMetrics();
+
     public static ValueWithThreadLocalOverride<SourceFieldMetrics> SOURCE_FIELD_METRICS = new ValueWithThreadLocalOverride<>(
         SourceFieldMetrics.NOOP
     );

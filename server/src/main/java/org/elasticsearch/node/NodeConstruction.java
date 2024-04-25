@@ -1013,6 +1013,7 @@ class NodeConstruction {
             threadPool,
             scriptService,
             bigArrays,
+            searchModule.getRankFeatureShardPhase(),
             searchModule.getFetchPhase(),
             responseCollectorService,
             circuitBreakerService,

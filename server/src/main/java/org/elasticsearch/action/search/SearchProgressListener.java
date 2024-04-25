@@ -89,6 +89,22 @@ public abstract class SearchProgressListener {
     protected void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
 
     /**
+     * Executed when a shard returns a rank feature result.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     */
+    protected void onRankFeatureResult(int shardIndex) {}
+
+    /**
+     * Executed when a shard reports a rank feature failure.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The last shard target that thrown an exception.
+     * @param exc The cause of the failure.
+     */
+    protected void onRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+
+    /**
      * Executed when a shard returns a fetch result.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.

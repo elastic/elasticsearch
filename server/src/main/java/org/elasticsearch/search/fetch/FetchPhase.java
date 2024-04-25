@@ -97,8 +97,11 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
+    public SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad) {
+        return buildSearchHits(context, docIdsToLoad, Profiler.NOOP);
+    }
 
+    public SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
 

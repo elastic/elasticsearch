@@ -43,6 +43,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -489,6 +490,16 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public FetchPhase fetchPhase() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void addRankFeatureResult() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
         throw new UnsupportedOperationException();
     }
 

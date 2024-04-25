@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -16,6 +18,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -30,6 +34,7 @@ import java.util.List;
  */
 public final class RankFeaturePhase extends SearchPhase {
 
+    private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
     private final SearchPhaseContext context;
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
     private final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
@@ -38,7 +43,12 @@ public final class RankFeaturePhase extends SearchPhase {
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
 
-    RankFeaturePhase(SearchPhaseResults<SearchPhaseResult> queryPhaseResults, AggregatedDfs aggregatedDfs, SearchPhaseContext context, Client client) {
+    RankFeaturePhase(
+        SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
+        AggregatedDfs aggregatedDfs,
+        SearchPhaseContext context,
+        Client client
+    ) {
         super("rank-feature");
         if (context.getNumShards() != queryPhaseResults.getNumShards()) {
             throw new IllegalStateException(
@@ -110,13 +120,13 @@ public final class RankFeaturePhase extends SearchPhase {
         return source.rankBuilder() == null
             ? null
             : context.getRequest()
-            .source()
-            .rankBuilder()
-            .buildRankFeaturePhaseCoordinatorContext(
-                context.getRequest().source().size(),
-                context.getRequest().source().from(),
-                client
-            );
+                .source()
+                .rankBuilder()
+                .buildRankFeaturePhaseCoordinatorContext(
+                    context.getRequest().source().size(),
+                    context.getRequest().source().from(),
+                    client
+                );
     }
 
     private void executeRankFeatureShardPhase(
@@ -151,7 +161,7 @@ public final class RankFeaturePhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
-                        progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
+                        // progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
                         rankRequestCounter.onFailure(shardIndex, shardTarget, e);
                     }
                 }

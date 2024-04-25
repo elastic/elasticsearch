@@ -39,6 +39,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -95,6 +97,8 @@ public class SearchTransportService {
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
+
+    public static final String RANK_FEATURE_SHARD_ACTION_NAME = "indices:data/read/search[phase/rank/feature]";
 
     /**
      * The Can-Match phase. It is executed to pre-filter shards that a search request hits. It rewrites the query on
@@ -252,9 +256,9 @@ public class SearchTransportService {
 
     public void sendExecuteRankFeature(
         Transport.Connection connection,
-        RankFeatureShardRequest request,
+        final RankFeatureShardRequest request,
         SearchTask task,
-        SearchActionListener<RankFeatureResult> listener
+        final SearchActionListener<RankFeatureResult> listener
     ) {
         transportService.sendChildRequest(
             connection,

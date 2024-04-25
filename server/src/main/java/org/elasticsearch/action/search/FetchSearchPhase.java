@@ -105,7 +105,7 @@ final class FetchSearchPhase extends SearchPhase {
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
         final boolean queryAndFetchOptimization = queryResults.length() == 1
             && context.getRequest().hasKnnSearch() == false
-            && reducedQueryPhase.rankCoordinatorContext() == null;
+            && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null;
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization

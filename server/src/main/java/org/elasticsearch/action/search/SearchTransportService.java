@@ -250,6 +250,21 @@ public class SearchTransportService {
         );
     }
 
+    public void sendExecuteRankFeature(
+        Transport.Connection connection,
+        RankFeatureShardRequest request,
+        SearchTask task,
+        SearchActionListener<RankFeatureResult> listener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            RANK_FEATURE_SHARD_ACTION_NAME,
+            request,
+            task,
+            new ConnectionCountingHandler<>(listener, RankFeatureResult::new, connection)
+        );
+    }
+
     public void sendExecuteScrollFetch(
         Transport.Connection connection,
         final InternalScrollSearchRequest request,

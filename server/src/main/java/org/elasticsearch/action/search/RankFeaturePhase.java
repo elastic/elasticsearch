@@ -7,9 +7,19 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * This search phase is responsible for executing any re-ranking needed for the given search request, iff that is applicable.
@@ -23,10 +33,12 @@ public final class RankFeaturePhase extends SearchPhase {
     private final SearchPhaseContext context;
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
     private final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
+    private final Client client;
 
     private final AggregatedDfs aggregatedDfs;
+    private final SearchProgressListener progressListener;
 
-    RankFeaturePhase(SearchPhaseResults<SearchPhaseResult> queryPhaseResults, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
+    RankFeaturePhase(SearchPhaseResults<SearchPhaseResult> queryPhaseResults, AggregatedDfs aggregatedDfs, SearchPhaseContext context, Client client) {
         super("rank-feature");
         if (context.getNumShards() != queryPhaseResults.getNumShards()) {
             throw new IllegalStateException(
@@ -41,6 +53,8 @@ public final class RankFeaturePhase extends SearchPhase {
         this.aggregatedDfs = aggregatedDfs;
         this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
         context.addReleasable(rankPhaseResults);
+        this.progressListener = context.getTask().getProgressListener();
+        this.client = client;
     }
 
     @Override
@@ -63,9 +77,122 @@ public final class RankFeaturePhase extends SearchPhase {
     }
 
     private void innerRun() throws Exception {
-        // other than running reduce, this is currently close to a no-op
+        // if the RankBuilder specifies a QueryPhaseCoordinatorContext, it will be called as part of the reduce call
+        // to operate on the first `window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
-        moveToNextPhase(queryPhaseResults, reducedQueryPhase);
+        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
+        if (rankFeaturePhaseRankCoordinatorContext != null) {
+            ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
+            final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(context.getNumShards(), queryScoreDocs);
+            final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
+                rankPhaseResults,
+                context.getNumShards(),
+                () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, reducedQueryPhase),
+                context
+            );
+
+            // we send out a request to each shard in order to fetch the needed feature info
+            for (int i = 0; i < docIdsToLoad.length; i++) {
+                List<Integer> entry = docIdsToLoad[i];
+                if (entry == null || entry.isEmpty()) {
+                    rankRequestCounter.countDown();
+                    continue;
+                }
+                SearchPhaseResult queryResult = queryPhaseResults.getAtomicArray().get(i);
+                executeRankFeatureShardPhase(queryResult, rankRequestCounter, entry);
+            }
+        } else {
+            moveToNextPhase(queryPhaseResults, reducedQueryPhase);
+        }
+    }
+
+    private RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source) {
+        return source.rankBuilder() == null
+            ? null
+            : context.getRequest()
+            .source()
+            .rankBuilder()
+            .buildRankFeaturePhaseCoordinatorContext(
+                context.getRequest().source().size(),
+                context.getRequest().source().from(),
+                client
+            );
+    }
+
+    private void executeRankFeatureShardPhase(
+        SearchPhaseResult queryResult,
+        final CountedCollector<SearchPhaseResult> rankRequestCounter,
+        final List<Integer> entry
+    ) {
+        final SearchShardTarget shardTarget = queryResult.queryResult().getSearchShardTarget();
+        final ShardSearchContextId contextId = queryResult.queryResult().getContextId();
+        final int shardIndex = queryResult.getShardIndex();
+        context.getSearchTransport()
+            .sendExecuteRankFeature(
+                context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId()),
+                new RankFeatureShardRequest(
+                    context.getOriginalIndices(queryResult.getShardIndex()),
+                    queryResult.getContextId(),
+                    queryResult.getShardSearchRequest(),
+                    entry
+                ),
+                context.getTask(),
+                new SearchActionListener<>(shardTarget, shardIndex) {
+                    @Override
+                    protected void innerOnResponse(RankFeatureResult response) {
+                        try {
+                            progressListener.notifyFetchResult(shardIndex);
+                            rankRequestCounter.onResult(response);
+                        } catch (Exception e) {
+                            context.onPhaseFailure(RankFeaturePhase.this, "", e);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
+                        progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
+                        rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                    }
+                }
+            );
+    }
+
+    private void onPhaseDone(
+        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+    ) {
+        assert rankFeaturePhaseRankCoordinatorContext != null;
+        rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(
+            rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
+            (scoreDocs) -> {
+                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhase(reducedQueryPhase, scoreDocs);
+                moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
+            }
+        );
+    }
+
+    private SearchPhaseController.ReducedQueryPhase newReducedQueryPhase(
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        ScoreDoc[] scoreDocs
+    ) {
+        return new SearchPhaseController.ReducedQueryPhase(
+            reducedQueryPhase.totalHits(),
+            reducedQueryPhase.fetchHits(),
+            Arrays.stream(scoreDocs).map(x -> x.score).max(Comparator.comparingDouble(x -> x)).orElse(Float.NaN),
+            reducedQueryPhase.timedOut(),
+            reducedQueryPhase.terminatedEarly(),
+            reducedQueryPhase.suggest(),
+            reducedQueryPhase.aggregations(),
+            reducedQueryPhase.profileBuilder(),
+            new SearchPhaseController.SortedTopDocs(scoreDocs, false, null, null, null, 0),
+            reducedQueryPhase.sortValueFormats(),
+            reducedQueryPhase.queryPhaseRankCoordinatorContext(),
+            reducedQueryPhase.numReducePhases(),
+            reducedQueryPhase.size(),
+            reducedQueryPhase.from(),
+            reducedQueryPhase.isEmptyResult()
+        );
     }
 
     private void moveToNextPhase(

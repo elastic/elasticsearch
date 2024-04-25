@@ -325,7 +325,10 @@ PUT _connector/my-spo-connector/_configuration
 ----
 
 
-An example to update a subset of configuration fields of the `sharepoint_online` connector. In this case other configuration values won't change. It can be useful if you want to e.g. just update the secret value for your connector:
+When you're first setting up your connector you'll need to provide all required configuration details to start running syncs.
+But you can also use this API to only update a subset of fields.
+Here's an example that only updates the `secret_value` field for a `sharepoint_online` connector.
+The other configuration values won't change.
 
 [source,console]
 ----

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.integration;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -43,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
@@ -140,7 +142,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
-    private void writeJSONFile(String node, String json) throws Exception {
+    public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter) throws Exception {
         long version = versionCounter.incrementAndGet();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
@@ -151,10 +153,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
-        logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
+        logger.info("--> before writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
         Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
@@ -273,14 +276,14 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ensureGreen();
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        writeJSONFile(internalCluster().getMasterName(), testJSON);
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
         logger.info("---> cleanup cluster settings...");
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -298,26 +301,21 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertFalse(response.hasMappings());
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
-        ClusterService clusterService = internalCluster().clusterService(node);
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(
+        ClusterService clusterService,
+        Consumer<ReservedStateErrorMetadata> errorMetadataConsumer
+    ) {
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null
-                    && reservedState.errorMetadata() != null
-                    && reservedState.errorMetadata().errorKind() == ReservedStateErrorMetadata.ErrorKind.PARSING) {
+                if (reservedState != null && reservedState.errorMetadata() != null) {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
-                    assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
-                    assertThat(
-                        reservedState.errorMetadata().errors().get(0),
-                        containsString("failed to parse role-mapping [everyone_kibana_bad]. missing field [rules]")
-                    );
+                    errorMetadataConsumer.accept(reservedState.errorMetadata());
                 }
             }
         });
@@ -340,7 +338,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         // save an empty file to clear any prior state, this ensures we don't get a stale file left over by another test
         var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -353,9 +351,19 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         );
 
         // save a bad file
-        savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());
+        savedClusterState = setupClusterStateListenerForError(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            errorMetadata -> {
+                assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, errorMetadata.errorKind());
+                assertThat(errorMetadata.errors(), allOf(notNullValue(), hasSize(1)));
+                assertThat(
+                    errorMetadata.errors().get(0),
+                    containsString("failed to parse role-mapping [everyone_kibana_bad]. missing field [rules]")
+                );
+            }
+        );
 
-        writeJSONFile(internalCluster().getMasterName(), testErrorJSON);
+        writeJSONFile(internalCluster().getMasterName(), testErrorJSON, logger, versionCounter);
         assertRoleMappingsNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 
@@ -391,7 +399,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         final CloseIndexResponse closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
         assertTrue(closeIndexResponse.isAcknowledged());
 
-        writeJSONFile(internalCluster().getMasterName(), testJSON);
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 

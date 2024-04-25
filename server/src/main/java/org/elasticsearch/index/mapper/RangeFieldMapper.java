@@ -381,76 +381,66 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
+        Range range;
         XContentParser parser = context.parser();
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            return;
-        }
-
-        Range range = parseRange(parser);
-        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
-
-        if (hasDocValues == false && (index || store)) {
-            context.addToFieldNames(fieldType().name());
-        }
-    }
-
-    private Range parseRange(XContentParser parser) throws IOException {
         final XContentParser.Token start = parser.currentToken();
-        if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
-            return parseIpRangeFromCidr(parser);
-        }
-
-        if (start != XContentParser.Token.START_OBJECT) {
+        if (start == XContentParser.Token.VALUE_NULL) {
+            return;
+        } else if (start == XContentParser.Token.START_OBJECT) {
+            RangeFieldType fieldType = fieldType();
+            RangeType rangeType = fieldType.rangeType;
+            String fieldName = null;
+            Object from = rangeType.minValue();
+            Object to = rangeType.maxValue();
+            boolean includeFrom = DEFAULT_INCLUDE_LOWER;
+            boolean includeTo = DEFAULT_INCLUDE_UPPER;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    fieldName = parser.currentName();
+                } else {
+                    if (fieldName.equals(GT_FIELD.getPreferredName())) {
+                        includeFrom = false;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                        }
+                    } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
+                        includeFrom = true;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                        }
+                    } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
+                        includeTo = false;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                        }
+                    } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
+                        includeTo = true;
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                        }
+                    } else {
+                        throw new DocumentParsingException(
+                            parser.getTokenLocation(),
+                            "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                        );
+                    }
+                }
+            }
+            range = new Range(rangeType, from, to, includeFrom, includeTo);
+        } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
+            range = parseIpRangeFromCidr(parser);
+        } else {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
                 "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
             );
         }
+        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
-        RangeFieldType fieldType = fieldType();
-        RangeType rangeType = fieldType.rangeType;
-        String fieldName = null;
-        Object parsedFrom = null;
-        Object parsedTo = null;
-        boolean includeFrom = DEFAULT_INCLUDE_LOWER;
-        boolean includeTo = DEFAULT_INCLUDE_UPPER;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
-            } else {
-                if (fieldName.equals(GT_FIELD.getPreferredName())) {
-                    includeFrom = false;
-                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                        parsedFrom = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
-                    }
-                } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
-                    includeFrom = true;
-                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                        parsedFrom = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
-                    }
-                } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
-                    includeTo = false;
-                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                        parsedTo = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                    }
-                } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
-                    includeTo = true;
-                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                        parsedTo = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                    }
-                } else {
-                    throw new DocumentParsingException(
-                        parser.getTokenLocation(),
-                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
-                    );
-                }
-            }
+        if (hasDocValues == false && (index || store)) {
+            context.addToFieldNames(fieldType().name());
         }
-        Object from = parsedFrom != null ? parsedFrom : rangeType.defaultFrom(parsedTo);
-        Object to = parsedTo != null ? parsedTo : rangeType.defaultTo(parsedFrom);
-
-        return new Range(rangeType, from, to, includeFrom, includeTo);
     }
 
     private static Range parseIpRangeFromCidr(final XContentParser parser) throws IOException {

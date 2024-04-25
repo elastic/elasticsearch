@@ -73,7 +73,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 prepareSearch("test").addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 0 })
-                    .setScroll("1m")
+                    .setScroll(TimeValue.timeValueMinutes(1))
             );
             assertThat(e.getMessage(), containsString("[search_after] cannot be used in a scroll context"));
         }

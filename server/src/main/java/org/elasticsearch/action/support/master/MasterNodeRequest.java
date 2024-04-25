@@ -49,14 +49,6 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     }
 
     /**
-     * Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy processing other tasks. The
-     * value {@link TimeValue#MINUS_ONE} means to wait forever.
-     */
-    public final Request masterNodeTimeout(String timeout) {
-        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
-    }
-
-    /**
      * @return how long to wait when the master has not been discovered yet, or is disconnected, or is busy processing other tasks. The
      * value {@link TimeValue#MINUS_ONE} means to wait forever.
      */

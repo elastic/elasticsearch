@@ -136,6 +136,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -180,7 +181,8 @@ public class MetadataIndexTemplateService {
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -190,6 +192,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -337,7 +340,7 @@ public class MetadataIndexTemplateService {
                         tempStateWithComponentTemplateAdded.metadata(),
                         composableTemplateName,
                         composableTemplate,
-                        DataStreamGlobalRetention.getFromClusterState(currentState)
+                        globalRetentionResolver.resolve(currentState)
                     );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
@@ -363,7 +366,7 @@ public class MetadataIndexTemplateService {
         if (finalComponentTemplate.template().lifecycle() != null) {
             finalComponentTemplate.template()
                 .lifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(DataStreamGlobalRetention.getFromClusterState(currentState));
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -722,7 +725,7 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycle(currentState.metadata(), name, templateToValidate, DataStreamGlobalRetention.getFromClusterState(currentState));
+        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionResolver.resolve(currentState));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());

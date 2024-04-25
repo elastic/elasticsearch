@@ -57,17 +57,6 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
      * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
      * this to the elected master.
      *
-     * @param ackTimeout timeout as a string
-     * @return this request, for method chaining.
-     */
-    public final Request ackTimeout(String ackTimeout) {
-        return ackTimeout(TimeValue.parseTimeValue(ackTimeout, this.ackTimeout, getClass().getSimpleName() + ".ackTimeout"));
-    }
-
-    /**
-     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
-     * this to the elected master.
-     *
      * @param ackTimeout timeout as a {@link TimeValue}
      * @return this request, for method chaining.
      */

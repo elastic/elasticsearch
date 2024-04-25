@@ -16,6 +16,12 @@ The reference documentation is divided into the following categories:
 include::functions/aggregation-functions.asciidoc[tag=agg_list]
 ====
 
+.*Grouping functions*
+[%collapsible]
+====
+include::functions/grouping-functions.asciidoc[tag=group_list]
+====
+
 .*Math functions*
 [%collapsible]
 ====
@@ -68,6 +74,7 @@ include::functions/operators.asciidoc[tag=op_list]
 ====
 
 include::functions/aggregation-functions.asciidoc[]
+include::functions/grouping-functions.asciidoc[]
 include::functions/math-functions.asciidoc[]
 include::functions/string-functions.asciidoc[]
 include::functions/date-time-functions.asciidoc[]

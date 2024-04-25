@@ -143,13 +143,12 @@ public class PrerequisiteSection {
                 && (Strings.isEmpty(skipVersionRange)
                     && skipOperatingSystems.isEmpty()
                     && skipClusterFeatures.isEmpty()
-                    && skipKnownIssues.isEmpty()
-                    && Strings.isEmpty(skipAwaitsFix)) == false) {
-                throw new ParsingException(contentLocation, "reason is mandatory within skip section");
+                    && skipKnownIssues.isEmpty()) == false) {
+                throw new ParsingException(contentLocation, "reason is mandatory within this skip section");
             }
 
             if (Strings.isEmpty(requiresReason) && (requiredClusterFeatures.isEmpty() == false)) {
-                throw new ParsingException(contentLocation, "reason is mandatory within requires section");
+                throw new ParsingException(contentLocation, "reason is mandatory within this requires section");
             }
 
             // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os

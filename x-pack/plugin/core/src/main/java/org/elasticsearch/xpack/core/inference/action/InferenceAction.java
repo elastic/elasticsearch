@@ -203,12 +203,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         // default for easier testing
         static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.V_8_13_0) && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                return InputType.INGEST;
-            } else if (version.before(TransportVersions.V_8_13_0)
-                && validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
+            if (version.before(TransportVersions.V_8_13_0)) {
+                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
+                    return InputType.INGEST;
+                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
                     return InputType.UNSPECIFIED;
                 }
+            }
 
             return inputType;
         }

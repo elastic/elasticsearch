@@ -116,10 +116,10 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 "The index [foo/"
                     + metadata.getIndexUUID()
                     + "] has current compatibility version ["
-                    + indexCreated
+                    + indexCreated.toReleaseVersion()
                     + "] "
                     + "but the minimum compatible version is ["
-                    + minCompat
+                    + minCompat.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
                     + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "

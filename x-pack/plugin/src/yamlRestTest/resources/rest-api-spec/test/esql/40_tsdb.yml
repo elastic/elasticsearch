@@ -155,7 +155,7 @@ load a document:
   - match: {values.0.6: "pod"}
 
 ---
-filter on counter:
+filter on counter without cast:
   - do:
       catch: bad_request
       esql.query:

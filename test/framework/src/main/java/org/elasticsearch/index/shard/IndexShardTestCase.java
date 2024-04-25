@@ -9,7 +9,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -37,6 +36,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -97,7 +97,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -691,32 +690,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     // ES-8334 TODO test async shard closing
 
     public static void closeShard(IndexShard indexShard, String reason, boolean flushEngine) throws IOException {
-        final var closeExceptionRef = new AtomicReference<Exception>();
-        final var complete = new AtomicBoolean();
-        // ES-8334 complete, closing the shard can be synchronous in these tests
-        indexShard.close(reason, flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                assertTrue(complete.compareAndSet(false, true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                closeExceptionRef.set(e);
-                onResponse(null);
-            }
-        });
-        assertTrue(complete.get());
-        final var closeException = closeExceptionRef.get();
-        if (closeException != null) {
-            if (closeException instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            } else if (closeException instanceof IOException ioException) {
-                throw ioException;
-            } else {
-                fail(closeException, "unexpected exception type");
-            }
-        }
+        CloseUtils.executeDirectly(l -> indexShard.close(reason, flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
     }
 
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {

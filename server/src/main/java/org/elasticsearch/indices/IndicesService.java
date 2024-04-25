@@ -81,6 +81,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
@@ -670,7 +671,7 @@ public class IndicesService extends AbstractLifecycleComponent
         } finally {
             if (success == false) {
                 // ES-8334 complete, we're on the failure path and didn't create any shards to close
-                indexService.close("plugins_failed", true);
+                CloseUtils.executeDirectly(l -> indexService.close("plugins_failed", true, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
             }
         }
     }
@@ -707,9 +708,12 @@ public class IndicesService extends AbstractLifecycleComponent
             finalListeners,
             indexingMemoryController
         );
-        try (Closeable dummy = () ->
-        // ES-8334 complete, we don't start any shards here, just auxiliary services
-        indexService.close("temp", false)) {
+        try (
+            // ES-8334 complete, we don't start any shards here, just auxiliary services
+            Closeable ignored = () -> CloseUtils.executeDirectly(
+                l -> indexService.close("temp", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+            )
+        ) {
             return indexServiceConsumer.apply(indexService);
         }
     }
@@ -850,9 +854,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesFieldDataCache,
                 emptyList()
             );
-            closeables.add(() ->
             // ES-8334 complete, no shards created
-            service.close("metadata verification", false));
+            closeables.add(
+                () -> CloseUtils.executeDirectly(l -> service.close("metadata verification", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
+            );
             service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metadata.equals(metadataUpdate) == false) {
                 service.updateMetadata(metadata, metadataUpdate);

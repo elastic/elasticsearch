@@ -16,6 +16,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -102,7 +103,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -356,21 +356,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexSortSupplier;
     }
 
-    public synchronized void close(final String reason, boolean delete) throws IOException {
+    public synchronized void close(final String reason, boolean delete, Executor shardCloseExecutor, ActionListener<Void> closeListener) {
         if (closed.compareAndSet(false, true)) {
             deleted.compareAndSet(false, delete);
-            try {
-                final Set<Integer> shardIds = shardIds();
-                for (final int shardId : shardIds) {
-                    try {
-                        executeDirectly(l ->
-                        // ES-8334 TODO, only async caller is IndicesService#removeIndex but this needs to be async
-                        removeShard(shardId, reason, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
-                    } catch (Exception e) {
-                        logger.warn("failed to close shard", e);
-                    }
-                }
-            } finally {
+            try (var refs = new RefCountingRunnable(() -> ActionListener.run(closeListener, l -> {
                 IOUtils.close(
                     bitsetFilterCache,
                     indexCache,
@@ -382,6 +371,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     globalCheckpointTask,
                     retentionLeaseSyncTask
                 );
+                l.onResponse(null);
+            }))) {
+                final Set<Integer> shardIds = shardIds();
+                for (final int shardId : shardIds) {
+                    ActionListener.run(refs.acquireListener().delegateResponse((l, e) -> {
+                        logger.warn("failed to close shard", e);
+                        l.onResponse(null);
+                    }), l ->
+                    // ES-8334 passthru, enclosing method is also async
+                    removeShard(shardId, reason, shardCloseExecutor, l));
+                }
             }
         }
     }
@@ -558,7 +558,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
                 final var finalStore = store;
                 final var finalIndexShard = indexShard;
-                executeDirectly(l ->
+                CloseUtils.executeDirectly(l ->
                 // ES-8334 complete, we're on the exception path here, closing a shard that failed to start up should be fast enough
                 closeShard(
                     "initialization failed",
@@ -592,32 +592,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             closeListener
         );
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
-    }
-
-    /**
-     * Execute a naturally-async action (e.g. to close a shard) but using the current thread so that it completes synchronously, re-throwing
-     * any exception that might be passed to its listener.
-     */
-    private static void executeDirectly(Consumer<ActionListener<Void>> action) {
-        final var closeExceptionRef = new AtomicReference<Exception>();
-        action.accept(new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                closeExceptionRef.set(e);
-            }
-        });
-        final var closeException = closeExceptionRef.get();
-        if (closeException != null) {
-            if (closeException instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            } else {
-                assert false : closeException;
-                throw new RuntimeException("unexpected exception on shard close", closeException);
-            }
-        }
     }
 
     private void closeShard(

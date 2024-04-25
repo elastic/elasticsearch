@@ -100,6 +100,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_DELAYED;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration.ZERO;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -150,7 +152,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 if (explicitConfiguration) {
                     return Settings.builder()
                         .put(super.nodeSettings())
-                        .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), statelessUploadDelayed)
+                        .put(STATELESS_UPLOAD_DELAYED.getKey(), statelessUploadDelayed)
                         .build();
                 } else {
                     return super.nodeSettings();
@@ -1775,7 +1777,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                    .put(STATELESS_UPLOAD_DELAYED.getKey(), true)
                     .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueMillis(50))
                     .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueMillis(30))
                     // TODO: ES-8152 enable BCC with more than one CC when the settings are ready
@@ -1982,32 +1984,101 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    private BatchedCompoundCommit getAndAssertBccWithGenerations(BlobContainer shardContainer, long bccGeneration, List<Long> ccGenerations)
-        throws Exception {
-        assert bccGeneration == ccGenerations.get(0);
-        final AtomicReference<BatchedCompoundCommit> bccRef = new AtomicReference<>();
-        assertBusy(() -> {
-            final String expectedBccBlobName = blobNameFromGeneration(bccGeneration);
-            final BlobMetadata blobMedata = shardContainer.listBlobs(OperationPurpose.INDICES)
-                .values()
-                .stream()
-                .filter(blobMetadata -> blobMetadata.name().equals(expectedBccBlobName))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("commit blob not found"));
-            final var batchedCompoundCommit = BatchedCompoundCommit.readFromStore(
-                expectedBccBlobName,
-                blobMedata.length(),
-                (blobName, offset, length) -> new InputStreamStreamInput(
-                    shardContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
-                )
+    public void testMarkCommitDeletedWithMultipleCCsPerBCC() throws Exception {
+        var fakeSearchNode = new FakeSearchNode(threadPool);
+        Set<StaleCompoundCommit> deletedBCCs = ConcurrentCollections.newConcurrentSet();
+        int commitsPerBCC = 2;
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return new StatelessCommitCleaner(null, null, null) {
+                    @Override
+                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                        deletedBCCs.add(staleCompoundCommit);
+                    }
+                };
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return fakeSearchNode;
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_UPLOAD_DELAYED.getKey(), "true")
+                    .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), commitsPerBCC)
+                    .build();
+            }
+
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+            List<StatelessCommitRef> nonMergedCommits = new ArrayList<>();
+            List<PrimaryTermAndGeneration> bccsWithNonMergedCommits = new ArrayList<>();
+
+            var numberOfBCCs = randomIntBetween(2, 3);
+            for (int i = 0; i < numberOfBCCs; i++) {
+                List<StatelessCommitRef> commits = testHarness.generateIndexCommits(commitsPerBCC, false);
+                nonMergedCommits.addAll(commits);
+
+                commitService.onCommitCreation(commits.get(0));
+                final var currentVirtualBcc = testHarness.commitService.getCurrentVirtualBcc(shardId);
+                assertThat(currentVirtualBcc, notNullValue());
+                assertThat(currentVirtualBcc.isFrozen(), is(false));
+                bccsWithNonMergedCommits.add(currentVirtualBcc.getPrimaryTermAndGeneration());
+
+                commitService.onCommitCreation(commits.get(1));
+                assertThat(commitService.getCurrentVirtualBcc(shardId), nullValue());
+
+                waitUntilBCCIsUploaded(commitService, shardId, currentVirtualBcc.getPrimaryTermAndGeneration().generation());
+            }
+
+            // Force merge so we can delete all previous commits
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
+
+            assertThat(deletedBCCs, is(empty()));
+
+            for (StatelessCommitRef commit : nonMergedCommits) {
+                commitService.markCommitDeleted(shardId, commit.getGeneration());
+                if (randomBoolean()) {
+                    commitService.markCommitDeleted(shardId, commit.getGeneration());
+                }
+            }
+
+            assertThat(deletedBCCs, is(empty()));
+
+            var indexEngineLocalReaderListenerForShard = commitService.getIndexEngineLocalReaderListenerForShard(shardId);
+            indexEngineLocalReaderListenerForShard.onLocalReaderClosed(
+                bccsWithNonMergedCommits.get(bccsWithNonMergedCommits.size() - 1).generation(),
+                Set.of(new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration()))
             );
-            assertThat(
-                batchedCompoundCommit.compoundCommits().stream().map(StatelessCompoundCommit::generation).toList(),
-                equalTo(ccGenerations)
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
+                mergedCommit.getGeneration(),
+                Set.of(new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration()))
             );
-            bccRef.set(batchedCompoundCommit);
-        });
-        return bccRef.get();
+
+            // We need assertBusy as we do an incRef for the BlobReference before we start the BCC upload
+            // (in StatelessCommitService#createAndRunCommitUpload) and decRef once the BCC is uploaded,
+            // a new commit notification is sent and the listener finishes, even-though we wait until the
+            // new commit notification is sent, there's still a slight chance of the upload decRef running
+            // after we call commitService.unregister.
+            var expectedDeletedBCCs = bccsWithNonMergedCommits.stream()
+                .map(bccGeneration -> new StaleCompoundCommit(shardId, bccGeneration, primaryTerm))
+                .collect(Collectors.toSet());
+            assertBusy(() -> assertThat(deletedBCCs, is(equalTo(expectedDeletedBCCs))));
+        }
     }
 
     public void testMarkCommitDeletedIsIdempotent() throws Exception {
@@ -2072,15 +2143,40 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    private BatchedCompoundCommit getAndAssertBccWithGenerations(BlobContainer shardContainer, long bccGeneration, List<Long> ccGenerations)
+        throws Exception {
+        assert bccGeneration == ccGenerations.get(0);
+        final AtomicReference<BatchedCompoundCommit> bccRef = new AtomicReference<>();
+        assertBusy(() -> {
+            final String expectedBccBlobName = blobNameFromGeneration(bccGeneration);
+            final BlobMetadata blobMedata = shardContainer.listBlobs(OperationPurpose.INDICES)
+                .values()
+                .stream()
+                .filter(blobMetadata -> blobMetadata.name().equals(expectedBccBlobName))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("commit blob not found"));
+            final var batchedCompoundCommit = BatchedCompoundCommit.readFromStore(
+                expectedBccBlobName,
+                blobMedata.length(),
+                (blobName, offset, length) -> new InputStreamStreamInput(
+                    shardContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
+                )
+            );
+            assertThat(
+                batchedCompoundCommit.compoundCommits().stream().map(StatelessCompoundCommit::generation).toList(),
+                equalTo(ccGenerations)
+            );
+            bccRef.set(batchedCompoundCommit);
+        });
+        return bccRef.get();
+    }
+
     public void testDoesNotCloseCommitReferenceOnceAppended() throws IOException {
         final var expectedException = new AssertionError("failure after append");
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-                    .build();
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_DELAYED.getKey(), true).build();
             }
 
             @Override
@@ -2117,8 +2213,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     private static class FakeSearchNode extends NoOpNodeClient {
-        private final Map<Long, PlainActionFuture<ActionListener<NewCommitNotificationResponse>>> generationPendingListeners =
-            new HashMap<>();
+        private final Map<
+            NewCommitNotificationListenerKey,
+            PlainActionFuture<ActionListener<NewCommitNotificationResponse>>> generationPendingListeners = new HashMap<>();
         private final Map<PrimaryTermAndGeneration, StatelessCompoundCommit> notifiedCommits = new HashMap<>();
 
         FakeSearchNode(ThreadPool threadPool) {
@@ -2146,16 +2243,36 @@ public class StatelessCommitServiceTests extends ESTestCase {
             getListenerForNewCommitNotification(generation).actionGet().onResponse(new NewCommitNotificationResponse(usedCommits));
         }
 
+        void respondWithUsedCommits(long generation, long uploadedBCC, Set<PrimaryTermAndGeneration> usedCommits) {
+            getListenerForNewCommitNotification(generation, uploadedBCC).actionGet()
+                .onResponse(new NewCommitNotificationResponse(usedCommits));
+        }
+
         private synchronized PlainActionFuture<ActionListener<NewCommitNotificationResponse>> getListenerForNewCommitNotification(
             long generation
         ) {
+            return getListenerForNewCommitNotification(generation, generation);
+        }
+
+        private synchronized PlainActionFuture<ActionListener<NewCommitNotificationResponse>> getListenerForNewCommitNotification(
+            long generation,
+            long latestUploadedBatchedCompoundCommitTermAndGen
+        ) {
             PlainActionFuture<ActionListener<NewCommitNotificationResponse>> future = new PlainActionFuture<>();
-            return generationPendingListeners.computeIfAbsent(generation, unused -> future);
+            return generationPendingListeners.computeIfAbsent(
+                new NewCommitNotificationListenerKey(generation, latestUploadedBatchedCompoundCommitTermAndGen),
+                unused -> future
+            );
         }
 
         synchronized void onNewNotification(NewCommitNotificationRequest request, ActionListener<NewCommitNotificationResponse> listener) {
             notifiedCommits.put(request.getCompoundCommit().primaryTermAndGeneration(), request.getCompoundCommit());
-            getListenerForNewCommitNotification(request.getGeneration()).onResponse(listener);
+            getListenerForNewCommitNotification(
+                request.getGeneration(),
+                request.getLatestUploadedBatchedCompoundCommitTermAndGen() != null
+                    ? request.getLatestUploadedBatchedCompoundCommitTermAndGen().generation()
+                    : -1
+            ).onResponse(listener);
         }
 
         @Override
@@ -2167,6 +2284,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
         ) {
             onNewNotification((NewCommitNotificationRequest) request, (ActionListener<NewCommitNotificationResponse>) listener);
         }
+
+        record NewCommitNotificationListenerKey(long commitGeneration, long latestUploadedBatchedCompoundCommitTermAndGen) {}
+    }
+
+    private static void waitUntilBCCIsUploaded(StatelessCommitService commitService, ShardId shardId, long bccGeneration) {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        commitService.addListenerForUploadedGeneration(shardId, bccGeneration, future);
+        future.actionGet();
     }
 
     private ClusterState clusterStateWithPrimaryAndSearchShards(ShardId shardId, int searchNodes) {

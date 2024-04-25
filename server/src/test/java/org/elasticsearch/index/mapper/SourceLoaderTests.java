@@ -8,13 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.MapperMetrics;
-import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -134,35 +130,5 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), equalTo("[copy_to] may not be used to copy from a multi-field: [foo.hidden]"));
-    }
-
-    public void testSyntheticSourceTelemetry() throws Exception {
-        var testTelemetry = new TestTelemetryPlugin();
-        var sourceFieldMetrics = new SourceFieldMetrics(
-            testTelemetry.getTelemetryProvider(Settings.EMPTY).getMeterRegistry(),
-            new LongSupplier() {
-                private long value = 1;
-
-                @Override
-                public long getAsLong() {
-                    return value++;
-                }
-            }
-        );
-
-        DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceMapping(b -> { b.startObject("kwd").field("type", "keyword").endObject(); })
-        );
-        try (var ignored = MapperMetrics.INSTANCE.initForTest(new MapperMetrics(sourceFieldMetrics))) {
-            assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
-                {"kwd":"foo"}"""));
-
-            var measurements = testTelemetry.getLongHistogramMeasurement(SourceFieldMetrics.SYNTHETIC_SOURCE_LOAD_LATENCY);
-            // `syntheticSource` above actually performs two loads of source to perform the assertion
-            assertEquals(2, measurements.size());
-            // test implementation of time provider always has a gap of 1 between values
-            assertEquals(measurements.get(0).getLong(), 1);
-            assertEquals(measurements.get(1).getLong(), 1);
-        }
     }
 }

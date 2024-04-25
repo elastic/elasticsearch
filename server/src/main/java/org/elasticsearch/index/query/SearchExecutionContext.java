@@ -426,10 +426,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Build something to load source {@code _source}.
      */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
-        if (forceSyntheticSource) {
-            return new SourceLoader.Synthetic(mappingLookup.getMapping());
-        }
-        return mappingLookup.newSourceLoader();
+        return mapperService.getSourceLoader(mappingLookup, forceSyntheticSource);
     }
 
     /**
@@ -482,7 +479,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             SourceProvider sourceProvider = isSourceSynthetic()
-                ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping())
+                ? SourceProvider.fromSyntheticSource(mapperService.getSourceLoader(mappingLookup, true))
                 : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }

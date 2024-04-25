@@ -50,33 +50,35 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         SYNTHETIC
     }
 
-    private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
-        null,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        null
-    );
+    private static SourceFieldMapper defaultMapper(SourceFieldMetrics sourceFieldMetrics) {
+        return new SourceFieldMapper(null, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, null, sourceFieldMetrics);
+    }
 
-    private static final SourceFieldMapper TSDB_DEFAULT = new SourceFieldMapper(
-        Mode.SYNTHETIC,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        IndexMode.TIME_SERIES
-    );
+    private static SourceFieldMapper tsdbDefault(SourceFieldMetrics sourceFieldMetrics) {
+        return new SourceFieldMapper(
+            Mode.SYNTHETIC,
+            Explicit.IMPLICIT_TRUE,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            IndexMode.TIME_SERIES,
+            sourceFieldMetrics
+        );
+    }
 
     /*
      * Synthetic source was added as the default for TSDB in v.8.7. The legacy field mapper below
      * is used in bwc tests and mixed clusters containing time series indexes created in an earlier version.
      */
-    private static final SourceFieldMapper TSDB_LEGACY_DEFAULT = new SourceFieldMapper(
-        null,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        IndexMode.TIME_SERIES
-    );
+    private static SourceFieldMapper tsdbLegacyDefault(SourceFieldMetrics sourceFieldMetrics) {
+        return new SourceFieldMapper(
+            null,
+            Explicit.IMPLICIT_TRUE,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            IndexMode.TIME_SERIES,
+            sourceFieldMetrics
+        );
+    }
 
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
@@ -131,13 +133,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         );
 
         private final IndexMode indexMode;
+        private final SourceFieldMetrics sourceFieldMetrics;
 
         private final boolean supportsNonDefaultParameterValues;
 
-        public Builder(IndexMode indexMode, final Settings settings) {
+        public Builder(IndexMode indexMode, final Settings settings, SourceFieldMetrics sourceFieldMetrics) {
             super(Defaults.NAME);
             this.indexMode = indexMode;
             this.supportsNonDefaultParameterValues = settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
+            this.sourceFieldMetrics = sourceFieldMetrics;
         }
 
         public Builder setSynthetic() {
@@ -169,7 +173,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
             }
             if (isDefault()) {
-                return indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT;
+                return indexMode == IndexMode.TIME_SERIES ? tsdbDefault(sourceFieldMetrics) : defaultMapper(sourceFieldMetrics);
             }
             if (supportsNonDefaultParameterValues == false) {
                 List<String> disallowed = new ArrayList<>();
@@ -196,9 +200,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
                 mode.get(),
                 enabled.get(),
-                includes.getValue().toArray(Strings.EMPTY_ARRAY),
-                excludes.getValue().toArray(Strings.EMPTY_ARRAY),
-                indexMode
+                includes.getValue().toArray(String[]::new),
+                excludes.getValue().toArray(String[]::new),
+                indexMode,
+                sourceFieldMetrics
             );
             if (indexMode != null) {
                 indexMode.validateSourceFieldMapper(sourceFieldMapper);
@@ -210,9 +215,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
-            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
-            : DEFAULT,
-        c -> new Builder(c.getIndexSettings().getMode(), c.getSettings())
+            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.V_8_7_0)
+                ? tsdbDefault(c.getIndicesMetrics().getSyntheticSourceMetrics())
+                : tsdbLegacyDefault(c.getIndicesMetrics().getSyntheticSourceMetrics())
+            : defaultMapper(c.getIndicesMetrics().getSyntheticSourceMetrics()),
+        c -> new Builder(c.getIndexSettings().getMode(), c.getSettings(), c.getIndicesMetrics().getSyntheticSourceMetrics())
     );
 
     static final class SourceFieldType extends MappedFieldType {
@@ -264,8 +271,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final SourceFilter sourceFilter;
 
     private final IndexMode indexMode;
+    private final SourceFieldMetrics sourceFieldMetrics;
 
-    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes, IndexMode indexMode) {
+    private SourceFieldMapper(
+        Mode mode,
+        Explicit<Boolean> enabled,
+        String[] includes,
+        String[] excludes,
+        IndexMode indexMode,
+        SourceFieldMetrics sourceFieldMetrics
+    ) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         assert enabled.explicit() == false || mode == null;
         this.mode = mode;
@@ -278,6 +293,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         this.complete = stored() && sourceFilter == null;
         this.indexMode = indexMode;
+        this.sourceFieldMetrics = sourceFieldMetrics;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -347,7 +363,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(indexMode, Settings.EMPTY).init(this);
+        return new Builder(indexMode, Settings.EMPTY, sourceFieldMetrics).init(this);
     }
 
     /**
@@ -355,7 +371,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     public SourceLoader newSourceLoader(Mapping mapping) {
         if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping);
+            return new SourceLoader.Synthetic(mapping, sourceFieldMetrics);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

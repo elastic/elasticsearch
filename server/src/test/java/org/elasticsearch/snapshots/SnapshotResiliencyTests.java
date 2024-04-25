@@ -148,6 +148,7 @@ import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
+import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -2194,6 +2195,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .client(client)
                     .featureService(new FeatureService(List.of(new IndicesFeatures())))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
+                    .mapperMetrics(MapperMetrics.NOOP)
                     .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2371,7 +2373,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        ScriptCompiler.NONE
+                        ScriptCompiler.NONE,
+                        MapperMetrics.NOOP
                     ),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,

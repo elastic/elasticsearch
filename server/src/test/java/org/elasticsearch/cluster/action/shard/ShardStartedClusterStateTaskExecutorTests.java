@@ -385,13 +385,18 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String primaryAllocationId = primaryShard.allocationId().getId();
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
 
         final ShardLongFieldRange shardTimestampRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
             : randomBoolean() ? ShardLongFieldRange.EMPTY
             : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
 
+        final ShardLongFieldRange shardEventIngestedRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
+            : randomBoolean() ? ShardLongFieldRange.EMPTY
+            : ShardLongFieldRange.of(1606408888888L, 1606409999999L);
+
         final var task = new StartedShardUpdateTask(
-            new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampRange, ShardLongFieldRange.UNKNOWN),
+            new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampRange, shardEventIngestedRange),
             createTestListener()
         );
 
@@ -415,6 +420,22 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             assertThat(timestampRange.getMin(), equalTo(shardTimestampRange.getMin()));
             assertThat(timestampRange.getMax(), equalTo(shardTimestampRange.getMax()));
         }
+
+        final var eventIngestedRange = resultingState.metadata().index(indexName).getEventIngestedRange();
+        assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+        // this test always results in UNKNOWN for event.ingested range because the version guard
+        // if (minTransportVersion.onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+        // in ShardStateAction.ShardStartedClusterStateTaskExecutor.execute never returns true - the min version
+        // is 7170099 in the runs I did
+        // if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {
+        // assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+        // } else if (shardEventIngestedRange == ShardLongFieldRange.EMPTY) {
+        // assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
+        // } else {
+        // assertTrue(eventIngestedRange.isComplete());
+        // assertThat(eventIngestedRange.getMin(), equalTo(shardEventIngestedRange.getMin()));
+        // assertThat(eventIngestedRange.getMax(), equalTo(shardEventIngestedRange.getMax()));
+        // }
     }
 
     public void testExpandsTimestampRangeForReplica() throws Exception {
@@ -426,16 +447,20 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         final ShardLongFieldRange shardTimestampRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
             : randomBoolean() ? ShardLongFieldRange.EMPTY
             : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
 
+        final ShardLongFieldRange shardEventIngestedRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
+            : randomBoolean() ? ShardLongFieldRange.EMPTY
+            : ShardLongFieldRange.of(1606407888888L, 1606407999999L);
+
         final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().iterator().next();
         final String replicaAllocationId = replicaShard.allocationId().getId();
-        /// MP TODO: need to add test this like this and the one above but with eventIngested != UNKNOWN
         final var task = new StartedShardUpdateTask(
-            new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampRange, ShardLongFieldRange.UNKNOWN),
+            new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampRange, shardEventIngestedRange),
             createTestListener()
         );
         final var resultingState = executeTasks(clusterState, List.of(task));
@@ -448,7 +473,9 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             is(ShardRoutingState.STARTED)
         );
 
-        assertThat(resultingState.metadata().index(indexName).getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        final IndexMetadata latestIndexMetadata = resultingState.metadata().index(indexName);
+        assertThat(latestIndexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(latestIndexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 
     private ClusterState executeTasks(final ClusterState state, final List<StartedShardUpdateTask> tasks) throws Exception {

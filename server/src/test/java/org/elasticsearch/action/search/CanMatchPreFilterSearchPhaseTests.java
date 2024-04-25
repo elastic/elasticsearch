@@ -958,7 +958,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         private ClusterState clusterState = ClusterState.EMPTY_STATE;
         private final Map<Index, Map<String, DateFieldMapper.DateFieldType>> fields = new HashMap<>();
 
-        /// MP TODO: why is fieldName a free variable here? Isn't it constrained to be @timestamp (before my changes)?
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
             if (clusterState.metadata().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");

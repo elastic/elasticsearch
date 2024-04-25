@@ -25,9 +25,9 @@ import java.util.function.LongSupplier;
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version in the coordinator.
  * Instances of this object rely on information stored in the {@code IndexMetadata} for certain indices.
- * Right now this context object is able to rewrite range queries that include a known timestamp field
- * (i.e. the timestamp field for DataStreams) into a MatchNoneQueryBuilder and skip the shards that
- * don't hold queried data. See IndexMetadata#getTimestampRange() for more details
+ * Right now this context object is able to rewrite range queries that include known timestamp fields
+ * (i.e. the timestamp field for DataStreams and the 'event.ingested' field of ECS) into a MatchNoneQueryBuilder
+ * and skip the shards that don't hold queried data.
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final DateFieldRange atTimestampInfo; // Refers to '@timestamp' field
@@ -35,20 +35,20 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     /**
      * Date range record that collates a DateFieldType with an IndexLongFieldRange.
-     * Used to hold ranges for the @timestamp and event.ingested date fields, which are held in
+     * Used to hold ranges for the @timestamp and 'event.ingested' date fields, which are held in
      * cluster state.
-     * @param fieldType DateFieldType for @timestamp or event.ingested
+     * @param fieldType DateFieldType for @timestamp or 'event.ingested'
      * @param fieldRange the range for the field type
      */
     public record DateFieldRange(DateFieldMapper.DateFieldType fieldType, IndexLongFieldRange fieldRange) {}
 
     /**
-     * Context for coordinator search rewrites based on time ranges for the @timestamp field and/or event.ingested field
+     * Context for coordinator search rewrites based on time ranges for the @timestamp field and/or 'event.ingested' field
      * @param parserConfig
      * @param client
      * @param nowInMillis
      * @param atTimestampRange range for @timestamp
-     * @param eventIngestedRange range for event.ingested
+     * @param eventIngestedRange range for 'event.ingested'
      */
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
@@ -129,17 +129,14 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         }
     }
 
-    @Nullable  /// MP TODO: why is this nullable? can we remove this and throw an Exception instead?
+    @Nullable
     public MappedFieldType getFieldType(String fieldName) {
         if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             return atTimestampInfo.fieldType();
         } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
             return eventIngestedInfo.fieldType();
         } else {
-            return null; // MP TODO: do we want to throw exception here too?
-            // throw new IllegalArgumentException("Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but
-            // got: "
-            // + fieldName);
+            return null;
         }
     }
 

@@ -281,7 +281,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
             // event.ingested asserts
             assertThat(updatedEventIngestedMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-            // MP TODO 16-Apr after adding fromXContent - fails with: java.lang.AssertionError: min is meaningless if range is unknown
             assertThat(
                 updatedEventIngestedMillisRange.getMin(),
                 greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
@@ -553,7 +552,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         );
 
         final IndexLongFieldRange updatedEventIngestedMillisRange = updatedIndexMetadata.getEventIngestedRange();
-        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));  // MP TODO: sometimes fails, sometimes passes
+        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));
         assertThat(updatedEventIngestedMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertThat(
             updatedEventIngestedMillisRange.getMin(),
@@ -762,7 +761,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final IndexLongFieldRange updatedEventIngestedMillisRange = updatedIndexMetadata.getEventIngestedRange();
         assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));
         assertThat(updatedEventIngestedMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        // TODO: should these be different from @timestamp ranges?
         assertThat(
             updatedEventIngestedMillisRange.getMin(),
             greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-28T00:00:00Z")))

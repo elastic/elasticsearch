@@ -90,6 +90,10 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
+        // Ignored values are only expected in synthetic mode.
+        assert context.getIgnoredFieldValues().isEmpty()
+            || context.indexSettings().getMode().isSyntheticSourceEnabled()
+            || context.mappingLookup().isSourceSynthetic();
         for (Values values : context.getIgnoredFieldValues()) {
             context.doc().add(new StoredField(NAME, encode(values)));
         }
@@ -124,7 +128,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
 
     public static class SyntheticLoader implements SourceLoader.SyntheticFieldLoader {
         // Contains stored field values, i.e. encoded ignored field names and values.
-        private List<Object> values = List.of();
+        private List<Object> values = null;
 
         // Maps the names of existing objects to lists of ignored fields they contain.
         private Map<String, List<Values>> objectsWithIgnoredFields = Map.of();
@@ -154,8 +158,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         }
 
         public void trackObjectsWithIgnoredFields() {
-            if (values == null || values.isEmpty()) {
-                values = null;
+            if (values == null) {
                 return;
             }
             objectsWithIgnoredFields = new HashMap<>();

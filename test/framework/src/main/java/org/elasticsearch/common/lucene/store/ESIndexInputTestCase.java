@@ -79,6 +79,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                         readPos += Long.BYTES;
                         if (indexInput instanceof RandomAccessInput randomAccessInput) {
                             assertEquals(read, randomAccessInput.readLong(indexInput.getFilePointer() - Long.BYTES));
+                            indexInput.seek(readPos);
                         }
                     } else if (length - readPos >= Integer.BYTES && readStrategy <= 1) {
                         int read = indexInput.readInt();
@@ -86,6 +87,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                         readPos += Integer.BYTES;
                         if (indexInput instanceof RandomAccessInput randomAccessInput) {
                             assertEquals(read, randomAccessInput.readInt(indexInput.getFilePointer() - Integer.BYTES));
+                            indexInput.seek(readPos);
                         }
                     } else if (length - readPos >= Short.BYTES && readStrategy <= 2) {
                         short read = indexInput.readShort();
@@ -93,12 +95,14 @@ public class ESIndexInputTestCase extends ESTestCase {
                         readPos += Short.BYTES;
                         if (indexInput instanceof RandomAccessInput randomAccessInput) {
                             assertEquals(read, randomAccessInput.readShort(indexInput.getFilePointer() - Short.BYTES));
+                            indexInput.seek(readPos);
                         }
                     } else {
                         byte read = indexInput.readByte();
                         output[readPos++] = read;
                         if (indexInput instanceof RandomAccessInput randomAccessInput) {
                             assertEquals(read, randomAccessInput.readByte(indexInput.getFilePointer() - 1));
+                            indexInput.seek(readPos);
                         }
                     }
                     break;

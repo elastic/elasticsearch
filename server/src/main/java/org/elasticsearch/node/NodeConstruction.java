@@ -259,11 +259,8 @@ class NodeConstruction {
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
-            DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
             ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
-
-            constructor.createUpdateHelper(documentParsingProvider, scriptService);
 
             constructor.construct(
                 threadPool,
@@ -273,8 +270,7 @@ class NodeConstruction {
                 constructor.createAnalysisRegistry(),
                 serviceProvider,
                 forbidPrivateIndexSettings,
-                telemetryProvider,
-                documentParsingProvider
+                telemetryProvider
             );
 
             return constructor;
@@ -581,16 +577,9 @@ class NodeConstruction {
             threadPool::absoluteTimeInMillis
         );
         ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
-        modules.add(b -> { b.bind(ScriptService.class).toInstance(scriptService); });
+        modules.add(b -> b.bind(ScriptService.class).toInstance(scriptService));
 
         return scriptService;
-    }
-
-    private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
-        UpdateHelper updateHelper = new UpdateHelper(scriptService, documentParsingProvider);
-
-        modules.add(b -> { b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService, documentParsingProvider)); });
-        return updateHelper;
     }
 
     private AnalysisRegistry createAnalysisRegistry() throws IOException {
@@ -611,8 +600,7 @@ class NodeConstruction {
         AnalysisRegistry analysisRegistry,
         NodeServiceProvider serviceProvider,
         boolean forbidPrivateIndexSettings,
-        TelemetryProvider telemetryProvider,
-        DocumentParsingProvider documentParsingProvider
+        TelemetryProvider telemetryProvider
     ) throws IOException {
 
         Settings settings = settingsModule.getSettings();
@@ -632,7 +620,9 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
+        DocumentParsingProvider documentParsingProvider = getDocumentParsingProvider();
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
+        modules.bindToInstance(UpdateHelper.class, new UpdateHelper(scriptService, documentParsingProvider));
 
         final IngestService ingestService = new IngestService(
             clusterService,

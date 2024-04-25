@@ -224,6 +224,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public List<UnresolvedAttribute> visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) {
+        return visitList(this, ctx.qualifiedName(), UnresolvedAttribute.class);
+    }
+
+    @Override
     public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx) {
         if (ctx == null) {
             return null;

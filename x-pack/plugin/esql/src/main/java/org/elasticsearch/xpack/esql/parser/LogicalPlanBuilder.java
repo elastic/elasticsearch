@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -406,6 +407,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         String policyName = index < 0 ? stringValue : stringValue.substring(index + 1);
         return new Tuple<>(mode, policyName);
+    }
+
+    @Override
+    public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
+        return p -> {
+            var source = source(ctx);
+            Literal tableName = new Literal(source(ctx.tableName), ctx.tableName.getText(), DataTypes.KEYWORD);
+            List<UnresolvedAttribute> matchFields = visitQualifiedNames(ctx.matchFields);
+            return new Lookup(
+                source,
+                p,
+                tableName,
+                matchFields
+            );
+        };
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

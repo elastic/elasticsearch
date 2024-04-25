@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
@@ -1033,6 +1034,12 @@ public class StatementParserTests extends ESTestCase {
         expectError("ROW false::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
         expectError("ROW abs(1)::doesnotexist", "line 1:14: Unknown data type named [doesnotexist]");
         expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+    }
+
+    public void testLookup() {
+        var plan = statement("ROW a = 1 | LOOKUP t ON j");
+        var lookup = as(plan, Lookup.class);
+        assertThat(as(lookup.tableName(), UnresolvedAttribute.class).name(), equalTo("t"));
     }
 
     public void testInlineConvertUnsupportedType() {

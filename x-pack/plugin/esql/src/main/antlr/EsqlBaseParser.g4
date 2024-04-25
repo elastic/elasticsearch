@@ -31,6 +31,7 @@ processingCommand
     : evalCommand
     | inlinestatsCommand
     | limitCommand
+    | lookupCommand
     | keepCommand
     | sortCommand
     | statsCommand
@@ -272,3 +273,10 @@ enrichCommand
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
+
+lookupCommand
+    : LOOKUP tableName=qualifiedNamePattern ON matchFields=qualifiedNames
+    ;
+
+qualifiedNames
+    : qualifiedName (COMMA qualifiedName)*;

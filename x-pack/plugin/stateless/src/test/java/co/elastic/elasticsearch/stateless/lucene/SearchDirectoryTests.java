@@ -119,7 +119,7 @@ public class SearchDirectoryTests extends ESTestCase {
                         );
                         return new CacheBlobReader() {
                             @Override
-                            public ByteRange getRange(long position, int length) {
+                            public ByteRange getRange(long position, int length, long remainingFileLength) {
                                 var start = BlobCacheUtils.toPageAlignedSize(Math.max(position - SharedBytes.PAGE_SIZE + 1L, 0L));
                                 var end = BlobCacheUtils.toPageAlignedSize(position + length);
                                 return ByteRange.of(start, end);

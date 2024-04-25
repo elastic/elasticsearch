@@ -49,21 +49,27 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
     private final ShardId shardId;
     private final PrimaryTermAndGeneration bccTermAndGen;
     private final Client client;
-    private final ByteSizeValue chunkSize;
+    private final long chunkSizeBytes;
 
     public IndexingShardCacheBlobReader(ShardId shardId, PrimaryTermAndGeneration bccTermAndGen, Client client, ByteSizeValue chunkSize) {
         this.shardId = shardId;
         this.bccTermAndGen = bccTermAndGen;
         this.client = client;
-        this.chunkSize = chunkSize;
+        this.chunkSizeBytes = chunkSize.getBytes();
     }
 
     @Override
-    public ByteRange getRange(long position, int length) {
-        long start = (position / chunkSize.getBytes()) * chunkSize.getBytes();
-        // It is important that the end is only rounded up to next page aligned, since that ensures we will not read past the last CC
-        // (current blob length). This is an important property for the ability to append blobs to a VBCC.
-        long end = BlobCacheUtils.toPageAlignedSize(position + length);
+    public ByteRange getRange(long position, int length, long remainingFileLength) {
+        assert length <= remainingFileLength : length + " > " + remainingFileLength;
+        long start = (position / chunkSizeBytes) * chunkSizeBytes;
+        // It is important that the end is only rounded up to a position that is not past the last CC.
+        // This is an important property for the ability to append blobs to a VBCC.
+        //
+        // Hence we use the minimum of the next chunk position or the current file's end position
+        // (rounded to page aligned, which is ok due to padding).
+        long chunkEnd = (((position + length - 1) / chunkSizeBytes) + 1) * chunkSizeBytes;
+        long fileEnd = BlobCacheUtils.toPageAlignedSize(position + remainingFileLength);
+        long end = Math.min(chunkEnd, fileEnd);
         return ByteRange.of(start, end);
     }
 

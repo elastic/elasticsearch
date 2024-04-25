@@ -52,11 +52,11 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
-    public ByteRange getRange(long position, int length) {
+    public ByteRange getRange(long position, int length, long remainingFileLength) {
         if (objectStoreUploadTracker.isUploaded(locationPrimaryTermAndGeneration)) {
-            return cacheBlobReaderForUploaded.getRange(position, length);
+            return cacheBlobReaderForUploaded.getRange(position, length, remainingFileLength);
         } else {
-            return cacheBlobReaderForNonUploaded.getRange(position, length);
+            return cacheBlobReaderForNonUploaded.getRange(position, length, remainingFileLength);
         }
     }
 

@@ -35,7 +35,7 @@ public class TestRankBuilder extends RankBuilder {
     );
 
     static {
-        PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
     }
 
     public static TestRankBuilder fromXContent(XContentParser parser) throws IOException {

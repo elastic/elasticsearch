@@ -74,7 +74,7 @@ GET example-index/_search
                     }
                 }
             ],
-            "window_size": 50,
+            "rank_window_size": 50,
             "rank_constant": 20
         }
     }
@@ -94,8 +94,8 @@ its global top 50 results.
 the query top documents and rank them based on the RRF formula using parameters from
 the `rrf` retriever to get the combined top documents using the default `size` of `10`.
 
-Note that if `k` from a knn search is larger than `window_size`, the results are
-truncated to `window_size`. If `k` is smaller than `window_size`, the results are
+Note that if `k` from a knn search is larger than `rank_window_size`, the results are
+truncated to `rank_window_size`. If `k` is smaller than `rank_window_size`, the results are
 `k` size.
 
 [[rrf-supported-features]]
@@ -160,7 +160,7 @@ GET example-index/_search
                     }
                 }
             ],
-            "window_size": 50,
+            "rank_window_size": 50,
             "rank_constant": 20
         }
     }
@@ -289,7 +289,7 @@ GET example-index/_search
                     }
                 }
             ],
-            "window_size": 5,
+            "rank_window_size": 5,
             "rank_constant": 1
         }
     },
@@ -510,8 +510,82 @@ _id: 5 =             1.0/(1+4) = 0.2000
 ----
 // NOTCONSOLE
 
-We rank the documents based on the RRF formula with a `window_size` of `5`
+We rank the documents based on the RRF formula with a `rank_window_size` of `5`
 truncating the bottom `2` docs in our RRF result set with a `size` of `3`.
 We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and
 `_id: 4` as `_rank: 3`. This ranking matches the result set from the
 original RRF search as expected.
+
+
+==== Pagination in RRF
+
+When using `rrf` you can paginate through the results using the `from` parameter.
+As the final ranking is solely dependent on the original query ranks, to ensure
+consistency when paginating, we have to make sure that while `from` changes, the order
+of what we have already seen remains intact. To that end, we're using a fixed `rank_window_size`
+as the whole available result set upon which we can paginate.
+This essentially means that if:
+
+* `from + size` &le; `rank_window_size` : we could get  `results[from: from+size]` documents back from
+the final `rrf` ranked result set
+
+* `from + size` &gt; `rank_window_size` : we would get 0 results back, as the request would fall outside the
+available `rank_window_size`-sized result set.
+
+An important thing to note here is that since `rank_window_size` is all the results that we'll get to see
+from the individual query components, pagination guarantees consistency,  i.e. no documents are skipped
+or duplicated in multiple pages, iff `rank_window_size` remains the same. If `rank_window_size` changes, then the order
+of the results might change as well, even for the same ranks.
+
+To illustrate all of the above, let's consider the following simplified example where we have
+two queries, `queryA` and `queryB` and their ranked documents:
+[source,python]
+----
+     |  queryA   |  queryB    |
+_id: |  1        |  5         |
+_id: |  2        |  4         |
+_id: |  3        |  3         |
+_id: |  4        |  1         |
+_id: |           |  2         |
+----
+// NOTCONSOLE
+
+For `rank_window_size=5` we would get to see all documents from both `queryA` and `queryB`.
+Assuming a `rank_constant=1`, the `rrf` scores would be:
+[source,python]
+----
+# doc   | queryA     | queryB       | score
+_id: 1 =  1.0/(1+1)  + 1.0/(1+4)      = 0.7
+_id: 2 =  1.0/(1+2)  + 1.0/(1+5)      = 0.5
+_id: 3 =  1.0/(1+3)  + 1.0/(1+3)      = 0.5
+_id: 4 =  1.0/(1+4)  + 1.0/(1+2)      = 0.533
+_id: 5 =    0        + 1.0/(1+1)      = 0.5
+----
+// NOTCONSOLE
+
+So the final ranked result set would be [`1`, `4`, `2`, `3`, `5`] and we would paginate over that, since
+`rank_window_size == len(results)`. In this scenario, we would have:
+
+* `from=0, size=2` would return documents [`1`, `4`] with ranks `[1, 2]`
+* `from=2, size=2` would return documents [`2`, `3`] with ranks `[3, 4]`
+* `from=4, size=2` would return document [`5`] with rank `[5]`
+* `from=6, size=2` would return an empty result set as it there are no more results to iterate over
+
+Now, if we had a `rank_window_size=2`, we would only get to see `[1, 2]` and `[5, 4]` documents
+for queries `queryA` and `queryB` respectively. Working out the math, we would see that the results would now
+be slightly different, because we would have no knowledge of the documents in positions `[3: end]` for either query.
+[source,python]
+----
+# doc   | queryA     | queryB         | score
+_id: 1 =  1.0/(1+1)  + 0              = 0.5
+_id: 2 =  1.0/(1+2)  + 0              = 0.33
+_id: 4 =    0        + 1.0/(1+2)      = 0.33
+_id: 5 =    0        + 1.0/(1+1)      = 0.5
+----
+// NOTCONSOLE
+
+The final ranked result set would be [`1`, `5`, `2`, `4`], and we would be able to paginate
+on the top `rank_window_size` results, i.e. [`1`, `5`]. So for the same params as above, we would now have:
+
+* `from=0, size=2` would return [`1`, `5`] with ranks `[1, 2]`
+* `from=2, size=2` would return an empty result set as it would fall outside the available `rank_window_size` results.

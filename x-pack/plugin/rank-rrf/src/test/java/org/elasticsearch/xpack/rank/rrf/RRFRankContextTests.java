@@ -35,7 +35,7 @@ public class RRFRankContextTests extends ESTestCase {
     }
 
     public void testShardCombine() {
-        RRFQueryPhaseRankShardContext context = new RRFQueryPhaseRankShardContext(null, 0, 10, 1);
+        RRFQueryPhaseRankShardContext context = new RRFQueryPhaseRankShardContext(null, 10, 1);
         List<TopDocs> topDocs = List.of(
             new TopDocs(
                 null,
@@ -266,7 +266,7 @@ public class RRFRankContextTests extends ESTestCase {
     }
 
     public void testShardTieBreaker() {
-        RRFQueryPhaseRankShardContext context = new RRFQueryPhaseRankShardContext(null, 0, 10, 1);
+        RRFQueryPhaseRankShardContext context = new RRFQueryPhaseRankShardContext(null, 10, 1);
 
         List<TopDocs> topDocs = List.of(
             new TopDocs(null, new ScoreDoc[] { new ScoreDoc(1, 10.0f, -1), new ScoreDoc(2, 9.0f, -1) }),

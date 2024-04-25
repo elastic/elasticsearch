@@ -22,15 +22,15 @@ import java.util.List;
  */
 public abstract class QueryPhaseRankCoordinatorContext {
 
-    protected final int windowSize;
+    protected final int rankWindowSize;
 
-    public QueryPhaseRankCoordinatorContext(int windowSize) {
-        this.windowSize = windowSize;
+    public QueryPhaseRankCoordinatorContext(int rankWindowSize) {
+        this.rankWindowSize = rankWindowSize;
     }
 
     /**
      * This is used to pull information passed back from the shards as part of {@link QuerySearchResult#getRankShardResult()}
-     * and return a {@link ScoreDoc[]} of the `window_size` ranked results. Note that {@link TopDocsStats} is included so that
+     * and return a {@link ScoreDoc[]} of the `rank_window_size` ranked results. Note that {@link TopDocsStats} is included so that
      * appropriate stats may be updated based on rank results.
      * This is called when reducing query results through {@code SearchPhaseController#reducedQueryPhase()}.
      */

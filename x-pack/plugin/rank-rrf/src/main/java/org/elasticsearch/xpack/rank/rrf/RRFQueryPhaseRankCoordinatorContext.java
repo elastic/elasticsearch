@@ -62,7 +62,7 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
 
                 for (int qi = 0; qi < queryCount; ++qi) {
                     final int fqi = qi;
-                    queues.add(new PriorityQueue<>(windowSize + from) {
+                    queues.add(new PriorityQueue<>(rankWindowSize) {
                         @Override
                         protected boolean lessThan(RRFRankDoc a, RRFRankDoc b) {
                             float score1 = a.scores[fqi];
@@ -105,7 +105,7 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
         // score if we already saw it as part of a previous query's
         // doc set, otherwise we make a new doc and calculate the
         // initial score
-        Map<RankKey, RRFRankDoc> results = Maps.newMapWithExpectedSize(queryCount * windowSize);
+        Map<RankKey, RRFRankDoc> results = Maps.newMapWithExpectedSize(queryCount * rankWindowSize);
         final int fqc = queryCount;
         for (int qi = 0; qi < queryCount; ++qi) {
             PriorityQueue<RRFRankDoc> queue = queues.get(qi);
@@ -125,6 +125,11 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
                     return value;
                 });
             }
+        }
+
+        // return if pagination requested is outside the results
+        if (results.values().size() - from <= 0) {
+            return new ScoreDoc[0];
         }
 
         // sort the results based on rrf score, tiebreaker based on
@@ -151,9 +156,10 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
             }
             return rrf1.doc < rrf2.doc ? -1 : 1;
         });
+        // trim results to size
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(size, sortedResults.length - from)];
         for (int rank = 0; rank < topResults.length; ++rank) {
-            topResults[rank] = sortedResults[rank];
+            topResults[rank] = sortedResults[from + rank];
             topResults[rank].rank = rank + 1 + from;
         }
         // update fetch hits for the fetch phase, so we gather any additional

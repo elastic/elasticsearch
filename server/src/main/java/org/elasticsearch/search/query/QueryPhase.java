@@ -98,7 +98,7 @@ public class QueryPhase {
                 RankSearchContext rankSearchContext = new RankSearchContext(
                     searchContext,
                     rankQuery,
-                    queryPhaseRankShardContext.windowSize()
+                    queryPhaseRankShardContext.rankWindowSize()
                 )
             ) {
                 QueryPhase.addCollectorsAndSearch(rankSearchContext);

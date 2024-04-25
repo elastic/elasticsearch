@@ -29,9 +29,9 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
     @Override
     protected RRFRankBuilder mutateInstance(RRFRankBuilder instance) throws IOException {
         if (randomBoolean()) {
-            return new RRFRankBuilder(instance.windowSize(), instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
+            return new RRFRankBuilder(instance.rankWindowSize(), instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
         } else {
-            return new RRFRankBuilder(instance.windowSize() == 0 ? 1 : instance.windowSize() - 1, instance.rankConstant());
+            return new RRFRankBuilder(instance.rankWindowSize() == 0 ? 1 : instance.rankWindowSize() - 1, instance.rankConstant());
         }
     }
 
@@ -61,7 +61,7 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
         List<Query> queries = List.of(new TermQuery(new Term("field0", "test0")), new TermQuery(new Term("field1", "test1")));
         QueryPhaseRankShardContext queryPhaseRankShardContext = rrfRankBuilder.buildQueryPhaseShardContext(queries, randomInt());
         assertEquals(queries, queryPhaseRankShardContext.queries());
-        assertEquals(rrfRankBuilder.windowSize(), queryPhaseRankShardContext.windowSize());
+        assertEquals(rrfRankBuilder.rankWindowSize(), queryPhaseRankShardContext.rankWindowSize());
 
         assertNotNull(rrfRankBuilder.buildQueryPhaseCoordinatorContext(randomInt(), randomInt()));
     }

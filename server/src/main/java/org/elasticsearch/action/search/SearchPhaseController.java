@@ -643,6 +643,10 @@ public final class SearchPhaseController {
             );
             sortedTopDocs = new SortedTopDocs(rankedDocs, false, null, null, null, 0);
             size = sortedTopDocs.scoreDocs.length;
+            // we need to reset from here as pagination and result trimming has already taken place
+            // within the `QueryPhaseRankCoordinatorContext#rankQueryPhaseResults` and we don't want
+            // to apply it again in the `getHits` method.
+            from = 0;
         }
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(

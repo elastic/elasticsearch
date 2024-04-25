@@ -194,7 +194,7 @@ GET /index/_search
                 }
             ],
             "rank_constant": ...
-            "window_size": ...
+            "rank_window_size": ...
         }
     }
 }
@@ -207,7 +207,7 @@ The <<search-from-param, `from`>> and <<search-size-param, `size`>>
 parameters are provided globally as part of the general
 <<search-search, search API>>. They are applied to all retrievers in a
 retriever tree unless a specific retriever overrides the `size` parameter
-using a different parameter such as `window_size`. Though, the final
+using a different parameter such as `rank_window_size`. Though, the final
 search hits are always limited to `size`.
 
 ==== Using aggregations with a retriever tree

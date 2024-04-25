@@ -100,6 +100,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testElser() throws IOException {
         var supported = getOldClusterTestVersion().onOrAfter(HF_ELSER_ADDED);
         assumeTrue("HF elser service added in " + HF_ELSER_ADDED, supported);

@@ -363,7 +363,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 final Set<Integer> shardIds = shardIds();
                 for (final int shardId : shardIds) {
                     try {
-                        removeShard(shardId, reason);
+                        executeDirectly(l -> removeShard(shardId, reason, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
                     } catch (Exception e) {
                         logger.warn("failed to close shard", e);
                     }
@@ -554,13 +554,25 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (lock != null) {
                     IOUtils.closeWhileHandlingException(lock);
                 }
-                closeShardAndWait("initialization failed", shardId, indexShard, store, eventListener);
+                final var finalStore = store;
+                final var finalIndexShard = indexShard;
+                executeDirectly(
+                    l -> closeShard(
+                        "initialization failed",
+                        shardId,
+                        finalIndexShard,
+                        finalStore,
+                        eventListener,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        l
+                    )
+                );
             }
         }
     }
 
     @Override
-    public synchronized void removeShard(int shardId, String reason) {
+    public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
         final IndexShard indexShard = shards.get(shardId);
         if (indexShard == null) {
             return;
@@ -573,15 +585,19 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexShard,
             indexShard.store(),
             indexShard.getIndexEventListener(),
-            null /*TODO*/,
-            null/*TODO*/
+            closeExecutor,
+            closeListener
         );
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
-    private void closeShardAndWait(String reason, ShardId shardId, IndexShard indexShard, Store store, IndexEventListener listener) {
+    /**
+     * Execute a naturally-async action (e.g. to close a shard) but using the current thread so that it completes synchronously, re-throwing
+     * any exception that might be passed to its listener.
+     */
+    private static void executeDirectly(Consumer<ActionListener<Void>> action) {
         final var closeExceptionRef = new AtomicReference<Exception>();
-        closeShard(reason, shardId, indexShard, store, listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ActionListener<>() {
+        action.accept(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {}
 
@@ -599,6 +615,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 throw new RuntimeException("unexpected exception on shard close", closeException);
             }
         }
+    }
+
+    private void closeShardAndWait(String reason, ShardId shardId, IndexShard indexShard, Store store, IndexEventListener listener) {
+        final var closeExceptionRef = new AtomicReference<Exception>();
+        closeShard(reason, shardId, indexShard, store, listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                closeExceptionRef.set(e);
+            }
+        });
+
     }
 
     private void closeShard(

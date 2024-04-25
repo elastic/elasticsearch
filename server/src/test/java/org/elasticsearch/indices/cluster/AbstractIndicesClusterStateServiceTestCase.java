@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -304,14 +305,18 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public synchronized void removeShard(int shardId, String reason) {
-            if (shards.containsKey(shardId) == false) {
-                return;
+        public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
+            try {
+                if (shards.containsKey(shardId) == false) {
+                    return;
+                }
+                HashMap<Integer, MockIndexShard> newShards = new HashMap<>(shards);
+                MockIndexShard indexShard = newShards.remove(shardId);
+                assert indexShard != null;
+                shards = unmodifiableMap(newShards);
+            } finally {
+                closeListener.onResponse(null);
             }
-            HashMap<Integer, MockIndexShard> newShards = new HashMap<>(shards);
-            MockIndexShard indexShard = newShards.remove(shardId);
-            assert indexShard != null;
-            shards = unmodifiableMap(newShards);
         }
 
         @Override

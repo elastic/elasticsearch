@@ -181,6 +181,25 @@ cast counter then filter:
   - match: {values.0.6: "pod"}
 
 ---
+sort on counter without cast:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from test |  KEEP k8s.pod.network.tx | sort @k8s.pod.network.tx | limit 1'
+          version: 2024.04.01
+
+---
+cast then sort on counter:
+  - do:
+      esql.query:
+        body:
+          query: 'from test | KEEP k8s.pod.network.tx | EVAL tx=to_long(k8s.pod.network.tx) | sort tx | limit 1'
+          version: 2024.04.01
+  - length: {values: 1}
+  - match: {values.0.0: 1434521831 }
+
+---
 from doc with aggregate_metric_double:
   - do:
       allowed_warnings_regex:

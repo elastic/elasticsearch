@@ -49,24 +49,27 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             case OLD -> {
                 // Creating role in "old" cluster should succeed when description is not provided
                 final String initialRole = randomRoleDescriptorSerialized(false);
-                final String roleName = createRole(initialRole);
-                updateRole(roleName, randomValueOtherThan(initialRole, () -> randomRoleDescriptorSerialized(false)));
+                createRole(client(), "my-old-role", initialRole);
+                updateRole("my-old-role", randomValueOtherThan(initialRole, () -> randomRoleDescriptorSerialized(false)));
 
                 // and fail if we include description
-                var createException = expectThrows(Exception.class, () -> createRole(randomRoleDescriptorSerialized(true)));
+                var createException = expectThrows(
+                    Exception.class,
+                    () -> createRole(client(), "my-invalid-old-role", randomRoleDescriptorSerialized(true))
+                );
                 assertThat(
                     createException.getMessage(),
-                    allOf(containsString("failed to parse role"), containsString("unexpected field [description]"))
+                    containsString("failed to parse role [my-invalid-old-role]. unexpected field [description]")
                 );
 
                 RestClient client = client();
                 var updateException = expectThrows(
                     Exception.class,
-                    () -> updateRole(client, roleName, randomRoleDescriptorSerialized(true))
+                    () -> updateRole(client, "my-old-role", randomRoleDescriptorSerialized(true))
                 );
                 assertThat(
                     updateException.getMessage(),
-                    containsString("failed to parse role [" + roleName + "]. unexpected field [description]")
+                    containsString("failed to parse role [my-old-role]. unexpected field [description]")
                 );
             }
             case MIXED -> {
@@ -74,14 +77,14 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     this.createClientsByVersion();
                     // succeed when role description is not provided
                     final String initialRole = randomRoleDescriptorSerialized(false);
-                    final String roleName = createRole(initialRole);
-                    updateRole(roleName, randomValueOtherThan(initialRole, () -> randomRoleDescriptorSerialized(false)));
+                    createRole(client(), "my-valid-mixed-role", initialRole);
+                    updateRole("my-valid-mixed-role", randomValueOtherThan(initialRole, () -> randomRoleDescriptorSerialized(false)));
 
                     // against old node, fail when description is provided either in update or create request
                     {
                         Exception e = expectThrows(
                             Exception.class,
-                            () -> updateRole(oldVersionClient, roleName, randomRoleDescriptorSerialized(true))
+                            () -> updateRole(oldVersionClient, "my-valid-mixed-role", randomRoleDescriptorSerialized(true))
                         );
                         assertThat(
                             e.getMessage(),
@@ -91,11 +94,11 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     {
                         Exception e = expectThrows(
                             Exception.class,
-                            () -> createRole(oldVersionClient, randomRoleDescriptorSerialized(true))
+                            () -> createRole(oldVersionClient, "my-invalid-mixed-role", randomRoleDescriptorSerialized(true))
                         );
                         assertThat(
                             e.getMessage(),
-                            allOf(containsString("failed to parse role"), containsString("unexpected field [description]"))
+                            containsString("failed to parse role [my-invalid-mixed-role]. unexpected field [description]")
                         );
                     }
 
@@ -103,7 +106,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     {
                         Exception e = expectThrows(
                             Exception.class,
-                            () -> createRole(newVersionClient, randomRoleDescriptorSerialized(true))
+                            () -> createRole(newVersionClient, "my-invalid-mixed-role", randomRoleDescriptorSerialized(true))
                         );
                         assertThat(
                             e.getMessage(),
@@ -117,7 +120,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     {
                         Exception e = expectThrows(
                             Exception.class,
-                            () -> updateRole(newVersionClient, roleName, randomRoleDescriptorSerialized(true))
+                            () -> updateRole(newVersionClient, "my-valid-mixed-role", randomRoleDescriptorSerialized(true))
                         );
                         assertThat(
                             e.getMessage(),
@@ -136,28 +139,22 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 // on upgraded cluster which supports new description field
                 // create/update requests should succeed either way (with or without description)
                 final String initialRole = randomRoleDescriptorSerialized(randomBoolean());
-                final String roleName = createRole(initialRole);
-                updateRole(roleName, randomValueOtherThan(initialRole, () -> randomRoleDescriptorSerialized(randomBoolean())));
+                createRole(client(), "my-valid-upgraded-role", initialRole);
+                updateRole(
+                    "my-valid-upgraded-role",
+                    randomValueOtherThan(initialRole, () -> randomRoleDescriptorSerialized(randomBoolean()))
+                );
             }
         }
     }
 
-    private String createRole(String role) throws IOException {
-        return createRole(client(), role);
-    }
-
-    private String createRole(RestClient client, String role) throws IOException {
-        return createRole(client, "test-role-" + randomAlphaOfLengthBetween(5, 10), role);
-    }
-
-    private String createRole(RestClient client, String roleName, String role) throws IOException {
+    private void createRole(RestClient client, String roleName, String role) throws IOException {
         final Request createRoleRequest = new Request("POST", "_security/role/" + roleName);
         createRoleRequest.setJsonEntity(role);
         var createRoleResponse = client.performRequest(createRoleRequest);
         final ObjectPath path = assertOKAndCreateObjectPath(createRoleResponse);
         boolean created = path.evaluate("role.created");
         assertThat(created, equalTo(true));
-        return roleName;
     }
 
     private void updateRole(String roleName, String payload) throws IOException {

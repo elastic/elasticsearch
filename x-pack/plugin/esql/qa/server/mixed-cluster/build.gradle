@@ -40,6 +40,7 @@ BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     systemProperty("tests.version_parameter_unsupported", versionUnsupported(bwcVersion))
+    maxParallelForks = 1
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
@@ -48,6 +49,7 @@ BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     systemProperty("tests.version_parameter_unsupported", versionUnsupported(bwcVersion))
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
     classpath = sourceSets.yamlRestTest.runtimeClasspath
+    maxParallelForks = 1
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

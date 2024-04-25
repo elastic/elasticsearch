@@ -1,5 +1,0 @@
-pr: 107312
-summary: licensingDir should be relative to enable caching between builds
-area: Delivery/Build
-type: enhancement
-issues: []

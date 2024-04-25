@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTestCase {
+    private static final String ESQL_VERSION = "2024.04.01";
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
@@ -690,9 +691,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 body.endObject();
             }
         }
-        // TODO: we should use the latest or a random version, even when new versions are released.
-        String version = Build.current().isSnapshot() ? "snapshot" : "2024.04.01";
-        body.field("version", version);
+        body.field("version", ESQL_VERSION);
         body.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));

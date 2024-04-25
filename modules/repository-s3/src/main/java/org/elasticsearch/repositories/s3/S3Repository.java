@@ -82,7 +82,13 @@ class S3Repository extends MeteredBlobStoreRepository {
         )
     );
 
-    static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
+    static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket", S3Repository::validateBucketName);
+
+    private static void validateBucketName(String bucket) {
+        if (Strings.hasLength(bucket) == false) {
+            throw new IllegalArgumentException("Invalid S3 bucket name, cannot be null or empty");
+        }
+    }
 
     /**
      * When set to true files are encrypted on server side using AES256 algorithm.
@@ -223,9 +229,6 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
-        if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
-        }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
         this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());

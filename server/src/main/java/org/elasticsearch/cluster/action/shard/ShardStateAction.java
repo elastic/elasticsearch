@@ -748,10 +748,10 @@ public class ShardStateAction {
 
                 if (updatedTimestampRanges.isEmpty() == false) {
                     final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
-                    for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimestampRangeEntry : updatedTimestampRanges.entrySet()) {
-                        ClusterStateTimeRanges timeRanges = updatedTimestampRangeEntry.getValue();
+                    for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimeRangesEntry : updatedTimestampRanges.entrySet()) {
+                        ClusterStateTimeRanges timeRanges = updatedTimeRangesEntry.getValue();
                         metadataBuilder.put(
-                            IndexMetadata.builder(metadataBuilder.getSafe(updatedTimestampRangeEntry.getKey()))
+                            IndexMetadata.builder(metadataBuilder.getSafe(updatedTimeRangesEntry.getKey()))
                                 .timestampRange(timeRanges.timestampRange())
                                 .eventIngestedRange(timeRanges.eventIngestedRange())
                         );

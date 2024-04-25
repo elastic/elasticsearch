@@ -386,11 +386,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException(
                         SETTING_VERSION_COMPATIBILITY
                             + " ["
-                            + compatibilityVersion
+                            + compatibilityVersion.toReleaseVersion()
                             + "] must be >= "
                             + SETTING_VERSION_CREATED
                             + " ["
-                            + createdVersion
+                            + createdVersion.toReleaseVersion()
                             + "]"
                     );
                 }
@@ -2685,7 +2685,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             throw new IllegalStateException(
                                 "this method should only be used to parse older incompatible index metadata versions "
                                     + "but got "
-                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings)
+                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).toReleaseVersion()
                             );
                         }
                         builder.settings(settings);

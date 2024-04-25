@@ -51,9 +51,16 @@ public final class EsqlDataTypes {
     public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
     public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, true);
 
-    public static final DataType COUNTER_LONG = new DataType("counter_long", LONG.size(), false, false, true);
-    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", INTEGER.size(), false, false, true);
-    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", DOUBLE.size(), false, false, true);
+    /**
+     * These are numeric fields labeled as metric counters in time-series indices. Although stored
+     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
+     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
+     * parent numeric type.
+     */
+    public static final DataType COUNTER_LONG = new DataType("counter_long", LONG.size(), false, false, LONG.hasDocValues());
+    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", INTEGER.size(), false, false, INTEGER.hasDocValues());
+    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", DOUBLE.size(), false, false, DOUBLE.hasDocValues());
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,

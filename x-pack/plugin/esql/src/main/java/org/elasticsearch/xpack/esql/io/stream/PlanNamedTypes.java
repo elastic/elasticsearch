@@ -1203,7 +1203,6 @@ public final class PlanNamedTypes {
         var right = in.readExpression();
         // TODO: Remove zoneId entirely
         var zoneId = in.readOptionalZoneId();
-        assert zoneId == null;
         return operation.buildNewInstance(source, left, right);
     }
 

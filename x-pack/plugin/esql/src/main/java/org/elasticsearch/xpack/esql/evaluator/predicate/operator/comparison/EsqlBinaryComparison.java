@@ -110,7 +110,6 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         super(source, left, right, operation.shim, zoneId);
-        assert zoneId == null;
         this.evaluatorMap = evaluatorMap;
         this.functionType = operation;
     }

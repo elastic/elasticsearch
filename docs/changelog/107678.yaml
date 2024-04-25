@@ -1,0 +1,6 @@
+pr: 107678
+summary: Validate stats formatting in standard `InternalStats` constructor
+area: Aggregations
+type: bug
+issues:
+ - 107671

@@ -141,7 +141,7 @@ PUT _connector/my-g-drive-connector/_filtering
 }
 ----
 
-The following example updates the draft advanced sync rules for a MySQL connector with id `my-sql-connector`. Advanced sync rules are specific to each connector type. Refer to the references for connectors that support {enterprise-search-ref}/sync-rules.html#sync-rules-advancedl[advanced sync rules] for syntax and examples.
+The following example updates the draft advanced sync rules for a MySQL connector with id `my-sql-connector`. Advanced sync rules are specific to each connector type. Refer to the references for connectors that support {enterprise-search-ref}/sync-rules.html#sync-rules-advanced[advanced sync rules] for syntax and examples.
 
 [source,console]
 ----

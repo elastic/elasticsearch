@@ -6,7 +6,7 @@
 
 preview::[]
 
-Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The draft filtering can be then activated after a successful validation of the draft by the {enterprise-search-ref}/connectors.html[Elastic connector service].
+Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The filtering configuration can be activated once validated by the Elastic connector service.
 
 Learn more about filtering for connectors in the {enterprise-search-ref}/sync-rules.html[sync rules] documentation.
 

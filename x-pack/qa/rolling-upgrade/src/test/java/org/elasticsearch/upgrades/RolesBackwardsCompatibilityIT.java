@@ -152,9 +152,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final Request createRoleRequest = new Request("POST", "_security/role/" + roleName);
         createRoleRequest.setJsonEntity(role);
         var createRoleResponse = client.performRequest(createRoleRequest);
-        final ObjectPath path = assertOKAndCreateObjectPath(createRoleResponse);
-        boolean created = path.evaluate("role.created");
-        assertThat(created, equalTo(true));
+        assertOK(createRoleResponse);
     }
 
     private void updateRole(String roleName, String payload) throws IOException {

@@ -54,7 +54,7 @@ No connector matching `connector_id` could be found.
 [[update-connector-configuration-api-example]]
 ==== {api-examples-title}
 
-The following example configures the `sharepoint_online` connector, you can refer to supported configuration options in [Sharepoint Online connector documentation] or by inspecting registered schema in connector `configuration` field with <<get-connector-api>>.
+The following example configures a `sharepoint_online` connector. Find the supported configuration options in the {enterprise-search-ref}/connectors-sharepoint-online.html[Sharepoint Online connector documentation] or by inspecting the schema in the connector's `configuration` field using the <<get-connector-api>>.
 
 ////
 [source, console]

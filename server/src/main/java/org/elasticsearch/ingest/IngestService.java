@@ -729,8 +729,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
-                        Pipeline firstPipeline = getFirstPipeline(indexRequest);
                         PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+                        Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
                             continue;
@@ -758,6 +758,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                         if (result.shouldKeep == false) {
                                             onDropped.accept(slot);
                                         }
+                                        assert firstPipeline != null;
                                         firstPipeline.getPipelineMetrics().postIngest(indexRequest.ramBytesUsed());
                                     } else {
                                         // We were given a failure result in the onResponse method, so we must store the failure
@@ -804,18 +805,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final String finalPipelineId = indexRequest.getFinalPipeline();
         indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
         return new PipelineIterator(pipelineId, finalPipelineId);
-    }
-
-    /**
-     * Returns the first pipeline to be run in the request; does not modify the request
-     */
-    private Pipeline getFirstPipeline(IndexRequest indexRequest) {
-        if (indexRequest.getPipeline().equals(NOOP_PIPELINE_NAME) == false) {
-            return getPipeline(indexRequest.getPipeline());
-        } else if (indexRequest.getFinalPipeline().equals(NOOP_PIPELINE_NAME) == false) {
-            return getPipeline(indexRequest.getFinalPipeline());
-        }
-        return null;
     }
 
     /**
@@ -875,6 +864,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         @Override
         public PipelineSlot next() {
             return pipelineSlotIterator.next();
+        }
+
+        public Pipeline peekFirst() {
+            return getPipeline(defaultPipeline != null ? defaultPipeline : finalPipeline);
         }
     }
 

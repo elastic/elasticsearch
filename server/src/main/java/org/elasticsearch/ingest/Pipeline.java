@@ -39,7 +39,7 @@ public final class Pipeline {
     private final Map<String, Object> metadata;
     private final CompoundProcessor compoundProcessor;
     private final IngestMetric metrics;
-    private final PipelineMetric pipelineMetrics;
+    private final IngestPipelineMetric ingestPipelineMetrics;
     private final LongSupplier relativeTimeProvider;
     @Nullable
     private final Boolean deprecated;
@@ -81,7 +81,7 @@ public final class Pipeline {
         this.compoundProcessor = compoundProcessor;
         this.version = version;
         this.metrics = new IngestMetric();
-        this.pipelineMetrics = new PipelineMetric();
+        this.ingestPipelineMetrics = new IngestPipelineMetric();
         this.relativeTimeProvider = relativeTimeProvider;
         this.deprecated = deprecated;
     }
@@ -213,7 +213,7 @@ public final class Pipeline {
         return Boolean.TRUE.equals(deprecated);
     }
 
-    public PipelineMetric getPipelineMetrics() {
-        return pipelineMetrics;
+    public IngestPipelineMetric getPipelineMetrics() {
+        return ingestPipelineMetrics;
     }
 }

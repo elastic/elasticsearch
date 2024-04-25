@@ -35,23 +35,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         Writeable,
         ChunkedToXContent {
 
-    private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = (p1, p2) -> {
-        final Stats p2Stats = p2.stats;
-        final Stats p1Stats = p1.stats;
-        final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
-        if (ingestTimeCompare == 0) {
-            final int ingestCount = Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
-            if (ingestCount == 0) {
-                final ByteStats p2ByteStats = p2.byteStats;
-                final ByteStats p1ByteStats = p1.byteStats;
-                return Long.compare(p2ByteStats.bytesProduced, p1ByteStats.bytesProduced);
-            } else {
-                return ingestCount;
-            }
-        } else {
-            return ingestTimeCompare;
-        }
-    };
+    private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = Comparator.comparingLong(
+        (PipelineStat p) -> p.stats.ingestTimeInMillis
+    ).thenComparingLong((PipelineStat p) -> p.stats.ingestCount).thenComparingLong((PipelineStat p) -> p.byteStats.bytesProduced);
 
     public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
 
@@ -77,12 +63,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (var i = 0; i < size; i++) {
             var pipelineId = in.readString();
             var pipelineStat = new Stats(in);
-            ByteStats byteStat;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)) {
-                byteStat = new ByteStats(in);
-            } else {
-                byteStat = new ByteStats(0, 0);
-            }
+            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)
+                ? new ByteStats(in)
+                : new ByteStats(0, 0);
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
@@ -241,8 +224,8 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return this;
         }
 
-        Builder addPipelineMetrics(String pipelineId, IngestMetric pipelineMetric, PipelineMetric byteMetrics) {
-            this.pipelineStats.add(new PipelineStat(pipelineId, pipelineMetric.createStats(), byteMetrics.createByteStats()));
+        Builder addPipelineMetrics(String pipelineId, IngestMetric ingestMetric, IngestPipelineMetric ingestPipelineMetrics) {
+            this.pipelineStats.add(new PipelineStat(pipelineId, ingestMetric.createStats(), ingestPipelineMetrics.createByteStats()));
             return this;
         }
 
@@ -275,9 +258,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
 
         private static PipelineStat merge(PipelineStat first, PipelineStat second) {
-            if (first.pipelineId.equals(second.pipelineId) == false) {
-                return null;
-            }
+            assert first.pipelineId.equals(second.pipelineId) : "Can only merge stats from the same pipeline";
             return new PipelineStat(
                 first.pipelineId,
                 Stats.merge(first.stats, second.stats),
@@ -302,8 +283,8 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("bytes_ingested", bytesIngested);
-            builder.field("bytes_produced", bytesProduced);
+            builder.field("ingested_in_bytes", bytesIngested);
+            builder.field("produced_in_bytes", bytesProduced);
             return builder;
         }
 

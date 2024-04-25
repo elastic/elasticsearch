@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.LongAdder;
  * <p>Metrics to measure ingest actions, specific to pipelines.
  * <p>Meant to be used in conjunction with IngestMetric
  */
-public class PipelineMetric {
+public class IngestPipelineMetric {
 
     /**
      * The amount of bytes received by a pipeline.

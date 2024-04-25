@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import java.io.IOException;
 import java.util.List;
 
-public class EsqlBinaryComparisonTest extends ESTestCase {
+public class EsqlBinaryComparisonTests extends ESTestCase {
 
     public void testSerializationOfBinaryComparisonOperation() throws IOException {
         for (BinaryComparisonOperation op : BinaryComparisonOperation.values()) {

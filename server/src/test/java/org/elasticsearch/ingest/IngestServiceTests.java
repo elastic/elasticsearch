@@ -1206,7 +1206,7 @@ public class IngestServiceTests extends ESTestCase {
             }
 
             @Override
-            public DocumentSizeReporter getDocumentParsingReporter() {
+            public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
                 return null;
             }
 

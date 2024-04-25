@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -86,8 +86,8 @@ setup:
 
 ---
 created the data stream:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -132,8 +132,8 @@ created the data stream:
 
 ---
 fetch the tsid:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -151,8 +151,8 @@ fetch the tsid:
 
 ---
 "aggregate the tsid":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hahing introduced in 8.13
 
   - do:
@@ -194,8 +194,8 @@ index without timestamp with pipeline:
 
 ---
 dynamic templates:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Support for priority in passthrough objects was added in 8.14"
   - do:
       allowed_warnings:
@@ -326,8 +326,8 @@ dynamic templates:
 
 ---
 dynamic templates - conflicting aliases:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Support for priority in passthrough objects was added in 8.14"
   - do:
       allowed_warnings:
@@ -425,8 +425,8 @@ dynamic templates - conflicting aliases:
 
 ---
 dynamic templates with nesting:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Support for priority in passthrough objects was added in 8.14"
   - do:
       allowed_warnings:
@@ -584,9 +584,10 @@ dynamic templates with nesting:
 
 ---
 dynamic templates with incremental indexing:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Support for priority in passthrough objects was added in 8.14"
+
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -780,8 +781,8 @@ dynamic templates with incremental indexing:
 
 ---
 subobject in passthrough object auto flatten:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Support for priority in passthrough objects was added in 8.14"
   - do:
       allowed_warnings:
@@ -826,8 +827,8 @@ subobject in passthrough object auto flatten:
 
 ---
 enable subobjects in passthrough object:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Support for passthrough fields was added in 8.13"
   - do:
       catch: /Mapping definition for \[attributes\] has unsupported parameters:\  \[subobjects \:\ true\]/
@@ -850,8 +851,8 @@ enable subobjects in passthrough object:
 
 ---
 passthrough objects with duplicate priority:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Support for priority in passthrough objects was added in 8.14"
   - do:
       catch: /has a conflicting param/

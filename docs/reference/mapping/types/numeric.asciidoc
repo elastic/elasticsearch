@@ -200,11 +200,11 @@ metric type. You can't update this parameter for existing fields.
 .Valid `time_series_metric` values for numeric fields
 [%collapsible%open]
 ====
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====
 +
 For a numeric time series metric, the `doc_values` parameter must be `true`. A

@@ -132,8 +132,8 @@
 
 ---
 "Setting bogus context is an error":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "error message changed in 8.5"
   - do:
       index:
@@ -154,8 +154,8 @@
 
 ---
 "Can't change _id":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "error message changed in 8.5"
   - do:
       index:
@@ -313,8 +313,8 @@
 
 ---
 "Set unsupported operation type":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "error message changed in 8.5"
   - do:
       index:
@@ -442,8 +442,8 @@
 
 ---
 "Can read version":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: fixed in 8.4.0
 
   - do:
@@ -508,8 +508,8 @@
 
 ---
 "Script Write Field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Write fields api introduced in 8.5.0"
 
   - do:

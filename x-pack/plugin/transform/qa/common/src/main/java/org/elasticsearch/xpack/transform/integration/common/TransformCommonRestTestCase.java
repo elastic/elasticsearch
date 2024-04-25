@@ -122,6 +122,6 @@ public abstract class TransformCommonRestTestCase extends ESRestTestCase {
 
     protected void refreshIndex(String index) throws IOException {
         Request refreshRequest = new Request("POST", index + "/_refresh");
-        assertOK(adminClient().performRequest(refreshRequest));
+        assertOKAndConsume(adminClient().performRequest(refreshRequest));
     }
 }

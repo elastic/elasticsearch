@@ -65,6 +65,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
 
         assertThat(getTransformTasks(), is(empty()));
+        assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
 
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
@@ -78,6 +79,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         assertThat((String) XContentMapValues.extractValue("reason", fullState), startsWith(failureReason));
 
         assertThat(getTransformTasks(), hasSize(1));
+        assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
 
         // verify that we cannot stop a failed transform
         ResponseException ex = expectThrows(ResponseException.class, () -> stopTransform(transformId, false));
@@ -99,6 +101,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
 
         assertThat(getTransformTasks(), is(empty()));
+        assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
     }
 
     public void testForceResetFailedTransform() throws Exception {
@@ -109,6 +112,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
 
         assertThat(getTransformTasks(), is(empty()));
+        assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
 
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
@@ -122,6 +126,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         assertThat((String) XContentMapValues.extractValue("reason", fullState), startsWith(failureReason));
 
         assertThat(getTransformTasks(), hasSize(1));
+        assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
 
         // verify that we cannot reset a failed transform
         ResponseException ex = expectThrows(ResponseException.class, () -> resetTransform(transformId, false));
@@ -135,6 +140,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         resetTransform(transformId, true);
 
         assertThat(getTransformTasks(), is(empty()));
+        assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
     }
 
     public void testStartFailedTransform() throws Exception {
@@ -145,6 +151,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
 
         assertThat(getTransformTasks(), is(empty()));
+        assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
 
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
@@ -158,6 +165,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         assertThat((String) XContentMapValues.extractValue("reason", fullState), startsWith(failureReason));
 
         assertThat(getTransformTasks(), hasSize(1));
+        assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
 
         var expectedFailure = "Unable to start transform [test-force-start-failed-transform] "
             + "as it is in a failed state. Use force stop and then restart the transform once error is resolved. More details: ["
@@ -172,6 +180,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         stopTransform(transformId, true);
 
         assertThat(getTransformTasks(), is(empty()));
+        assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
     }
 
     private void awaitState(String transformId, TransformStats.State state) throws Exception {

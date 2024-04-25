@@ -1,8 +1,8 @@
 ---
 missing routing path field:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -89,8 +89,8 @@ missing routing path field:
 
 ---
 missing dimension on routing path field:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: error message changed in 8.14.0
 
   - do:
@@ -120,9 +120,9 @@ missing dimension on routing path field:
 
 ---
 multi-value routing path field:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

@@ -234,9 +234,9 @@
 
 ---
 "Metric - segments include_unloaded_segments":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.13.0"]
       reason: "support for include_unloaded_segments only added in 7.13"
   - do:
       nodes.info: {}
@@ -266,9 +266,9 @@
 
 ---
 "Metric - _all include_unloaded_segments":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.13.0"]
       reason: "support for include_unloaded_segments only added in 7.13"
   - do:
       nodes.info: {}
@@ -296,9 +296,9 @@
 
 ---
 "Metric - http":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.13.0"]
       reason: "HTTP client stats added in 7.13.0"
   - do:
       nodes.info: {}
@@ -327,9 +327,9 @@
 
 ---
 "Metric - blank for indices shard_stats":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.15.0"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.15.1"]
       reason:  "total shard count added in version 7.15.0, and fixed in 7.15.1"
   - do:
       nodes.info: {}
@@ -344,9 +344,9 @@
 
 ---
 "Metric - _all for indices shard_stats":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.15.0"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.15.1"]
       reason:  "total shard count added in version 7.15.0, and fixed in 7.15.1"
   - do:
       nodes.info: {}
@@ -363,9 +363,9 @@
 ---
 "indices shard_stats total count test":
 
-  - skip:
-      features: ["allowed_warnings", arbitrary_key]
-      version: " - 7.15.0"
+  - requires:
+      test_runner_features: ["allowed_warnings", arbitrary_key]
+      cluster_features: ["gte_v7.15.1"]
       reason:  "total shard count added in version 7.15.0, and fixed in 7.15.1"
 
   - do:
@@ -396,9 +396,9 @@
 
 ---
 "Metric - blank for indices mappings":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 8.4.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v8.5.0"]
       reason:  "mappings added in version 8.5.0"
   - do:
       nodes.info: {}
@@ -415,9 +415,9 @@
 ---
 "indices mappings exact count test for indices level":
 
-  - skip:
-      features: [arbitrary_key]
-      version: " - 8.4.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v8.5.0"]
       reason:  "mappings added in version 8.5.0"
 
   - do:
@@ -509,9 +509,9 @@
 ---
 "indices mappings does not exist in shards level":
 
-  - skip:
-      features: [arbitrary_key]
-      version: " - 8.4.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v8.5.0"]
       reason:  "mappings added in version 8.5.0"
 
   - do:

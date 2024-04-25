@@ -89,7 +89,7 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
         throws SettingsException {
         super(realmConfig);
         this.userRoleMapper = userRoleMapper;
-        this.userRoleMapper.refreshRealmOnChange(this);
+        this.userRoleMapper.clearRealmCacheOnChange(this);
         this.allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
 
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);

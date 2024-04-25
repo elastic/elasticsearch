@@ -10,9 +10,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.inference.InferenceService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,6 +49,7 @@ public final class MappingLookup {
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
+    private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -187,6 +190,15 @@ public final class MappingLookup {
         PassThroughObjectMapper.checkForDuplicatePriorities(passThroughMappers);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
+
+        Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
+        for (FieldMapper mapper : mappers) {
+            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+                inferenceFields.put(mapper.name(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.name())));
+            }
+        }
+        this.inferenceFields = Map.copyOf(inferenceFields);
+
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
@@ -371,6 +383,13 @@ public final class MappingLookup {
 
     public Map<String, ObjectMapper> objectMappers() {
         return objectMappers;
+    }
+
+    /**
+     * Returns a map containing all fields that require to run inference (through the {@link InferenceService} prior to indexation.
+     */
+    public Map<String, InferenceFieldMetadata> inferenceFields() {
+        return inferenceFields;
     }
 
     public NestedLookup nestedLookup() {

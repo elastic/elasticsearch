@@ -185,12 +185,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 if (mode.get() == Mode.DISABLED) {
                     disallowed.add("mode=disabled");
                 }
-                assert disallowed.isEmpty() == false;
-                throw new MapperParsingException(
-                    disallowed.size() == 1
-                        ? "Parameter [" + disallowed.get(0) + "] is not allowed in source"
-                        : "Parameters [" + String.join(",", disallowed) + "] are not allowed in source"
-                );
+                if (disallowed.isEmpty() == false) {
+                    throw new MapperParsingException(
+                        disallowed.size() == 1
+                            ? "Parameter [" + disallowed.get(0) + "] is not allowed in source"
+                            : "Parameters [" + String.join(",", disallowed) + "] are not allowed in source"
+                    );
+                }
             }
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
                 mode.get(),

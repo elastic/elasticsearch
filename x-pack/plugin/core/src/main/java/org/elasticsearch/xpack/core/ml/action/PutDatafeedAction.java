@@ -40,7 +40,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
             return new Request(datafeed.build());
         }
 
-        private DatafeedConfig datafeed;
+        private final DatafeedConfig datafeed;
 
         public Request(DatafeedConfig datafeed) {
             this.datafeed = datafeed;

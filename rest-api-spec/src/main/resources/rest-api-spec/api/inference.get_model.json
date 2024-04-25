@@ -12,6 +12,12 @@
     "url":{
       "paths":[
         {
+          "path":"/_inference",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
           "path":"/_inference/{inference_id}",
           "methods":[
             "GET"

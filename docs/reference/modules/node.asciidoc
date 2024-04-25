@@ -253,7 +253,7 @@ node.roles: [ data ]
 ===== Content data node
 
 Content data nodes are part of the content tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=content-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=content-tier]
 
 To create a dedicated content node, set:
 [source,yaml]
@@ -265,7 +265,7 @@ node.roles: [ data_content ]
 ===== Hot data node
 
 Hot data nodes are part of the hot tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=hot-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=hot-tier]
 
 To create a dedicated hot node, set:
 [source,yaml]
@@ -277,7 +277,7 @@ node.roles: [ data_hot ]
 ===== Warm data node
 
 Warm data nodes are part of the warm tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=warm-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=warm-tier]
 
 To create a dedicated warm node, set:
 [source,yaml]
@@ -289,7 +289,7 @@ node.roles: [ data_warm ]
 ===== Cold data node
 
 Cold data nodes are part of the cold tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=cold-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=cold-tier]
 
 To create a dedicated cold node, set:
 [source,yaml]
@@ -301,7 +301,7 @@ node.roles: [ data_cold ]
 ===== Frozen data node
 
 Frozen data nodes are part of the frozen tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=frozen-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=frozen-tier]
 
 To create a dedicated frozen node, set:
 [source,yaml]

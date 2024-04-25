@@ -6,4 +6,6 @@
 |===
 number | decimals | result
 double | integer | double
+integer | integer | integer
+long | integer | long
 |===

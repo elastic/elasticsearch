@@ -10,8 +10,8 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -90,7 +90,7 @@ public class TransportLoggerTests extends ESTestCase {
                 new ThreadContext(Settings.EMPTY),
                 new ClusterStatsRequest(),
                 TransportVersion.current(),
-                ClusterStatsAction.NAME,
+                TransportClusterStatsAction.TYPE.name(),
                 randomInt(30),
                 false,
                 compress

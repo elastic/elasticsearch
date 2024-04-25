@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -38,6 +39,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
@@ -47,14 +50,15 @@ import java.util.Collection;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestCase {
 
-    private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofBytes(4096L);
-    private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofBytes(4096L * 2048L);
+    private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(4);
+    private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
 
     @Override
     protected Settings.Builder nodeSettings() {
@@ -72,6 +76,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         return plugins;
     }
 
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
     public void testCacheIsWarmedBeforeIndexingShardRelocation() {
         startMasterOnlyNode();
 
@@ -101,22 +106,32 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         blockObjectStoreRepository(indexName, indexNodeB);
 
-        var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNodeA).getId();
-        assertAcked(
-            client().execute(
-                PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(
-                    shutdownNodeId,
-                    SingleNodeShutdownMetadata.Type.SIGTERM,
-                    "Shutdown for cache warming test",
-                    null,
-                    null,
-                    TimeValue.timeValueMinutes(randomIntBetween(1, 5))
+        assertThatLogger(() -> {
+            var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNodeA).getId();
+            assertAcked(
+                client().execute(
+                    PutShutdownNodeAction.INSTANCE,
+                    new PutShutdownNodeAction.Request(
+                        shutdownNodeId,
+                        SingleNodeShutdownMetadata.Type.SIGTERM,
+                        "Shutdown for cache warming test",
+                        null,
+                        null,
+                        TimeValue.timeValueMinutes(randomIntBetween(1, 5))
+                    )
                 )
+            );
+            ensureGreen(indexName);
+            assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
+        },
+            SharedBlobCacheWarmingService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "notifies warming completed",
+                SharedBlobCacheWarmingService.class.getCanonicalName(),
+                Level.DEBUG,
+                "* warming completed in *"
             )
         );
-        ensureGreen(indexName);
-        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
     }
 
     public void testCacheIsWarmedBeforeSearchShardRecovery() {

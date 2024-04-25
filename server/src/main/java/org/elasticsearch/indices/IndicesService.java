@@ -928,11 +928,17 @@ public class IndicesService extends AbstractLifecycleComponent
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
             // ES-8334 TODO needs to be async
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+
+            // ES-8334 TODO what of this needs to happen after the shard is closed?
             logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
             final IndexSettings indexSettings = indexService.getIndexSettings();
+
+            // ES-8334: frees search contexts, presumably can happen any time
             listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
+
             if (reason == IndexRemovalReason.DELETED) {
                 // now we are done - try to wipe data on disk if possible
+                // ES-8334: won't do anything if ShardLocks are still held, but who else cleans up the index when ShardLocks released?
                 deleteIndexStore(extraInfo, indexService.index(), indexSettings);
             }
         } catch (Exception e) {

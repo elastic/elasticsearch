@@ -1198,13 +1198,13 @@ public final class PlanNamedTypes {
 
     static EsqlBinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
         var source = in.readSource();
-        EsqlBinaryComparison.BinaryComparisonOpeartion opeartion = EsqlBinaryComparison.BinaryComparisonOpeartion.readFromStream(in);
+        EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
         var left = in.readExpression();
         var right = in.readExpression();
         // TODO: Remove zoneId entirely
         var zoneId = in.readOptionalZoneId();
         assert zoneId == null;
-        return opeartion.buildNewInstance(source, left, right);
+        return operation.buildNewInstance(source, left, right);
     }
 
     static void writeBinComparison(PlanStreamOutput out, EsqlBinaryComparison binaryComparison) throws IOException {

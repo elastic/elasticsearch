@@ -39,11 +39,11 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     );
 
     public NotEquals(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonOpeartion.NEQ, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.NEQ, evaluatorMap);
     }
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOpeartion.NEQ, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
     }
 
     @Evaluator(extraName = "Ints")

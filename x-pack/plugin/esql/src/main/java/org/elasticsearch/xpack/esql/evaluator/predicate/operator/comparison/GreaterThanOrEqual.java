@@ -33,11 +33,11 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     );
 
     public GreaterThanOrEqual(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonOpeartion.GTE, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.GTE, evaluatorMap);
     }
 
     public GreaterThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOpeartion.GTE, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.GTE, zoneId, evaluatorMap);
     }
 
     @Override

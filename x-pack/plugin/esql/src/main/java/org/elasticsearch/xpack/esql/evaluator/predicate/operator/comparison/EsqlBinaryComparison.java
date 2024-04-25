@@ -36,14 +36,14 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
-    private final BinaryComparisonOpeartion functionType;
+    private final BinaryComparisonOperation functionType;
 
     @FunctionalInterface
     public interface BinaryOperatorConstructor {
         EsqlBinaryComparison apply(Source source, Expression lhs, Expression rhs);
     }
 
-    public enum BinaryComparisonOpeartion implements Writeable {
+    public enum BinaryComparisonOperation implements Writeable {
 
         EQ(0, "==", BinaryComparisonProcessor.BinaryComparisonOperation.EQ, Equals::new),
         // id 1 reserved for NullEquals
@@ -55,10 +55,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
         private final int id;
         private final String symbol;
-        private final BinaryComparisonProcessor.BinaryComparisonOperation shim; // This will be removed before the PR is done
+        private final BinaryComparisonProcessor.BinaryComparisonOperation shim;
         private final BinaryOperatorConstructor constructor;
 
-        BinaryComparisonOpeartion(
+        BinaryComparisonOperation(
             int id,
             String symbol,
             BinaryComparisonProcessor.BinaryComparisonOperation shim,
@@ -75,9 +75,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             out.writeVInt(id);
         }
 
-        public static BinaryComparisonOpeartion readFromStream(StreamInput in) throws IOException {
+        public static BinaryComparisonOperation readFromStream(StreamInput in) throws IOException {
             int id = in.readVInt();
-            for (BinaryComparisonOpeartion op : values()) {
+            for (BinaryComparisonOperation op : values()) {
                 if (op.id == id) {
                     return op;
                 }
@@ -94,7 +94,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Source source,
         Expression left,
         Expression right,
-        BinaryComparisonOpeartion operation,
+        BinaryComparisonOperation operation,
         Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         this(source, left, right, operation, null, evaluatorMap);
@@ -104,7 +104,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Source source,
         Expression left,
         Expression right,
-        BinaryComparisonOpeartion operation,
+        BinaryComparisonOperation operation,
         // TODO: We are definitely not doing the right thing with this zoneId
         ZoneId zoneId,
         Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
@@ -115,7 +115,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         this.functionType = operation;
     }
 
-    public BinaryComparisonOpeartion getFunctionType() {
+    public BinaryComparisonOperation getFunctionType() {
         return functionType;
     }
 

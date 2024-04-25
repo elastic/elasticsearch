@@ -39,11 +39,11 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     );
 
     public Equals(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonOpeartion.EQ, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.EQ, evaluatorMap);
     }
 
     public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOpeartion.EQ, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.EQ, zoneId, evaluatorMap);
     }
 
     @Override

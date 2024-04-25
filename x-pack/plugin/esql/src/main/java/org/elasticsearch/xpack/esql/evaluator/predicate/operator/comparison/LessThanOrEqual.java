@@ -37,7 +37,7 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
     }
 
     public LessThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOpeartion.LTE, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.LTE, zoneId, evaluatorMap);
     }
 
     @Override

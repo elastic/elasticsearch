@@ -33,11 +33,11 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
     );
 
     public GreaterThan(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonOpeartion.GT, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.GT, evaluatorMap);
     }
 
     public GreaterThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOpeartion.GT, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.GT, zoneId, evaluatorMap);
     }
 
     @Override

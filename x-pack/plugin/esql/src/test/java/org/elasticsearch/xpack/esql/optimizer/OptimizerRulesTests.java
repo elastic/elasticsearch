@@ -34,8 +34,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.TestUtils.rangeOf;
+import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;

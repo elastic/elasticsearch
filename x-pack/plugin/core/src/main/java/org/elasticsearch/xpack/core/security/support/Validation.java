@@ -212,10 +212,7 @@ public final class Validation {
         }
 
         public static Error validateRoleDescription(String description) {
-            if (description == null || description.isEmpty()) {
-                return null;
-            }
-            if (description.length() > MAX_DESCRIPTION_LENGTH) {
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
                 return new Error(Strings.format("Role description must be less than %s characters.", MAX_DESCRIPTION_LENGTH));
             }
             return null;

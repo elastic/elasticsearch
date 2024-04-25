@@ -87,3 +87,9 @@ role_remote_indices:
         - 'shared-index'
       privileges:
         - READ
+
+role_with_description:
+  description:
+    "Allows all security-related operations!"
+  cluster:
+    - manage_security

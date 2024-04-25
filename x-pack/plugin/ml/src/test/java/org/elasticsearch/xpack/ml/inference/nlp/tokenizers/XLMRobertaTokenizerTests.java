@@ -124,6 +124,28 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
         }
     }
 
+    public void testMultilingual() throws IOException {
+        try (
+            XLMRobertaTokenizer tokenizer = XLMRobertaTokenizer.builder(
+                XLMRobertaTestVocab.MULTILINGUAL_VOCAB,
+                XLMRobertaTestVocab.MULTILINGUAL_SCORES,
+                new XLMRobertaTokenization(false, null, Tokenization.Truncate.NONE, -1)
+            ).setWithSpecialTokens(true).build()
+        ) {
+            for (int i = 0; i < XLMRobertaTestVocab.MULTILINUGAL_TEXTS.length; i++) {
+                logger.info(i);
+                TokenizationResult.Tokens tokenization = tokenizer.tokenize(
+                    XLMRobertaTestVocab.MULTILINUGAL_TEXTS[i],
+                    Tokenization.Truncate.FIRST,
+                    -1,
+                    0,
+                    null
+                ).get(0);
+                assertArrayEquals(XLMRobertaTestVocab.EXPECTED_TOKENS[i], tokenization.tokenIds());
+            }
+        }
+    }
+
     public void testTokenizeWithNeverSplit() throws IOException {
         try (
             XLMRobertaTokenizer tokenizer = XLMRobertaTokenizer.builder(

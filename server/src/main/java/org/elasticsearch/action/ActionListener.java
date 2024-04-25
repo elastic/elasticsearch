@@ -35,6 +35,7 @@ import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailu
  * Callbacks are used extensively throughout Elasticsearch because they enable us to write asynchronous and nonblocking code, i.e. code
  * which doesn't necessarily compute a result straight away but also doesn't block the calling thread waiting for the result to become
  * available. They support several useful control flows:
+ * </p>
  * <ul>
  * <li>They can be completed immediately on the calling thread.</li>
  * <li>They can be completed concurrently on a different thread.</li>
@@ -43,7 +44,6 @@ import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailu
  * <li>They can be wrapped in another callback which modifies the behaviour of the original callback, perhaps adding some extra code to run
  * before or after completion, before passing them on.</li>
  * </ul>
- * </p>
  * <p>
  * {@link ActionListener} is a general-purpose callback interface that is used extensively across the Elasticsearch codebase. {@link
  * ActionListener} is used pretty much everywhere that needs to perform some asynchronous and nonblocking computation. The uniformity makes
@@ -52,13 +52,13 @@ import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailu
  * takes practice and is certainly not easy in an absolute sense. Finally, it has allowed us to build a rich library for working with {@link
  * ActionListener} instances themselves, creating new instances out of existing ones and completing them in interesting ways. See for
  * instance:
+ * </p>
  * <ul>
  * <li>All the static methods on {@link ActionListener} itself.</li>
  * <li>{@link org.elasticsearch.action.support.ThreadedActionListener} for forking work elsewhere.</li>
  * <li>{@link org.elasticsearch.action.support.RefCountingListener} for running work in parallel.</li>
  * <li>{@link org.elasticsearch.action.support.SubscribableListener} for constructing flexible workflows.</li>
  * </ul>
- * </p>
  * <p>
  * Callback-based asynchronous code can easily call regular synchronous code, but synchronous code cannot run callback-based asynchronous
  * code without blocking the calling thread until the callback is called back. This blocking is at best undesirable (threads are too

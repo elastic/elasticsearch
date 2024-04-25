@@ -320,6 +320,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexSettings indexSettings;
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
+                // TODO this blocks the applier thread while closing the shards
                 indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
             } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node

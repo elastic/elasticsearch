@@ -102,6 +102,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -553,7 +554,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (lock != null) {
                     IOUtils.closeWhileHandlingException(lock);
                 }
-                closeShard("initialization failed", shardId, indexShard, store, eventListener);
+                closeShardAndWait("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
     }
@@ -570,7 +571,37 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
-    private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
+    private void closeShardAndWait(String reason, ShardId shardId, IndexShard indexShard, Store store, IndexEventListener listener) {
+        final var closeExceptionRef = new AtomicReference<Exception>();
+        closeShard(reason, shardId, indexShard, store, listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                closeExceptionRef.set(e);
+            }
+        });
+        final var closeException = closeExceptionRef.get();
+        if (closeException != null) {
+            if (closeException instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            } else {
+                assert false : closeException;
+                throw new RuntimeException("unexpected exception on shard close", closeException);
+            }
+        }
+    }
+
+    private void closeShard(
+        String reason,
+        ShardId sId,
+        IndexShard indexShard,
+        Store store,
+        IndexEventListener listener,
+        Executor closeExecutor,
+        ActionListener<Void> closeListener
+    ) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
         if (store != null) {
@@ -583,19 +614,34 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
+                    // only flush if we are closed (closed index or shutdown) and if we are not deleted
+                    final boolean flushEngine = deleted.get() == false && closed.get();
+                    // if the store is still open, want to keep it open while closing the shard
                     final var hasStoreRef = store != null && store.tryIncRef();
-                    try {
-                        // only flush if we are closed (closed index or shutdown) and if we are not deleted
-                        final boolean flushEngine = deleted.get() == false && closed.get();
-                        
-                        indexShard.close(reason, flushEngine);
-                    } catch (Exception e) {
-                        logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
-                        // ignore
-                    }
+                    ActionListener.run(new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            try {
+                                // call this before we close the store, so we can release resources for it
+                                listener.afterIndexShardClosed(sId, indexShard, indexSettings);
+                            } finally {
+                                try {
+                                    if (hasStoreRef) {
+                                        store.decRef();
+                                    }
+                                } finally {
+                                    closeListener.onResponse(null);
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
+                            onResponse(null); // otherwise ignore the exception
+                        }
+                    }, l -> indexShard.close(reason, flushEngine, closeExecutor, l));
                 }
-                // call this before we close the store, so we can release resources for it
-                listener.afterIndexShardClosed(sId, indexShard, indexSettings);
             }
         } finally {
             try {

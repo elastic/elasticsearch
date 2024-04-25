@@ -197,6 +197,7 @@ public class MetadataIndexAliasesService {
             return currentState;
         } finally {
             for (Index index : indicesToClose) {
+                assert indicesService.indexService(index).shardIds().isEmpty(); // ES-8334 complete no shards created
                 indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created for alias processing");
             }
         }

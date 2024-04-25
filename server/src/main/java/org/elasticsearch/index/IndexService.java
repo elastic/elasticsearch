@@ -364,7 +364,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 for (final int shardId : shardIds) {
                     try {
                         executeDirectly(l ->
-                        // ES-8334 passthru, do any callers need this to be async?
+                        // ES-8334 TODO, only async caller is IndicesService#removeIndex but this needs to be async
                         removeShard(shardId, reason, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
                     } catch (Exception e) {
                         logger.warn("failed to close shard", e);

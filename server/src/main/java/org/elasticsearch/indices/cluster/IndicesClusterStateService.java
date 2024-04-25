@@ -232,6 +232,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
                 // also cleans shards
+                // ES-8334 TBD electing a new master, should we avoid blocking here?
                 indicesService.removeIndex(
                     indexService.getIndexSettings().getIndex(),
                     NO_LONGER_ASSIGNED,
@@ -320,7 +321,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexSettings indexSettings;
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
-                // TODO this blocks the applier thread while closing the shards
+                // ES-8334 TODO go async here
                 indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
             } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
@@ -408,6 +409,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
+                // ES-8334 TBD opening or closing index, might not be a big deal
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")");
             } else {
                 // remove shards based on routing nodes (no deletion of data)
@@ -524,6 +526,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     failShardReason = "failed to create index";
                 } else {
                     failShardReason = "failed to update mapping for index";
+                    // ES-8334 TBD failure path, should we block?
                     indicesService.removeIndex(index, FAILURE, "removing index (mapping update failed)");
                 }
                 for (ShardRouting shardRouting : entry.getValue()) {
@@ -572,6 +575,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     reason = "mapping update failed";
                     indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
+                    // ES-8334 TBD we're on the failure path, might not be important
                     indicesService.removeIndex(index, FAILURE, "removing index (" + reason + ")");
 
                     // fail shards that would be created or updated by createOrUpdateShards

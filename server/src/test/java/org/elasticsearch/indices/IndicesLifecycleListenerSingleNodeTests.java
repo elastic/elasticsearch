@@ -105,6 +105,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             }
 
         };
+        // ES-8334 complete, test can be synchronous
         indicesService.removeIndex(idx, DELETED, "simon says");
         try {
             IndexService index = indicesService.createIndex(metadata, Arrays.asList(countingListener), false);
@@ -126,6 +127,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(6, counter.get());
         } finally {
+            // ES-8334 complete, test can be synchronous
             indicesService.removeIndex(idx, DELETED, "simon says");
         }
         assertEquals(10, counter.get());

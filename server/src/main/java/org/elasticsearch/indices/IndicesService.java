@@ -398,6 +398,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final Index index : indices) {
             indicesStopExecutor.execute(() -> {
                 try {
+                    // ES-8334 complete, node shutdown can be blocking
                     removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown");
                 } finally {
                     latch.countDown();
@@ -920,7 +921,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
-            // ES-8334 TODO look at callers
+            // ES-8334 TODO needs to be async
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
             logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
             final IndexSettings indexSettings = indexService.getIndexSettings();

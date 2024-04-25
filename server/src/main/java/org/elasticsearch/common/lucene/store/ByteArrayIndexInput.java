@@ -68,22 +68,22 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
 
     @Override
     public byte readByte(long pos) throws IOException {
-        return bytes[offset + position(pos)];
+        return bytes[position(pos)];
     }
 
     @Override
     public short readShort(long pos) throws IOException {
-        return (short) BitUtil.VH_LE_SHORT.get(bytes, offset + position(pos));
+        return (short) BitUtil.VH_LE_SHORT.get(bytes, position(pos));
     }
 
     @Override
     public int readInt(long pos) throws IOException {
-        return (int) BitUtil.VH_LE_INT.get(bytes, offset + position(pos));
+        return (int) BitUtil.VH_LE_INT.get(bytes, position(pos));
     }
 
     @Override
     public long readLong(long pos) throws IOException {
-        return (long) BitUtil.VH_LE_LONG.get(bytes, offset + position(pos));
+        return (long) BitUtil.VH_LE_LONG.get(bytes, position(pos));
     }
 
     @Override

@@ -663,6 +663,95 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(role.getRestriction().getWorkflows(), arrayContaining("search_application"));
     }
 
+    public void testSerializationWithDescriptionAndUnsupportedVersions() throws IOException {
+        final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(
+            TransportVersions.SECURITY_ROLE_DESCRIPTION
+        );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_7_17_0,
+            versionBeforeRoleDescription
+        );
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(version);
+
+        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder().allowDescription(true).build();
+        descriptor.writeTo(output);
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(
+            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+            registry
+        );
+        streamInput.setTransportVersion(version);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+        if (descriptor.getDescription() != null) {
+            assertThat(
+                serialized,
+                equalTo(
+                    new RoleDescriptor(
+                        descriptor.getName(),
+                        descriptor.getClusterPrivileges(),
+                        descriptor.getIndicesPrivileges(),
+                        descriptor.getApplicationPrivileges(),
+                        descriptor.getConditionalClusterPrivileges(),
+                        descriptor.getRunAs(),
+                        descriptor.getMetadata(),
+                        descriptor.getTransientMetadata(),
+                        descriptor.getRemoteIndicesPrivileges(),
+                        descriptor.getRestriction(),
+                        null
+                    )
+                )
+            );
+        } else {
+            assertThat(descriptor, equalTo(serialized));
+        }
+    }
+
+    public void testParseRoleWithDescriptionFailsWhenAllowDescriptionIsFalse() {
+        final String json = """
+            {
+              "description": "Lorem ipsum",
+              "cluster": ["manage_security"]
+            }""";
+        final ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder()
+                .allowRestriction(randomBoolean())
+                .allowDescription(false)
+                .build()
+                .parse(
+                    "test_role_with_description",
+                    XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON)
+                )
+        );
+        assertThat(
+            e,
+            TestMatchers.throwableWithMessage(
+                containsString("failed to parse role [test_role_with_description]. unexpected field [description]")
+            )
+        );
+    }
+
+    public void testParseRoleWithDescriptionWhenAllowDescriptionIsTrue() throws IOException {
+        final String json = """
+            {
+              "description": "Lorem ipsum",
+              "cluster": ["manage_security"]
+            }""";
+        RoleDescriptor role = RoleDescriptor.parserBuilder()
+            .allowRestriction(randomBoolean())
+            .allowDescription(true)
+            .build()
+            .parse(
+                "test_role_with_description",
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON)
+            );
+        assertThat(role.getName(), equalTo("test_role_with_description"));
+        assertThat(role.getDescription(), equalTo("Lorem ipsum"));
+        assertThat(role.getClusterPrivileges(), arrayContaining("manage_security"));
+    }
+
     public void testParseEmptyQuery() throws Exception {
         String json = """
             {

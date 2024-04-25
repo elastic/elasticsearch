@@ -38,7 +38,8 @@ public interface DocumentSizeReporter {
 
     void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed);
 
-    default Map<String, String> aggregate(Map<String, String> newUserData, Map<String, String> prevUserDataMap) {
-        return newUserData;
+    default Map<String, String> getAsUserData(Map<String, String> prevUserDataMap) {
+        return Map.of();
     }
+
 }

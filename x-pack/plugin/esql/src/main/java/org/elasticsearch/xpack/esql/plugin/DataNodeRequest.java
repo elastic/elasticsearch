@@ -62,7 +62,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         super(in);
         this.sessionId = in.readString();
         this.configuration = new EsqlConfiguration(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.clusterAlias = in.readString();
         } else {
             this.clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -77,7 +77,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         super.writeTo(out);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeString(clusterAlias);
         }
         out.writeCollection(shardIds);

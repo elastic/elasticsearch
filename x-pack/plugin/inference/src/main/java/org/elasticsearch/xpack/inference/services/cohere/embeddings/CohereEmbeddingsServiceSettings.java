@@ -139,7 +139,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override

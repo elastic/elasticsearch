@@ -236,11 +236,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)
-            || version.between(
-                TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH,
-                TransportVersions.NODE_STATS_REQUEST_SIMPLIFIED
-            );
+        return version.onOrAfter(TransportVersions.V_8_13_0) || version.isPatchFrom(TransportVersions.V_8_12_1);
     }
 
     /**
@@ -265,7 +261,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
         // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingLong(b -> b.key));
         }

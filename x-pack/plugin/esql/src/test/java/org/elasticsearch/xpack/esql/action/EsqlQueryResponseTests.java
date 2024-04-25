@@ -125,10 +125,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private ColumnInfo randomColumnInfo() {
         DataType type = randomValueOtherThanMany(
-            t -> false == DataTypes.isPrimitive(t)
-                || t == EsqlDataTypes.DATE_PERIOD
-                || t == EsqlDataTypes.TIME_DURATION
-                || EsqlDataTypes.isCounterType(t),
+            t -> false == DataTypes.isPrimitive(t) || t == EsqlDataTypes.DATE_PERIOD || t == EsqlDataTypes.TIME_DURATION,
             () -> randomFrom(EsqlDataTypes.types())
         );
         type = EsqlDataTypes.widenSmallNumericTypes(type);
@@ -146,9 +143,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new Page(columns.stream().map(c -> {
             Block.Builder builder = PlannerUtils.toElementType(EsqlDataTypes.fromName(c.type())).newBlockBuilder(1, blockFactory);
             switch (c.type()) {
-                case "unsigned_long", "long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
-                case "integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
-                case "double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
+                case "unsigned_long", "long", "counter_long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case "integer", "counter_integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
+                case "double", "counter_double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case "keyword" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
                 case "text" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(

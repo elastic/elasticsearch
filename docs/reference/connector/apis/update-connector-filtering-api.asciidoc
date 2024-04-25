@@ -79,7 +79,7 @@ No connector matching `connector_id` could be found.
 [[update-connector-filtering-api-example]]
 ==== {api-examples-title}
 
-The following example updates the draft {enterprise-search-ref}/sync-rules.html#sync-rules-basic[basic sync rules] for the Google Drive connector with ID `my-g-drive-connector`. All Google Drive files with `.txt` extension will be skipped:
+The following example updates the draft {enterprise-search-ref}/sync-rules.html#sync-rules-basic[basic sync rules] for a Google Drive connector with ID `my-g-drive-connector`. All Google Drive files with `.txt` extension will be skipped:
 
 ////
 [source, console]

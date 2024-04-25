@@ -3,7 +3,7 @@
 ==== `Cast (::)`
 
 // tag::body[]
-The `::` operator provides an alternative syntax to the TO_<type>
+The `::` operator provides a convenient alternative syntax to the TO_<type>
 <<esql-type-conversion-functions,conversion functions>>.
 
 [source.merge.styled,esql]

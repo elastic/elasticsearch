@@ -539,8 +539,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             );
                             return new CacheBlobReader() {
                                 @Override
-                                public ByteRange getRange(long position, int length) {
-                                    return originalCacheBlobReader.getRange(position, length);
+                                public ByteRange getRange(long position, int length, long remainingFileLength) {
+                                    return originalCacheBlobReader.getRange(position, length, remainingFileLength);
                                 }
 
                                 @Override

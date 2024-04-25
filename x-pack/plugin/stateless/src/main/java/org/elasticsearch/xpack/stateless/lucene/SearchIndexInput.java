@@ -147,7 +147,15 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             // The range represents one or more full regions to fetch. It can also be larger (in both directions) than the file opened by
             // the current SearchIndexInput instance. The range can also be larger than the real length of the blob in the object store.
             // This is OK, we rely on the object store to return as many bytes as possible without failing.
-            final ByteRange rangeToWrite = cacheBlobReader.getRange(position, length);
+
+            // we use the length from `cacheFile` since this allows reading beyond the slice'd portion of the file, important for
+            // reading beyond individual files inside CFS.
+            long remainingFileLength = cacheFile.getLength() - position;
+            assert remainingFileLength >= 0 : remainingFileLength;
+            assert length <= remainingFileLength : length + " > " + remainingFileLength;
+            assert remainingFileLength >= offset + length() - position
+                : "cache file length smaller than file length " + cacheFile.getLength() + " < " + offset + length();
+            final ByteRange rangeToWrite = cacheBlobReader.getRange(position, length, remainingFileLength);
 
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;

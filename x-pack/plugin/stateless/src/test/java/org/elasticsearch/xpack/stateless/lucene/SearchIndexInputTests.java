@@ -21,8 +21,11 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.cache.reader.IndexingShardCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
@@ -45,6 +49,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnap
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class SearchIndexInputTests extends ESIndexInputTestCase {
@@ -66,11 +71,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                     fileName,
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     randomIOContext(),
-                    new ObjectStoreCacheBlobReader(
-                        TestUtils.singleBlobContainer(fileName, input),
-                        fileName,
-                        sharedBlobCacheService.getRangeSize()
-                    ),
+                    createBlobReader(fileName, input, sharedBlobCacheService),
                     input.length,
                     0
                 );
@@ -103,11 +104,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 fileName,
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
-                new ObjectStoreCacheBlobReader(
-                    TestUtils.singleBlobContainer(fileName, input),
-                    fileName,
-                    sharedBlobCacheService.getRangeSize()
-                ),
+                createBlobReader(fileName, input, sharedBlobCacheService),
                 input.length,
                 0
             );
@@ -119,6 +116,28 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
+    }
+
+    private static CacheBlobReader createBlobReader(String fileName, byte[] input, StatelessSharedBlobCacheService sharedBlobCacheService) {
+
+        ObjectStoreCacheBlobReader objectStore = new ObjectStoreCacheBlobReader(
+            TestUtils.singleBlobContainer(fileName, input),
+            fileName,
+            sharedBlobCacheService.getRangeSize()
+        );
+        if (randomBoolean()) {
+            return objectStore;
+        }
+        ByteSizeValue chunkSize = ByteSizeValue.ofKb(8);
+        return new IndexingShardCacheBlobReader(null, null, null, chunkSize) {
+            @Override
+            public InputStream getRangeInputStream(long position, int length) throws IOException {
+                // verifies that `getRange` does not exceed remaining file length except for padding, implicitly also
+                // verifying that the remainingFileLength calculation in SearchIndexInput is correct too.
+                assertThat(position + length, lessThanOrEqualTo(BlobCacheUtils.toPageAlignedSize(input.length)));
+                return objectStore.getRangeInputStream(position, length);
+            }
+        };
     }
 
     private static Settings sharedCacheSettings(ByteSizeValue cacheSize) {

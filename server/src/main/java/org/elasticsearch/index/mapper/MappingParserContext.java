@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.function.Function;
@@ -136,7 +135,7 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
-    public MapperMetrics getIndicesMetrics() {
+    public MapperMetrics getMapperMetrics() {
         return mapperMetrics;
     }
 

@@ -148,7 +148,7 @@ import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
-import org.elasticsearch.indices.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;

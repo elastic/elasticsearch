@@ -53,7 +53,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -477,7 +477,7 @@ public final class IndexModule {
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        MapperMetrics metrics
+        MapperMetrics mapperMetrics
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -539,7 +539,7 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                metrics
+                mapperMetrics
             );
             success = true;
             return indexService;

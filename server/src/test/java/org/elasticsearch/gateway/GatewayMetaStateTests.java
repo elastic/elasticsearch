@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;

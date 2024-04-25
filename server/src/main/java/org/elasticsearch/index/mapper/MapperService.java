@@ -28,7 +28,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -790,9 +789,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public SourceLoader getSourceLoader(MappingLookup mappingLookup, boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
-            return new SourceLoader.Synthetic(mappingLookup.getMapping(), mapperMetrics.getSyntheticSourceMetrics());
+            return getSyntheticSourceLoader(mappingLookup);
         }
 
         return mappingLookup.newSourceLoader();
+    }
+
+    public SourceLoader getSyntheticSourceLoader(MappingLookup mappingLookup) {
+        return new SourceLoader.Synthetic(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics());
     }
 }

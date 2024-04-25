@@ -479,7 +479,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             SourceProvider sourceProvider = isSourceSynthetic()
-                ? SourceProvider.fromSyntheticSource(mapperService.getSourceLoader(mappingLookup, true))
+                ? SourceProvider.fromSyntheticSource(mapperService.getSyntheticSourceLoader(mappingLookup))
                 : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }

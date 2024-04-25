@@ -67,7 +67,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -559,10 +559,13 @@ public class SearchExecutionContextTests extends ESTestCase {
         when(mapperService.isMultiField(anyString())).then(
             (Answer<Boolean>) invocation -> mappingLookup.isMultiField(invocation.getArgument(0))
         );
-        when(mapperService.getSourceLoader(any(), eq(true))).thenReturn(
+        when(mapperService.getSyntheticSourceLoader(any())).thenReturn(
             new SourceLoader.Synthetic(mappingLookup.getMapping(), SourceFieldMetrics.NOOP)
         );
         when(mapperService.getSourceLoader(any(), eq(false))).thenReturn(mappingLookup.newSourceLoader());
+        when(mapperService.getSourceLoader(any(), eq(true))).thenReturn(
+            new SourceLoader.Synthetic(mappingLookup.getMapping(), SourceFieldMetrics.NOOP)
+        );
         return mapperService;
     }
 

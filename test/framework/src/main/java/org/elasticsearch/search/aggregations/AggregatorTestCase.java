@@ -116,7 +116,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -372,10 +372,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
             public void onCache(ShardId shardId, Accountable accountable) {}
         });
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getSourceLoader(any(), eq(true))).thenReturn(
+        when(mapperService.getSyntheticSourceLoader(any())).thenReturn(
             new SourceLoader.Synthetic(mappingLookup.getMapping(), SourceFieldMetrics.NOOP)
         );
         when(mapperService.getSourceLoader(any(), eq(false))).thenReturn(mappingLookup.newSourceLoader());
+        when(mapperService.getSourceLoader(any(), eq(true))).thenReturn(
+            new SourceLoader.Synthetic(mappingLookup.getMapping(), SourceFieldMetrics.NOOP)
+        );
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,

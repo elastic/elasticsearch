@@ -6,24 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.indices;
-
-import org.elasticsearch.index.mapper.SourceFieldMetrics;
+package org.elasticsearch.index.mapper;
 
 /**
  * Groups together all metrics used in mappers.
  * Main purpose of this class is to avoid verbosity of passing individual metric instances around.
  */
-public class MapperMetrics {
+public record MapperMetrics(SourceFieldMetrics sourceFieldMetrics) {
     public static MapperMetrics NOOP = new MapperMetrics(SourceFieldMetrics.NOOP);
-
-    private final SourceFieldMetrics sourceFieldMetrics;
-
-    public MapperMetrics(SourceFieldMetrics sourceFieldMetrics) {
-        this.sourceFieldMetrics = sourceFieldMetrics;
-    }
-
-    public SourceFieldMetrics getSyntheticSourceMetrics() {
-        return sourceFieldMetrics;
-    }
 }

@@ -113,6 +113,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShard;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -697,7 +698,7 @@ public class IndexModuleTests extends ESTestCase {
             closeables.add(() -> indexService.close("close index service at end of test", false));
 
             IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
-            closeables.add(() -> indexShard.close("close shard at end of test", true));
+            closeables.add(() -> closeShard(indexShard, "close shard at end of test", true));
             indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
 
             final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();

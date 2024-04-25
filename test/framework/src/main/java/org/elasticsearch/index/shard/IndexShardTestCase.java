@@ -681,8 +681,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
         } finally {
-            IOUtils.close(() -> shard.close("test", false), shard.store());
+            IOUtils.close(() -> closeShard(shard, "test", false), shard.store());
         }
+    }
+
+    public static void closeShard(IndexShard indexShard, String reason, boolean flushEngine) throws IOException {
+        indexShard.close(reason, flushEngine);
     }
 
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {

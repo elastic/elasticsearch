@@ -83,6 +83,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShard;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
@@ -526,7 +527,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (randomBoolean()) {
-                    indexShard.close("test", randomBoolean());
+                    closeShard(indexShard, "test", randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
                     final String[] nodeNames = internalCluster().getNodeNames();

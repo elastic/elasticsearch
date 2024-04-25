@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -267,9 +268,18 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             + "] or higher to support remote indices privileges"
                     )
                 );
-            } else {
-                innerPutRole(request, role, listener);
-            }
+            } else if (role.getDescription() != null
+                && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "all nodes must have transport version ["
+                                + TransportVersions.SECURITY_ROLE_DESCRIPTION
+                                + "] or higher to support specifying role description"
+                        )
+                    );
+                } else {
+                    innerPutRole(request, role, listener);
+                }
     }
 
     // pkg-private for testing

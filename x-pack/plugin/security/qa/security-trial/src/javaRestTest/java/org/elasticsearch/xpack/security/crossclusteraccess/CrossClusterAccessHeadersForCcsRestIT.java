@@ -102,6 +102,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
+              "description": "Grants permission for searching local and remote clusters.",
               "cluster": ["manage_api_key"],
               "indices": [
                 {

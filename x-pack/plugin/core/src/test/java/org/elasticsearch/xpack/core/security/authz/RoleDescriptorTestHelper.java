@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -159,11 +160,11 @@ public final class RoleDescriptorTestHelper {
 
     private static void randomDlsFls(RoleDescriptor.IndicesPrivileges.Builder builder) {
         if (randomBoolean()) {
-            builder.query(
-                randomBoolean()
-                    ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
-                    : "{ \"match_all\": {} }"
-            );
+            builder.query(randomBoolean() ? Strings.format("""
+                { "term": { "%s" : "%s" } }
+                """, randomAlphaOfLengthBetween(3, 24), randomAlphaOfLengthBetween(3, 24)) : """
+                { "match_all": {} }
+                """);
         }
         if (randomBoolean()) {
             if (randomBoolean()) {

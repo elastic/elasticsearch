@@ -586,6 +586,27 @@ class NodeConstruction {
         return scriptService;
     }
 
+    private DataStreamGlobalRetentionResolver createDataStreamServicesAndGlobalRetentionResolver(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        MetadataCreateIndexService metadataCreateIndexService
+    ) {
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+        );
+        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
+        modules.bindToInstance(
+            MetadataCreateDataStreamService.class,
+            new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
+        );
+        modules.bindToInstance(
+            MetadataDataStreamsService.class,
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionResolver)
+        );
+        return dataStreamGlobalRetentionResolver;
+    }
+
     private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
         UpdateHelper updateHelper = new UpdateHelper(scriptService, documentParsingProvider);
 
@@ -747,11 +768,6 @@ class NodeConstruction {
 
         final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
 
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
-            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
-        );
-        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
-
         final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
             settings,
             clusterService,
@@ -767,15 +783,6 @@ class NodeConstruction {
             indexSettingProviders
         );
 
-        modules.bindToInstance(
-            MetadataCreateDataStreamService.class,
-            new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
-        );
-        modules.bindToInstance(
-            MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionResolver)
-        );
-
         final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,
             clusterModule.getAllocationService(),
@@ -783,6 +790,13 @@ class NodeConstruction {
             indicesService,
             shardLimitValidator,
             threadPool
+        );
+
+        final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = createDataStreamServicesAndGlobalRetentionResolver(
+            threadPool,
+            clusterService,
+            indicesService,
+            metadataCreateIndexService
         );
 
         record PluginServiceInstances(

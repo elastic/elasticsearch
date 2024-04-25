@@ -1,5 +1,5 @@
 [[esql-group-functions]]
-==== {esql} aggregate functions
+==== {esql} grouping functions
 
 ++++
 <titleabbrev>Grouping functions</titleabbrev>

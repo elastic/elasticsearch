@@ -1813,7 +1813,8 @@ public class AnalyzerTests extends ESTestCase {
                 + "or counter_integer or counter_double], found value [x] type [version]\n"
                 + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long or counter_long or counter_integer "
                 + "or counter_double], found value [min(x)] type [version]\n"
-                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
                 + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long or counter_long or counter_integer or "
                 + "counter_double], found value [x] type [version]"
         );

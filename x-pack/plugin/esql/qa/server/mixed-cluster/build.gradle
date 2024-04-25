@@ -49,7 +49,6 @@ BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     systemProperty("tests.version_parameter_unsupported", versionUnsupported(bwcVersion))
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
     classpath = sourceSets.yamlRestTest.runtimeClasspath
-    maxParallelForks = 1
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

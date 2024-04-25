@@ -78,7 +78,8 @@ public class MachineDependentHeapTests extends ESTestCase {
         assertHeapOptions(0.2, containsInAnyOrder("-Xmx128m", "-Xms128m"), "data");
     }
 
-    private void assertHeapOptions(double memoryInGigabytes, Matcher<Iterable<? extends String>> optionsMatcher, String... roles) throws Exception {
+    private void assertHeapOptions(double memoryInGigabytes, Matcher<Iterable<? extends String>> optionsMatcher, String... roles)
+        throws Exception {
         SystemMemoryInfo systemMemoryInfo = systemMemoryInGigabytes(memoryInGigabytes);
         MachineDependentHeap machineDependentHeap = new MachineDependentHeap();
         Settings nodeSettings = Settings.builder().putList("node.roles", roles).build();

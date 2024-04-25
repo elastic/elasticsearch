@@ -93,7 +93,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
+                public DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries) {
                     return new TestDocumentSizeReporter(indexName);
                 }
             };

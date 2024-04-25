@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
-import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -741,8 +740,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                     XContentType.JSON,
                     null,
                     Map.of("foo", "geo_point"),
-                    DocumentSizeObserver.EMPTY_INSTANCE,
-                    DocumentSizeReporter.EMPTY_INSTANCE
+                    DocumentSizeObserver.EMPTY_INSTANCE
                 )
             );
         assertThat(doc.rootDoc().getFields("foo"), hasSize(2));

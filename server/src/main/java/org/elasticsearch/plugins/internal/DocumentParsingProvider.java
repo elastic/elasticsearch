@@ -19,7 +19,7 @@ public interface DocumentParsingProvider {
         }
 
         @Override
-        public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
+        public DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries) {
             return DocumentSizeReporter.EMPTY_INSTANCE;
         }
 
@@ -42,6 +42,6 @@ public interface DocumentParsingProvider {
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful
      */
-    DocumentSizeReporter getDocumentParsingReporter(String indexName);
+    DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries);
 
 }

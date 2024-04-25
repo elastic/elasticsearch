@@ -22,7 +22,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
-import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -74,7 +73,6 @@ public final class DocumentParser {
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
-        DocumentSizeReporter documentSizeReporter = source.getDocumentSizeReporter();
         DocumentSizeObserver documentSizeObserver = source.getDocumentSizeObserver();
         try (
             XContentParser parser = documentSizeObserver.wrapParser(
@@ -87,7 +85,7 @@ public final class DocumentParser {
             internalParseDocument(metadataFieldsMappers, context);
             validateEnd(context.parser());
 
-            documentSizeReporter.onParsingCompleted(context.rootDoc(), documentSizeObserver.normalisedBytesParsed());
+            // documentSizeReporter.onParsingCompleted(context.rootDoc(), documentSizeObserver.normalisedBytesParsed());
 
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
@@ -107,7 +105,8 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            dynamicUpdate
+            dynamicUpdate,
+            documentSizeObserver
         ) {
             @Override
             public String documentDescription() {

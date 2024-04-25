@@ -10,6 +10,8 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.index.mapper.LuceneDocument;
 
+import java.util.Map;
+
 /**
  * An interface to allow performing an action when parsing has been completed and successful
  */
@@ -36,4 +38,7 @@ public interface DocumentSizeReporter {
 
     void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed);
 
+    default Map<String, String> aggregate(Map<String, String> newUserData, Map<String, String> prevUserDataMap) {
+        return newUserData;
+    }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -155,6 +156,8 @@ public abstract class Plugin implements Closeable {
          * The system indices for the cluster
          */
         SystemIndices systemIndices();
+
+        DocumentParsingProvider documentParsingProvider();
     }
 
     /**

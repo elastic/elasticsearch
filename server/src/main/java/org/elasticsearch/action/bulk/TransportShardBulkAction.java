@@ -369,8 +369,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                documentSizeObserver,
-                documentParsingProvider.getDocumentParsingReporter(request.index())
+                documentSizeObserver
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -462,7 +461,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * or return a new DocumentSizeObserver that will be used when parsing.
      */
     private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
-        if (request.getNormalisedBytesParsed() != -1) {
+        if (request.getNormalisedBytesParsed() != -1) { // todo
             return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
         } else if (request.getNormalisedBytesParsed() == 0) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
@@ -488,7 +487,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final BulkItemResponse executionResult = context.getExecutionResult();
         final boolean isFailed = executionResult.isFailed();
         if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
-            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter(docWriteRequest.index());
+            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter(docWriteRequest.index(), false);
             DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
             documentSizeReporter.onIndexingCompleted(documentSizeObserver.normalisedBytesParsed());
         }

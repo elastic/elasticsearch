@@ -1043,6 +1043,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // whether mappings were provided or not.
             doc.addDynamicMappingsUpdate(mapping);
         }
+
         Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         return new Engine.Index(
             uid,

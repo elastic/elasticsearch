@@ -72,6 +72,7 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.transport.Transports;
 
@@ -432,10 +433,11 @@ public abstract class Engine implements Closeable {
 
     /**
      * Perform document index operation on the engine
+     *
      * @param index operation to perform
      * @return {@link IndexResult} containing updated translog location, version and
      * document specific failures
-     *
+     * <p>
      * Note: engine level failures (i.e. persistent engine failures) are thrown
      */
     public abstract IndexResult index(Index index) throws IOException;
@@ -1630,6 +1632,10 @@ public abstract class Engine implements Closeable {
 
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
+        }
+
+        public DocumentSizeObserver getDocumentSizeObserver() {
+            return null;
         }
     }
 

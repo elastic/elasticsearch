@@ -59,7 +59,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
-import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -290,8 +289,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             XContentType.JSON,
             routing,
             dynamicTemplates,
-            DocumentSizeObserver.EMPTY_INSTANCE,
-            DocumentSizeReporter.EMPTY_INSTANCE
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
     }
 

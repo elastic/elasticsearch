@@ -791,7 +791,8 @@ class NodeConstruction {
             AllocationService allocationService,
             IndicesService indicesService,
             FeatureService featureService,
-            SystemIndices systemIndices
+            SystemIndices systemIndices,
+            DocumentParsingProvider documentParsingProvider
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -810,7 +811,8 @@ class NodeConstruction {
             clusterModule.getAllocationService(),
             indicesService,
             featureService,
-            systemIndices
+            systemIndices,
+            documentParsingProvider
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();

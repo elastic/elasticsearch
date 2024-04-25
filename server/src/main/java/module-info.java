@@ -390,6 +390,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal
         to
             org.elasticsearch.metering,
+            org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
@@ -450,4 +451,5 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
+    exports org.elasticsearch.plugins.internal.document_size.spi;
 }

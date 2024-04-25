@@ -20,7 +20,7 @@ Updates a connector's `configuration`, allowing for config value updates within 
 * To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 * To update configuration `values`, the connector `configuration` schema must be first registered by a running instance of Elastic connector service.
-* The configuration fields must be compatible with the specific connector configuration schema, refer to {enterprise-search-ref}/connectors-references.html[connectors references] to see supported configuration fields.
+* Make sure configuration fields are compatible with the configuration schema for the third-party data source. Refer to the individual {enterprise-search-ref}/connectors-references.html[connectors references] for details.
 
 [[update-connector-configuration-api-path-params]]
 ==== {api-path-parms-title}

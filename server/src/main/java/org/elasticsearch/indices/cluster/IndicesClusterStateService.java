@@ -625,6 +625,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                     @Override
                     public void onFailure(Exception e) {
+                        // ES-8334 complete, closing a partially-opened shard should be fast, no merges to cancel
                         failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
                     }
                 }, () -> {
@@ -635,6 +636,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception e) {
             assert pendingShardCreations.get(shardId) == null
                 || pendingShardCreations.get(shardId).clusterStateUUID().equals(state.stateUUID()) == false;
+            // ES-8334 complete, closing a partially-opened shard should be fast, no merges to cancel
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
     }
@@ -792,6 +794,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexShardRoutingTable
             );
         } catch (Exception e) {
+            // ES-8334 TBD: shard might have merges to cancel, but this is on a failure path so shouldn't happen anyway?
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
             return;
         }
@@ -898,6 +901,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     // package-private for testing
     synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
+        // ES-8334 complete, closing a partially-recovered shard should be fast, no merges to cancel
         failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
     }
 
@@ -913,7 +917,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (indexService != null) {
                 Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
                 if (shard != null && shard.routingEntry().isSameAllocation(shardRouting)) {
-                    // ES-8334 TODO
+                    // ES-8334 passthru, do any callers need this to be async?
                     indexService.removeShard(
                         shardRouting.shardId().id(),
                         message,
@@ -966,6 +970,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardRouting shardRouting = shardFailure.routing();
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
+                    // ES-8334 TBD, the engine already failed at this point, is it ok to hold the mutex while it's closing?
                     failAndRemoveShard(
                         shardRouting,
                         true,

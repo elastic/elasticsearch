@@ -363,7 +363,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 final Set<Integer> shardIds = shardIds();
                 for (final int shardId : shardIds) {
                     try {
-                        executeDirectly(l -> removeShard(shardId, reason, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
+                        executeDirectly(l ->
+                        // ES-8334 TODO
+                        removeShard(shardId, reason, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
                     } catch (Exception e) {
                         logger.warn("failed to close shard", e);
                     }

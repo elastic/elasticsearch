@@ -530,21 +530,21 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerDoubleGauge(
-                "es.indexing.coordinating_operations.rejections.ratio",
-                "Ratio of rejected coordinating operations",
+                "es.indexing.coordinating_operations.request.rejections.ratio",
+                "Ratio of rejected coordinating requests",
                 "ratio",
                 () -> {
-                    var totalCoordinatingOperations = Optional.ofNullable(stats.getOrRefresh())
+                    var totalCoordinatingRequests = Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalCoordinatingOps)
+                        .map(IndexingPressureStats::getTotalCoordinatingRequests)
                         .orElse(0L);
                     var totalCoordinatingRejections = Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getCoordinatingRejections)
                         .orElse(0L);
-                    // rejections do not count towards `totalCoordinatingOperations`
-                    var totalOps = totalCoordinatingOperations + totalCoordinatingRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0);
+                    // rejections do not count towards `totalCoordinatingRequests`
+                    var totalReqs = totalCoordinatingRequests + totalCoordinatingRejections;
+                    return new DoubleWithAttributes(totalReqs != 0 ? (double) totalCoordinatingRejections / totalReqs : 0.0);
                 }
             )
         );

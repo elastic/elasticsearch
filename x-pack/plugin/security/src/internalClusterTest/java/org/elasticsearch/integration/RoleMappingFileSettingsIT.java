@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 import org.junit.After;
 
@@ -441,8 +441,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
-            return PutRoleMappingRequest.fromMapping(mapping);
+            return new PutRoleMappingRequestBuilder(null).source(name, parser).request();
         }
     }
 }

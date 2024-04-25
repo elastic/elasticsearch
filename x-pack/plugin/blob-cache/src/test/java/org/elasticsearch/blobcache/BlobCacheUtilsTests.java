@@ -23,7 +23,7 @@ public class BlobCacheUtilsTests extends ESTestCase {
     }
 
     public void testToPageAlignedSize() {
-        long value = randomLongBetween(0, Long.MAX_VALUE / 2);
+        long value = randomLongBetween(0, Long.MAX_VALUE - SharedBytes.PAGE_SIZE);
         long expected = ((value - 1) / SharedBytes.PAGE_SIZE + 1) * SharedBytes.PAGE_SIZE;
         assertThat(BlobCacheUtils.toPageAlignedSize(value), Matchers.equalTo(expected));
     }

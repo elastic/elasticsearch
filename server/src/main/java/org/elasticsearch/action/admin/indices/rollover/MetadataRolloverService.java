@@ -48,12 +48,11 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,7 +91,7 @@ public class MetadataRolloverService {
     private final SystemIndices systemIndices;
     private final WriteLoadForecaster writeLoadForecaster;
     private final ClusterService clusterService;
-    private final Map<AutoShardingType, LongCounter> autoShardingMetricCounters = new HashMap<>();
+    private final MeterRegistry meterRegistry;
 
     @Inject
     public MetadataRolloverService(
@@ -110,13 +109,13 @@ public class MetadataRolloverService {
         this.systemIndices = systemIndices;
         this.writeLoadForecaster = writeLoadForecaster;
         this.clusterService = clusterService;
+        this.meterRegistry = telemetryProvider.getMeterRegistry();
 
         for (var entry : AUTO_SHARDING_METRIC_NAMES.entrySet()) {
             final AutoShardingType type = entry.getKey();
             final String metricName = entry.getValue();
             final String description = String.format(Locale.ROOT, "auto-sharding %s counter", type.name().toLowerCase(Locale.ROOT));
-            final LongCounter counter = telemetryProvider.getMeterRegistry().registerLongCounter(metricName, description, "unit");
-            this.autoShardingMetricCounters.put(type, counter);
+            meterRegistry.registerLongCounter(metricName, description, "unit");
         }
     }
 
@@ -354,9 +353,9 @@ public class MetadataRolloverService {
             );
         } else {
             if (autoShardingResult != null) {
-                LongCounter metricCounter = autoShardingMetricCounters.get(autoShardingResult.type());
-                if (metricCounter != null) {
-                    metricCounter.increment();
+                final String metricName = AUTO_SHARDING_METRIC_NAMES.get(autoShardingResult.type());
+                if (metricName != null) {
+                    meterRegistry.getLongCounter(metricName).increment();
                 }
             }
 

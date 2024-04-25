@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
@@ -47,21 +46,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING;
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.getRankedIndicesBelowThreshold;
 
 /**
  * This service is responsible for receiving raw shard sizes notification from the search nodes
@@ -89,16 +80,6 @@ public class SearchMetricsService implements ClusterStateListener {
     );
     private static final ShardSize ZERO_SHARD_SIZE = new ShardSize(0, 0, PrimaryTermAndGeneration.ZERO);
 
-    /**
-     * Search power setting below which we only have 1 replica for all interactive indices
-     */
-    public static final int SEARCH_POWER_MIN_NO_REPLICATION = 100;
-
-    /**
-     * Search power setting at which we want to replicate all interactive indices with a factor of 2
-     */
-    public static final int SEARCH_POWER_MIN_FULL_REPLICATION = 250;
-
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
 
@@ -113,8 +94,6 @@ public class SearchMetricsService implements ClusterStateListener {
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile long accurateMetricWindowNs;
     private volatile long staleMetricsCheckIntervalNs;
-    private volatile int searchPowerMinSetting;
-    private volatile int searchPowerMaxSetting;
 
     public static SearchMetricsService create(
         ClusterSettings clusterSettings,
@@ -139,52 +118,6 @@ public class SearchMetricsService implements ClusterStateListener {
             STALE_METRICS_CHECK_INTERVAL_SETTING,
             value -> this.staleMetricsCheckIntervalNs = value.getNanos()
         );
-        this.searchPowerMinSetting = clusterSettings.get(SEARCH_POWER_MIN_SETTING);
-        this.searchPowerMaxSetting = clusterSettings.get(SEARCH_POWER_MAX_SETTING);
-        clusterSettings.initializeAndWatch(SEARCH_POWER_SETTING, this::updateSearchPower);
-        clusterSettings.initializeAndWatch(SEARCH_POWER_MIN_SETTING, this::updateSearchPowerMin);
-        clusterSettings.initializeAndWatch(SEARCH_POWER_MAX_SETTING, this::updateSearchPowerMax);
-    }
-
-    void updateSearchPowerMin(Integer spMin) {
-        this.searchPowerMinSetting = spMin;
-    }
-
-    void updateSearchPowerMax(Integer spMax) {
-        this.searchPowerMaxSetting = spMax;
-    }
-
-    void updateSearchPower(Integer sp) {
-        if (this.searchPowerMinSetting == this.searchPowerMaxSetting) {
-            this.searchPowerMinSetting = sp;
-            this.searchPowerMaxSetting = sp;
-        } else {
-            throw new IllegalArgumentException(
-                "Updating "
-                    + ServerlessSharedSettings.SEARCH_POWER_SETTING.getKey()
-                    + " ["
-                    + sp
-                    + "] while "
-                    + ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey()
-                    + " ["
-                    + this.searchPowerMinSetting
-                    + "] and "
-                    + ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING.getKey()
-                    + " ["
-                    + this.searchPowerMaxSetting
-                    + "] are not equal."
-            );
-        }
-    }
-
-    // visible for testing
-    public int getSearchPowerMinSetting() {
-        return searchPowerMinSetting;
-    }
-
-    // visible for testing
-    public int getSearchPowerMaxSetting() {
-        return searchPowerMaxSetting;
     }
 
     void processShardSizesRequest(PublishShardSizesRequest request) {
@@ -395,9 +328,9 @@ public class SearchMetricsService implements ClusterStateListener {
         }
     }
 
-    private class ShardMetrics {
+    class ShardMetrics {
         private NodeTimingForShardMetrics sourceNode = null;
-        private ShardSize shardSize = ZERO_SHARD_SIZE;
+        ShardSize shardSize = ZERO_SHARD_SIZE;
 
         private synchronized void update(NodeTimingForShardMetrics sourceNode, ShardSize shardSize) {
             if (this.shardSize.primaryTermGeneration().compareTo(shardSize.primaryTermGeneration()) <= 0) {
@@ -469,7 +402,6 @@ public class SearchMetricsService implements ClusterStateListener {
             : metadata.getNumberOfReplicas();
     }
 
-    // visible for testing
     ConcurrentMap<Index, IndexProperties> getIndices() {
         return indices;
     }
@@ -484,101 +416,5 @@ public class SearchMetricsService implements ClusterStateListener {
 
     private static boolean isSearchNode(DiscoveryNode node) {
         return node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
-    }
-
-    record IndexRankingProperties(IndexProperties indexProperties, long interactiveSize) {}
-
-    Map<Integer, List<String>> getNumberOfReplicaChanges() {
-        Map<Integer, List<String>> numReplicaChanges = new HashMap<>(2);
-        if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
-            for (Map.Entry<Index, IndexProperties> entry : indices.entrySet()) {
-                Index index = entry.getKey();
-                IndexProperties settings = entry.getValue();
-                if (settings.replicas != 1) {
-                    setNumReplicasForIndex(index.getName(), 1, numReplicaChanges);
-                }
-            }
-        } else if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
-            for (Map.Entry<Index, IndexProperties> entry : indices.entrySet()) {
-                Index index = entry.getKey();
-                IndexProperties indexProperties = entry.getValue();
-                boolean indexInteractive = false;
-                for (int i = 0; i < indexProperties.shards; i++) {
-                    ShardMetrics shardMetrics = this.shardMetrics.get(new ShardId(index, i));
-                    if (shardMetrics == null) {
-                        // move to the next index if shard metrics for the current index are not found: they could have been removed
-                        // because the index has been removed, or because it has now zero replicas.
-                        break;
-                    }
-                    if (shardMetrics.shardSize.interactiveSizeInBytes() > 0) {
-                        indexInteractive = true;
-                        break;
-                    }
-                }
-                if (indexInteractive) {
-                    if (indexProperties.replicas != 2) {
-                        setNumReplicasForIndex(index.getName(), 2, numReplicaChanges);
-                    }
-                } else {
-                    if (indexProperties.replicas != 1) {
-                        setNumReplicasForIndex(index.getName(), 1, numReplicaChanges);
-                    }
-                }
-            }
-        } else {
-            // search power should be between 100 and 250 here
-            long allIndicesInteractiveSize = 0;
-            List<IndexRankingProperties> rankingProperties = new ArrayList<>();
-            for (Map.Entry<Index, IndexProperties> entry : indices.entrySet()) {
-                Index index = entry.getKey();
-                IndexProperties indexProperties = entry.getValue();
-                long totalIndexInteractiveSize = 0;
-                boolean indexSizeValid = true;
-                for (int i = 0; i < indexProperties.shards; i++) {
-                    ShardMetrics shardMetrics = this.shardMetrics.get(new ShardId(index, i));
-                    if (shardMetrics == null) {
-                        // move to the next index if shard metrics for the current index are not found: they could have been removed
-                        // because the index has been removed, or because it has now zero replicas.
-                        indexSizeValid = false;
-                        break;
-                    }
-                    totalIndexInteractiveSize += shardMetrics.shardSize.interactiveSizeInBytes();
-                }
-                if (indexSizeValid) {
-                    rankingProperties.add(new IndexRankingProperties(indexProperties, totalIndexInteractiveSize));
-                    allIndicesInteractiveSize += totalIndexInteractiveSize;
-                } else {
-                    // TODO if we detect an index with invalid shard metrics, should we reset its replica setting to 1 or
-                    // trust that it will get removed from state and this.indices map in an upcoming cluster state update?
-                }
-            }
-            final long threshold = allIndicesInteractiveSize * (searchPowerMinSetting - SEARCH_POWER_MIN_NO_REPLICATION)
-                / (SEARCH_POWER_MIN_FULL_REPLICATION - SEARCH_POWER_MIN_NO_REPLICATION);
-            Set<String> twoReplicaEligibleIndices = getRankedIndicesBelowThreshold(rankingProperties, threshold);
-            for (var rankedIndex : rankingProperties) {
-                String indexName = rankedIndex.indexProperties.name;
-                int replicas = rankedIndex.indexProperties.replicas;
-                if (rankedIndex.interactiveSize > 0 && twoReplicaEligibleIndices.contains(indexName)) {
-                    if (replicas != 2) {
-                        setNumReplicasForIndex(indexName, 2, numReplicaChanges);
-                    }
-                } else {
-                    if (replicas != 1) {
-                        setNumReplicasForIndex(indexName, 1, numReplicaChanges);
-                    }
-                }
-            }
-        }
-        return numReplicaChanges;
-    }
-
-    private static void setNumReplicasForIndex(String index, int numReplicas, Map<Integer, List<String>> numReplicaChanges) {
-        numReplicaChanges.compute(numReplicas, (integer, strings) -> {
-            if (strings == null) {
-                strings = new ArrayList<>();
-            }
-            strings.add(index);
-            return strings;
-        });
     }
 }

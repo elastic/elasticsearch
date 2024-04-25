@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.IndexRankingProperties;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.IndexProperties;
-import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.IndexRankingProperties;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;

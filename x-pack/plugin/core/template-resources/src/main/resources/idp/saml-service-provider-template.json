@@ -13,6 +13,7 @@
     "index.priority": 10,
     "index.format": 1
   },
+  "version": ${idp.template.version},
   "mappings": {
     "_doc": {
       "_meta": {

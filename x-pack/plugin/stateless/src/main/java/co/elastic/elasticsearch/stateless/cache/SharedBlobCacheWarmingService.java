@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectory.unwrapDirectory;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
@@ -142,7 +143,20 @@ public class SharedBlobCacheWarmingService {
                 logger.debug("{} warming", indexShard.shardId());
                 return ActionListener.runBefore(target, () -> {
                     final long finished = threadPool.rawRelativeTimeInMillis();
-                    logger.debug("{} warming completed in {} ms: {}", indexShard.shardId(), finished - started, tasks.values());
+                    logger.debug(
+                        "{} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes): {}",
+                        indexShard.shardId(),
+                        finished - started,
+                        commit.commitFiles()
+                            .keySet()
+                            .stream()
+                            .filter(file -> LuceneFilesExtensions.fromFile(file) == LuceneFilesExtensions.SI)
+                            .count(),
+                        commit.commitFiles().size(),
+                        tasks.size(),
+                        tasks.values().stream().mapToLong(task -> task.size.get()).sum(),
+                        tasks.values()
+                    );
                 });
             } else {
                 return target;
@@ -266,6 +280,7 @@ public class SharedBlobCacheWarmingService {
         private final BlobRegion target;
         private final SubscribableListener<Void> listener = new SubscribableListener<>();
         private final Set<String> files = ConcurrentCollections.newConcurrentSet();
+        private final AtomicLong size = new AtomicLong(0);
 
         CacheRegionWarmingTask(IndexShard indexShard, BlobRegion target) {
             this.indexShard = indexShard;
@@ -300,6 +315,7 @@ public class SharedBlobCacheWarmingService {
                                     progressUpdater,
                                     writeBuffer.get().clear()
                                 );
+                                size.addAndGet(bytesCopied);
                                 if (bytesCopied < length) {
                                     // TODO we should remove this and allow gap completion in SparseFileTracker even if progress < range end
                                     progressUpdater.accept(length);
@@ -330,7 +346,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         public String toString() {
-            return "CacheRegionWarmingTask{target=" + target + ", files=" + files + '}';
+            return "CacheRegionWarmingTask{target=" + target + ", files=" + files + ", size=" + size.get() + '}';
         }
     }
 }

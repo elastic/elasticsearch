@@ -20,7 +20,7 @@ import java.util.BitSet;
  */
 final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class);
 
     private final LongArrayVector vector;
 

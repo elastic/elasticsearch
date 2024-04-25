@@ -88,14 +88,11 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private Settings bufferAndChunkSettings(long buffer, long chunk) {
-        return defaultRepoSettings().put(
-            S3Repository.BUFFER_SIZE_SETTING.getKey(),
-            new ByteSizeValue(buffer, ByteSizeUnit.MB).getStringRep()
-        ).put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunk, ByteSizeUnit.MB).getStringRep()).build();
-    }
-
-    private Settings.Builder defaultRepoSettings() {
-        return Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket");
+        return Settings.builder()
+            .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(buffer, ByteSizeUnit.MB).getStringRep())
+            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunk, ByteSizeUnit.MB).getStringRep())
+            .build();
     }
 
     private RepositoryMetadata getRepositoryMetadata(Settings settings) {
@@ -106,7 +103,10 @@ public class S3RepositoryTests extends ESTestCase {
         final RepositoryMetadata metadata = new RepositoryMetadata(
             "dummy-repo",
             "mock",
-            defaultRepoSettings().put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build()
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar")
+                .build()
         );
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertEquals("foo/bar/", s3repo.basePath().buildAsString());
@@ -114,7 +114,11 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     public void testDefaultBufferSize() {
-        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", defaultRepoSettings().build());
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").build()
+        );
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertThat(s3repo.getBlobStore(), is(nullValue()));
             s3repo.start();

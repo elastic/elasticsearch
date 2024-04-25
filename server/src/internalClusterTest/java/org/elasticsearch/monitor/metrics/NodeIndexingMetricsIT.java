@@ -135,7 +135,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
             var coordinatingOperationsRejectionsRatio = getRecordedMetric(
                 plugin::getDoubleGaugeMeasurement,
-                "es.indexing.coordinating_operations.rejections.ratio"
+                "es.indexing.coordinating_operations.request.rejections.ratio"
             );
             assertThat(coordinatingOperationsRejectionsRatio.getDouble(), equalTo(0.0));
 
@@ -210,7 +210,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
             var coordinatingOperationsRejectionsRatio = getRecordedMetric(
                 plugin::getDoubleGaugeMeasurement,
-                "es.indexing.coordinating_operations.rejections.ratio"
+                "es.indexing.coordinating_operations.request.rejections.ratio"
             );
             assertThat(coordinatingOperationsRejectionsRatio.getDouble(), equalTo(1.0));
         });

@@ -305,7 +305,6 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1657")
     public void testMasterFailoverWithOnGoingMetricPublication() throws Exception {
         for (int i = 0; i < 2; i++) {
             startMasterNode();
@@ -313,7 +312,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         startIndexNode();
         startSearchNode(
             Settings.builder()
-                .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .put(SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );
 
@@ -333,10 +332,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
             TransportService.class
         );
 
-        int bulks = randomIntBetween(3, 5);
-        for (int i = 0; i < bulks; i++) {
-            indexDocs(indexName, randomIntBetween(10, 100));
-        }
+        indexDocs(indexName, 4000);
         refresh(indexName);
 
         mockTransportService.addRequestHandlingBehavior(TransportPublishSearchLoads.NAME, (handler, request, channel, task) -> {
@@ -345,7 +341,9 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
             }
         });
 
-        assertNoFailures(prepareSearch(indexName).setQuery(QueryBuilders.termQuery("field", "foo")));
+        for (var i = 0; i < 10; i++) {
+            assertNoFailures(prepareSearch(indexName).setQuery(QueryBuilders.termQuery("field", i)));
+        }
 
         safeAwait(firstNonZeroPublishSearchLoadLatch);
         internalCluster().stopCurrentMasterNode();

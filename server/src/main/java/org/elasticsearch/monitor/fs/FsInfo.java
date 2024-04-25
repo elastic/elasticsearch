@@ -8,12 +8,15 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,6 +38,11 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long total = -1;
         long free = -1;
         long available = -1;
+
+        ByteSizeValue lowWatermarkFreeSpace = null;
+        ByteSizeValue highWatermarkFreeSpace = null;
+        ByteSizeValue floodStageWatermarkFreeSpace = null;
+        ByteSizeValue frozenFloodStageWatermarkFreeSpace = null;
 
         public Path() {}
 
@@ -92,6 +100,35 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return ByteSizeValue.ofBytes(available);
         }
 
+        public void setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
+            lowWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdLowStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            highWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdHighStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            floodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFloodStage(
+                new ByteSizeValue(total, ByteSizeUnit.BYTES)
+            );
+            if (isDedicatedFrozenNode) {
+                frozenFloodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFrozenFloodStage(
+                    new ByteSizeValue(total, ByteSizeUnit.BYTES)
+                );
+            }
+        }
+
+        public ByteSizeValue getLowWatermarkFreeSpace() {
+            return lowWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getHighWatermarkFreeSpace() {
+            return highWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getFloodStageWatermarkFreeSpace() {
+            return floodStageWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getFrozenFloodStageWatermarkFreeSpace() {
+            return frozenFloodStageWatermarkFreeSpace;
+        }
+
         private static long addLong(long current, long other) {
             if (current == -1 && other == -1) {
                 return 0;
@@ -121,6 +158,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             static final String FREE_IN_BYTES = "free_in_bytes";
             static final String AVAILABLE = "available";
             static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+            static final String LOW_WATERMARK_FREE_SPACE = "low_watermark_free_space";
+            static final String LOW_WATERMARK_FREE_SPACE_IN_BYTES = "low_watermark_free_space_in_bytes";
+            static final String HIGH_WATERMARK_FREE_SPACE = "high_watermark_free_space";
+            static final String HIGH_WATERMARK_FREE_SPACE_IN_BYTES = "high_watermark_free_space_in_bytes";
+            static final String FLOOD_STAGE_FREE_SPACE = "flood_stage_free_space";
+            static final String FLOOD_STAGE_FREE_SPACE_IN_BYTES = "flood_stage_free_space_in_bytes";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE = "frozen_flood_stage_free_space";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES = "frozen_flood_stage_free_space_in_bytes";
         }
 
         @Override
@@ -144,6 +189,35 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             }
             if (available != -1) {
                 builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
+            }
+
+            if (lowWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.LOW_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.LOW_WATERMARK_FREE_SPACE,
+                    getLowWatermarkFreeSpace()
+                );
+            }
+            if (highWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.HIGH_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.HIGH_WATERMARK_FREE_SPACE,
+                    getHighWatermarkFreeSpace()
+                );
+            }
+            if (floodStageWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FLOOD_STAGE_FREE_SPACE,
+                    getFloodStageWatermarkFreeSpace()
+                );
+            }
+            if (frozenFloodStageWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE,
+                    getFrozenFloodStageWatermarkFreeSpace()
+                );
             }
 
             builder.endObject();
@@ -458,6 +532,19 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             paths[i] = new Path(in);
         }
         this.total = total();
+    }
+
+    public static FsInfo setEffectiveWatermarks(
+        @Nullable final FsInfo fsInfo,
+        @Nullable final DiskThresholdSettings masterThresholdSettings,
+        boolean isDedicatedFrozenNode
+    ) {
+        if (fsInfo != null && masterThresholdSettings != null) {
+            for (Path path : fsInfo.paths) {
+                path.setEffectiveWatermarks(masterThresholdSettings, isDedicatedFrozenNode);
+            }
+        }
+        return fsInfo;
     }
 
     @Override

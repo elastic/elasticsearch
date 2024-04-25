@@ -295,7 +295,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private Query randomDistanceFeatureQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), ctx);
+        return ft.distanceFeatureQuery(randomDate(), randomTimeValue().getStringRep(), ctx);
     }
 
     @Override

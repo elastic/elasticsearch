@@ -110,6 +110,7 @@ BY : 'by';
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+CAST_OP : '::';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';

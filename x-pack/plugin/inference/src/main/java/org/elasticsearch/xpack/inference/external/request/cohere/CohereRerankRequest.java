@@ -25,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public class CohereRerankRequest implements Request {
@@ -33,18 +32,16 @@ public class CohereRerankRequest implements Request {
     private final CohereAccount account;
     private final String query;
     private final List<String> input;
-    private final URI uri;
     private final CohereRerankTaskSettings taskSettings;
     private final String model;
     private final String inferenceEntityId;
 
-    public CohereRerankRequest(CohereAccount account, String query, List<String> input, CohereRerankModel model) {
+    public CohereRerankRequest(String query, List<String> input, CohereRerankModel model) {
         Objects.requireNonNull(model);
 
-        this.account = Objects.requireNonNull(account);
+        this.account = CohereAccount.of(model, CohereRerankRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
-        uri = buildUri(this.account.url(), "Cohere", CohereRerankRequest::buildDefaultUri);
         taskSettings = model.getTaskSettings();
         this.model = model.getServiceSettings().getCommonSettings().modelId();
         inferenceEntityId = model.getInferenceEntityId();
@@ -52,7 +49,7 @@ public class CohereRerankRequest implements Request {
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(uri);
+        HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(new CohereRerankRequestEntity(query, input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
@@ -73,7 +70,7 @@ public class CohereRerankRequest implements Request {
 
     @Override
     public URI getURI() {
-        return uri;
+        return account.uri();
     }
 
     @Override
@@ -86,8 +83,7 @@ public class CohereRerankRequest implements Request {
         return null;
     }
 
-    // default for testing
-    static URI buildDefaultUri() throws URISyntaxException {
+    public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(CohereUtils.HOST)
             .setPathSegments(CohereUtils.VERSION_1, CohereUtils.RERANK_PATH)

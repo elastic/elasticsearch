@@ -695,13 +695,13 @@ ca:l|gender:s
 ;
 
 
-countFieldVsAll
+countFieldVsAll#[skip:-8.14.99, reason:Fixed count(null) in 8.15]
 from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
 
 ca:l|cn:l|cf:l|gender:s
-33  |33  |33  |F
-57  |57  |57  |M
-10  |10  |0   |null
+33  |0   |33  |F
+57  |0   |57  |M
+10  |0   |0   |null
 ;
 
 countMultiValue
@@ -1456,6 +1456,30 @@ rows:l
 6
 ;
 
+countOfConst#[skip:-8.14.99,reason:supported in 8.15]
+FROM employees
+| STATS s1 = count(1), s2point1 = count(2.1), s_mv = count([-1, 0, 3]) * 3, s_null = count(null), rows = count(*)
+;
+
+s1:l | s2point1:l | s_mv:l | s_null:l | rows:l
+100  | 100        | 900    | 0        | 100
+;
+
+countOfConstGrouped#[skip:-8.14.99,reason:supported in 8.15]
+FROM employees
+| STATS s2point1 = count("two point one"), s_mv = count([-1, 0, 3]), s_null = count(null), rows = count(*) by languages
+| SORT languages
+;
+
+s2point1:l | s_mv:l | s_null:l | rows:l | languages:i
+15         | 45     | 0        | 15     | 1
+19         | 57     | 0        | 19     | 2
+17         | 51     | 0        | 17     | 3
+18         | 54     | 0        | 18     | 4
+21         | 63     | 0        | 21     | 5
+10         | 30     | 0        | 10     | null
+;
+
 sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), rows = count(*)
@@ -1552,7 +1576,55 @@ s2point1:d | s_mv:i | languages:i
 2.1        | 3      | null
 ;
 
-evalOverridingKey
+medianOfConst#[skip:-8.14.99,reason:supported in 8.15]
+FROM employees
+| STATS s1 = median(1), s_mv = median([-1, 0, 1, 3]), s_null = median(null)
+;
+
+s1:d | s_mv:d | s_null:d
+1.0  | 0.5    | null
+;
+
+medianOfConstGrouped#[skip:-8.14.99,reason:supported in 8.15]
+FROM employees
+| STATS s2point1 = median(2.1), s_mv = median([-1, 0, 1, 3]) by languages
+| SORT languages
+;
+
+s2point1:d | s_mv:d | languages:i
+2.1        | 0.5    | 1
+2.1        | 0.5    | 2
+2.1        | 0.5    | 3
+2.1        | 0.5    | 4
+2.1        | 0.5    | 5
+2.1        | 0.5    | null
+;
+
+countDistinctOfConst#[skip:-8.14.99,reason:supported in 8.15]
+FROM employees
+| STATS s1 = count_distinct(1), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_null = count_distinct(null), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 5) 
+;
+
+s1:l | s_mv:l | s_null:l | s_param:l
+1    | 4      | 0        | 4
+;
+
+countDistinctOfConstGrouped#[skip:-8.14.99,reason:supported in 8.15]
+FROM employees
+| STATS s2point1 = count_distinct("two point one"), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 8000) by languages
+| SORT languages
+;
+
+s2point1:l | s_mv:l | s_param:l | languages:i
+1          | 4      | 4         | 1
+1          | 4      | 4         | 2
+1          | 4      | 4         | 3
+1          | 4      | 4         | 4
+1          | 4      | 4         | 5
+1          | 4      | 4         | null
+;
+
+evalOverridingKey#[skip:-8.13.1,reason:fixed in 8.13.2]
 FROM employees
 | EVAL k = languages
 | STATS c = COUNT() BY languages, k
@@ -1584,6 +1656,23 @@ c:l | k1:i | languages:i
 18  | 4    | 4
 21  | 5    | 5
 10  | null | null
+;
+
+evalMultipleOverridingKeysWithAggregateExpr#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| EVAL k = languages, k1 = k
+| STATS c = 3*COUNT() BY languages, k, k1, languages
+| DROP k
+| SORT languages
+;
+
+c:l | k1:i | languages:i
+45  | 1    | 1
+57  | 2    | 2
+51  | 3    | 3
+54  | 4    | 4
+63  | 5    | 5
+30  | null | null
 ;
 
 minWithSortExpression1#[skip:-8.13.99,reason:supported in 8.14]

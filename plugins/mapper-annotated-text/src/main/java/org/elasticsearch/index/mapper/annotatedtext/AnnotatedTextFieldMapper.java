@@ -21,17 +21,22 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -41,6 +46,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -57,6 +63,8 @@ import java.util.regex.Pattern;
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
 public class AnnotatedTextFieldMapper extends FieldMapper {
+
+    public static final NodeFeature SYNTHETIC_SOURCE_SUPPORT = new NodeFeature("mapper.annotated_text.synthetic_source");
 
     public static final String CONTENT_TYPE = "annotated_text";
 
@@ -114,7 +122,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 meta };
         }
 
-        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
+        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context, MultiFields multiFields) {
             TextSearchInfo tsi = new TextSearchInfo(
                 fieldType,
                 similarity.get(),
@@ -126,12 +134,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
+                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                 meta.getValue()
             );
         }
 
         @Override
         public AnnotatedTextFieldMapper build(MapperBuilderContext context) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
@@ -146,8 +156,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return new AnnotatedTextFieldMapper(
                 name(),
                 fieldType,
-                buildFieldType(fieldType, context),
-                multiFieldsBuilder.build(this, context),
+                buildFieldType(fieldType, context, multiFields),
+                multiFields,
                 copyTo,
                 this
             );
@@ -472,15 +482,15 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
-
         private AnnotatedTextFieldType(
             String name,
             boolean store,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta
         ) {
-            super(name, true, store, tsi, isSyntheticSource, null, meta, false, false);
+            super(name, true, store, tsi, isSyntheticSource, syntheticSourceDelegate, meta, false, false);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
@@ -543,5 +553,37 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        if (fieldType.stored()) {
+            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    b.value((String) value);
+                }
+            };
+        }
+
+        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
+        if (kwd != null) {
+            return kwd.syntheticFieldLoader(simpleName());
+        }
+
+        throw new IllegalArgumentException(
+            String.format(
+                Locale.ROOT,
+                "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
+                    + " type [keyword] with doc values or stored and without a normalizer",
+                name(),
+                typeName()
+            )
+        );
     }
 }

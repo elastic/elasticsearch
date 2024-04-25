@@ -32,7 +32,7 @@ bucket.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<timestamp>`::
 (Optional, string) The timestamp of a single bucket result. If you do not
@@ -57,7 +57,7 @@ specific timestamps.
 
 `exclude_interim`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `expand`::
 (Optional, Boolean) If true, the output includes anomaly records. Defaults to `false`.
@@ -137,11 +137,11 @@ initial value that was calculated at the time the bucket was processed.
 
 `is_interim`:::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `probability`:::
 (number) The probability that the bucket has this behavior, in the range 0 to 1.
@@ -161,7 +161,7 @@ this.
 
 `bucket_span`::
 (number)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
 
 `event_count`::
 (number) The number of input data records processed in this bucket.
@@ -172,11 +172,11 @@ the initial value that was calculated at the time the bucket was processed.
 
 `is_interim`::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `processing_time_ms`::
 (number) The amount of time, in milliseconds, that it took to analyze the

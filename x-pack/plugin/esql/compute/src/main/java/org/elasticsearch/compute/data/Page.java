@@ -252,4 +252,11 @@ public final class Page implements Writeable {
             block.allowPassingToDifferentDriver();
         }
     }
+
+    public Page shallowCopy() {
+        for (Block b : blocks) {
+            b.incRef();
+        }
+        return new Page(blocks);
+    }
 }

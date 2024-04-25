@@ -22,8 +22,8 @@ setup:
 ---
 fetch fields:
   - skip:
-      version: ' - 8.13.99'
-      reason: fetch fields and stored_fields using ValueFetcher
+      version: ' - 8.14.99'
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       search:
@@ -41,7 +41,7 @@ fetch fields:
   - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
-  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _ignored, _routing, _source] }
   - length: { profile.shards.0.fetch.children: 2 }
   - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
@@ -57,8 +57,8 @@ fetch fields:
 ---
 fetch source:
   - skip:
-      version: ' - 8.13.99'
-      reason: fetch fields and stored_fields using ValueFetcher
+      version: ' - 8.14.99'
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       search:
@@ -74,7 +74,7 @@ fetch source:
   - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
-  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _ignored, _routing, _source] }
   - length: { profile.shards.0.fetch.children: 3 }
   - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - match: { profile.shards.0.fetch.children.1.type: FetchSourcePhase }
@@ -88,8 +88,8 @@ fetch source:
 ---
 fetch nested source:
   - skip:
-      version: ' - 8.13.99'
-      reason: fetch fields and stored_fields using ValueFetcher
+      version: ' - 8.14.99'
+      reason: _ignored is returned only from 8.15 on
 
   - do:
       indices.create:
@@ -139,7 +139,7 @@ fetch nested source:
   - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
-  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _ignored, _routing, _source] }
   - length: { profile.shards.0.fetch.children: 4 }
   - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - match: { profile.shards.0.fetch.children.1.type: FetchSourcePhase }

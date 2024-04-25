@@ -24,8 +24,8 @@ The simplest way to set up {es} is to create a managed deployment with {ess} on
 {ecloud}. If you prefer to manage your own test environment, install and
 run {es} using Docker.
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
-include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/code.asciidoc[]
+include::{es-ref-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
 
 [discrete]
 [[send-requests-to-elasticsearch]]
@@ -36,7 +36,7 @@ with {es} using any client that sends HTTP requests, such as
 https://curl.se[curl]. You can also use {kib}'s Console to send requests to
 {es}.
 
-include::{es-repo-dir}/tab-widgets/api-call-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/api-call-widget.asciidoc[]
 
 [discrete]
 [[add-data]]

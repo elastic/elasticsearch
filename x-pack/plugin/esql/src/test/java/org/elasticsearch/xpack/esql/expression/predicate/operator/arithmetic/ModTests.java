@@ -34,20 +34,20 @@ public class ModTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
             TestCaseSupplier.forBinaryWithWidening(
-                new TestCaseSupplier.NumericTypeTestConfigs(
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Integer.MIN_VALUE >> 1) - 1,
                         (Integer.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.intValue() % r.intValue(),
                         "ModIntsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Long.MIN_VALUE >> 1) - 1,
                         (Long.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.longValue() % r.longValue(),
                         "ModLongsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         Double.NEGATIVE_INFINITY,
                         Double.POSITIVE_INFINITY,
                         (l, r) -> l.doubleValue() % r.doubleValue(),
@@ -56,7 +56,7 @@ public class ModTests extends AbstractFunctionTestCase {
                 ),
                 "lhs",
                 "rhs",
-                List.of(),
+                (lhs, rhs) -> List.of(),
                 false
             )
         );
@@ -77,20 +77,20 @@ public class ModTests extends AbstractFunctionTestCase {
         suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), ModTests::modErrorMessageString);
 
         // Divide by zero cases - all of these should warn and return null
-        TestCaseSupplier.NumericTypeTestConfigs typeStuff = new TestCaseSupplier.NumericTypeTestConfigs(
-            new TestCaseSupplier.NumericTypeTestConfig(
+        TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 (Integer.MIN_VALUE >> 1) - 1,
                 (Integer.MAX_VALUE >> 1) - 1,
                 (l, r) -> null,
                 "ModIntsEvaluator"
             ),
-            new TestCaseSupplier.NumericTypeTestConfig(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 (Long.MIN_VALUE >> 1) - 1,
                 (Long.MAX_VALUE >> 1) - 1,
                 (l, r) -> null,
                 "ModLongsEvaluator"
             ),
-            new TestCaseSupplier.NumericTypeTestConfig(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 Double.NEGATIVE_INFINITY,
                 Double.POSITIVE_INFINITY,
                 (l, r) -> null,
@@ -102,7 +102,7 @@ public class ModTests extends AbstractFunctionTestCase {
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
-                TestCaseSupplier.NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
+                TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
                 BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
                     + "["
                     + "lhs"
@@ -118,7 +118,7 @@ public class ModTests extends AbstractFunctionTestCase {
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
                     TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
                     evaluatorToString,
-                    List.of(
+                    (lhs, rhs) -> List.of(
                         "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                         "Line -1:-1: java.lang.ArithmeticException: / by zero"
                     ),

@@ -711,8 +711,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             } else if (closeException instanceof IOException ioException) {
                 throw ioException;
             } else {
-                assert false : closeException;
-                throw new RuntimeException("unexpected exception on shard close", closeException);
+                fail(closeException, "unexpected exception type");
             }
         }
     }

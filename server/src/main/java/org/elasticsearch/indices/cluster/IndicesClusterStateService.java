@@ -912,7 +912,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         shardRouting.shardId().id(),
                         message,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        ActionListener.noop()
+                        ActionListener.noop() // TODO
                     );
                 }
             }

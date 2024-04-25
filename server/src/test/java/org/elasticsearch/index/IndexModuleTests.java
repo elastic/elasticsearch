@@ -241,6 +241,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.getEngineFactory());
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -266,6 +267,7 @@ public class IndexModuleTests extends ESTestCase {
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
 
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -312,6 +314,7 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(((WrappedDirectory) directory).shardRouting, sameInstance(shardRouting));
         assertThat(directory, instanceOf(FilterDirectory.class));
 
+        // ES-8334 complete, this test can be synchronous
         indexService.close("test done", false);
     }
 
@@ -332,6 +335,7 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(x.getIndex(), index);
         indexService.getIndexEventListener().beforeIndexRemoved(null, null);
         assertTrue(atomicBoolean.get());
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -353,6 +357,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexService indexService = newIndexService(module);
         assertSame(booleanSetting, indexService.getIndexSettings().getScopedSettings().get(booleanSetting.getKey()));
 
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -384,6 +389,7 @@ public class IndexModuleTests extends ESTestCase {
             l.preIndex(shardId, index);
         }
         assertTrue(executed.get());
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -410,6 +416,7 @@ public class IndexModuleTests extends ESTestCase {
             l.onNewReaderContext(mock(ReaderContext.class));
         }
         assertTrue(executed.get());
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -436,6 +443,7 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(similarity, Matchers.instanceOf(TestSimilarity.class));
         assertEquals("my_similarity", similarityService.getSimilarity("my_similarity").name());
         assertEquals("there is a key", ((TestSimilarity) similarity).key);
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -497,6 +505,7 @@ public class IndexModuleTests extends ESTestCase {
         );
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof CustomQueryCache);
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
         assertThat(liveQueryCaches, empty());
     }
@@ -510,6 +519,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof IndexQueryCache);
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -524,6 +534,7 @@ public class IndexModuleTests extends ESTestCase {
         module.forceQueryCacheProvider((a, b) -> new CustomQueryCache(null));
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
     }
 
@@ -645,6 +656,7 @@ public class IndexModuleTests extends ESTestCase {
 
         assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
 
+        // ES-8334 complete, this test can be synchronous
         indexService.close("closing", false);
     }
 
@@ -695,7 +707,9 @@ public class IndexModuleTests extends ESTestCase {
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
-            closeables.add(() -> indexService.close("close index service at end of test", false));
+            closeables.add(() ->
+            // ES-8334 complete, this test can be synchronous
+            indexService.close("close index service at end of test", false));
 
             IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
             closeables.add(() -> closeShard(indexShard, "close shard at end of test", true));

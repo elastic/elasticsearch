@@ -145,6 +145,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertFalse(task.isClosed());
         assertTrue(task.isScheduled());
 
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
         assertFalse("no shards left", task.mustReschedule());
         assertTrue(task.isScheduled());
@@ -222,6 +223,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(refreshTask.isScheduled());
         assertFalse(refreshTask.isClosed());
 
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
         assertFalse(refreshTask.isScheduled());
         assertTrue(refreshTask.isClosed());
@@ -260,6 +262,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(fsyncTask.isScheduled());
         assertFalse(fsyncTask.isClosed());
 
+        // ES-8334 complete, this test can be synchronous
         indexService.close("simon says", false);
         assertFalse(fsyncTask.isScheduled());
         assertTrue(fsyncTask.isClosed());

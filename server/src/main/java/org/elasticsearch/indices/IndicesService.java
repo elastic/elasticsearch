@@ -668,6 +668,7 @@ public class IndicesService extends AbstractLifecycleComponent
             return indexService;
         } finally {
             if (success == false) {
+                // ES-8334 complete, we're on the failure path and didn't create any shards to close
                 indexService.close("plugins_failed", true);
             }
         }
@@ -705,7 +706,9 @@ public class IndicesService extends AbstractLifecycleComponent
             finalListeners,
             indexingMemoryController
         );
-        try (Closeable dummy = () -> indexService.close("temp", false)) {
+        try (Closeable dummy = () ->
+        // ES-8334 complete, we don't start any shards here, just auxiliary services
+        indexService.close("temp", false)) {
             return indexServiceConsumer.apply(indexService);
         }
     }
@@ -846,7 +849,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesFieldDataCache,
                 emptyList()
             );
-            closeables.add(() -> service.close("metadata verification", false));
+            closeables.add(() ->
+            // ES-8334 complete, no shards created
+            service.close("metadata verification", false));
             service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metadata.equals(metadataUpdate) == false) {
                 service.updateMetadata(metadata, metadataUpdate);
@@ -915,6 +920,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
+            // ES-8334 TODO
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
             logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
             final IndexSettings indexSettings = indexService.getIndexSettings();

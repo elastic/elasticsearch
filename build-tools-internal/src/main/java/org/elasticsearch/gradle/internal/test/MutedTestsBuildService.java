@@ -95,6 +95,7 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
 
     public interface Params extends BuildServiceParameters {
         RegularFileProperty getInfoPath();
+
         ListProperty<RegularFile> getAdditionalFiles();
     }
 

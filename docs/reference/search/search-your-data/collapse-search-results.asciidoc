@@ -179,7 +179,7 @@ GET /my-index-000001/_search
 ==== Rescore collapse results
 
 You can use field collapsing alongside the <<rescore, `rescore`>> search parameter.
-Rescorers runs on every shard for the top-ranked document per collapsed field.
+Rescorers run on every shard for the top-ranked document per collapsed field.
 To maintain a reliable order, it is recommended to cluster documents sharing the same collapse
 field value on one shard.
 This is achieved by assigning the collapse field value as the <<search-routing, routing key>>

@@ -25,6 +25,7 @@ import java.util.Set;
 public class DataStreamFeatures implements FeatureSpecification {
 
     public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
+    public static final NodeFeature DATA_STREAM_INDICES_EXTRACTION = new NodeFeature("data_stream.indices_extraction");
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
@@ -37,7 +38,8 @@ public class DataStreamFeatures implements FeatureSpecification {
             DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE,  // Added in 8.12
             LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
             DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
-            DataStreamGlobalRetention.GLOBAL_RETENTION                      // Added in 8.14
+            DataStreamGlobalRetention.GLOBAL_RETENTION,                      // Added in 8.14
+            DATA_STREAM_INDICES_EXTRACTION                                   // Added in 8.15
         );
     }
 }

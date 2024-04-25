@@ -73,7 +73,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     @Override
     protected Writeable.Reader<DataStream> instanceReader() {
-        return DataStream::new;
+        return DataStream::read;
     }
 
     @Override
@@ -97,7 +97,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var failureIndices = instance.getFailureIndices().getIndices();
         var rolloverOnWrite = instance.rolloverOnWrite();
         var autoShardingEvent = instance.getAutoShardingEvent();
-        switch (between(0, 12)) {
+        var failureRolloverOnWrite = instance.getFailureIndices().isRolloverOnWrite();
+        var failureAutoShardingEvent = instance.getBackingIndices().getAutoShardingEvent();
+        switch (between(0, 14)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomNonEmptyIndexInstances();
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
@@ -139,7 +141,27 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 isReplicated = rolloverOnWrite == false && isReplicated;
             }
             case 12 -> {
-                autoShardingEvent = randomBoolean() && autoShardingEvent != null
+                if (randomBoolean() || autoShardingEvent == null) {
+                    // If we're mutating the auto sharding event of the failure store, we need to ensure there's at least one failure index.
+                    if (failureIndices.isEmpty()) {
+                        failureIndices = DataStreamTestHelper.randomIndexInstances();
+                        failureStore = true;
+                    }
+                    autoShardingEvent = new DataStreamAutoShardingEvent(
+                        failureIndices.get(failureIndices.size() - 1).getName(),
+                        randomIntBetween(1, 10),
+                        randomMillisUpToYear9999()
+                    );
+                } else {
+                    autoShardingEvent = null;
+                }
+            }
+            case 13 -> {
+                failureRolloverOnWrite = failureRolloverOnWrite == false;
+                isReplicated = failureRolloverOnWrite == false && isReplicated;
+            }
+            case 14 -> {
+                failureAutoShardingEvent = randomBoolean() && failureAutoShardingEvent != null
                     ? null
                     : new DataStreamAutoShardingEvent(
                         indices.get(indices.size() - 1).getName(),
@@ -151,19 +173,23 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         return new DataStream(
             name,
-            indices,
             generation,
             metadata,
             isHidden,
             isReplicated,
             isSystem,
+            System::currentTimeMillis,
             allowsCustomRouting,
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices,
-            rolloverOnWrite,
-            autoShardingEvent
+            new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, indices, rolloverOnWrite, autoShardingEvent),
+            new DataStream.DataStreamIndices(
+                DataStream.BACKING_INDEX_PREFIX,
+                failureIndices,
+                failureRolloverOnWrite,
+                failureAutoShardingEvent
+            )
         );
     }
 

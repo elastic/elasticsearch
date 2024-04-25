@@ -360,7 +360,18 @@ public final class DataStreamTestHelper {
                         : null
                 )
                 .build(),
-            DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices).build()
+            DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices)
+                .setRolloverOnWrite(failureStore && replicated == false && randomBoolean())
+                .setAutoShardingEvent(
+                    failureStore && randomBoolean()
+                        ? new DataStreamAutoShardingEvent(
+                            indices.get(indices.size() - 1).getName(),
+                            randomIntBetween(1, 10),
+                            randomMillisUpToYear9999()
+                        )
+                        : null
+                )
+                .build()
         );
     }
 

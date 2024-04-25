@@ -51,7 +51,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, IdentityProviderPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IdentityProviderPlugin.class, IndexTemplateRegistryPlugin.class);
     }
 
     @Override
@@ -224,4 +224,20 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         });
     }
 
+    // Since we don't actually enable the IDP plugin, it doesn't initialize its template registry, so
+    // this creates just the template registry on its own.
+    public static class IndexTemplateRegistryPlugin extends Plugin {
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            var indexTemplateRegistry = new SamlServiceProviderIndexTemplateRegistry(
+                services.environment().settings(),
+                services.clusterService(),
+                services.threadPool(),
+                services.client(),
+                services.xContentRegistry()
+            );
+            indexTemplateRegistry.initialize();
+            return List.of(indexTemplateRegistry);
+        }
+    }
 }

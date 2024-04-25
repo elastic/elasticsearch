@@ -83,7 +83,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             actionFilters,
             StopTrainedModelDeploymentAction.Request::new,
             StopTrainedModelDeploymentAction.Response::new,
-            StopTrainedModelDeploymentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.ingestService = ingestService;

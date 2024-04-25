@@ -9,6 +9,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureTestUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -97,6 +97,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -688,10 +689,32 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static void closeShard(IndexShard indexShard, String reason, boolean flushEngine) throws IOException {
-        final var future = new PlainActionFuture<Void>();
-        indexShard.close(reason, flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
-        assertTrue(future.isDone());
-        FutureTestUtils.uninterruptibleIOGet(future);
+        final var closeExceptionRef = new AtomicReference<Exception>();
+        final var complete = new AtomicBoolean();
+        indexShard.close(reason, flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                assertTrue(complete.compareAndSet(false, true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                closeExceptionRef.set(e);
+                assertTrue(complete.compareAndSet(false, true));
+            }
+        });
+        assertTrue(complete.get());
+        final var closeException = closeExceptionRef.get();
+        if (closeException != null) {
+            if (closeException instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            } else if (closeException instanceof IOException ioException) {
+                throw ioException;
+            } else {
+                assert false : closeException;
+                throw new RuntimeException("unexpected exception on shard close", closeException);
+            }
+        }
     }
 
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {

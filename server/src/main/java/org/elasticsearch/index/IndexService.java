@@ -617,20 +617,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private void closeShardAndWait(String reason, ShardId shardId, IndexShard indexShard, Store store, IndexEventListener listener) {
-        final var closeExceptionRef = new AtomicReference<Exception>();
-        closeShard(reason, shardId, indexShard, store, listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                closeExceptionRef.set(e);
-            }
-        });
-
-    }
-
     private void closeShard(
         String reason,
         ShardId sId,

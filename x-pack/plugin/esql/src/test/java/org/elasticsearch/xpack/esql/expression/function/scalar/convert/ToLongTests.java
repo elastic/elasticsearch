@@ -212,7 +212,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
 
         TestCaseSupplier.unary(
             suppliers,
-            "noop",
+            "Attribute[channel=0]",
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomNonNegativeLong, EsqlDataTypes.COUNTER_LONG)),
             DataTypes.LONG,
             l -> l,

@@ -117,7 +117,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
 
         TestCaseSupplier.unary(
             suppliers,
-            "noop",
+            "Attribute[channel=0]",
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, EsqlDataTypes.COUNTER_DOUBLE)),
             DataTypes.DOUBLE,
             l -> l,

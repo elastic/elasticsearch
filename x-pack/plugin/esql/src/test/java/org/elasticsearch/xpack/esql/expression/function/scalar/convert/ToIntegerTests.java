@@ -260,7 +260,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
 
         TestCaseSupplier.unary(
             suppliers,
-            "noop",
+            "Attribute[channel=0]",
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, EsqlDataTypes.COUNTER_INTEGER)),
             DataTypes.INTEGER,
             l -> l,

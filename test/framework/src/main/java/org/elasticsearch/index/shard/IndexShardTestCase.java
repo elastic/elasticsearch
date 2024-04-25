@@ -688,9 +688,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     }
 
+    // ES-8334 TODO test async shard closing
+
     public static void closeShard(IndexShard indexShard, String reason, boolean flushEngine) throws IOException {
         final var closeExceptionRef = new AtomicReference<Exception>();
         final var complete = new AtomicBoolean();
+        // ES-8334 complete, closing the shard can be synchronous in these tests
         indexShard.close(reason, flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -700,7 +703,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 closeExceptionRef.set(e);
-                assertTrue(complete.compareAndSet(false, true));
+                onResponse(null);
             }
         });
         assertTrue(complete.get());

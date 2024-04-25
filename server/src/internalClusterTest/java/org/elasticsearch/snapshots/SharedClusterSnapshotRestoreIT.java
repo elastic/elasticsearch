@@ -1747,6 +1747,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertNotNull("should be at least one node with a primary shard", nodeWithPrimary);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeWithPrimary);
         IndexService indexService = indicesService.indexService(resolveIndex(index));
+        // ES-8334 complete, this test can close synchronously
         indexService.removeShard(
             0,
             "simulate node removal",

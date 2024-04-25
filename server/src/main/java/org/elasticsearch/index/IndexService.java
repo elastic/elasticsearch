@@ -556,17 +556,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
                 final var finalStore = store;
                 final var finalIndexShard = indexShard;
-                executeDirectly(
-                    l -> closeShard(
-                        "initialization failed",
-                        shardId,
-                        finalIndexShard,
-                        finalStore,
-                        eventListener,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        l
-                    )
-                );
+                executeDirectly(l ->
+                // ES-8334 complete, we're on the exception path here, closing a shard that failed to start up should be fast enough
+                closeShard(
+                    "initialization failed",
+                    shardId,
+                    finalIndexShard,
+                    finalStore,
+                    eventListener,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    l
+                ));
             }
         }
     }
@@ -579,6 +579,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
         shards = Maps.copyMapWithRemovedEntry(shards, shardId);
+        // ES-8334 passthru, enclosing method is also async
         closeShard(
             reason,
             indexShard.shardId(),
@@ -664,7 +665,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                             logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
                             onResponse(null); // otherwise ignore the exception
                         }
-                    }, l -> indexShard.close(reason, flushEngine, closeExecutor, l));
+                    }, l ->
+                    // ES-8334 passthru, enclosing method is also async
+                    indexShard.close(reason, flushEngine, closeExecutor, l));
                 }
             }
         } finally {

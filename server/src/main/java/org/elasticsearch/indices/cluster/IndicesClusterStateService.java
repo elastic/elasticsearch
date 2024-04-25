@@ -419,11 +419,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // we can just remove the shard without cleaning it locally, since we will clean it in IndicesStore
                         // once all shards are allocated
                         logger.debug("{} removing shard (not allocated)", shardId);
+                        // ES-8334 TODO
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (not allocated)",
                             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            ActionListener.noop() // TODO
+                            ActionListener.noop()
                         );
                     } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
                         logger.debug(
@@ -432,11 +433,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             currentRoutingEntry,
                             newShardRouting
                         );
+                        // ES-8334 TODO
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (stale copy)",
                             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            ActionListener.noop()// TODO
+                            ActionListener.noop()
                         );
                     } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
                         // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
@@ -444,22 +446,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // cluster state may result in a new shard being initialized while having the same allocation id as the currently
                         // started shard.
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
+                        // ES-8334 TODO
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (stale copy)",
                             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            ActionListener.noop()// TODO
+                            ActionListener.noop()
                         );
                     } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
                         assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
                         // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
                         // and assigning an initializing primary to this node
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
+                        // ES-8334 TODO
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (stale copy)",
                             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            ActionListener.noop()// TODO
+                            ActionListener.noop()
                         );
                     }
                 }
@@ -909,11 +913,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (indexService != null) {
                 Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
                 if (shard != null && shard.routingEntry().isSameAllocation(shardRouting)) {
+                    // ES-8334 TODO
                     indexService.removeShard(
                         shardRouting.shardId().id(),
                         message,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        ActionListener.noop() // TODO
+                        ActionListener.noop()
                     );
                 }
             }

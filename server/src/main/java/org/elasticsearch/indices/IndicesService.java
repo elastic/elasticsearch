@@ -920,7 +920,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
-            // ES-8334 TODO
+            // ES-8334 TODO look at callers
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
             logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
             final IndexSettings indexSettings = indexService.getIndexSettings();

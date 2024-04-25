@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Utilities to help with closing shards & indices
+ * Utilities to help with closing shards and indices
  */
 public class CloseUtils {
 

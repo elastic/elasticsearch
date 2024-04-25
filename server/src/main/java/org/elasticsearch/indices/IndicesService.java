@@ -927,7 +927,7 @@ public class IndicesService extends AbstractLifecycleComponent
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
             // ES-8334 TODO needs to be async
-            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
+            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
             logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
             final IndexSettings indexSettings = indexService.getIndexSettings();
             listener.afterIndexRemoved(indexService.index(), indexSettings, reason);

@@ -33,22 +33,23 @@ public interface CacheBlobReader {
     /**
      * Gets a range of a blob to read into the cache. The range can extend beyond the actual length of a blob, and it is expected
      * that no bytes beyond the actual length of the blob are fetched.
-     *
+     * <p>
      * It is important that the end position of the resulting {@link ByteRange} is something that the {@link CacheBlobReader} (and any
      * {@link CacheBlobReader} switched to afterward) can actually fetch. In other words, the {@link IndexingShardCacheBlobReader} cannot
      * let the upper bound be more than position+length rounded up to next page.
-     *
+     * <p>
      * Also, the {@link IndexingShardCacheBlobReader} cannot be used based on a range retrieved from the {@link ObjectStoreCacheBlobReader}.
      *
-     * @param position the position of the range to read into the cache
-     * @param length the length of the range to read into the cache
+     * @param position            the position of the range to read into the cache
+     * @param length              the length of the range to read into the cache
+     * @param remainingFileLength the remaining length of the file, those bytes are guaranteed to be avaialable.
      * @return the range to read into the cache
      */
-    ByteRange getRange(long position, int length);
+    ByteRange getRange(long position, int length, long remainingFileLength);
 
     /**
      * The input stream to fetch the data from, with which to read into the cache. This may be called multiple times for different parts
-     * of the range returned by {@link #getRange(long, int)}.
+     * of the range returned by {@link #getRange(long, int, long)}.
      *
      * It is OK for the {@link InputStream} to return less data than specified length (even no data).
      *

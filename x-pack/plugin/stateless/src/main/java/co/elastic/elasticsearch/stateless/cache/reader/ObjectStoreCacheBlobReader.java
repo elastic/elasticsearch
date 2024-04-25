@@ -44,7 +44,7 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
-    public ByteRange getRange(long position, int length) {
+    public ByteRange getRange(long position, int length, long remainingFileLength) {
         return BlobCacheUtils.computeRange(cacheRangeSize, position, length);
     }
 

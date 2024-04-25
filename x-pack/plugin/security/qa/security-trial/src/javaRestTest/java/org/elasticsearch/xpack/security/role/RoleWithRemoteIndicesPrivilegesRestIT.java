@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-//TODO: add the remote cluster analog here too
 public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private static final String REMOTE_SEARCH_USER = "remote_search_user";
@@ -183,6 +182,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                     "grant": ["field"]
                   }
                 }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-a", "*"]
+                }
               ]
             }""");
         final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
@@ -206,6 +211,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "query": ["{\\"match\\":{\\"field\\":\\"a\\"}}"],
                   "field_security": [{"grant": ["field"]}]
                 }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-a", "*"]
+                }
               ]
             }""")));
 
@@ -224,6 +235,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
                   "clusters": ["remote-a", "*"]
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-c"]
                 }
               ]
             }""");
@@ -251,6 +268,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "privileges": ["read"],
                   "allow_restricted_indices": false,
                   "clusters": ["remote-a", "*"]
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-c"]
                 }
               ]
             }""")));

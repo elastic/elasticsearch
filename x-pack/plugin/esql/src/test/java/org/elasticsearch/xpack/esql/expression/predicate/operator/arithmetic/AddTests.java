@@ -30,8 +30,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AddTests extends AbstractFunctionTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -91,83 +93,67 @@ public class AddTests extends AbstractFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
                 (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
                 EsqlDataTypes.DATE_PERIOD,
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
+                startsWith("LiteralsEvaluator[lit="),  // lhs and rhs have to be literals, so we fold into a literal
                 List.of(),
                 true
             )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
                 (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
                 EsqlDataTypes.TIME_DURATION,
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
+                startsWith("LiteralsEvaluator[lit="), // lhs and rhs have to be literals, so we fold into a literal
                 List.of(),
                 true
             )
         );
 
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> {
-                    // this weird casting dance makes the expected value lambda symmetric
-                    Long date;
-                    Period period;
-                    if (lhs instanceof Long) {
-                        date = (Long) lhs;
-                        period = (Period) rhs;
-                    } else {
-                        date = (Long) rhs;
-                        period = (Period) lhs;
-                    }
-                    return asMillis(asDateTime(date).plus(period));
-                },
-                DataTypes.DATETIME,
-                TestCaseSupplier.dateCases(),
-                TestCaseSupplier.datePeriodCases(),
-                List.of(),
-                true
-            )
-        );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                // TODO: There is an evaluator for Datetime + Duration, so it should be tested. Similarly above.
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> {
-                    // this weird casting dance makes the expected value lambda symmetric
-                    Long date;
-                    Duration duration;
-                    if (lhs instanceof Long) {
-                        date = (Long) lhs;
-                        duration = (Duration) rhs;
-                    } else {
-                        date = (Long) rhs;
-                        duration = (Duration) lhs;
-                    }
-                    return asMillis(asDateTime(date).plus(duration));
-                },
-                DataTypes.DATETIME,
-                TestCaseSupplier.dateCases(),
-                TestCaseSupplier.timeDurationCases(),
-                List.of(),
-                true
-            )
-        );
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting((lhs, rhs) -> {
+            // this weird casting dance makes the expected value lambda symmetric
+            Long date;
+            Period period;
+            if (lhs instanceof Long) {
+                date = (Long) lhs;
+                period = (Period) rhs;
+            } else {
+                date = (Long) rhs;
+                period = (Period) lhs;
+            }
+            return asMillis(asDateTime(date).plus(period));
+        },
+            DataTypes.DATETIME,
+            TestCaseSupplier.dateCases(),
+            TestCaseSupplier.datePeriodCases(),
+            startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
+            List.of(),
+            true
+        ));
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting((lhs, rhs) -> {
+            // this weird casting dance makes the expected value lambda symmetric
+            Long date;
+            Duration duration;
+            if (lhs instanceof Long) {
+                date = (Long) lhs;
+                duration = (Duration) rhs;
+            } else {
+                date = (Long) rhs;
+                duration = (Duration) lhs;
+            }
+            return asMillis(asDateTime(date).plus(duration));
+        },
+            DataTypes.DATETIME,
+            TestCaseSupplier.dateCases(),
+            TestCaseSupplier.timeDurationCases(),
+            startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
+            List.of(),
+            true
+        ));
         suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {
             consumer.accept(
                 new TestCaseSupplier(
@@ -195,7 +181,12 @@ public class AddTests extends AbstractFunctionTestCase {
 
         // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
         // Datetime + Period/Duration, since the expression will take the non-null arg's type.
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AddTests::addErrorMessageString);
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullType, original) -> original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
+        );
+        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
 
         // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {

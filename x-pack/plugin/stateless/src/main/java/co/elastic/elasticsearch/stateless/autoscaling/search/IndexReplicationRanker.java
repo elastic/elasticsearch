@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
-import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.IndexRankingProperties;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -92,4 +90,6 @@ public class IndexReplicationRanker {
         }
         return twoReplicaEligableIndices;
     }
+
+    record IndexRankingProperties(SearchMetricsService.IndexProperties indexProperties, long interactiveSize) {}
 }

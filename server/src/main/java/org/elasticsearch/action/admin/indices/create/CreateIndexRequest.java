@@ -66,7 +66,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private Settings settings = Settings.EMPTY;
 
-    private String mappings = "{}";
+    private String mappings = "{\"_doc\":{}}";
 
     private final Set<Alias> aliases = new HashSet<>();
 

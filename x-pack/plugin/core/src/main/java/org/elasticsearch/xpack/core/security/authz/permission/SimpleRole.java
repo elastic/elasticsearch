@@ -209,7 +209,7 @@ public class SimpleRole implements Role {
             && remoteClusterPermissions.hasPrivileges(remoteClusterAlias) == false) {
             return RoleDescriptorsIntersection.EMPTY;
         }
-        // TODO: test the case where only remote cluster permissions are present, but no indices permissions are defined (and vice versa)
+  
         final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
             for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {

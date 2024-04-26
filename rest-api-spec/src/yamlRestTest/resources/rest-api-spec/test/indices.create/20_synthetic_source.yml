@@ -36,3 +36,138 @@ nested is disabled:
                 properties:
                   foo:
                     type: keyword
+
+---
+object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored values
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true, "a.very.deeply.nested.field": "AAAA" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.some_string: AaAa }
+  - match: { hits.hits.0._source.some_int: 1000 }
+  - match: { hits.hits.0._source.some_double: 123.456789 }
+  - match: { hits.hits.0._source.a.very.deeply.nested.field: AAAA }
+  - match: { hits.hits.0._source.some_bool: true }
+
+
+---
+nested object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored values
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.name": "aaaa", "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.name: aaaa }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
+
+
+---
+empty object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored values
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }

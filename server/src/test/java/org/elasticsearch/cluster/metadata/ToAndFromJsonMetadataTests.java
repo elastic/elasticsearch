@@ -788,7 +788,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : {
                   "namespace_one" : {
-                    "version" : -1,
+                    "version" : -9223372036854775808,
                     "handlers" : {
                       "one" : {
                         "keys" : [
@@ -813,7 +813,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     }
                   },
                   "namespace_two" : {
-                    "version" : -1,
+                    "version" : -9223372036854775808,
                     "handlers" : {
                       "three" : {
                         "keys" : [

@@ -253,7 +253,7 @@ public class ModelRegistry {
             );
             throw new IllegalStateException(
                 format(
-                    "Failed to load inference endpoint [%s]. Enpoint is in an invalid state try deleting and reinitializing the service",
+                    "Failed to load inference endpoint [%s]. Endpoint is in an invalid state, try deleting and reinitializing the service",
                     inferenceEntityId
                 )
             );

@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Pow extends EsqlScalarFunction implements OptionalArgument {
 
-    private final Expression base, exponent;
-    private final DataType dataType;
+    private final Expression base;
+    private final Expression exponent;
 
     @FunctionInfo(
         returnType = "double",
@@ -59,7 +59,6 @@ public class Pow extends EsqlScalarFunction implements OptionalArgument {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
         this.exponent = exponent;
-        this.dataType = DataTypes.DOUBLE;
     }
 
     @Override
@@ -106,7 +105,7 @@ public class Pow extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return dataType;
+        return DataTypes.DOUBLE;
     }
 
     @Override

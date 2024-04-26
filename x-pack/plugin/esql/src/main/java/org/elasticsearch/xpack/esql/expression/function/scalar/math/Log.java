@@ -31,7 +31,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log extends EsqlScalarFunction implements OptionalArgument {
 
-    private final Expression base, value;
+    private final Expression base;
+    private final Expression value;
 
     @FunctionInfo(
         returnType = "double",

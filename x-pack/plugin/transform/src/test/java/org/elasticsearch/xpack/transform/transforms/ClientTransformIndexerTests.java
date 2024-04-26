@@ -376,6 +376,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
                 new TransformServices(
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),

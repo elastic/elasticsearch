@@ -255,13 +255,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void collect(int doc, long bucketOrd) throws IOException {
-            visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-            BitArray bits = visitedOrds.get(bucketOrd);
-            if (bits == null) {
-                bits = new BitArray(maxOrd, bigArrays);
-                visitedOrds.set(bucketOrd, bits);
-            }
             if (values.advanceExact(doc)) {
+                visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
+                BitArray bits = visitedOrds.get(bucketOrd);
+                if (bits == null) {
+                    bits = new BitArray(maxOrd, bigArrays);
+                    visitedOrds.set(bucketOrd, bits);
+                }
                 for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
                     bits.set((int) ord);
                 }

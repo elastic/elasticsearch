@@ -121,7 +121,8 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     enum MvOrdering {
         UNORDERED(false, false),
         DEDUPLICATED_UNORDERD(true, false),
-        DEDUPLICATED_AND_SORTED_ASCENDING(true, true);
+        DEDUPLICATED_AND_SORTED_ASCENDING(true, true),
+        SORTED_ASCENDING(false, true);
 
         private final boolean deduplicated;
         private final boolean sortedAscending;
@@ -198,6 +199,13 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
          * at runtime.
          */
         Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        /**
+         * An estimate of the number of bytes the {@link Block} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
+         */
+        long estimatedBytes();
 
         /**
          * Builds the block. This method can be called multiple times.

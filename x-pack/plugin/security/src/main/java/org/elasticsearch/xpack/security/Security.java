@@ -310,7 +310,6 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -584,7 +583,6 @@ public class Security extends Plugin
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
-    private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
     private final SetOnce<Realms> realms = new SetOnce<>();
     private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
@@ -734,8 +732,6 @@ public class Security extends Plugin
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
-
-        workflowService.set(new WorkflowService());
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
@@ -939,8 +935,7 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool),
-            workflowService.get()
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 

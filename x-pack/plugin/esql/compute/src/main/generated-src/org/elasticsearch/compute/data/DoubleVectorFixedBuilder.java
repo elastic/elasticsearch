@@ -47,6 +47,11 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public DoubleVector build() {
         if (nextIndex < 0) {
             throw new IllegalStateException("already closed");

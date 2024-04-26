@@ -106,13 +106,6 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         return (Request) this;
     }
 
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final Request timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
-    }
-
     public String concreteIndex() {
         return concreteIndex;
     }

@@ -220,6 +220,10 @@ public class GetDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
@@ -240,7 +244,7 @@ public class GetDataStreamLifecycleAction {
                     dataStreamLifecycles.iterator(),
                     dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(
                         builder,
-                        params,
+                        outerParams,
                         rolloverConfiguration,
                         globalRetention
                     )

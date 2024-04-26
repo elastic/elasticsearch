@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -113,19 +112,5 @@ public class Pow extends EsqlScalarFunction implements OptionalArgument {
         var baseEval = Cast.cast(source(), base.dataType(), DataTypes.DOUBLE, toEvaluator.apply(base));
         var expEval = Cast.cast(source(), exponent.dataType(), DataTypes.DOUBLE, toEvaluator.apply(exponent));
         return new PowEvaluator.Factory(source(), baseEval, expEval);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(base, exponent);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        Pow other = (Pow) obj;
-        return Objects.equals(other.base, base) && Objects.equals(other.exponent, exponent);
     }
 }

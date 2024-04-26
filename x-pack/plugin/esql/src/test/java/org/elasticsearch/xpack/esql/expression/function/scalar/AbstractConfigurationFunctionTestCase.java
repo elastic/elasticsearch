@@ -48,7 +48,7 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunc
         EsqlConfiguration config = randomConfiguration();
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
 
-        assertSerialization(expr);
+        assertSerialization(expr, config);
 
         EsqlConfiguration differentConfig;
         do {

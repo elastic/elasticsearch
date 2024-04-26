@@ -172,7 +172,7 @@ import static org.junit.Assert.fail;
  * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
  * </p>
  */
-public final class InternalTestCluster extends TestCluster {
+public class InternalTestCluster extends TestCluster {
 
     private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
@@ -1290,7 +1290,7 @@ public final class InternalTestCluster extends TestCluster {
         assertNoPendingIndexOperations();
         assertAllPendingWriteLimitsReleased();
         assertOpenTranslogReferences();
-        assertNoSnapshottedIndexCommit();
+        assertNoAcquiredIndexCommit();
     }
 
     private void assertAllPendingWriteLimitsReleased() throws Exception {
@@ -1353,7 +1353,7 @@ public final class InternalTestCluster extends TestCluster {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private void assertNoSnapshottedIndexCommit() throws Exception {
+    private void assertNoAcquiredIndexCommit() throws Exception {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
@@ -1361,10 +1361,10 @@ public final class InternalTestCluster extends TestCluster {
                     for (IndexShard indexShard : indexService) {
                         try {
                             Engine engine = IndexShardTestCase.getEngine(indexShard);
-                            if (engine instanceof InternalEngine) {
+                            if (engine instanceof InternalEngine internalEngine) {
                                 assertFalse(
-                                    indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
-                                    EngineTestCase.hasSnapshottedCommits(engine)
+                                    indexShard.routingEntry().toString() + " has unreleased acquired index commits",
+                                    hasAcquiredIndexCommit(internalEngine)
                                 );
                             }
                         } catch (AlreadyClosedException ignored) {
@@ -1374,6 +1374,10 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }, 60, TimeUnit.SECONDS);
+    }
+
+    protected boolean hasAcquiredIndexCommit(InternalEngine engine) {
+        return EngineTestCase.hasAcquiredCommits(engine);
     }
 
     /**

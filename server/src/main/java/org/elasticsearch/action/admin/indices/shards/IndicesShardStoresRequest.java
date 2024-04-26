@@ -75,7 +75,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
                 "support for maxConcurrentShardRequests=["
                     + maxConcurrentShardRequests
                     + "] was added in version [8.8.0], cannot send this request using transport version ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         } // else just drop the value and use the default behaviour

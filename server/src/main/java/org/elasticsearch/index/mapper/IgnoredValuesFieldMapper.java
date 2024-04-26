@@ -9,21 +9,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Mapper for the {@code _ignored_values} field.
@@ -58,7 +50,16 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
      *    the full name of the parent field
      *  - the value, encoded as a byte array
      */
-    public record Values(String name, int parentOffset, BytesRef value) {}
+    public record NameValue(String name, int parentOffset, BytesRef value) {
+        String getParentFieldName() {
+            // _doc corresponds to the root object
+            return (parentOffset == 0) ? "_doc" : name.substring(0, parentOffset - 1);
+        }
+
+        String getFieldName() {
+            return parentOffset() == 0 ? name() : name().substring(parentOffset());
+        }
+    }
 
     static final class IgnoredValuesFieldMapperType extends StringFieldType {
 
@@ -94,12 +95,12 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         assert context.getIgnoredFieldValues().isEmpty()
             || context.indexSettings().getMode().isSyntheticSourceEnabled()
             || context.mappingLookup().isSourceSynthetic();
-        for (Values values : context.getIgnoredFieldValues()) {
-            context.doc().add(new StoredField(NAME, encode(values)));
+        for (NameValue nameValue : context.getIgnoredFieldValues()) {
+            context.doc().add(new StoredField(NAME, encode(nameValue)));
         }
     }
 
-    static byte[] encode(Values values) {
+    static byte[] encode(NameValue values) {
         assert values.parentOffset < PARENT_OFFSET_IN_NAME_OFFSET;
         assert values.parentOffset * (long) PARENT_OFFSET_IN_NAME_OFFSET < Integer.MAX_VALUE;
 
@@ -111,81 +112,19 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         return bytes;
     }
 
-    static Values decode(Object field) {
+    static NameValue decode(Object field) {
         byte[] bytes = ((BytesRef) field).bytes;
         int encodedSize = ByteUtils.readIntLE(bytes, 0);
         int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
         int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
         String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
         BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
-        return new Values(name, parentOffset, value);
+        return new NameValue(name, parentOffset, value);
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return new SyntheticLoader();
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 
-    public static class SyntheticLoader implements SourceLoader.SyntheticFieldLoader {
-        // Contains stored field values, i.e. encoded ignored field names and values.
-        private List<Object> values = null;
-
-        // Maps the names of existing objects to lists of ignored fields they contain.
-        private Map<String, List<Values>> objectsWithIgnoredFields = Map.of();
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(NAME, values -> this.values = values));
-        }
-
-        @Override
-        public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
-            throws IOException {
-            return null;
-        }
-
-        @Override
-        public boolean hasValue() {
-            return false;
-        }
-
-        @Override
-        public void write(XContentBuilder b) throws IOException {
-            // This mapper doesn't contribute to source directly as it has no access to the
-            // object structure. Instead, it's accessed by object mappers to decode
-            // and write its fields within the appropriate object.
-            assert false : "IgnoredValuesFieldMapper::write should never be called";
-        }
-
-        public void trackObjectsWithIgnoredFields() {
-            if (values == null) {
-                return;
-            }
-            objectsWithIgnoredFields = new HashMap<>();
-            for (Object value : values) {
-                Values parsedValues = decode(value);
-                objectsWithIgnoredFields.computeIfAbsent(
-                    // _doc corresponds to the root object
-                    (parsedValues.parentOffset == 0) ? "_doc" : parsedValues.name.substring(0, parsedValues.parentOffset - 1),
-                    k -> new ArrayList<>()
-                ).add(parsedValues);
-            }
-            values = null;
-        }
-
-        // This is expected to be called by object mappers, to add their ignored fields as part of the source.
-        public void write(XContentBuilder b, String prefix) throws IOException {
-            var matches = objectsWithIgnoredFields.get(prefix);
-            if (matches != null) {
-                for (var values : matches) {
-                    b.field(values.parentOffset > 0 ? values.name.substring(values.parentOffset) : values.name);
-                    FieldDataParseHelper.decodeAndWrite(b, values.value);
-                }
-            }
-        }
-
-        public boolean containsIgnoredFields(String prefix) {
-            return objectsWithIgnoredFields.containsKey(prefix);
-        }
-    };
 }

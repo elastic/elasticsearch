@@ -730,6 +730,7 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private boolean hasValue;
+        private List<IgnoredValuesFieldMapper.NameValue> ignoredValues;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
             this.fields = fields;
@@ -784,34 +785,34 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            IgnoredValuesFieldMapper.SyntheticLoader ignoredFieldLoader = null;
-            for (SourceLoader.SyntheticFieldLoader field : fields) {
-                if (field instanceof IgnoredValuesFieldMapper.SyntheticLoader loader) {
-                    ignoredFieldLoader = loader;
-                    loader.trackObjectsWithIgnoredFields();
-                    break;
-                }
-            }
-            write(b, ignoredFieldLoader);
-        }
-
-        public void write(XContentBuilder b, IgnoredValuesFieldMapper.SyntheticLoader ignoredFieldLoader) throws IOException {
-            if (hasValue == false && ignoredFieldLoader.containsIgnoredFields(name()) == false) {
+            if (hasValue == false) {
                 return;
             }
             startSyntheticField(b);
             for (SourceLoader.SyntheticFieldLoader field : fields) {
-                if (field instanceof ObjectMapper.SyntheticSourceFieldLoader objectLoader) {
-                    objectLoader.write(b, ignoredFieldLoader);
-                } else if (field.hasValue()) {
+                if (field.hasValue()) {
                     field.write(b);
                 }
             }
-            if (ignoredFieldLoader != null) {
-                ignoredFieldLoader.write(b, name());
+            hasValue = false;
+            if (ignoredValues != null) {
+                for (IgnoredValuesFieldMapper.NameValue ignored : ignoredValues) {
+                    b.field(ignored.getFieldName());
+                    FieldDataParseHelper.decodeAndWrite(b, ignored.value());
+                }
+                ignoredValues = null;
             }
             b.endObject();
-            hasValue = false;
+        }
+
+        @Override
+        public boolean setIgnoredValues(Map<String, List<IgnoredValuesFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            ignoredValues = objectsWithIgnoredFields.get(name());
+            hasValue |= ignoredValues != null;
+            for (SourceLoader.SyntheticFieldLoader loader : fields) {
+                hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
+            }
+            return this.ignoredValues != null;
         }
     }
 

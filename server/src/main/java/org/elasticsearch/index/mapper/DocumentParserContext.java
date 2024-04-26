@@ -104,7 +104,7 @@ public abstract class DocumentParserContext {
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final List<IgnoredValuesFieldMapper.Values> ignoredFieldValues;
+    private final List<IgnoredValuesFieldMapper.NameValue> ignoredFieldValues;
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -123,7 +123,7 @@ public abstract class DocumentParserContext {
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
-        List<IgnoredValuesFieldMapper.Values> ignoredFieldValues,
+        List<IgnoredValuesFieldMapper.NameValue> ignoredFieldValues,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -259,14 +259,14 @@ public abstract class DocumentParserContext {
     /**
      * Add the given ignored values to the corresponding list.
      */
-    public final void addIgnoredValues(IgnoredValuesFieldMapper.Values values) {
+    public final void addIgnoredField(IgnoredValuesFieldMapper.NameValue values) {
         ignoredFieldValues.add(values);
     }
 
     /**
      * Return the collection of values for fields that have been ignored so far.
      */
-    public final Collection<IgnoredValuesFieldMapper.Values> getIgnoredFieldValues() {
+    public final Collection<IgnoredValuesFieldMapper.NameValue> getIgnoredFieldValues() {
         return Collections.unmodifiableCollection(ignoredFieldValues);
     }
 
@@ -367,8 +367,12 @@ public abstract class DocumentParserContext {
                     if (indexSettings().getMode().isSyntheticSourceEnabled() || mappingLookup.isSourceSynthetic()) {
                         try {
                             int parentOffset = parent() instanceof RootObjectMapper ? 0 : parent().fullPath().length() + 1;
-                            addIgnoredValues(
-                                new IgnoredValuesFieldMapper.Values(mapper.name(), parentOffset, FieldDataParseHelper.encodeToken(parser()))
+                            addIgnoredField(
+                                new IgnoredValuesFieldMapper.NameValue(
+                                    mapper.name(),
+                                    parentOffset,
+                                    FieldDataParseHelper.encodeToken(parser())
+                                )
                             );
                         } catch (IOException e) {
                             throw new IllegalArgumentException("failed to parse field [" + mapper.name() + " ]", e);

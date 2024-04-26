@@ -665,7 +665,7 @@
 ---
 "stemmer_override file access":
     - do:
-        catch: request
+        catch: bad_request
         indices.create:
           index: test
           body:
@@ -677,7 +677,7 @@
                     rules_path: "jvm.options"
     - match: { status: 400 }
     - match: { error.type: illegal_argument_exception }
-    - match: { error.reason: "Access denied trying to read file" }
+    - match: { error.reason: "/Access.denied.trying.to.read.file.rules_path.*/" }
 
 ---
 "decompounder":

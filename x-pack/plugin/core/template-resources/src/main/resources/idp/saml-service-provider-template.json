@@ -17,7 +17,7 @@
   "mappings": {
     "_doc": {
       "_meta": {
-        "idp-version": "${idp.template.version_string}",
+        "idp-version": "${idp.template.version_deprecated}",
         "idp-template-version": "${idp.template.version}"
       },
       "dynamic": "strict",

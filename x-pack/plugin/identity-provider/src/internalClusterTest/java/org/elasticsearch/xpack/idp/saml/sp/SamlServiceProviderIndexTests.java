@@ -224,8 +224,9 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         });
     }
 
-    // Since we don't actually enable the IDP plugin, it doesn't initialize its template registry, so
-    // this creates just the template registry on its own.
+    // Since we just want to test the template handling in this test suite, we don't need to go through
+    // all the hassle of the setup required to *actually* enable the plugin (we do that elsewhere), we
+    // just need to make sure the template registry is here.
     public static class IndexTemplateRegistryPlugin extends Plugin {
         @Override
         public Collection<?> createComponents(PluginServices services) {

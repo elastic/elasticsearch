@@ -75,7 +75,7 @@ public class SamlServiceProviderIndex implements Closeable {
     static final String TEMPLATE_VERSION_VARIABLE = "idp.template.version";
 
     // This field is only populated with an old-school version string for BWC purposes
-    static final String TEMPLATE_VERSION_STRING_DEPRECATED = "idp.template.version_string";
+    static final String TEMPLATE_VERSION_STRING_DEPRECATED = "idp.template.version_deprecated";
     static final String FINAL_TEMPLATE_VERSION_STRING_DEPRECATED = "8.14.0";
 
     static final int CURRENT_TEMPLATE_VERSION = 1;

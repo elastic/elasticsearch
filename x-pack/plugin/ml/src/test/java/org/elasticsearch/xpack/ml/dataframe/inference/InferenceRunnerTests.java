@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -151,7 +152,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
     private static Deque<SearchHit> buildSearchHits(List<Map<String, Object>> vals) {
         return vals.stream().map(InferenceRunnerTests::fromMap).map(reference -> {
-            var pooled = SearchHit.createFromMap(Collections.singletonMap("_source", reference));
+            var pooled = SearchResponseUtils.searchHitFromMap(Collections.singletonMap("_source", reference));
             try {
                 return pooled.asUnpooled();
             } finally {

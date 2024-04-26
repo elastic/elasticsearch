@@ -21,7 +21,8 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, ConstantNullVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
+    OrdinalBytesRefVector {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector {
@@ -114,7 +115,9 @@ $endif$
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
             case SERIALIZE_VECTOR_ARRAY -> $Type$ArrayVector.readArrayVector(positions, in, blockFactory);
-$if(BytesRef)$$else$
+$if(BytesRef)$
+            case SERIALIZE_VECTOR_ORDINAL -> OrdinalBytesRefVector.readOrdinalVector(blockFactory, in);
+$else$
             case SERIALIZE_VECTOR_BIG_ARRAY -> $Type$BigArrayVector.readArrayVector(positions, in, blockFactory);
 $endif$
             default -> {
@@ -139,7 +142,11 @@ $endif$
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof $Type$ArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-$if(BytesRef)$$else$
+$if(BytesRef)$
+        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+            out.writeByte(SERIALIZE_VECTOR_ORDINAL);
+            v.writeOrdinalVector(out);
+$else$
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof $Type$BigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);

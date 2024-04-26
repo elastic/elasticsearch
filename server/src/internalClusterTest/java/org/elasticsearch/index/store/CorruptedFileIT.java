@@ -180,7 +180,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         setReplicaCount(2, "test");
         ClusterHealthResponse health = clusterAdmin().health(
             new ClusterHealthRequest("test").waitForGreenStatus()
-                .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
+                // sometimes due to cluster rebalancing and random settings default timeout is just not enough.
+                .timeout(TimeValue.timeValueMinutes(5))
                 .waitForNoRelocatingShards(true)
         ).actionGet();
         if (health.isTimedOut()) {
@@ -439,6 +440,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final var maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         new ClusterStateObserver(
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            TimeValue.timeValueMillis(60000),
             logger,
             new ThreadContext(Settings.EMPTY)
         ).waitForNextChange(new ClusterStateObserver.Listener() {

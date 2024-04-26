@@ -74,6 +74,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      */
     protected abstract void processFileChanges() throws InterruptedException, ExecutionException, IOException;
 
+    protected abstract void processInitialFileMissing() throws InterruptedException, ExecutionException, IOException;
+
     public final void addFileChangedListener(FileChangedListener listener) {
         eventListeners.add(listener);
     }
@@ -173,6 +175,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 logger.debug("found initial operator settings file [{}], applying...", path);
                 processSettingsAndNotifyListeners();
             } else {
+                processInitialFileMissing();
                 // Notify everyone we don't have any initial file settings
                 for (var listener : eventListeners) {
                     listener.watchedFileChanged();

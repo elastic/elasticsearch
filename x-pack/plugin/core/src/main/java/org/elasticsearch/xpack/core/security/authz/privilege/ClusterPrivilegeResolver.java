@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
@@ -144,16 +144,16 @@ public class ClusterPrivilegeResolver {
         HasPrivilegesAction.NAME
     );
     private static final Set<String> CREATE_SNAPSHOT_PATTERN = Set.of(
-        CreateSnapshotAction.NAME,
-        SnapshotsStatusAction.NAME + "*",
-        GetSnapshotsAction.NAME,
-        SnapshotsStatusAction.NAME,
+        TransportCreateSnapshotAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name() + "*",
+        TransportGetSnapshotsAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name(),
         GetRepositoriesAction.NAME
     );
     private static final Set<String> MONITOR_SNAPSHOT_PATTERN = Set.of(
-        SnapshotsStatusAction.NAME + "*",
-        GetSnapshotsAction.NAME,
-        SnapshotsStatusAction.NAME,
+        TransportSnapshotsStatusAction.TYPE.name() + "*",
+        TransportGetSnapshotsAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name(),
         GetRepositoriesAction.NAME
     );
     private static final Set<String> READ_CCR_PATTERN = Set.of(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
@@ -180,7 +180,9 @@ public class ClusterPrivilegeResolver {
         RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         // esql enrich
-        "cluster:monitor/xpack/enrich/esql/resolve_policy"
+        "cluster:monitor/xpack/enrich/esql/resolve_policy",
+        "cluster:internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/exchange"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -311,7 +313,10 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/fleet/secrets/post", "cluster:admin/fleet/secrets/delete")
     );
 
-    public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
+    public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege(
+        "cancel_task",
+        Set.of(TransportCancelTasksAction.NAME + "*")
+    );
 
     public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
         "manage_search_application",
@@ -357,6 +362,14 @@ public class ClusterPrivilegeResolver {
             "cluster:admin/xpack/connector/secret/post",
             "cluster:admin/xpack/connector/secret/put"
         )
+    );
+    public static final NamedClusterPrivilege MONITOR_GLOBAL_RETENTION = new ActionClusterPrivilege(
+        "monitor_data_stream_global_retention",
+        Set.of("cluster:monitor/data_stream/global_retention/*")
+    );
+    public static final NamedClusterPrivilege MANAGE_GLOBAL_RETENTION = new ActionClusterPrivilege(
+        "manage_data_stream_global_retention",
+        Set.of("cluster:admin/data_stream/global_retention/*", "cluster:monitor/data_stream/global_retention/*")
     );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
@@ -417,7 +430,9 @@ public class ClusterPrivilegeResolver {
             CROSS_CLUSTER_SEARCH,
             CROSS_CLUSTER_REPLICATION,
             READ_CONNECTOR_SECRETS,
-            WRITE_CONNECTOR_SECRETS
+            WRITE_CONNECTOR_SECRETS,
+            MONITOR_GLOBAL_RETENTION,
+            MANAGE_GLOBAL_RETENTION
         ).filter(Objects::nonNull).toList()
     );
 

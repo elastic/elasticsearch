@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -618,7 +619,14 @@ public abstract class DocumentParserContext {
         if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
             containsDimensions = passThroughObjectMapper.containsDimensions();
         }
-        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions, dynamic);
+        return new MapperBuilderContext(
+            p,
+            mappingLookup().isSourceSynthetic(),
+            false,
+            containsDimensions,
+            dynamic,
+            MergeReason.MAPPING_UPDATE
+        );
     }
 
     public abstract XContentParser parser();

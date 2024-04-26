@@ -50,6 +50,12 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
+    public DoubleBlock expand() {
+        incRef();
+        return this;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return vector.ramBytesUsed();
     }

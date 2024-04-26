@@ -731,7 +731,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
         Map<String, Object> updateWatch = entityAsMap(client().performRequest(createWatchRequest));
         assertThat(updateWatch.get("created"), equalTo(false));
-        assertThat(updateWatch.get("_version"), equalTo(2));
+        assertThat((int) updateWatch.get("_version"), greaterThanOrEqualTo(2));
 
         Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));
@@ -1041,6 +1041,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Request esql = new Request("POST", "_query");
             esql.setJsonEntity("""
                 {
+                  "version": "2024.04.01",
                   "query": "FROM nofnf | LIMIT 1"
                 }""");
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}

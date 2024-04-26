@@ -17,7 +17,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
 
@@ -125,12 +124,6 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     public SearchTransportService getSearchTransport() {
         Assert.assertNotNull(searchTransport);
         return searchTransport;
-    }
-
-    @Override
-    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
-        Assert.fail("should not be called");
-        return null;
     }
 
     @Override

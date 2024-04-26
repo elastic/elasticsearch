@@ -100,9 +100,9 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + TransportVersions.V_8_8_0
+                        + TransportVersions.V_8_8_0.toReleaseVersion()
                         + "] can't handle remote indices privileges and attempted to send to ["
-                        + version
+                        + version.toReleaseVersion()
                         + "]"
                 )
             );

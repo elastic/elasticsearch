@@ -76,7 +76,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
-        createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
+        createIndexRequest.ackTimeout(request.paramAsTime("timeout", createIndexRequest.ackTimeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return createIndexRequest;
@@ -115,7 +115,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
-        createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
+        createIndexRequest.ackTimeout(request.paramAsTime("timeout", createIndexRequest.ackTimeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
 

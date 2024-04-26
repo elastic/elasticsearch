@@ -329,7 +329,8 @@ public class XPackPlugin extends XPackClientPlugin
                 services.threadPool(),
                 services.clusterService(),
                 getClock(),
-                getLicenseState()
+                getLicenseState(),
+                services.featureService()
             );
             setLicenseService(licenseService);
         }

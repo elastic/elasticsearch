@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -113,7 +113,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         doAnswer(callListenerOnResponse(null)).when(client)
-            .execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
+            .execute(eq(TransportCreateIndexAction.TYPE), createIndexRequestCaptor.capture(), any());
 
         Map<String, Object> analysisSettings1 = Map.ofEntries(
             Map.entry("index.analysis.filter.bigram_joiner.max_shingle_size", "2"),

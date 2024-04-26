@@ -49,6 +49,7 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
               - checkRestCompat
         agents:
           provider: gcp
@@ -90,6 +91,7 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
               - checkRestCompat
         agents:
           provider: gcp

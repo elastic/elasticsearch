@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -19,11 +20,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
 public class ToCartesianShape extends AbstractConvertFunction {
 
@@ -34,10 +35,21 @@ public class ToCartesianShape extends AbstractConvertFunction {
         Map.entry(TEXT, ToCartesianShapeFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "cartesian_shape", description = "Converts an input value to a shape value.")
+    @FunctionInfo(
+        returnType = "cartesian_shape",
+        description = """
+            Converts an input value to a `cartesian_shape` value.
+            A string will only be successfully converted if it respects the
+            {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.""",
+        examples = @Example(file = "spatial_shapes", tag = "to_cartesianshape-str")
+    )
     public ToCartesianShape(
         Source source,
-        @Param(name = "field", type = { "cartesian_point", "cartesian_shape", "keyword", "text" }) Expression field
+        @Param(
+            name = "field",
+            type = { "cartesian_point", "cartesian_shape", "keyword", "text" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
     ) {
         super(source, field);
     }
@@ -64,6 +76,6 @@ public class ToCartesianShape extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return CARTESIAN.wktToWkb(in.utf8ToString());
+        return stringToSpatial(in.utf8ToString());
     }
 }

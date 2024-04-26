@@ -65,7 +65,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -124,7 +124,7 @@ final class DefaultSearchContext extends SearchContext {
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
-    private RankShardContext rankShardContext;
+    private QueryPhaseRankShardContext queryPhaseRankShardContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -481,7 +481,6 @@ final class DefaultSearchContext extends SearchContext {
         return this;
     }
 
-    @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
         // it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
         // parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
@@ -508,19 +507,18 @@ final class DefaultSearchContext extends SearchContext {
         return suggest;
     }
 
-    @Override
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
     }
 
     @Override
-    public RankShardContext rankShardContext() {
-        return rankShardContext;
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return queryPhaseRankShardContext;
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        this.rankShardContext = rankShardContext;
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        this.queryPhaseRankShardContext = queryPhaseRankShardContext;
     }
 
     @Override
@@ -613,7 +611,6 @@ final class DefaultSearchContext extends SearchContext {
         return timeout;
     }
 
-    @Override
     public void timeout(TimeValue timeout) {
         this.timeout = timeout;
     }
@@ -688,7 +685,6 @@ final class DefaultSearchContext extends SearchContext {
         return searchAfter;
     }
 
-    @Override
     public SearchContext collapse(CollapseContext collapse) {
         this.collapse = collapse;
         return this;
@@ -786,7 +782,6 @@ final class DefaultSearchContext extends SearchContext {
         return this.groupStats;
     }
 
-    @Override
     public void groupStats(List<String> groupStats) {
         this.groupStats = groupStats;
     }

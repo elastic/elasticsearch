@@ -33,6 +33,7 @@ public class RestUnfollowAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         UnfollowAction.Request request = new UnfollowAction.Request(restRequest.param("index"));
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

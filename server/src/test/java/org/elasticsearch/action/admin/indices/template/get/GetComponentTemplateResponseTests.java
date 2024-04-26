@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTest
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComponentTemplateTests;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSerializationTests;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionTests;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -34,7 +34,6 @@ import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMa
 import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomSettings;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 
 public class GetComponentTemplateResponseTests extends AbstractWireSerializingTestCase<GetComponentTemplateAction.Response> {
     @Override
@@ -47,7 +46,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
         return new GetComponentTemplateAction.Response(
             randomBoolean() ? Map.of() : randomTemplates(),
             RolloverConfigurationTests.randomRolloverConditions(),
-            DataStreamGlobalRetentionSerializationTests.randomGlobalRetention()
+            DataStreamGlobalRetentionTests.randomGlobalRetention()
         );
     }
 
@@ -59,10 +58,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
         switch (randomInt(2)) {
             case 0 -> templates = templates == null ? randomTemplates() : null;
             case 1 -> rolloverConditions = randomValueOtherThan(rolloverConditions, RolloverConfigurationTests::randomRolloverConditions);
-            case 2 -> globalRetention = randomValueOtherThan(
-                globalRetention,
-                DataStreamGlobalRetentionSerializationTests::randomGlobalRetention
-            );
+            case 2 -> globalRetention = randomValueOtherThan(globalRetention, DataStreamGlobalRetentionTests::randomGlobalRetention);
         }
         return new GetComponentTemplateAction.Response(templates, rolloverConditions, globalRetention);
     }
@@ -88,7 +84,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
             null,
             false
         );
-        var globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
+        var globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
         var rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
         var response = new GetComponentTemplateAction.Response(
             Map.of(randomAlphaOfLength(10), template),
@@ -106,9 +102,6 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was no retention provided by the user, the global retention applies
-            assertThat(serialized, not(containsString("data_retention")));
-            assertThat(serialized, containsString("effective_retention"));
         }
     }
 

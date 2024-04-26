@@ -25,7 +25,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -78,7 +77,7 @@ public class RestTemplatesAction extends AbstractCatAction {
                 getComposableTemplatesRequest,
                 getComposableTemplatesStep.delegateResponse((l, e) -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                        l.onResponse(new GetComposableIndexTemplateAction.Response(Collections.emptyMap()));
+                        l.onResponse(new GetComposableIndexTemplateAction.Response(Map.of(), null));
                     } else {
                         l.onFailure(e);
                     }

@@ -41,12 +41,18 @@ public class MetadataDataStreamsService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
 
-    public MetadataDataStreamsService(ClusterService clusterService, IndicesService indicesService) {
+    public MetadataDataStreamsService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
+    ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.globalRetentionResolver = globalRetentionResolver;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
@@ -96,7 +102,7 @@ public class MetadataDataStreamsService {
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }
-                    });
+                    }, clusterService.getSettings());
                 }
             });
         }
@@ -167,16 +173,25 @@ public class MetadataDataStreamsService {
     static ClusterState modifyDataStream(
         ClusterState currentState,
         Iterable<DataStreamAction> actions,
-        Function<IndexMetadata, MapperService> mapperSupplier
+        Function<IndexMetadata, MapperService> mapperSupplier,
+        Settings nodeSettings
     ) {
         Metadata updatedMetadata = currentState.metadata();
 
         for (var action : actions) {
             Metadata.Builder builder = Metadata.builder(updatedMetadata);
             if (action.getType() == DataStreamAction.Type.ADD_BACKING_INDEX) {
-                addBackingIndex(updatedMetadata, builder, mapperSupplier, action.getDataStream(), action.getIndex());
+                addBackingIndex(
+                    updatedMetadata,
+                    builder,
+                    mapperSupplier,
+                    action.getDataStream(),
+                    action.getIndex(),
+                    action.isFailureStore(),
+                    nodeSettings
+                );
             } else if (action.getType() == DataStreamAction.Type.REMOVE_BACKING_INDEX) {
-                removeBackingIndex(updatedMetadata, builder, action.getDataStream(), action.getIndex());
+                removeBackingIndex(updatedMetadata, builder, action.getDataStream(), action.getIndex(), action.isFailureStore());
             } else {
                 throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
             }
@@ -190,32 +205,15 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data streams have the data stream lifecycle provided.
      * Visible for testing.
      */
-    static ClusterState updateDataLifecycle(
-        ClusterState currentState,
-        List<String> dataStreamNames,
-        @Nullable DataStreamLifecycle lifecycle
-    ) {
+    ClusterState updateDataLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
-            builder.put(
-                new DataStream(
-                    dataStream.getName(),
-                    dataStream.getIndices(),
-                    dataStream.getGeneration(),
-                    dataStream.getMetadata(),
-                    dataStream.isHidden(),
-                    dataStream.isReplicated(),
-                    dataStream.isSystem(),
-                    dataStream.isAllowCustomRouting(),
-                    dataStream.getIndexMode(),
-                    lifecycle,
-                    dataStream.isFailureStore(),
-                    dataStream.getFailureIndices(),
-                    dataStream.getAutoShardingEvent()
-                )
-            );
+            builder.put(dataStream.copy().setLifecycle(lifecycle).build());
+        }
+        if (lifecycle != null) {
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
@@ -236,24 +234,7 @@ public class MetadataDataStreamsService {
             return currentState;
         }
         Metadata.Builder builder = Metadata.builder(metadata);
-        builder.put(
-            new DataStream(
-                dataStream.getName(),
-                dataStream.getIndices(),
-                dataStream.getGeneration(),
-                dataStream.getMetadata(),
-                dataStream.isHidden(),
-                dataStream.isReplicated(),
-                dataStream.isSystem(),
-                dataStream.isAllowCustomRouting(),
-                dataStream.getIndexMode(),
-                dataStream.getLifecycle(),
-                dataStream.isFailureStore(),
-                dataStream.getFailureIndices(),
-                rolloverOnWrite,
-                dataStream.getAutoShardingEvent()
-            )
-        );
+        builder.put(dataStream.copy().setRolloverOnWrite(rolloverOnWrite).build());
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 
@@ -262,7 +243,9 @@ public class MetadataDataStreamsService {
         Metadata.Builder builder,
         Function<IndexMetadata, MapperService> mapperSupplier,
         String dataStreamName,
-        String indexName
+        String indexName,
+        boolean failureStore,
+        Settings nodeSettings
     ) {
         var dataStream = validateDataStream(metadata, dataStreamName);
         var index = validateIndex(metadata, indexName);
@@ -273,22 +256,39 @@ public class MetadataDataStreamsService {
                 metadata.index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
-                false
+                false,
+                failureStore,
+                nodeSettings
             );
         } catch (IOException e) {
             throw new IllegalArgumentException("unable to prepare backing index", e);
         }
 
         // add index to data stream
-        builder.put(dataStream.addBackingIndex(metadata, index.getWriteIndex()));
+        if (failureStore) {
+            builder.put(dataStream.addFailureStoreIndex(metadata, index.getWriteIndex()));
+        } else {
+            builder.put(dataStream.addBackingIndex(metadata, index.getWriteIndex()));
+        }
     }
 
-    private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
+    private static void removeBackingIndex(
+        Metadata metadata,
+        Metadata.Builder builder,
+        String dataStreamName,
+        String indexName,
+        boolean failureStore
+    ) {
         boolean indexNotRemoved = true;
         DataStream dataStream = validateDataStream(metadata, dataStreamName);
-        for (Index backingIndex : dataStream.getIndices()) {
+        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
+        for (Index backingIndex : targetIndices) {
             if (backingIndex.getName().equals(indexName)) {
-                builder.put(dataStream.removeBackingIndex(backingIndex));
+                if (failureStore) {
+                    builder.put(dataStream.removeFailureStoreIndex(backingIndex));
+                } else {
+                    builder.put(dataStream.removeBackingIndex(backingIndex));
+                }
                 indexNotRemoved = false;
                 break;
             }

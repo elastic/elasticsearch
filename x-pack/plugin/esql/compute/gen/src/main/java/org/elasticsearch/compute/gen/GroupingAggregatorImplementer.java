@@ -47,6 +47,8 @@ import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
+import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
+import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 
@@ -71,8 +73,14 @@ public class GroupingAggregatorImplementer {
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
+    private final boolean includeTimestampVector;
 
-    public GroupingAggregatorImplementer(Elements elements, TypeElement declarationType, IntermediateState[] interStateAnno) {
+    public GroupingAggregatorImplementer(
+        Elements elements,
+        TypeElement declarationType,
+        IntermediateState[] interStateAnno,
+        boolean includeTimestampVector
+    ) {
         this.declarationType = declarationType;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initGrouping" }, e -> true);
@@ -92,7 +100,7 @@ public class GroupingAggregatorImplementer {
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
-            .filter(f -> false == f.type().equals(BIG_ARRAYS))
+            .filter(f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT))
             .collect(Collectors.toList());
 
         this.implementation = ClassName.get(
@@ -103,6 +111,7 @@ public class GroupingAggregatorImplementer {
         intermediateState = Arrays.stream(interStateAnno)
             .map(AggregatorImplementer.IntermediateStateDesc::newIntermediateStateDesc)
             .toList();
+        this.includeTimestampVector = includeTimestampVector;
     }
 
     public ClassName implementation() {
@@ -264,15 +273,24 @@ public class GroupingAggregatorImplementer {
 
         builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
+        if (includeTimestampVector) {
+            builder.addStatement("$T timestampsBlock = page.getBlock(channels.get(1))", LONG_BLOCK);
+            builder.addStatement("$T timestampsVector = timestampsBlock.asVector()", LONG_VECTOR);
+
+            builder.beginControlFlow("if (timestampsVector == null) ");
+            builder.addStatement("throw new IllegalStateException($S)", "expected @timestamp vector; but got a block");
+            builder.endControlFlow();
+        }
         builder.beginControlFlow("if (valuesVector == null)");
+        String extra = includeTimestampVector ? ", timestampsVector" : "";
         {
             builder.beginControlFlow("if (valuesBlock.mayHaveNulls())");
             builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
             builder.endControlFlow();
-            builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock)")));
+            builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra)));
         }
         builder.endControlFlow();
-        builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector)")));
+        builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra)));
         return builder.build();
     }
 
@@ -308,6 +326,9 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName);
         builder.addModifiers(Modifier.PRIVATE);
         builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupsType, "groups").addParameter(valuesType, "values");
+        if (includeTimestampVector) {
+            builder.addParameter(LONG_VECTOR, "timestamps");
+        }
         if (valuesIsBytesRef) {
             // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
@@ -352,6 +373,10 @@ public class GroupingAggregatorImplementer {
     private void combineRawInput(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
         if (valuesIsBytesRef) {
             combineRawInputForBytesRef(builder, blockVariable, offsetVariable);
+            return;
+        }
+        if (includeTimestampVector) {
+            combineRawInputWithTimestamp(builder, offsetVariable);
             return;
         }
         TypeName valueType = TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType());
@@ -399,6 +424,22 @@ public class GroupingAggregatorImplementer {
             declarationType,
             blockVariable,
             secondParameterGetter,
+            offsetVariable
+        );
+    }
+
+    private void combineRawInputWithTimestamp(MethodSpec.Builder builder, String offsetVariable) {
+        TypeName valueType = TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType());
+        String blockType = valueType.toString().substring(0, 1).toUpperCase(Locale.ROOT) + valueType.toString().substring(1);
+        if (offsetVariable.contains(" + ")) {
+            builder.addStatement("var valuePosition = $L", offsetVariable);
+            offsetVariable = "valuePosition";
+        }
+        builder.addStatement(
+            "$T.combine(state, groupId, timestamps.getLong($L), values.get$L($L))",
+            declarationType,
+            offsetVariable,
+            blockType,
             offsetVariable
         );
     }

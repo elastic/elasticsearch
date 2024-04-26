@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Assertions;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -49,7 +51,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -132,7 +133,7 @@ public class EsqlSession {
                     // TODO: filter integration testing
                     filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
                     LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                    f = new FragmentExec(f.source(), f.fragment(), filter, f.estimatedRowSize());
+                    f = f.withFilter(filter);
                 }
                 return f;
             })))
@@ -207,11 +208,13 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
+            assert preAnalysis.esSourceOptions.size() == 1 : "Unexpected source options count: " + preAnalysis.esSourceOptions.size();
+            var indicesOptions = preAnalysis.esSourceOptions.get(0).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
 
             if (Assertions.ENABLED) {
-                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, listener);
+                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, indicesOptions, listener);
             } else {
-                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, indicesOptions, listener);
             }
         } else {
             try {
@@ -231,12 +234,13 @@ public class EsqlSession {
     private void resolveMergedMappingAgainstBothResolvers(
         String indexWildcard,
         Set<String> fieldNames,
+        IndicesOptions indicesOptions,
         ActionListener<IndexResolution> listener
     ) {
         indexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, false, Map.of(), new ActionListener<>() {
             @Override
             public void onResponse(IndexResolution fromQl) {
-                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, new ActionListener<>() {
+                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, indicesOptions, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResolution fromEsql) {
                         if (fromQl.isValid() == false) {

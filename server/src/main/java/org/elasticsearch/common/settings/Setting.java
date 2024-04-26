@@ -22,6 +22,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -639,6 +640,7 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
+            @UpdateForV9 // https://github.com/elastic/elasticsearch/issues/79666
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
@@ -886,6 +888,18 @@ public class Setting<T> implements ToXContentObject {
 
         private Stream<String> matchStream(Settings settings) {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
+        }
+
+        @Override
+        public boolean exists(Settings settings) {
+            // concrete settings might be secure, so don't exclude these here
+            return key.exists(settings.keySet(), Collections.emptySet());
+        }
+
+        @Override
+        public boolean exists(Settings.Builder builder) {
+            // concrete settings might be secure, so don't exclude these here
+            return key.exists(builder.keys(), Collections.emptySet());
         }
 
         /**

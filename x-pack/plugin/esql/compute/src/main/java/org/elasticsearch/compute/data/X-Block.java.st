@@ -22,7 +22,12 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock$if(BytesRef)$$else$, $Type$BigArrayBlock$endif$ {
+$if(BytesRef)$
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
+    OrdinalBytesRefBlock {
+$else$
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock {
+$endif$
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
@@ -54,6 +59,9 @@ $endif$
     $Type$Block filter(int... positions);
 
     @Override
+    $Type$Block expand();
+
+    @Override
     default String getWriteableName() {
         return "$Type$Block";
     }
@@ -64,13 +72,15 @@ $endif$
         return readFrom((BlockStreamInput) in);
     }
 
-    private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
+    static $Type$Block readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> $Type$Block.readValues(in);
             case SERIALIZE_BLOCK_VECTOR -> $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
             case SERIALIZE_BLOCK_ARRAY -> $Type$ArrayBlock.readArrayBlock(in.blockFactory(), in);
-$if(BytesRef)$$else$
+$if(BytesRef)$
+            case SERIALIZE_BLOCK_ORDINAL -> OrdinalBytesRefBlock.readOrdinalBlock(in.blockFactory(), in);
+$else$
             case SERIALIZE_BLOCK_BIG_ARRAY -> $Type$BigArrayBlock.readArrayBlock(in.blockFactory(), in);
 $endif$
             default -> {
@@ -109,7 +119,11 @@ $endif$
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof $Type$ArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-$if(BytesRef)$$else$
+$if(BytesRef)$
+        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+            out.writeByte(SERIALIZE_BLOCK_ORDINAL);
+            b.writeOrdinalBlock(out);
+$else$
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof $Type$BigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
@@ -263,19 +277,15 @@ $endif$
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
+$if(int)$
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
+         * An estimate of the number of bytes the {@link IntBlock} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
          */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
+        long estimatedBytes();
 
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition($Type$Block block);
-
+$endif$
         @Override
         $Type$Block build();
     }

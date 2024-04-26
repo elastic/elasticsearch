@@ -50,6 +50,12 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
+    public IntBlock expand() {
+        incRef();
+        return this;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return vector.ramBytesUsed();
     }

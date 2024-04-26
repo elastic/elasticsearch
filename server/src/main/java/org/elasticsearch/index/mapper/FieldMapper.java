@@ -450,13 +450,28 @@ public abstract class FieldMapper extends Mapper {
 
             private final Map<String, Function<MapperBuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
 
+            private boolean hasSyntheticSourceCompatibleKeywordField;
+
             public Builder add(FieldMapper.Builder builder) {
                 mapperBuilders.put(builder.name(), builder::build);
+
+                if (builder instanceof KeywordFieldMapper.Builder kwd) {
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        hasSyntheticSourceCompatibleKeywordField = true;
+                    }
+                }
+
                 return this;
             }
 
             private void add(FieldMapper mapper) {
                 mapperBuilders.put(mapper.simpleName(), context -> mapper);
+
+                if (mapper instanceof KeywordFieldMapper kwd) {
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                        hasSyntheticSourceCompatibleKeywordField = true;
+                    }
+                }
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
@@ -472,6 +487,10 @@ public abstract class FieldMapper extends Mapper {
 
             public boolean hasMultiFields() {
                 return mapperBuilders.isEmpty() == false;
+            }
+
+            public boolean hasSyntheticSourceCompatibleKeywordField() {
+                return hasSyntheticSourceCompatibleKeywordField;
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
@@ -1134,6 +1153,10 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("store", false, initializer, defaultValue);
+        }
+
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
@@ -1443,6 +1466,14 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
+    public static BiConsumer<String, MappingParserContext> notFromDynamicTemplates(String type) {
+        return (n, c) -> {
+            if (c.isFromDynamicTemplate()) {
+                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in dynamic templates");
+            }
+        };
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
@@ -1473,6 +1504,13 @@ public abstract class FieldMapper extends Mapper {
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
             this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
+        }
+
+        public TypeParser(
+            BiFunction<String, MappingParserContext, Builder> builderFunction,
+            List<BiConsumer<String, MappingParserContext>> contextValidator
+        ) {
+            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_COMPATIBLE);
         }
 
         private TypeParser(

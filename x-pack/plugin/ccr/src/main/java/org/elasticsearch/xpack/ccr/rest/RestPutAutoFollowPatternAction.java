@@ -39,7 +39,9 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     private static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return Request.fromXContent(parser, restRequest.param("name"));
+            Request request = Request.fromXContent(parser, restRequest.param("name"));
+            request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+            return request;
         }
     }
 }

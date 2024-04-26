@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<
     EsqlQueryRequest,
@@ -27,6 +29,14 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
 
     private EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryRequest request) {
         super(client, EsqlQueryAction.INSTANCE, request);
+        EsqlVersion version = Build.current().isSnapshot() ? EsqlVersion.SNAPSHOT : EsqlVersion.latestReleased();
+        esqlVersion(version.versionStringWithoutEmoji());
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder esqlVersion(String esqlVersion) {
+        request.esqlVersion(esqlVersion);
+        return this;
     }
 
     @Override

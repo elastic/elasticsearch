@@ -198,7 +198,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Fleet publishes Agent metrics in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-fleet_server*").privileges("all").build(),
                 // Fleet reads output health from this index pattern
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs-fleet_server*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-fleet_server*").privileges("read", "delete_index").build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
@@ -272,6 +272,12 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".logs-osquery_manager.actions-*")
                     .privileges("auto_configure", "create_index", "read", "index", "write", "delete")
                     .build(),
+
+                // Third party agent (that use non-Elastic Defend integrations) info logs indices.
+                // Kibana reads from these to display agent status/info to the user.
+                // These are indices that filebeat writes to, and the data in these indices are ingested by Fleet integrations
+                // in order to provide support for response actions related to malicious events for such agents.
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-sentinel_one.*", "logs-crowdstrike.*").privileges("read").build(),
                 // For ILM policy for APM, Endpoint, & Synthetics packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

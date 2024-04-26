@@ -1,9 +1,9 @@
 ---
 "Testing require_data_stream in index creation":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "require_data_stream was introduced in 8.13.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -59,10 +59,10 @@
 
 ---
 "Testing require_data_stream in bulk requests":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "require_data_stream was introduced in 8.13.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:

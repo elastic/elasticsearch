@@ -8,12 +8,12 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
-import java.nio.ByteBuffer;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
@@ -49,11 +49,17 @@ class JdkZstdLibrary implements ZstdLibrary {
     }
 
     @Override
-    public long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel) {
-        var nativeDst = MemorySegment.ofBuffer(dst);
-        var nativeSrc = MemorySegment.ofBuffer(src);
+    public long compress(CloseableByteBuffer dst, CloseableByteBuffer src, int compressionLevel) {
+        assert dst instanceof JdkCloseableByteBuffer;
+        assert src instanceof JdkCloseableByteBuffer;
+        var nativeDst = (JdkCloseableByteBuffer) dst;
+        var nativeSrc = (JdkCloseableByteBuffer) src;
+        var dstSize = dst.buffer().remaining();
+        var srcSize = src.buffer().remaining();
+        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
+        var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), srcSize);
         try {
-            return (long) compress$mh.invokeExact(nativeDst, dst.remaining(), nativeSrc, src.remaining(), compressionLevel);
+            return (long) compress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize, compressionLevel);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -79,11 +85,17 @@ class JdkZstdLibrary implements ZstdLibrary {
     }
 
     @Override
-    public long decompress(ByteBuffer dst, ByteBuffer src) {
-        var nativeDst = MemorySegment.ofBuffer(dst);
-        var nativeSrc = MemorySegment.ofBuffer(src);
+    public long decompress(CloseableByteBuffer dst, CloseableByteBuffer src) {
+        assert dst instanceof JdkCloseableByteBuffer;
+        assert src instanceof JdkCloseableByteBuffer;
+        var nativeDst = (JdkCloseableByteBuffer) dst;
+        var nativeSrc = (JdkCloseableByteBuffer) src;
+        var dstSize = dst.buffer().remaining();
+        var srcSize = src.buffer().remaining();
+        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
+        var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), srcSize);
         try {
-            return (long) decompress$mh.invokeExact(nativeDst, dst.remaining(), nativeSrc, src.remaining());
+            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

@@ -235,14 +235,18 @@ emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
 10030          |3                 |true              |true
 ;
 
-mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+mvSort
+required_feature: esql.mv_sort
+
 row a = [true, false, true, false] | eval sa = mv_sort(a), sb = mv_sort(a, "DESC");
 
 a:boolean                  | sa:boolean                 | sb:boolean
 [true, false, true, false] | [false, false, true, true] | [true, true, false, false]
 ;
 
-mvSortEmp#[skip:-8.13.99, reason:newly added in 8.14]
+mvSortEmp
+required_feature: esql.mv_sort
+
 FROM employees
 | eval sd = mv_sort(is_rehired, "DESC"), sa = mv_sort(is_rehired)
 | sort emp_no
@@ -258,7 +262,9 @@ emp_no:integer | is_rehired:boolean       | sa:boolean               | sd:boolea
 10005          | [false,false,false,true] | [false,false,false,true] | [true,false,false,false]
 ;
 
-mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+mvSlice
+required_feature: esql.mv_sort
+
 row a = [true, false, false, true]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3);
 
@@ -266,7 +272,9 @@ a:boolean                  | a1:boolean | a2:boolean
 [true, false, false, true] | false      | [false, true]
 ;
 
-mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmp
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(is_rehired, 0)
 | keep emp_no, is_rehired, a1

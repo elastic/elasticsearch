@@ -121,7 +121,8 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     enum MvOrdering {
         UNORDERED(false, false),
         DEDUPLICATED_UNORDERD(true, false),
-        DEDUPLICATED_AND_SORTED_ASCENDING(true, true);
+        DEDUPLICATED_AND_SORTED_ASCENDING(true, true),
+        SORTED_ASCENDING(false, true);
 
         private final boolean deduplicated;
         private final boolean sortedAscending;
@@ -184,12 +185,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         Builder endPositionEntry();
 
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          */
@@ -247,4 +242,5 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     byte SERIALIZE_BLOCK_VECTOR = 1;
     byte SERIALIZE_BLOCK_ARRAY = 2;
     byte SERIALIZE_BLOCK_BIG_ARRAY = 3;
+    byte SERIALIZE_BLOCK_ORDINAL = 3;
 }

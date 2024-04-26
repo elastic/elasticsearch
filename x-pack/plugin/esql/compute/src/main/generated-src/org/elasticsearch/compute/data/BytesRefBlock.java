@@ -20,8 +20,8 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock {
-
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
+    OrdinalBytesRefBlock {
     BytesRef NULL_VALUE = new BytesRef();
 
     /**
@@ -43,6 +43,9 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     BytesRefBlock filter(int... positions);
 
     @Override
+    BytesRefBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "BytesRefBlock";
     }
@@ -53,12 +56,13 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         return readFrom((BlockStreamInput) in);
     }
 
-    private static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
+    static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> BytesRefBlock.readValues(in);
             case SERIALIZE_BLOCK_VECTOR -> BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
             case SERIALIZE_BLOCK_ARRAY -> BytesRefArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_ORDINAL -> OrdinalBytesRefBlock.readOrdinalBlock(in.blockFactory(), in);
             default -> {
                 assert false : "invalid block serialization type " + serializationType;
                 throw new IllegalStateException("invalid serialization type " + serializationType);
@@ -95,6 +99,9 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof BytesRefArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+            out.writeByte(SERIALIZE_BLOCK_ORDINAL);
+            b.writeOrdinalBlock(out);
         } else {
             out.writeByte(SERIALIZE_BLOCK_VALUES);
             BytesRefBlock.writeValues(this, out);
@@ -221,19 +228,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(BytesRefBlock block);
 
         @Override
         BytesRefBlock build();

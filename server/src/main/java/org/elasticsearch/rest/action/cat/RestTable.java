@@ -156,9 +156,7 @@ public class RestTable {
                 if (headerAliasMap.containsKey(columnHeader)) {
                     ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
                 } else {
-                    throw new UnsupportedOperationException(
-                        String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader)
-                    );
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader));
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));

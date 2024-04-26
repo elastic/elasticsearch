@@ -61,7 +61,10 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
 
     @Override
     protected PutFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutFollowAction.Request.fromXContent(parser, "followerIndex", ActiveShardCount.DEFAULT);
+        PutFollowAction.Request request = PutFollowAction.Request.fromXContent(parser);
+        request.waitForActiveShards(ActiveShardCount.DEFAULT);
+        request.setFollowerIndex("followerIndex");
+        return request;
     }
 
     @Override

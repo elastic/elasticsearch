@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
+
 public class SqrtTests extends AbstractFunctionTestCase {
     public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -54,7 +56,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
             suppliers,
             "SqrtUnsignedLongEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
-            ul -> Math.sqrt(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
+            ul -> Math.sqrt(ul == null ? null : unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()

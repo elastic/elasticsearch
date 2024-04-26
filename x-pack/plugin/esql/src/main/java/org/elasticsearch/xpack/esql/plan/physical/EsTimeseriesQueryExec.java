@@ -25,6 +25,7 @@ public class EsTimeseriesQueryExec extends EsQueryExec {
 
     static final EsField TSID_FIELD = new EsField("_tsid", DataTypes.KEYWORD, Map.of(), true);
     static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataTypes.DATETIME, Map.of(), true);
+    static final EsField INTERVAL_FIELD = new EsField("timestamp_interval", DataTypes.DATETIME, Map.of(), true);
 
     public EsTimeseriesQueryExec(Source source, EsIndex index, QueryBuilder query) {
         this(
@@ -33,7 +34,8 @@ public class EsTimeseriesQueryExec extends EsQueryExec {
             List.of(
                 new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
                 new FieldAttribute(source, TSID_FIELD.getName(), TSID_FIELD),
-                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TSID_FIELD)
+                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD),
+                new FieldAttribute(source, INTERVAL_FIELD.getName(), INTERVAL_FIELD)
             ),
             query,
             null,

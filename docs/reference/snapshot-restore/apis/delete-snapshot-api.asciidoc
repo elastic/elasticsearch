@@ -56,7 +56,7 @@ Comma-separated list of snapshot names to delete. Also accepts wildcards (`*`).
 [[delete-snapshot-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[delete-snapshot-api-example]]
 ==== {api-example-title}

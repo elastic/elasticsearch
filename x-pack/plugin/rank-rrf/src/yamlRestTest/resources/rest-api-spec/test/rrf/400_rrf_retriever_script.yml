@@ -20,11 +20,19 @@ setup:
                 dims: 1
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
               vector_desc:
                 type: dense_vector
                 dims: 1
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
               int:
                 type: integer
               text:
@@ -130,7 +138,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           aggs:
             sums:
@@ -199,7 +207,7 @@ setup:
                   }
                 }
               ]
-              window_size: 3
+              rank_window_size: 3
               rank_constant: 1
           aggs:
             sums:
@@ -300,7 +308,7 @@ setup:
                   }
                 }
               ]
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           aggs:
             sums:

@@ -52,6 +52,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestHandler;
@@ -120,7 +121,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -469,7 +469,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testGetFieldFilterSecurityEnabled() throws Exception {
         createComponents(Settings.EMPTY);
-        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         Map<String, IndicesAccessControl.IndexAccessControl> permissionsMap = new HashMap<>();
 
@@ -491,9 +491,9 @@ public class SecurityTests extends ESTestCase {
 
         assertThat(fieldFilter.apply("index_granted"), trueWith("field_granted"));
         assertThat(fieldFilter.apply("index_granted"), falseWith(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
+        assertEquals(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("index_granted_all_permissions"));
         assertThat(fieldFilter.apply("index_granted_all_permissions"), trueWith(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
+        assertEquals(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("index_other"));
     }
 
     public void testGetFieldFilterSecurityDisabled() throws Exception {
@@ -503,7 +503,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testGetFieldFilterSecurityEnabledLicenseNoFLS() throws Exception {
         createComponents(Settings.EMPTY);
-        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
             new XPackLicenseStatus(
@@ -513,7 +513,7 @@ public class SecurityTests extends ESTestCase {
             )
         );
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
-        assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
+        assertSame(FieldPredicate.ACCEPT_ALL, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
 
     public void testValidateRealmsWhenSettingsAreInvalid() {

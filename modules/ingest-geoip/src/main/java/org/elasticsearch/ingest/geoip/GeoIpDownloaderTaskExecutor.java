@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -347,7 +348,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             new GeoIpTaskParams(),
             null,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
-                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create geoip downloader task", e);
                     onFailure.run();
@@ -360,7 +361,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped geoip downloader task"),
             e -> {
-                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceNotFoundException == false) {
                     logger.error("failed to remove geoip downloader task", e);
                     onFailure.run();
@@ -373,7 +374,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
                 Index databasesIndex = databasesAbstraction.getWriteIndex();
                 client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
-                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                    Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                     if (t instanceof ResourceNotFoundException == false) {
                         logger.warn("failed to remove " + databasesIndex, e);
                     }

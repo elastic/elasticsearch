@@ -1,0 +1,5 @@
+pr: 106579
+summary: "ESQL: Allow grouping key inside stats expressions"
+area: ES|QL
+type: enhancement
+issues: []

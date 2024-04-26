@@ -19,15 +19,19 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.util.ArrayList;
@@ -38,6 +42,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -232,14 +238,15 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        ServiceFields.SIMILARITY,
+                        SimilarityMeasure.L2_NORM.toString()
+                    )
                 )
-            );
-
-            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
-                1,
-                4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
@@ -287,7 +294,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                        ServiceFields.DIMENSIONS,
+                        1
                     )
                 )
             );
@@ -397,10 +406,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         service.chunkedInfer(
             model,
+            null,
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
             new ChunkingOptions(null, null),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
         );
 
@@ -408,6 +419,65 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             terminate(threadpool);
         }
         assertTrue("Listener not called", gotResults.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testChunkInferSetsTokenization() {
+        var expectedSpan = new AtomicInteger();
+        var expectedWindowSize = new AtomicReference<Integer>();
+
+        Client client = mock(Client.class);
+        ThreadPool threadpool = new TestThreadPool("test");
+        try {
+            when(client.threadPool()).thenReturn(threadpool);
+            doAnswer(invocationOnMock -> {
+                var request = (InferTrainedModelDeploymentAction.Request) invocationOnMock.getArguments()[1];
+                assertThat(request.getUpdate(), instanceOf(TokenizationConfigUpdate.class));
+                var update = (TokenizationConfigUpdate) request.getUpdate();
+                assertEquals(update.getSpanSettings().span(), expectedSpan.get());
+                assertEquals(update.getSpanSettings().maxSequenceLength(), expectedWindowSize.get());
+                return null;
+            }).when(client)
+                .execute(
+                    same(InferTrainedModelDeploymentAction.INSTANCE),
+                    any(InferTrainedModelDeploymentAction.Request.class),
+                    any(ActionListener.class)
+                );
+
+            var model = new MultilingualE5SmallModel(
+                "foo",
+                TaskType.TEXT_EMBEDDING,
+                "e5",
+                new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform")
+            );
+            var service = createService(client);
+
+            expectedSpan.set(-1);
+            expectedWindowSize.set(null);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+            );
+
+            expectedSpan.set(-1);
+            expectedWindowSize.set(256);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                new ChunkingOptions(256, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+            );
+        } finally {
+            terminate(threadpool);
+        }
     }
 
     private ElasticsearchInternalService createService(Client client) {

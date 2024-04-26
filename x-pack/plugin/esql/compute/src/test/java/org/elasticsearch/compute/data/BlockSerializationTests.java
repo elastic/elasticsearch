@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
@@ -231,6 +232,107 @@ public class BlockSerializationTests extends SerializationTestCase {
         } finally {
             Releasables.close(blocks);
             page.releaseBlocks();
+        }
+    }
+
+    public void testOrdinalVector() throws Exception {
+        int numValues = randomIntBetween(1, 1000);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        BytesRef scratch = new BytesRef();
+        try (
+            BytesRefVector.Builder regular = blockFactory.newBytesRefVectorBuilder(between(1, numValues * 3));
+            BytesRefHash hash = new BytesRefHash(1, blockFactory.bigArrays());
+            IntVector.Builder ordinals = blockFactory.newIntVectorBuilder(between(1, numValues * 3));
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(between(1, numValues * 3));
+        ) {
+            BytesRef v = new BytesRef("value-" + randomIntBetween(1, 20));
+            int ord = Math.toIntExact(hash.add(v));
+            ord = ord < 0 ? -1 - ord : ord;
+            ordinals.appendInt(ord);
+            regular.appendBytesRef(v);
+            for (long l = 0; l < hash.size(); l++) {
+                dictionary.appendBytesRef(hash.get(l, scratch));
+            }
+            try (BytesRefVector v1 = regular.build(); BytesRefVector v2 = new OrdinalBytesRefVector(ordinals.build(), dictionary.build())) {
+                BytesRefVector.equals(v1, v2);
+                for (BytesRefVector vector : List.of(v1, v2)) {
+                    try (BytesRefBlock deserBlock = serializeDeserializeBlock(vector.asBlock())) {
+                        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                    }
+                }
+                for (int p = 0; p < v1.getPositionCount(); p++) {
+                    try (BytesRefVector f1 = v1.filter(p); BytesRefVector f2 = v2.filter(p)) {
+                        BytesRefVector.equals(f1, f2);
+                        for (BytesRefVector vector : List.of(f1, f2)) {
+                            try (BytesRefBlock deserBlock = serializeDeserializeBlock(vector.asBlock())) {
+                                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testOrdinalBlock() throws Exception {
+        int numValues = randomIntBetween(1, 1000);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        BytesRef scratch = new BytesRef();
+        try (
+            BytesRefBlock.Builder regular = blockFactory.newBytesRefBlockBuilder(between(1, numValues * 3));
+            BytesRefHash hash = new BytesRefHash(1, blockFactory.bigArrays());
+            IntBlock.Builder ordinals = blockFactory.newIntBlockBuilder(between(1, numValues * 3));
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(between(1, numValues * 3));
+        ) {
+            int valueCount = randomIntBetween(0, 3);
+            if (valueCount == 0) {
+                regular.appendNull();
+                ordinals.appendNull();
+            }
+            if (valueCount > 1) {
+                regular.beginPositionEntry();
+                ordinals.beginPositionEntry();
+            }
+            for (int v = 0; v < valueCount; v++) {
+                BytesRef bytes = new BytesRef("value-" + randomIntBetween(1, 20));
+                int ord = Math.toIntExact(hash.add(bytes));
+                ord = ord < 0 ? -1 - ord : ord;
+                ordinals.appendInt(ord);
+                regular.appendBytesRef(bytes);
+            }
+            if (valueCount > 1) {
+                regular.endPositionEntry();
+                ordinals.endPositionEntry();
+            }
+            for (long l = 0; l < hash.size(); l++) {
+                dictionary.appendBytesRef(hash.get(l, scratch));
+            }
+            try (BytesRefBlock b1 = regular.build(); BytesRefBlock b2 = new OrdinalBytesRefBlock(ordinals.build(), dictionary.build())) {
+                BytesRefBlock.equals(b1, b2);
+                for (BytesRefBlock block : List.of(b1, b2)) {
+                    try (BytesRefBlock deserBlock = serializeDeserializeBlock(block)) {
+                        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                    }
+                }
+                for (int p = 0; p < b1.getPositionCount(); p++) {
+                    try (BytesRefBlock f1 = b1.filter(p); BytesRefBlock f2 = b2.filter(p)) {
+                        BytesRefBlock.equals(f1, f2);
+                        for (BytesRefBlock block : List.of(f1, f2)) {
+                            try (BytesRefBlock deserBlock = serializeDeserializeBlock(block)) {
+                                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                            }
+                        }
+                    }
+                }
+                try (BytesRefBlock e1 = b1.expand(); BytesRefBlock e2 = b2.expand()) {
+                    BytesRefBlock.equals(e1, e2);
+                    for (BytesRefBlock block : List.of(e1, e2)) {
+                        try (BytesRefBlock deserBlock = serializeDeserializeBlock(block)) {
+                            EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+                        }
+                    }
+                }
+            }
         }
     }
 

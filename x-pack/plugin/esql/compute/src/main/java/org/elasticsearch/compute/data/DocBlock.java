@@ -49,6 +49,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
+    public DocBlock expand() {
+        incRef();
+        return this;
+    }
+
+    @Override
     public int hashCode() {
         return vector.hashCode();
     }
@@ -141,11 +147,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 docs.appendInt(docVector.docs().getInt(i));
             }
             return this;
-        }
-
-        @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            throw new UnsupportedOperationException("DocBlock doesn't support appendBlockAndMerge");
         }
 
         @Override

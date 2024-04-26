@@ -38,6 +38,7 @@ PUT _rollup/job/sensor
   "index_pattern": "sensor-*",
   "rollup_index": "sensor_rollup",
   "cron": "0 0 * * * *",
+  "page_size": 1000,
   "groups": {
     "date_histogram": {
       "field": "timestamp",
@@ -108,7 +109,7 @@ PUT _index_template/sensor-template
 ////
 [source,console]
 ----
-DELETE _index_template/sensor-template
+DELETE _index_template/*
 ----
 // TEST
 ////

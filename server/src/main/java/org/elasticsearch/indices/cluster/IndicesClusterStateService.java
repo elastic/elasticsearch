@@ -193,6 +193,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.client = client;
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
+
+        // ES-8334 TBD generic is probably wrong for this, we don't want massive parallelism. Maybe MANAGEMENT? Or something throttled?
         this.shardCloseExecutor = threadPool.generic();
     }
 

@@ -580,6 +580,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
+        final var wrappedListener = logger.isDebugEnabled()
+            ? ActionListener.runBefore(closeListener, () -> logger.debug("[{}] closed (reason: [{}])", shardId, reason))
+            : closeListener;
+
         shards = Maps.copyMapWithRemovedEntry(shards, shardId);
         // ES-8334 passthru, enclosing method is also async
         closeShard(
@@ -589,9 +593,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexShard.store(),
             indexShard.getIndexEventListener(),
             closeExecutor,
-            closeListener
+            wrappedListener
         );
-        logger.debug("[{}] closed (reason: [{}])", shardId, reason);
+        logger.debug("[{}] removed (reason: [{}])", shardId, reason);
     }
 
     private void closeShard(

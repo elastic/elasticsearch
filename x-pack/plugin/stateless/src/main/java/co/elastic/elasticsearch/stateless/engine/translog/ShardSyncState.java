@@ -144,15 +144,18 @@ class ShardSyncState {
         }
     }
 
-    public void markSyncFinished(SyncMarker syncMarker) {
+    public boolean markSyncFinished(SyncMarker syncMarker) {
         // If the primary term changed this shard will eventually be closed and the listeners will be failed at that point, so we can
         // ignore them here.
-        if (syncMarker.primaryTerm() == currentPrimaryTerm.getAsLong()) {
+        if (syncMarker.primaryTerm() == currentPrimaryTerm()) {
             assert syncMarker.location().compareTo(syncedLocation) > 0;
             // We mark the seqNos of persisted before exposing the synced location. This matches what we do in the TranlogWriter.
             // Some assertions in TransportVerifyShardBeforeCloseAction depend on the seqNos marked as persisted before the sync is exposed.
             syncMarker.syncedSeqNos().forEach(persistedSeqNoConsumer::accept);
             syncedLocation = syncMarker.location();
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -169,6 +172,10 @@ class ShardSyncState {
             referencedTranslogFiles.poll();
             activeTranslogFile.decRef();
         }
+    }
+
+    public long currentPrimaryTerm() {
+        return currentPrimaryTerm.getAsLong();
     }
 
     void notifyListeners() {

@@ -16,7 +16,6 @@
 * <<esql-now>>
 // end::date_list[]
 
-include::bucket.asciidoc[]
 include::date_diff.asciidoc[]
 include::date_extract.asciidoc[]
 include::date_format.asciidoc[]

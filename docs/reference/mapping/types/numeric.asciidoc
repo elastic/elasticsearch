@@ -227,6 +227,19 @@ numeric field can't be both a time series dimension and a time series metric.
     of `scaling_factor` improve accuracy but also increase space requirements.
     This parameter is required.
 
+[[scaled-float-saturation]]
+==== `scaled_float` Saturation
+
+`scaled_float` is backed by a single `long` value. Meaning, the scaling factor
+and the value are multiplied and stored as a `long`. If the multiplication
+results in a value that is outside the range of a `long`, the value is saturated
+to the minimum or maximum value of a `long`. For example, if the scaling factor
+is +100+ and the value is +92233720368547758.08+, the expected value might be +9223372036854775808+.
+However, the value actually stored is +9223372036854775807+, the maximum value for a `long`.
+
+This can lead to unexpected results with <<query-dsl-range-query,range queries>>
+when the scaling factor is large or the value is close to the maximum value of a `long`.
+
 [[numeric-synthetic-source]]
 ==== Synthetic `_source`
 

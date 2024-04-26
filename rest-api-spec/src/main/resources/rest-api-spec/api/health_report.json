@@ -47,6 +47,15 @@
         "type": "int",
         "description": "Limit the number of affected resources the health API returns",
         "default": 1000
+      },
+      "wait_for_status":{
+        "type":"enum",
+        "options":[
+          "green",
+          "yellow",
+          "red"
+        ],
+        "description":"Wait until cluster is in a specific state"
       }
     }
   }

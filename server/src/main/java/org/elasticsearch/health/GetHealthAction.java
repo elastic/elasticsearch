@@ -8,6 +8,8 @@
 
 package org.elasticsearch.health;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -18,16 +20,22 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.stats.HealthApiStats;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -37,6 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -152,6 +162,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final String indicatorName;
         private final boolean verbose;
         private final int size;
+        private HealthStatus waitForStatus;
 
         public Request(boolean verbose, int size) {
             this(null, verbose, size);
@@ -181,26 +192,36 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             TransportAction.localOnly();
         }
+
+        public void waitForStatus(HealthStatus waitForStatus) {
+            this.waitForStatus = waitForStatus;
+        }
     }
 
     public static class LocalAction extends TransportAction<Request, Response> {
 
         private final ClusterService clusterService;
+        private final ThreadPool threadPool;
+        private final ExecutorService executor;
         private final HealthService healthService;
         private final NodeClient client;
         private final HealthApiStats healthApiStats;
+        protected Logger logger = LogManager.getLogger(GetHealthAction.class);
 
         @Inject
         public LocalAction(
             ActionFilters actionFilters,
             TransportService transportService,
             ClusterService clusterService,
+            ThreadPool threadPool,
             HealthService healthService,
             NodeClient client,
             HealthApiStats healthApiStats
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
+            this.threadPool = threadPool;
+            this.executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
             this.healthService = healthService;
             this.client = client;
             this.healthApiStats = healthApiStats;
@@ -213,21 +234,69 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             if (cancellableTask.notifyIfCancelled(responseListener)) {
                 return;
             }
-
+            Consumer<ClusterState> onNewClusterStateAfterDelay = clusterState -> doExecute(task, request, responseListener);
             healthService.getHealth(
                 new ParentTaskAssigningClient(client, clusterService.localNode(), task),
                 request.indicatorName,
                 request.verbose,
                 request.size,
-                responseListener.map(healthIndicatorResults -> {
-                    Response response = new Response(
-                        clusterService.getClusterName(),
-                        healthIndicatorResults,
-                        request.indicatorName == null
-                    );
-                    healthApiStats.track(request.verbose, response);
-                    return response;
-                })
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
+                        if (request.waitForStatus == null
+                            || request.waitForStatus.value() <= HealthStatus.merge(
+                                healthIndicatorResults.stream().map(HealthIndicatorResult::status)
+                            ).value()) {
+                            Response response = getResponseFromHealthIndicators(healthIndicatorResults);
+                            responseListener.onResponse(response);
+                        } else {
+                            final ClusterStateObserver observer = new ClusterStateObserver(
+                                clusterService.state(),
+                                clusterService,
+                                null,
+                                logger,
+                                threadPool.getThreadContext()
+                            );
+                            final ClusterStateObserver.Listener stateListener = new ClusterStateObserver.Listener() {
+                                @Override
+                                public void onNewClusterState(ClusterState newState) {
+                                    executor.execute(() -> onNewClusterStateAfterDelay.accept(newState));
+                                }
+
+                                @Override
+                                public void onClusterServiceClose() {
+                                    responseListener.onFailure(new NodeClosedException(clusterService.localNode()));
+                                }
+
+                                @Override
+                                public void onTimeout(TimeValue timeout) {
+                                    Response response = getResponseFromHealthIndicators(healthIndicatorResults);
+                                    responseListener.onResponse(response);
+                                }
+                            };
+                            observer.waitForNextChange(
+                                stateListener,
+                                clusterState -> HealthNode.findHealthNode(clusterState) != null,
+                                null
+                            );
+                        }
+                    }
+
+                    private Response getResponseFromHealthIndicators(List<HealthIndicatorResult> healthIndicatorResults) {
+                        Response response = new Response(
+                            clusterService.getClusterName(),
+                            healthIndicatorResults,
+                            request.indicatorName == null
+                        );
+                        healthApiStats.track(request.verbose, response);
+                        return response;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        responseListener.onFailure(e);
+                    }
+                }
             );
         }
     }

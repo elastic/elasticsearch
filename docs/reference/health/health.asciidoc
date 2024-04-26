@@ -1,3 +1,4 @@
+
 [[health-api]]
 === Health API
 ++++
@@ -97,6 +98,11 @@ for health status set `verbose` to `false` to disable the more expensive analysi
     As a diagnosis can return multiple types of affected resources this parameter will limit the number of resources returned for each type to the configured value (e.g. a diagnosis could return
     `1000` affected indices and `1000` affected nodes).
     Defaults to `1000`.
+
+`wait_for_status`::
+(Optional, string) One of `green`, `yellow` or `red`. Will wait until the status of
+the cluster changes to the one provided or better, i.e. `green` > `yellow` > `red`.
+By default, will not wait for any status.
 
 [role="child_attributes"]
 [[health-api-response-body]]

@@ -18,6 +18,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -45,6 +46,10 @@ public class RestGetHealthAction extends BaseRestHandler {
         boolean verbose = request.paramAsBoolean(VERBOSE_PARAM, true);
         int size = request.paramAsInt(SIZE_PARAM, 1000);
         GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, verbose, size);
+        String waitForStatus = request.param("wait_for_status");
+        if (waitForStatus != null) {
+            getHealthRequest.waitForStatus(HealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
+        }
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetHealthAction.INSTANCE,
             getHealthRequest,

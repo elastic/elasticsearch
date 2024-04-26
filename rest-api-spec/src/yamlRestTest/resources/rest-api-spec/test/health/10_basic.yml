@@ -5,7 +5,8 @@
       reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
 
   - do:
-      health_report: { }
+      health_report:
+        wait_for_status: green
 
   - is_true: cluster_name
   - match:   { status: "green" }

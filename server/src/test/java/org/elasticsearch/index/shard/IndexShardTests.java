@@ -276,7 +276,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertNotNull(shardPath);
         // fail shard
         shard.failShard("test shard fail", new CorruptIndexException("", ""));
-        closeShardNoCheck(shard, false);
+        closeShardNoCheck(shard);
         shard.store().close();
         // check state file still exists
         ShardStateMetadata shardStateMetadata = load(logger, shardPath.getShardStatePath());
@@ -1477,7 +1477,7 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        closeShardNoCheck(newShard, false);
+        closeShardNoCheck(newShard);
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -1766,7 +1766,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AtomicInteger preDelete = new AtomicInteger();
         AtomicInteger postDelete = new AtomicInteger();
         AtomicInteger postDeleteException = new AtomicInteger();
-        closeShardNoCheck(shard, true);
+        flushAndCloseShardNoCheck(shard);
         shard = reinitShard(shard, new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
@@ -1848,7 +1848,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        closeShardNoCheck(shard, true);
+        closeShardNoCheck(shard);
         shard.state = IndexShardState.STARTED; // It will generate exception
 
         try {
@@ -4372,7 +4372,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread closeShardThread = new Thread(() -> {
             try {
                 safeAwait(readyToCloseLatch);
-                closeShardNoCheck(shard, false);
+                closeShardNoCheck(shard);
                 // in integration tests, this is done as a listener on IndexService.
                 MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (IOException e) {
@@ -4813,7 +4813,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.start();
         try {
             warmerStarted.await();
-            closeShardNoCheck(shard, false);
+            closeShardNoCheck(shard);
             assertThat(shard.state, equalTo(IndexShardState.CLOSED));
         } finally {
             warmerBlocking.countDown();

@@ -546,7 +546,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        closeShardNoCheck(shard, false);
+        closeShardNoCheck(shard);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
         IndexingOperationListener listener = new IndexingOperationListener() {

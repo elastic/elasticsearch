@@ -683,16 +683,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
         } finally {
-            IOUtils.close(() -> closeShardNoCheck(shard, false), shard.store());
+            IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
         }
-    }
-
-    // ES-8334 TODO test async shard closing
-
-    public static void closeShardNoCheck(IndexShard indexShard, boolean flushEngine) throws IOException {
-        CloseUtils.executeDirectly(
-            l -> indexShard.close("IndexShardTestCase#closeShardNoCheck", flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
-        );
     }
 
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {
@@ -701,6 +693,31 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 closeShard(shard, true);
             }
         }
+    }
+
+    // ES-8334 TODO test async shard closing
+
+    /**
+     * Close an {@link IndexShard}, optionally flushing first, without performing the consistency checks that {@link #closeShard} performs.
+     */
+    public static void closeShardNoCheck(IndexShard indexShard, boolean flushEngine) throws IOException {
+        CloseUtils.executeDirectly(
+            l -> indexShard.close("IndexShardTestCase#closeShardNoCheck", flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+        );
+    }
+
+    /**
+     * Close an {@link IndexShard} without flushing or performing the consistency checks that {@link #closeShard} performs.
+     */
+    public static void closeShardNoCheck(IndexShard indexShard) throws IOException {
+        closeShardNoCheck(indexShard, false);
+    }
+
+    /**
+     * Flush and close an {@link IndexShard}, without performing the consistency checks that {@link #closeShard} performs.
+     */
+    public static void flushAndCloseShardNoCheck(IndexShard indexShard) throws IOException {
+        closeShardNoCheck(indexShard, true);
     }
 
     protected void recoverShardFromStore(IndexShard primary) throws IOException {

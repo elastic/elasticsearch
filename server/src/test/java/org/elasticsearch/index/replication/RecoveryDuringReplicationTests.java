@@ -137,7 +137,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             closeShardNoCheck(oldPrimary, randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
-            closeShardNoCheck(remainingReplica, false);
+            closeShardNoCheck(remainingReplica);
             remainingReplica.store().close();
             // randomly introduce a conflicting document
             final boolean extra = randomBoolean();
@@ -260,7 +260,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 newPrimary.flush(new FlushRequest());
             }
 
-            closeShardNoCheck(oldPrimary, false);
+            closeShardNoCheck(oldPrimary);
             oldPrimary.store().close();
 
             IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
@@ -306,7 +306,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.promoteReplicaToPrimary(newPrimary).get();
             // Recover a replica should rollback the stale documents
             shards.removeReplica(replica);
-            closeShardNoCheck(replica, false);
+            closeShardNoCheck(replica);
             replica.store().close();
             replica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(replica);
@@ -317,7 +317,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
-            closeShardNoCheck(replica, false);
+            closeShardNoCheck(replica);
             replica.store().close();
             IndexShard anotherReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(anotherReplica);

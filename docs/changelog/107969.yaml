@@ -1,0 +1,5 @@
+pr: 107969
+summary: Disable PIT for remote clusters
+area: Transform
+type: bug
+issues: []

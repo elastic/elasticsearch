@@ -244,13 +244,6 @@ To track statistics over time, {esql} enables you to create histograms using the
 and returns a value for each row that corresponds to the resulting bucket the
 row falls into.
 
-For example, to create hourly buckets for the data on October 23rd:
-
-[source,esql]
-----
-include::{esql-specs}/bucket.csv-spec[tag=gs-bucket]
-----
-
 Combine `BUCKET` with <<esql-stats-by>> to create a histogram. For example,
 to count the number of events per hour:
 

@@ -68,10 +68,6 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
             this.timeout = timeout;
         }
 
-        public void setTimeout(String timeout) {
-            this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) {

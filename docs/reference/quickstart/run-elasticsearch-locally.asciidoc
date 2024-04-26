@@ -22,7 +22,6 @@ Note that if you don't need the {kib} UI, you can skip those instructions.
 === When would I use this setup?
 
 Use this setup if you want to quickly spin up {es} (and {kib}) for local development or testing.
-If you just need an {es} instance, you only need a <<local-dev-run-es,single `docker run` command>>.
 
 For example you might:
 
@@ -46,14 +45,14 @@ Configure the following environment variables.
 [source,sh]
 ----
 export ELASTIC_PASSWORD="<ES_PASSWORD>"  # password for "elastic" username
-export KIBANA_PASSWORD="<KIB_PASSWORD"   # Used _internally_ by Kibana, must be at last 6 characters long
+export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used _internally_ by Kibana, must be at last 6 characters long
 ----
 
 [discrete]
 [[local-dev-create-docker-network]]
 === Create a Docker network
 
-If you want to run both {es} and {kib}, you'll need to create a Docker network:
+To run both {es} and {kib}, you'll need to create a Docker network:
 
 [source,sh]
 ----
@@ -75,25 +74,6 @@ docker run -p 127.0.0.1:9200:9200 -d --name elasticsearch --network elastic-net 
   -e "xpack.license.self_generated.type=trial" \
   {docker-image}
 ----
-
-// I think API keys are overkill for local dev, so I'm commenting this out for now
-// It doesn't make sense to turn off security but then use API keys
-
-// [source,sh,subs="attributes"]
-// ----
-// # create an API Key (optional)
-// APIKEY=$(curl -s -u elastic:$ELASTIC_PASSWORD \
-//   -X POST \
-//   http://localhost:9200/_security/api_key \
-//   -d '{"name":"my-api-key"}' \
-//   -H 'Content-Type: application/json' | jq -r ".encoded")
-// ----
-
-// [source,sh,subs="attributes"]
-// ----
-// # access the cluster with the API Key (optional)
-// curl -s -X GET http://localhost:9200 -H "Authorization: APIKey $APIKEY"
-// ----
 
 [discrete]
 [[local-dev-run-kib]]

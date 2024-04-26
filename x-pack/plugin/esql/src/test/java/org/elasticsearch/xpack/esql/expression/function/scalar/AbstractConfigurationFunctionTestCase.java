@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+
 public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunctionTestCase {
     protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration);
 
@@ -42,14 +44,11 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunc
         );
     }
 
-    public void testEqualsAndHash() {
-
+    public void testSerializationWithConfig() {
         EsqlConfiguration config = randomConfiguration();
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
-        Expression sameExpr = buildWithConfiguration(new Source(0, 10, randomAlphaOfLength(10)), testCase.getDataAsFields(), config);
 
-        assertTrue(expr.equals(sameExpr));
-        assertEquals(expr.hashCode(), sameExpr.hashCode());
+        assertSerialization(expr);
 
         EsqlConfiguration differentConfig;
         do {

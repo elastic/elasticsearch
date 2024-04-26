@@ -60,7 +60,16 @@ public class SerializationTestUtils {
     }
 
     public static void assertSerialization(Expression expression) {
-        Expression deserExpression = serializeDeserialize(expression, PlanStreamOutput::writeExpression, PlanStreamInput::readExpression);
+        assertSerialization(expression, EsqlTestUtils.TEST_CFG);
+    }
+
+    public static void assertSerialization(Expression expression, EsqlConfiguration configuration) {
+        Expression deserExpression = serializeDeserialize(
+            expression,
+            PlanStreamOutput::writeExpression,
+            PlanStreamInput::readExpression,
+            configuration
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(expression, unused -> deserExpression);
     }
 

@@ -40,7 +40,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
                 sourceText(),
                 DEFAULT,
                 "datetime",
-                "numeric except unsigned_long"
+                "numeric except unsigned_long or counter types"
             );
         }
         return isType(
@@ -48,7 +48,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
             dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long"
+            "numeric except unsigned_long or counter types"
         );
     }
 

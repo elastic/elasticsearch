@@ -1711,7 +1711,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // TODO: maybe upload before releasing in some cases as a future optimization?
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
-            ActionListener.onFailure(listenersToFail, new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
+
+            // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.
+            // using generic is safe, since we close all shards (but not the stores) before shutting down thread pools.
+            threadPool.generic()
+                .execute(
+                    () -> ActionListener.onFailure(
+                        listenersToFail,
+                        new AlreadyClosedException("shard [" + shardId + "] has already been closed")
+                    )
+                );
         }
 
         private void unregistered() {

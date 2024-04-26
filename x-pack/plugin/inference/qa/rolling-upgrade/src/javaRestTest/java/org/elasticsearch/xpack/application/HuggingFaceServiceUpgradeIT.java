@@ -13,6 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +36,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    // @BeforeClass
+    @BeforeClass
     public static void startWebServer() throws IOException {
         embeddingsServer = new MockWebServer();
         embeddingsServer.start();
@@ -43,14 +45,13 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
         elserServer.start();
     }
 
-    // @AfterClass for the awaits fix
+    @AfterClass
     public static void shutdown() {
         embeddingsServer.close();
         elserServer.close();
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testHFEmbeddings() throws IOException {
         var embeddingsSupported = getOldClusterTestVersion().onOrAfter(HF_EMBEDDINGS_ADDED);
         assumeTrue("Hugging Face embedding service added in " + HF_EMBEDDINGS_ADDED, embeddingsSupported);
@@ -100,7 +101,6 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testElser() throws IOException {
         var supported = getOldClusterTestVersion().onOrAfter(HF_ELSER_ADDED);
         assumeTrue("HF elser service added in " + HF_ELSER_ADDED, supported);

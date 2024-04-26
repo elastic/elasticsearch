@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.inference.results;
 
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -153,5 +159,68 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             TextEmbeddingResults.TEXT_EMBEDDING,
             embeddings.stream().map(embedding -> Map.of(TextEmbeddingResults.Embedding.EMBEDDING, embedding)).toList()
         );
+    }
+
+    public void testBoxedToUnBoxed() throws IOException {
+
+        int dims = 50;
+        List<Float> floats = new ArrayList<>(dims);
+
+        for (int i = 0; i < dims; i++) {
+            floats.add(randomFloat());
+        }
+        var boxed = new EmbeddingFloatBoxed(floats);
+
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            boxed.writeTo(output);
+            try (StreamInput in = output.bytes().streamInput()) {
+                var unboxed = new EmbeddingFloatUnboxed(in);
+                assertSameEmbeddingValues(boxed, unboxed);
+
+                // and reverse
+
+                try (BytesStreamOutput output2 = new BytesStreamOutput()) {
+                    unboxed.writeTo(output2);
+
+                    try (StreamInput in2 = output2.bytes().streamInput()) {
+                        var boxedBack = new EmbeddingFloatBoxed(in2);
+                        assertSameEmbeddingValues(boxedBack, unboxed);
+                    }
+                }
+            }
+        }
+    }
+
+    public record EmbeddingFloatUnboxed(float[] embedding) implements Writeable {
+
+        public EmbeddingFloatUnboxed(StreamInput in) throws IOException {
+            this(in.readFloatArray());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeFloatArray(embedding);
+        }
+    }
+
+    public record EmbeddingFloatBoxed(List<Float> embedding) implements Writeable {
+
+        public EmbeddingFloatBoxed(StreamInput in) throws IOException {
+            this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(embedding, StreamOutput::writeFloat);
+        }
+    }
+
+    private void assertSameEmbeddingValues(EmbeddingFloatBoxed boxed, EmbeddingFloatUnboxed unboxed) {
+        var capitalF = new ArrayList<Float>();
+        for (float value : unboxed.embedding) {
+            capitalF.add(value);
+        }
+        assertEquals(boxed.embedding, capitalF);
     }
 }

@@ -109,8 +109,8 @@ public class MockWebServer implements Closeable {
                 MockRequest request = createRequest(s);
                 requests.add(request);
 
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
+//                if (logger.isDebugEnabled()) {
+                    logger.info(
                         "[{}:{}] incoming HTTP request [{} {}], returning status [{}] body [{}]",
                         getHostName(),
                         getPort(),
@@ -119,7 +119,7 @@ public class MockWebServer implements Closeable {
                         response.getStatusCode(),
                         getStartOfBody(response)
                     );
-                }
+//                }
 
                 sleepIfNeeded(response.getBeforeReplyDelay());
 

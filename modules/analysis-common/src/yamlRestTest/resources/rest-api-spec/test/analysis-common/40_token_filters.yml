@@ -675,8 +675,9 @@
                   my_stemmer_override:
                     type: stemmer_override
                     rules_path: "jvm.options"
-    - match: { status: 500 }
-    - match: { error.type: access_control_exception }
+    - match: { status: 400 }
+    - match: { error.type: illegal_argument_exception }
+    - match: { error.reason: "Access denied trying to read file" }
 
 ---
 "decompounder":

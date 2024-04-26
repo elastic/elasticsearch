@@ -340,7 +340,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      */
     void runInactivityMonitor(Supplier<Long> time) {
         shardsCommitsStates.forEach((shardId, commitState) -> {
-            if (commitState.state != ShardCommitState.State.CLOSED && commitState.lastNewCommitNotificationSentTimestamp > 0) {
+            if (commitState.isClosed() == false && commitState.lastNewCommitNotificationSentTimestamp > 0) {
                 long elapsed = time.get() - commitState.lastNewCommitNotificationSentTimestamp;
                 if (elapsed > shardInactivityDuration.getMillis()) {
                     commitState.maybeResendLatestNewCommitNotification();
@@ -367,7 +367,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Override
         protected void runInternal() {
             shardsCommitsStates.forEach((shardId, commitState) -> {
-                if (closedOrRelocated(commitState.state)) {
+                if (commitState.isClosed()) {
                     return;
                 }
                 final var virtualBcc = commitState.getCurrentVirtualBcc();
@@ -396,21 +396,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             assert reference.getPrimaryTerm() == commitState.allocationPrimaryTerm;
-            if (closedOrRelocated(commitState.state)) {
-                logger.debug(
-                    "{} aborting commit creation [state={}][primary term={}][generation={}]",
-                    shardId,
-                    commitState.state,
-                    reference.getPrimaryTerm(),
-                    generation
-                );
-                IOUtils.closeWhileHandlingException(reference);
-                return;
-            }
 
             // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
 
-            final var virtualBcc = commitState.appendCommit(reference);
+            final VirtualBatchedCompoundCommit virtualBcc;
+            synchronized (commitState) {
+                // Have to check under lock before creating vbcc to ensure that the shard has not closed.
+                if (commitState.isClosed()) {
+                    logger.debug(
+                        "{} aborting commit creation [state={}][primary term={}][generation={}]",
+                        shardId,
+                        commitState.state,
+                        reference.getPrimaryTerm(),
+                        generation
+                    );
+                    IOUtils.closeWhileHandlingException(reference);
+                    return;
+                }
+                virtualBcc = commitState.appendCommit(reference);
+            }
             success = true;
 
             if (statelessUploadDelayed) {
@@ -472,7 +476,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         public void accept(Exception e) {
                             assert assertClosedOrRejectionFailure(e);
                             ShardCommitState.State state = commitState.state;
-                            if (closedOrRelocated(state)) {
+                            if (commitState.isClosed()) {
                                 logger.debug(
                                     () -> format(
                                         "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
@@ -495,7 +499,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         }
 
                         private boolean assertClosedOrRejectionFailure(final Exception e) {
-                            final var closed = closedOrRelocated(commitState.state);
+                            final var closed = commitState.isClosed();
                             assert closed
                                 || e instanceof EsRejectedExecutionException
                                 || e instanceof IndexNotFoundException
@@ -661,7 +665,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         @Override
         public boolean shouldRetry(Exception e) {
-            return closedOrRelocated(shardCommitState.state) == false;
+            return shardCommitState.isClosed() == false;
         }
     }
 
@@ -674,10 +678,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return new ShardCommitState(shardId, primaryTerm);
     }
 
+    public void closeShard(ShardId shardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.close();
+    }
+
     public void unregister(ShardId shardId) {
         ShardCommitState removed = shardsCommitsStates.remove(shardId);
         assert removed != null : shardId + " not registered";
-        removed.close();
+        assert removed.isClosed();
+        removed.unregistered();
     }
 
     /**
@@ -757,10 +767,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState;
     }
 
-    private static boolean closedOrRelocated(ShardCommitState.State state) {
-        return state == ShardCommitState.State.CLOSED || state == ShardCommitState.State.RELOCATED;
-    }
-
     private boolean assertDelayedSetting(String behaviour) {
         assert statelessUploadDelayed : behaviour + " requires [" + STATELESS_UPLOAD_DELAYED.getKey() + "] to be enabled";
         return true;
@@ -817,6 +823,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final AtomicLong uploadedGenerationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
         private volatile long maxGenerationToUpload = Long.MAX_VALUE;
         private final AtomicLong maxGenerationToUploadForFlush = new AtomicLong(-1);
+        // Does not need to be volatile because it uses reads/writes of state for visibility
+        private boolean relocated = false;
         private volatile State state = State.RUNNING;
         private volatile boolean isDeleted;
         // map BCC generations to BCC blob instances
@@ -832,6 +840,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
             this.shardId = shardId;
             this.allocationPrimaryTerm = allocationPrimaryTerm;
+        }
+
+        private boolean isClosed() {
+            return state == State.CLOSED;
         }
 
         private void markBccRecovered(BatchedCompoundCommit recoveredBcc, Set<BlobFile> nonRecoveredBlobs) {
@@ -958,7 +970,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         public void ensureMaxGenerationToUploadForFlush(long generation) {
-            if (closedOrRelocated(state)) {
+            if (isClosed()) {
                 return;
             }
             final long previousMaxGeneration = maxGenerationToUploadForFlush.getAndUpdate(v -> Math.max(v, generation));
@@ -1056,59 +1068,59 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * @return The VBCC that the given {@link StatelessCommitRef} has been added into.
          */
         private VirtualBatchedCompoundCommit appendCommit(StatelessCommitRef reference) {
-            synchronized (this) {
-                if (currentVirtualBcc == null) {
-                    final var newVirtualBcc = new VirtualBatchedCompoundCommit(
+            assert Thread.holdsLock(this);
+
+            if (currentVirtualBcc == null) {
+                final var newVirtualBcc = new VirtualBatchedCompoundCommit(
+                    shardId,
+                    ephemeralNodeIdSupplier.get(),
+                    reference.getPrimaryTerm(),
+                    reference.getGeneration(),
+                    fileName -> getBlobLocation(shardId, fileName),
+                    threadPool::relativeTimeInMillis
+                );
+                final boolean appended = newVirtualBcc.appendCommit(reference);
+                assert appended : "append must be successful since the VBCC is new and empty";
+                logger.trace(
+                    () -> Strings.format(
+                        "%s created new VBCC generation [%s]",
                         shardId,
-                        ephemeralNodeIdSupplier.get(),
-                        reference.getPrimaryTerm(),
-                        reference.getGeneration(),
-                        fileName -> getBlobLocation(shardId, fileName),
-                        threadPool::relativeTimeInMillis
-                    );
-                    final boolean appended = newVirtualBcc.appendCommit(reference);
-                    assert appended : "append must be successful since the VBCC is new and empty";
-                    logger.trace(
-                        () -> Strings.format(
-                            "%s created new VBCC generation [%s]",
-                            shardId,
-                            newVirtualBcc.getPrimaryTermAndGeneration().generation()
-                        )
-                    );
-                    currentVirtualBcc = newVirtualBcc;
-                } else {
-                    final boolean appended = currentVirtualBcc.appendCommit(reference);
-                    assert appended : "append must be successful since append and freeze have exclusive access";
-                    logger.trace(
-                        () -> Strings.format(
-                            "%s appended CC generation [%s] to VBCC generation [%s]",
-                            shardId,
-                            reference.getGeneration(),
-                            currentVirtualBcc.getPrimaryTermAndGeneration().generation()
-                        )
-                    );
-                }
-
-                var pendingCompoundCommit = currentVirtualBcc.getLastPendingCompoundCommit();
-                var statelessCompoundCommit = pendingCompoundCommit.getStatelessCompoundCommit();
-                var commitPrimaryTermAndGeneration = statelessCompoundCommit.primaryTermAndGeneration();
-
-                assert commitPrimaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
-                assert commitPrimaryTermAndGeneration.generation() == reference.getGeneration();
-
-                var previousCommitReferencesInfo = commitReferencesInfos.put(
-                    commitPrimaryTermAndGeneration,
-                    new CommitReferencesInfo(
-                        currentVirtualBcc.getPrimaryTermAndGeneration(),
-                        BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
+                        newVirtualBcc.getPrimaryTermAndGeneration().generation()
                     )
                 );
-
-                assert previousCommitReferencesInfo == null
-                    : statelessCompoundCommit.primaryTermAndGeneration() + " was already present in " + commitReferencesInfos;
-
-                return currentVirtualBcc;
+                currentVirtualBcc = newVirtualBcc;
+            } else {
+                final boolean appended = currentVirtualBcc.appendCommit(reference);
+                assert appended : "append must be successful since append and freeze have exclusive access";
+                logger.trace(
+                    () -> Strings.format(
+                        "%s appended CC generation [%s] to VBCC generation [%s]",
+                        shardId,
+                        reference.getGeneration(),
+                        currentVirtualBcc.getPrimaryTermAndGeneration().generation()
+                    )
+                );
             }
+
+            var pendingCompoundCommit = currentVirtualBcc.getLastPendingCompoundCommit();
+            var statelessCompoundCommit = pendingCompoundCommit.getStatelessCompoundCommit();
+            var commitPrimaryTermAndGeneration = statelessCompoundCommit.primaryTermAndGeneration();
+
+            assert commitPrimaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
+            assert commitPrimaryTermAndGeneration.generation() == reference.getGeneration();
+
+            var previousCommitReferencesInfo = commitReferencesInfos.put(
+                commitPrimaryTermAndGeneration,
+                new CommitReferencesInfo(
+                    currentVirtualBcc.getPrimaryTermAndGeneration(),
+                    BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
+                )
+            );
+
+            assert previousCommitReferencesInfo == null
+                : statelessCompoundCommit.primaryTermAndGeneration() + " was already present in " + commitReferencesInfos;
+
+            return currentVirtualBcc;
         }
 
         /**
@@ -1133,7 +1145,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                     return;
                 }
-                if (closedOrRelocated(state)) {
+                if (isClosed()) {
                     logger.debug(
                         () -> Strings.format(
                             "%s aborting freeze for VBCC generation [%s] [state=%s]",
@@ -1248,7 +1260,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // It's possible that a background task such as force merge creates a commit after the shard
             // has relocated or closed and these commits are not appended into VBCCs nor uploaded.
             // In such cases we just respond back with an empty set since we're not tracking these.
-            if (closedOrRelocated(state)) {
+            if (isClosed()) {
                 return Set.of();
             }
             var commitReferencesInfo = getCommitReferencesInfoForGeneration(generation);
@@ -1597,7 +1609,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             boolean completeListenerSuccess = false;
             boolean completeListenerClosed = false;
             synchronized (this) {
-                if (closedOrRelocated(state)) {
+                if (isClosed()) {
                     completeListenerClosed = true;
                 } else if (getMaxUploadedGeneration() >= generation) {
                     // TODO: different listeners may want ccGen or bccGen and should be handled separately. See also ES-8261
@@ -1618,7 +1630,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             if (completeListenerClosed) {
-                if (state == State.RELOCATED) {
+                if (relocated) {
                     listener.onFailure(new UnavailableShardsException(shardId, "shard relocated"));
                 } else {
                     listener.onFailure(new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
@@ -1634,7 +1646,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         public void addConsumerForNewUploadedBcc(Consumer<UploadedBccInfo> consumer) {
             synchronized (this) {
-                if (closedOrRelocated(state) == false) {
+                if (isClosed() == false) {
                     if (uploadedBccConsumers == null) {
                         uploadedBccConsumers = new ArrayList<>();
                     }
@@ -1643,11 +1655,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private List<ActionListener<Void>> changeStateAndGetListeners(State newState) {
+        private List<ActionListener<Void>> closeAndGetListeners() {
             List<Tuple<Long, ActionListener<Void>>> listenersToFail;
             synchronized (this) {
-                assert newState == State.CLOSED || newState == State.RELOCATED : newState;
-                state = newState;
+                if (isClosed()) {
+                    return Collections.emptyList();
+                }
+                state = State.CLOSED;
                 listenersToFail = generationListeners;
                 generationListeners = null;
                 uploadedBccConsumers = null;
@@ -1661,17 +1675,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void close() {
+            List<ActionListener<Void>> listenersToFail = closeAndGetListeners();
             final var virtualBcc = currentVirtualBcc;
             if (virtualBcc != null) {
-                assert state != State.RELOCATED : "relocation should have gracefully reset current VBCC";
+                assert relocated == false : "relocation should have gracefully reset current VBCC";
                 // Release commit references held by the current VBCC
                 // TODO: maybe upload before releasing in some cases as a future optimization?
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
-
-            List<ActionListener<Void>> listenersToFail = changeStateAndGetListeners(State.CLOSED);
             ActionListener.onFailure(listenersToFail, new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
+        }
 
+        private void unregistered() {
             if (isDeleted) {
                 // clear all unpromotable references
                 updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE, Set.of());
@@ -1709,8 +1724,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             List<ActionListener<Void>> listenersToFail;
             synchronized (this) {
                 if (state != State.CLOSED) {
-                    assert state == State.RELOCATING;
-                    listenersToFail = changeStateAndGetListeners(State.RELOCATED);
+                    relocated = true;
+                    listenersToFail = closeAndGetListeners();
                 } else {
                     listenersToFail = Collections.emptyList();
                 }
@@ -1878,7 +1893,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private RegisterCommitResponse registerVirtualBccForUnpromotableRecovery(Set<String> nodeIds) {
             while (true) {
                 var virtual = getCurrentOrPendingUploadVirtualBcc();
-                if (virtual == null || closedOrRelocated(state)) {
+                if (virtual == null || isClosed()) {
                     break;
                 }
                 final var virtualPrimaryTermAndGeneration = virtual.getPrimaryTermAndGeneration();
@@ -1910,7 +1925,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             BatchedCompoundCommit latest;
             long previousGenerationUploaded = -1L;
             while ((latest = this.latestUploadedBcc) != null) {
-                if (closedOrRelocated(state)) {
+                if (isClosed()) {
                     break;
                 }
                 assert latest.primaryTermAndGeneration().generation() > 0;

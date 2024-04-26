@@ -163,6 +163,47 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testCloseIdempotentlyChangesStateAndCompletesListeners() throws Exception {
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
+
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
+
+            for (StatelessCommitRef commitRef : commitRefs) {
+                testHarness.commitService.onCommitCreation(commitRef);
+            }
+            for (StatelessCommitRef commitRef : commitRefs) {
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
+                future.actionGet();
+            }
+            long lastCommitGeneration = commitRefs.get(commitRefs.size() - 1).getGeneration();
+
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(
+                testHarness.shardId,
+                lastCommitGeneration + 1,
+                ActionListener.assertOnce(future)
+            );
+
+            testHarness.commitService.closeShard(testHarness.shardId);
+
+            expectThrows(AlreadyClosedException.class, future::actionGet);
+
+            // Test that close can be called twice
+            testHarness.commitService.closeShard(testHarness.shardId);
+
+            // Test listeners immediately completed for closed shard
+            PlainActionFuture<Void> future2 = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(
+                testHarness.shardId,
+                lastCommitGeneration + 2,
+                ActionListener.assertOnce(future2)
+            );
+            expectThrows(AlreadyClosedException.class, future2::actionGet);
+        }
+    }
+
     public void testCommitUpload() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
@@ -615,6 +656,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 primaryTerm
             );
 
+            testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
             testHarness.commitService.register(testHarness.shardId, primaryTerm);
@@ -639,6 +681,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PlainActionFuture<Void> failedFuture = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, 1, failedFuture);
 
+            testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
             expectThrows(AlreadyClosedException.class, failedFuture::actionGet);
         }
@@ -1154,6 +1197,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 primaryTerm
             );
 
+            testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
             testHarness.commitService.register(testHarness.shardId, primaryTerm);
@@ -1264,6 +1308,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration())
             );
 
+            testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
             var indexingShardState = ObjectStoreService.readIndexingShardState(
@@ -1475,6 +1520,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertBusy(() -> assertThat(fakeSearchNode.generationPendingListeners.size(), equalTo(numberOfCommits)));
 
             testHarness.commitService.delete(testHarness.shardId);
+            testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
             for (StatelessCommitRef initialCommit : delayedNewCommitNotifications) {
@@ -2132,6 +2178,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(deletedCommits, is(empty()));
 
             commitService.delete(shardId);
+            commitService.closeShard(testHarness.shardId);
             commitService.unregister(shardId);
 
             // We need assertBusy as we do an incRef for the BlobReference before we start the BCC upload

@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -35,6 +36,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -50,11 +52,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -101,6 +105,32 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             assertThat(request, notNullValue());
             assertThat(request.isUploaded(), is(true));
         }
+    }
+
+    public void testBCCDoesNotHoldHoldCommitReferencesAfterIndexShardClose() throws Exception {
+        final String indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
+                .build()
+        );
+        startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        IndexShard indexShard = findIndexShard(indexName);
+        long beforeIndexing = Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+
+        indexDocs(indexName, randomIntBetween(10, 100));
+        refresh(indexName);
+
+        assertThat(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration(), greaterThan(beforeIndexing));
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        // This test would hang on close if the un-uploaded index commit references were not released on index shard close.
     }
 
     public void testNewCommitNotificationOnCreation() throws Exception {

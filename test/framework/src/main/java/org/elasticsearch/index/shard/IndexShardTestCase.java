@@ -683,14 +683,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
         } finally {
-            IOUtils.close(() -> closeShard(shard, "test", false), shard.store());
+            IOUtils.close(() -> closeShardNoCheck(shard, false), shard.store());
         }
     }
 
     // ES-8334 TODO test async shard closing
 
-    public static void closeShard(IndexShard indexShard, String reason, boolean flushEngine) throws IOException {
-        CloseUtils.executeDirectly(l -> indexShard.close(reason, flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
+    public static void closeShardNoCheck(IndexShard indexShard, boolean flushEngine) throws IOException {
+        CloseUtils.executeDirectly(
+            l -> indexShard.close("IndexShardTestCase#closeShardNoCheck", flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+        );
     }
 
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {

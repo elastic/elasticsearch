@@ -27,7 +27,7 @@ public class FrozenIndexShardTests extends IndexShardTestCase {
         indexDoc(indexShard, "_doc", "1");
         indexDoc(indexShard, "_doc", "2");
         indexDoc(indexShard, "_doc", "3");
-        closeShard(indexShard, "test", true);
+        closeShardNoCheck(indexShard, true);
         final ShardRouting shardRouting = indexShard.routingEntry();
         IndexShard frozenShard = reinitShard(
             indexShard,

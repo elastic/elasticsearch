@@ -136,7 +136,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    closeShard(shard, "test", false);
+                    closeShardNoCheck(shard, false);
                 } finally {
                     IOUtils.close(shard.store());
                 }
@@ -205,7 +205,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    closeShard(shard, "test", false);
+                    closeShardNoCheck(shard, false);
                 } finally {
                     IOUtils.close(shard.store());
                 }

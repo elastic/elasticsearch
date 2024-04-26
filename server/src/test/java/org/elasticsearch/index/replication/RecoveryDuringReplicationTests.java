@@ -134,10 +134,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 new SourceToParse("replica", new BytesArray("{}"), XContentType.JSON)
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
-            closeShard(oldPrimary, "demoted", randomBoolean());
+            closeShardNoCheck(oldPrimary, randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
-            closeShard(remainingReplica, "disconnected", false);
+            closeShardNoCheck(remainingReplica, false);
             remainingReplica.store().close();
             // randomly introduce a conflicting document
             final boolean extra = randomBoolean();
@@ -260,7 +260,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 newPrimary.flush(new FlushRequest());
             }
 
-            closeShard(oldPrimary, "demoted", false);
+            closeShardNoCheck(oldPrimary, false);
             oldPrimary.store().close();
 
             IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
@@ -306,7 +306,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.promoteReplicaToPrimary(newPrimary).get();
             // Recover a replica should rollback the stale documents
             shards.removeReplica(replica);
-            closeShard(replica, "recover replica - first time", false);
+            closeShardNoCheck(replica, false);
             replica.store().close();
             replica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(replica);
@@ -317,7 +317,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
-            closeShard(replica, "recover replica - second time", false);
+            closeShardNoCheck(replica, false);
             replica.store().close();
             IndexShard anotherReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(anotherReplica);

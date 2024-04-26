@@ -363,7 +363,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         for (int i = 0; i < 100; i++) {
             indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}", XContentType.JSON, null);
         }
-        closeShard(shard, "simon says", false);
+        closeShardNoCheck(shard, false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
         Iterable<IndexShard> iterable = () -> (shardRef.get() == null)

@@ -231,7 +231,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = getTranslog(replica).getGeneration();
             shards.removeReplica(replica);
-            closeShard(replica, "test", false);
+            closeShardNoCheck(replica, false);
             IndexWriterConfig iwc = new IndexWriterConfig(null).setCommitOnClose(false)
                 // we don't want merges to happen here - we call maybe merge on the engine
                 // later once we stared it up otherwise we would need to wait for it here
@@ -355,7 +355,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             if (randomBoolean()) {
                 shards.flush();
             }
-            closeShard(replica, "test", randomBoolean());
+            closeShardNoCheck(replica, randomBoolean());
             replica.store().close();
             final IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
@@ -472,7 +472,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             }
             shards.syncGlobalCheckpoint();
             shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();
-            closeShard(oldPrimary, "demoted", false);
+            closeShardNoCheck(oldPrimary, false);
             oldPrimary.store().close();
             oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);

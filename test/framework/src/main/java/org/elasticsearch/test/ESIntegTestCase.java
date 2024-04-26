@@ -2053,28 +2053,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             mockPlugins = mocks;
         }
-        return doBuildTestCluster(
-            scope,
-            seed,
-            supportsDedicatedMasters,
-            minNumDataNodes,
-            maxNumDataNodes,
-            nodeConfigurationSource,
-            nodePrefix,
-            mockPlugins
-        );
-    }
-
-    protected InternalTestCluster doBuildTestCluster(
-        Scope scope,
-        long seed,
-        boolean supportsDedicatedMasters,
-        int minNumDataNodes,
-        int maxNumDataNodes,
-        NodeConfigurationSource nodeConfigurationSource,
-        String nodePrefix,
-        Collection<Class<? extends Plugin>> mockPlugins
-    ) {
         return new InternalTestCluster(
             seed,
             createTempDir(),

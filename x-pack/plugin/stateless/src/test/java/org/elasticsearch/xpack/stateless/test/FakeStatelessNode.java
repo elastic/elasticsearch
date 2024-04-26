@@ -76,6 +76,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -349,6 +350,7 @@ public class FakeStatelessNode implements Closeable {
                 if (merge) {
                     indexWriter.forceMerge(1, true);
                 }
+                indexWriter.setLiveCommitData(Map.of(SequenceNumbers.MAX_SEQ_NO, Integer.toString(i)).entrySet());
                 indexWriter.commit();
                 try (var indexReader = DirectoryReader.open(indexingStore.directory())) {
                     IndexCommit indexCommit = indexReader.getIndexCommit();

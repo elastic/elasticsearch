@@ -55,6 +55,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -2442,5 +2443,56 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             assertThat(metric.attributes().get("primary"), equalTo(false));
             assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
         });
+    }
+
+    public void testCanCreateAnEmptyStoreWithMissingClusterStateUpdates() {
+        var indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final long initialClusterStateVersion = clusterService().state().version();
+
+        var indexName = randomIdentifier();
+
+        try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
+            MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+            indexTransportService.addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+                assertThat(request, instanceOf(ApplyCommitRequest.class));
+                recoveryClusterStateDelayListeners.getClusterStateDelayListener(((ApplyCommitRequest) request).getVersion())
+                    .addListener(ActionListener.wrap(ignored -> handler.messageReceived(request, channel, task), channel::sendResponse));
+            });
+            recoveryClusterStateDelayListeners.addCleanup(indexTransportService::clearInboundRules);
+
+            final var searchNodeClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
+            final var indexCreated = new AtomicBoolean();
+            final ClusterStateListener clusterStateListener = event -> {
+                final var indexNodeProceedListener = recoveryClusterStateDelayListeners.getClusterStateDelayListener(
+                    event.state().version()
+                );
+                final var indexRoutingTable = event.state().routingTable().index(indexName);
+                assertNotNull(indexRoutingTable);
+                final var indexShardRoutingTable = indexRoutingTable.shard(0);
+
+                if (indexShardRoutingTable.primaryShard().assignedToNode() == false && indexCreated.compareAndSet(false, true)) {
+                    // this is the cluster state update which creates the index, so fail the application in order to miss the index
+                    // in the cluster state when the shard is recovered from the empty store
+                    indexNodeProceedListener.onFailure(new RuntimeException("Unable to process cluster state update"));
+                } else {
+                    // this is some other cluster state update, so we must let it proceed now
+                    indexNodeProceedListener.onResponse(null);
+                }
+            };
+            searchNodeClusterService.addListener(clusterStateListener);
+            recoveryClusterStateDelayListeners.addCleanup(() -> searchNodeClusterService.removeListener(clusterStateListener));
+
+            final var indexNodeClusterService = internalCluster().getInstance(ClusterService.class, indexNode);
+            // Delay cluster state applications so when the recovery is running the index node doesn't know about the new index yet
+            ClusterStateApplier delayingApplier = event -> safeSleep(1000);
+            indexNodeClusterService.addLowPriorityApplier(delayingApplier);
+
+            prepareCreate(indexName).setSettings(indexSettings(1, 0)).get();
+            ensureGreen(indexName);
+            indexNodeClusterService.removeApplier(delayingApplier);
+        }
     }
 }

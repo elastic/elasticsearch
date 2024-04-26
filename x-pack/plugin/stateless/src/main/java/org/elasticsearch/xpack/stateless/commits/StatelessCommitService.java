@@ -62,6 +62,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
@@ -417,7 +418,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             success = true;
 
-            if (statelessUploadDelayed) {
+            if (statelessUploadDelayed && isEmptyCommit(reference) == false) {
                 final var request = new NewCommitNotificationRequest(
                     shardRoutingFinder.apply(shardId),
                     virtualBcc.lastCompoundCommit(),
@@ -446,6 +447,26 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(reference);
             }
         }
+    }
+
+    /**
+     * Detect if this is the initial empty commit, which will always be uploaded subsequently.
+     * TODO: remove this once we can wait for cluster state version to appear instead.
+     */
+    private static boolean isEmptyCommit(StatelessCommitRef reference) {
+        SequenceNumbers.CommitInfo commitInfo = null;
+        try {
+            commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(reference.getIndexCommit().getUserData().entrySet());
+        } catch (IOException e) {
+            assert false : e;
+            return false;
+        }
+        if (commitInfo.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
+            assert reference.getCommitFiles().size() == 1 : "expect only _segments_N file " + reference.getCommitFiles();
+            return true;
+        }
+
+        return false;
     }
 
     private void createAndRunCommitUpload(

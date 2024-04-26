@@ -1296,14 +1296,20 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads an enum with type E that was serialized based on the value of its ordinal
+     * @deprecated give each {@link Writeable} enum an {@code byte id} member
+     *             and serialize that
      */
+    @Deprecated
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
         return readEnum(enumClass, enumClass.getEnumConstants());
     }
 
     /**
      * Reads an optional enum with type E that was serialized based on the value of its ordinal
+     * @deprecated give each {@link Writeable} enum an {@code byte id} member
+     *             and serialize that
      */
+    @Deprecated
     @Nullable
     public <E extends Enum<E>> E readOptionalEnum(Class<E> enumClass) throws IOException {
         if (readBoolean()) {
@@ -1313,6 +1319,12 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    /**
+     * Read an enum.
+     * @deprecated give each {@link Writeable} enum an {@code byte id} member
+     *             and serialize that
+     */
+    @Deprecated
     private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values) throws IOException {
         int ordinal = readVInt();
         if (ordinal < 0 || ordinal >= values.length) {

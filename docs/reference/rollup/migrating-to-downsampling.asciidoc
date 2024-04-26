@@ -1,0 +1,107 @@
+[role="xpack"]
+[[rollup-migrating-to-downsampling]]
+=== {rollup-cap} Migrating to downsampling
+++++
+<titleabbrev>Migrating to downsampling</titleabbrev>
+++++
+
+Rollup and downsampling are two different features that allow historical time based data to be rolled up.
+From a high level rollup offers more functionality compared to downsampling, but downsampling is a more robust and easier to use feature.
+
+The following features are missing from downsampling:
+* Downsampling can only rollup metrics by the `_tsid` (combination of all dimensions) and `@timestamp` field. Rollup allows
+  to group by other fields. For example `@timestamp` and hostname or any other combination of fields.
+* Downsampling doesn't support calendar time intervals. Only fixed intervals are supported.
+* Downsampling can only downsample time series data streams, which means the data source need to be metrics, with
+  configured dimension, metric fields and a `@timestamp` field. The rollup feature can rollup any index with a timestamp field.
+* Downsampling has less flexible scheduling control and it isn't possible to rollup data after short intervals. This
+  is because downsampling is tied to life cycle management. Essentially only after an index has been rolled
+  over it can be downsampled. This is because downsampling can only occur when a backing index is marked read only.
+
+The following aspects of downsampling are easier or more robust:
+* No need to schedule jobs. Downsampling is integrated with Index Lifecycle Management (ILM) and Data Stream Lifecycle (DSL).
+* No separate search API. Downsampled indices can be accessed via the search api and es|ql.
+* No separate rollup configuration. Downsampling uses the time series dimension and metric configuration from the mapping.
+
+It isn't possible to migrate all rollup usages to downsampling, because of the listed differences. The first requirement
+is that the data should be stored in Elasticsearch as <<tsds,time series data stream (TSDS)>>.
+Rollup usages to basically roll the data up by time can to migrate to downsampling.
+
+An example rollup usage that can be migrated to downsampling:
+
+[source,console]
+--------------------------------------------------
+PUT _rollup/job/sensor
+{
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "0 0 * * * *",
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "60m"
+    },
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[setup:sensor_index]
+
+The equivalent <<tsds,time series data stream (TSDS)>> setup that uses downsampling via DSL:
+
+[source,console]
+--------------------------------------------------
+PUT _index_template/sensor-template
+{
+  "index_patterns": ["sensor-*"],
+  "data_stream": { },
+  "template": {
+    "lifecycle": {
+        "downsampling": [
+            {
+                "after": "1d",
+                "fixed_interval": "1h"
+            }
+        ]
+    },
+    "settings": {
+      "index.mode": "time_series"
+    },
+    "mappings": {
+      "properties": {
+        "node": {
+          "type": "keyword",
+          "time_series_dimension": true
+        },
+        "temperature": {
+          "type": "half_float",
+          "time_series_metric": "gauge"
+        },
+        "voltage": {
+          "type": "half_float",
+          "time_series_metric": "gauge"
+        },
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+The downsample configuration is included in the above template for a <<tsds,time series data stream (TSDS)>>.
+Only the `downsampling` part is necessary to enable downsampling, which indicates when to downsample to what fixed interval.

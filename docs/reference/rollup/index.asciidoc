@@ -20,6 +20,7 @@ cost of raw data.
 * <<rollup-understanding-groups,Understanding rollup grouping>>
 * <<rollup-agg-limitations,Rollup aggregation limitations>>
 * <<rollup-search-limitations,Rollup search limitations>>
+* <<rollup-migrating-to-downsampling,Migrating to downsampling>>
 
 
 include::overview.asciidoc[]
@@ -28,3 +29,4 @@ include::rollup-getting-started.asciidoc[]
 include::understanding-groups.asciidoc[]
 include::rollup-agg-limitations.asciidoc[]
 include::rollup-search-limitations.asciidoc[]
+include::migrating-to-downsampling.asciidoc[]

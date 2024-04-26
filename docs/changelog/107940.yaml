@@ -1,0 +1,5 @@
+pr: 107940
+summary: '`MappedActionFilters` respect the order field in an `ActionFilter`'
+area: Infra/Core
+type: bug
+issues: []

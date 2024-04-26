@@ -1,8 +1,9 @@
 ---
 "cluster health basic test":
   - skip:
-      version: "- 8.6.99"
-      reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
+      version: "- 8.14.99"
+      reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7. But this was not stable until
+      wait_for_status was added in 8.15.0"
 
   - do:
       health_report:

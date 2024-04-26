@@ -49,9 +49,7 @@ emp_no:integer | first_name:keyword | a:boolean | b:boolean | c:boolean | d:bool
 ;
 
 
-//waiting for final decisions on supporting generic expressions on the right
-//https://github.com/elastic/elasticsearch/issues/103599
-constantsAndFolding-Ignore
+constantsAndFolding#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 row name = "foobar" | where "FoObAr" =~ name;
 
 name:keyword
@@ -80,9 +78,7 @@ emp_no:integer | first_name:keyword
 ;
 
 
-//waiting for final decisions on supporting generic expressions on the right
-//https://github.com/elastic/elasticsearch/issues/103599
-fieldRight-Ignore
+fieldRight#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees | where "Guoxiang" =~ first_name | keep emp_no, first_name;
 
 emp_no:integer  | first_name:keyword
@@ -106,9 +102,7 @@ emp_no:integer  | first_name:keyword
 ;
 
 
-//waiting for final decisions on supporting generic expressions on the right
-//https://github.com/elastic/elasticsearch/issues/103599
-expressionsLeftRight-Ignore
+expressionsLeftRight#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees | where substring(first_name, 1, 2) =~ substring(last_name, -2) | keep emp_no, first_name, last_name | sort emp_no;
 
 emp_no:integer  | first_name:keyword    | last_name:keyword

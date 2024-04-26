@@ -13,15 +13,45 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+
+import java.util.Collection;
+
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     public InsensitiveEquals(Source source, Expression left, Expression right) {
-        super(source, left, right);
+        super(source, left, right, new PredicateBiFunction<>() {
+            @Override
+            public String name() {
+                return "InsensitiveEquals";
+            }
+
+            @Override
+            public String symbol() {
+                return "=~";
+            }
+
+            @Override
+            public Boolean doApply(Object left, Object right) {
+                if (left == null || right == null || left instanceof Collection || right instanceof Collection) {
+                    return null;
+                }
+                BytesRef leftVal = BytesRefs.toBytesRef(left);
+                BytesRef rightVal = BytesRefs.toBytesRef(right);
+                if (leftVal == null || rightVal == null) {
+                    return null;
+                }
+                return process(leftVal, rightVal);
+            }
+        });
     }
 
     @Override
@@ -48,10 +78,19 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
         return "=~";
     }
 
+    @Override
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
+    }
+
+    @Override
+    public BinaryOperator<Object, Object, Boolean, PredicateBiFunction<Object, Object, Boolean>> swapLeftAndRight() {
+        return new InsensitiveEquals(source(), right(), left());
+    }
+
     protected TypeResolution resolveType() {
         return TypeResolutions.isString(left(), sourceText(), TypeResolutions.ParamOrdinal.FIRST)
-            .and(TypeResolutions.isString(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND))
-            .and(TypeResolutions.isFoldable(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
+            .and(TypeResolutions.isString(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
     }
 
     public static Automaton automaton(BytesRef val) {
@@ -60,8 +99,13 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     @Override
     public Boolean fold() {
-        BytesRef leftVal = BytesRefs.toBytesRef(left().fold());
-        BytesRef rightVal = BytesRefs.toBytesRef(right().fold());
+        Object l = left().fold();
+        Object r = right().fold();
+        if (l == null || r == null || l instanceof Collection || r instanceof Collection) {
+            return null;
+        }
+        BytesRef leftVal = BytesRefs.toBytesRef(l);
+        BytesRef rightVal = BytesRefs.toBytesRef(r);
         if (leftVal == null || rightVal == null) {
             return null;
         }

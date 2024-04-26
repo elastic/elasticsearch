@@ -64,15 +64,10 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -83,8 +78,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private SystemIndexDescriptor descriptorSpy;
     private ThreadPool threadPool;
     private SecurityIndexManager manager;
-
-    private int putMappingRequestCount = 0;
 
     @Before
     public void setUpManager() {
@@ -102,7 +95,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 if (request instanceof PutMappingRequest) {
-                    putMappingRequestCount++;
                     listener.onResponse((Response) AcknowledgedResponse.of(true));
                 }
             }
@@ -131,7 +123,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(true));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
     }
 
     public void testIndexWithoutPrimaryShards() {
@@ -215,7 +206,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(false));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
 
         // primary/index available, replica/search available
@@ -236,7 +226,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(true));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
 
         // primary/index available, replica/search unavailable
@@ -254,7 +243,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(true));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
 
         // primary/index unavailable, replica/search available
@@ -378,120 +366,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(prepareRunnableCalled.get(), is(true));
     }
 
-    /**
-     * Check that the security index manager will update an index's mappings if they are out-of-date.
-     * Although the {@index SystemIndexManager} normally handles this, the {@link SecurityIndexManager}
-     * expects to be able to handle this also.
-     */
-    public void testCanUpdateIndexMappings() {
-        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
-        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
-
-        // Ensure that the mappings for the index are out-of-date, so that the security index manager will
-        // attempt to update them.
-        int previousVersion = INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT - 1;
-
-        // State recovered with index, with mappings with a prior version
-        ClusterState.Builder clusterStateBuilder = createClusterState(
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
-            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
-            IndexMetadata.State.OPEN,
-            getMappings(previousVersion)
-        );
-        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
-        manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
-
-        assertThat(prepareRunnableCalled.get(), is(true));
-        assertThat(prepareException.get(), nullValue());
-        // Verify that the client to send put mapping was used
-        assertThat(putMappingRequestCount, equalTo(1));
-    }
-
-    /**
-     * Check that the security index manager will refuse to update mappings on an index
-     * if the corresponding {@link SystemIndexDescriptor} requires a higher mapping version
-     * that the cluster's current minimum version.
-     */
-    public void testCannotUpdateIndexMappingsWhenMinMappingVersionTooLow() {
-        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
-        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
-
-        // Hard-code a failure here.
-        doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString());
-        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(1, 0)));
-
-        // Ensure that the mappings for the index are out-of-date, so that the security index manager will
-        // attempt to update them.
-        int previousVersion = INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT - 1;
-
-        ClusterState.Builder clusterStateBuilder = createClusterState(
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
-            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
-            IndexMetadata.State.OPEN,
-            getMappings(previousVersion)
-        );
-        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
-        manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
-
-        assertThat(prepareRunnableCalled.get(), is(false));
-
-        final Exception exception = prepareException.get();
-        assertThat(exception, not(nullValue()));
-        assertThat(exception, instanceOf(IllegalStateException.class));
-        assertThat(exception.getMessage(), equalTo("Nope"));
-        // Verify that the client to send put mapping was never used
-        assertThat(putMappingRequestCount, equalTo(0));
-    }
-
-    /**
-     * Check that the security index manager will not update mappings on an index if the mapping version wasn't bumped
-     */
-    public void testNoUpdateWhenIndexMappingsVersionNotBumped() {
-        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
-        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
-
-        ClusterState.Builder clusterStateBuilder = createClusterState(
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
-            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
-            IndexMetadata.State.OPEN,
-            getMappings(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT)
-        );
-        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
-        manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
-
-        assertThat(prepareRunnableCalled.get(), is(true));
-        assertThat(prepareException.get(), is(nullValue()));
-        // Verify that the client to send put mapping was never used
-        assertThat(putMappingRequestCount, equalTo(0));
-    }
-
-    /**
-     * Check that the security index manager will not update mappings on an index if there is no mapping version in cluster state
-     */
-    public void testNoUpdateWhenNoIndexMappingsVersionInClusterState() {
-        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
-        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
-
-        ClusterState.Builder clusterStateBuilder = createClusterState(
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
-            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
-            IndexMetadata.State.OPEN,
-            getMappings(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT),
-            Map.of()
-        );
-        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
-        manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
-
-        assertThat(prepareRunnableCalled.get(), is(true));
-        assertThat(prepareException.get(), is(nullValue()));
-        // Verify that the client to send put mapping was never used
-        assertThat(putMappingRequestCount, equalTo(0));
-    }
-
     public void testListenerNotCalledBeforeStateNotRecovered() {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
         manager.addStateListener((prev, current) -> listenerCalled.set(true));
@@ -591,7 +465,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(false));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(false));
     }
 
@@ -599,7 +472,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(false));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
     }
 

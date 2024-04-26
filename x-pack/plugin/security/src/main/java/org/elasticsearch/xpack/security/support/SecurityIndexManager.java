@@ -17,9 +17,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +26,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,18 +36,15 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
 
@@ -152,10 +146,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         throw new IllegalStateException("Unexpected availability enumeration. This is bug, please contact support.");
     }
 
-    public boolean isMappingUpToDate() {
-        return this.state.mappingUpToDate;
-    }
-
     public boolean isStateRecovered() {
         return this.state != State.UNRECOVERED_STATE;
     }
@@ -239,7 +229,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
-        final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final SystemIndexDescriptor.MappingsVersion mappingVersion = getMinSecurityIndexMappingVersion(event.state());
         final String concreteIndexName = indexMetadata == null
             ? systemIndexDescriptor.getPrimaryIndex()
@@ -265,7 +254,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             isIndexUpToDate,
             indexAvailableForSearch,
             indexAvailableForWrite,
-            mappingIsUpToDate,
             mappingVersion,
             concreteIndexName,
             indexHealth,
@@ -323,45 +311,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             );
         }
         return new Tuple<>(allPrimaryShards, searchShards);
-    }
-
-    /**
-     * Detect if the mapping in the security index is outdated. If it's outdated it means that whatever is in cluster state is more recent.
-     * There could be several nodes on different ES versions (mixed cluster) supporting different mapping versions, so only return false if
-     * min version in the cluster is more recent than what's in the security index.
-     */
-    private boolean checkIndexMappingUpToDate(ClusterState clusterState) {
-        // Get descriptor compatible with the min version in the cluster
-        final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(
-            getMinSecurityIndexMappingVersion(clusterState)
-        );
-        if (descriptor == null) {
-            return false;
-        }
-        return descriptor.getMappingsVersion().version() <= loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), clusterState);
-    }
-
-    private static int loadIndexMappingVersion(String aliasName, ClusterState clusterState) {
-        IndexMetadata indexMetadata = resolveConcreteIndex(aliasName, clusterState.metadata());
-        if (indexMetadata != null) {
-            MappingMetadata mappingMetadata = indexMetadata.mapping();
-            if (mappingMetadata != null) {
-                return readMappingVersion(aliasName, mappingMetadata);
-            }
-        }
-        return 0;
-    }
-
-    private static int readMappingVersion(String indexName, MappingMetadata mappingMetadata) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
-        if (meta == null) {
-            logger.info("Missing _meta field in mapping [{}] of index [{}]", mappingMetadata.type(), indexName);
-            throw new IllegalStateException("Cannot read managed_index_mappings_version string in index " + indexName);
-        }
-        // If null, no value has been set in the index yet, so return 0 to trigger put mapping
-        final Integer value = (Integer) meta.get(VERSION_META_KEY);
-        return value == null ? 0 : value;
     }
 
     /**
@@ -473,38 +422,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                         client.admin().indices()::create
                     );
                 }
-            } else if (state.mappingUpToDate == false) {
-                final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(state.mappingVersion);
-
-                if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("updating mapping");
-                    consumer.accept(new IllegalStateException(error));
-                } else {
-                    logger.info(
-                        "Index [{}] (alias [{}]) is not up to date. Updating mapping",
-                        state.concreteIndexName,
-                        descriptorForVersion.getAliasName()
-                    );
-                    PutMappingRequest request = new PutMappingRequest(state.concreteIndexName).source(
-                        descriptorForVersion.getMappings(),
-                        XContentType.JSON
-                    ).origin(descriptorForVersion.getOrigin());
-                    executeAsyncWithOrigin(
-                        client.threadPool().getThreadContext(),
-                        descriptorForVersion.getOrigin(),
-                        request,
-                        ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
-                            if (putMappingResponse.isAcknowledged()) {
-                                andThen.run();
-                            } else {
-                                consumer.accept(new IllegalStateException("put mapping request was not acknowledged"));
-                            }
-                        }, consumer),
-                        client.admin().indices()::putMapping
-                    );
-                }
-            } else {
-                andThen.run();
             }
         } catch (Exception e) {
             consumer.accept(e);
@@ -531,12 +448,11 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
-        public static final State UNRECOVERED_STATE = new State(null, false, false, false, false, null, null, null, null, null);
+        public static final State UNRECOVERED_STATE = new State(null, false, false, false, null, null, null, null, null);
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailableForSearch;
         public final boolean indexAvailableForWrite;
-        public final boolean mappingUpToDate;
         public final SystemIndexDescriptor.MappingsVersion mappingVersion;
         public final String concreteIndexName;
         public final ClusterHealthStatus indexHealth;
@@ -548,7 +464,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean isIndexUpToDate,
             boolean indexAvailableForSearch,
             boolean indexAvailableForWrite,
-            boolean mappingUpToDate,
             SystemIndexDescriptor.MappingsVersion mappingVersion,
             String concreteIndexName,
             ClusterHealthStatus indexHealth,
@@ -559,7 +474,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.isIndexUpToDate = isIndexUpToDate;
             this.indexAvailableForSearch = indexAvailableForSearch;
             this.indexAvailableForWrite = indexAvailableForWrite;
-            this.mappingUpToDate = mappingUpToDate;
             this.mappingVersion = mappingVersion;
             this.concreteIndexName = concreteIndexName;
             this.indexHealth = indexHealth;
@@ -576,7 +490,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && isIndexUpToDate == state.isIndexUpToDate
                 && indexAvailableForSearch == state.indexAvailableForSearch
                 && indexAvailableForWrite == state.indexAvailableForWrite
-                && mappingUpToDate == state.mappingUpToDate
                 && Objects.equals(mappingVersion, state.mappingVersion)
                 && Objects.equals(concreteIndexName, state.concreteIndexName)
                 && indexHealth == state.indexHealth
@@ -594,7 +507,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 isIndexUpToDate,
                 indexAvailableForSearch,
                 indexAvailableForWrite,
-                mappingUpToDate,
                 mappingVersion,
                 concreteIndexName,
                 indexHealth

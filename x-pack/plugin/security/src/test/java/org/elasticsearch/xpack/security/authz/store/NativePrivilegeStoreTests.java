@@ -791,7 +791,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             isIndexUpToDate,
             true,
             true,
-            true,
             null,
             concreteSecurityIndexName,
             healthStatus,

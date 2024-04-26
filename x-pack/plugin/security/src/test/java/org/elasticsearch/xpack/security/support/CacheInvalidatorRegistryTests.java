@@ -60,7 +60,6 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             true,
             true,
             true,
-            true,
             new SystemIndexDescriptor.MappingsVersion(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT, 0),
             ".security",
             ClusterHealthStatus.GREEN,

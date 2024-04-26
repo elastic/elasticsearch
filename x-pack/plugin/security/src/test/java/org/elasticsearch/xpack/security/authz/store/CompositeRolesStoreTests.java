@@ -1526,7 +1526,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             isIndexUpToDate,
             true,
             true,
-            true,
             null,
             concreteSecurityIndexName,
             healthStatus,

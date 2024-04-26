@@ -45,7 +45,7 @@ Configure the following environment variables.
 [source,sh]
 ----
 export ELASTIC_PASSWORD="<ES_PASSWORD>"  # password for "elastic" username
-export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used _internally_ by Kibana, must be at last 6 characters long
+export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used _internally_ by Kibana, must be at least 6 characters long
 ----
 
 [discrete]

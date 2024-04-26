@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,7 +16,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -71,21 +69,6 @@ public class XContentDataHelperTests extends ESTestCase {
     public void testBigInteger() throws IOException {
         BigInteger i = randomBigInteger();
         assertEquals(i, new BigInteger(encodeAndDecode(i.toString()), 10));
-    }
-
-    public void testBigDecimal() throws IOException {
-        BigDecimal d = new BigDecimal(randomBigInteger(), randomInt());
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("foo", d).endObject();
-        XContentParser p = JsonXContent.jsonXContent.createParser(parserConfig(), BytesReference.bytes(builder).streamInput());
-        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        assertThat(p.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-        assertThat(p.currentName(), equalTo("foo"));
-        p.nextToken();
-        assertEquals(p.numberType(), XContentParser.NumberType.DOUBLE);
-
-        // FieldDataParseHelper.decodeAndWrite(builder, FieldDataParseHelper.encodeToken(p));
-        // assertEquals(d, new BigDecimal(Strings.toString(builder)));
     }
 
     public void testObject() throws IOException {

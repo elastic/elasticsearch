@@ -18,7 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 /**
- * Mapper for the {@code _ignored_values} field.
+
+ * Mapper for the {@code _ignored_source} field.
  *
  * A field mapper that records fields that have been ignored, along with their values. It's intended for use
  * in indexes with synthetic source to reconstruct the latter, taking into account fields that got ignored during
@@ -35,13 +36,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     // (N % PARENT_OFFSET_IN_NAME_OFFSET)
     private static final int PARENT_OFFSET_IN_NAME_OFFSET = 1 << 16;
 
-    public static final String NAME = "_ignored_values";
+    public static final String NAME = "_ignored_source";
 
     public static final IgnoredSourceFieldMapper INSTANCE = new IgnoredSourceFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(context -> INSTANCE);
 
-    static final NodeFeature TRACK_IGNORED_VALUES = new NodeFeature("mapper.track_ignored_values");
+    static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
 
     /*
      * Container for the ignored field data:

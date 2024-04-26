@@ -22,6 +22,7 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -85,11 +86,13 @@ public class RandomSamplerIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105839")
     public void testRandomSamplerConsistentSeed() {
         double[] sampleMonotonicValue = new double[1];
         double[] sampleNumericValue = new double[1];
         long[] sampledDocCount = new long[1];
+        // Force merge to ensure segment consistency as any segment merging can change which particular documents
+        // are sampled
+        assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
         // initialize the values
         assertResponse(
             prepareSearch("idx").setPreference("shard:0")

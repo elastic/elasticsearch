@@ -23,7 +23,7 @@ import java.util.BitSet;
  */
 final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
     private final BytesRefArrayVector vector;
 

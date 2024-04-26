@@ -268,9 +268,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
-            logger.debug("[{}] attempted to start while failed.", getJobId());
+            logger.debug("[{}] attempted to start while in state [{}].", getJobId(), TransformTaskState.FAILED.value());
             listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
             return;
+        }
+
+        switch (getState()) {
+            case ABORTING, STOPPING, STOPPED -> {
+                logger.debug("[{}] attempted to start while in state [{}].", getJobId(), getState().value());
+                listener.onResponse(false);
+                return;
+            }
         }
 
         if (context.getAuthState() != null && HealthStatus.RED.equals(context.getAuthState().getStatus())) {
@@ -543,7 +551,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private void finalizeCheckpoint(ActionListener<Void> listener) {
         try {
             // reset the page size, so we do not memorize a low page size forever
-            context.setPageSize(function.getInitialPageSize());
+            if (function != null) {
+                context.setPageSize(function.getInitialPageSize());
+            }
             // reset the changed bucket to free memory
             if (changeCollector != null) {
                 changeCollector.clear();

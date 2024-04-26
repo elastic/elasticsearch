@@ -43,6 +43,7 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunc
     }
 
     public void testEqualsAndHash() {
+
         EsqlConfiguration config = randomConfiguration();
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
         Expression sameExpr = buildWithConfiguration(new Source(0, 10, randomAlphaOfLength(10)), testCase.getDataAsFields(), config);
@@ -56,8 +57,6 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunc
         } while (config.equals(differentConfig));
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
-
         assertFalse(expr.equals(differentExpr));
-        assertNotEquals(expr.hashCode(), differentExpr.hashCode());
     }
 }

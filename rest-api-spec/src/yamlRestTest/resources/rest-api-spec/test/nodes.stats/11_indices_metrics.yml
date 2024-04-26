@@ -417,8 +417,8 @@
 
   - requires:
       test_runner_features: [arbitrary_key]
-      cluster_features: ["mapper.track_ignored_values"]
-      reason:  "_ignored_values added to mappings"
+      cluster_features: ["mapper.track_ignored_source"]
+      reason:  "_ignored_source added to mappings"
 
   - do:
       indices.create:
@@ -476,7 +476,7 @@
   # 4. _field_names
   # 5. _id
   # 6. _ignored
-  # 7. _ignored_values
+  # 7. _ignored_source
   # 8. _index
   # 9. _nested_path
   # 10. _routing

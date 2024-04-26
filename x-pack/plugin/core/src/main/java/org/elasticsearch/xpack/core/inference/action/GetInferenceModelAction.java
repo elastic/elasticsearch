@@ -112,9 +112,9 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startArray("endpoints");
-            for (var model : models) {
-                if (model != null) {
-                    model.toFilteredXContent(builder, params);
+            for (var endpoint : endpoints) {
+                if (endpoint != null) {
+                    endpoint.toFilteredXContent(builder, params);
                 }
             }
             builder.endArray();

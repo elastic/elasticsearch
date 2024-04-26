@@ -47,14 +47,16 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
 
-    @UpdateForV9    // remove the old parsers completely in v9
+    @UpdateForV9
+    // @UpdateForV10 // remove the old parsers completely in v10
     private static final boolean FALLBACK_TO_OLD_PARSERS = Booleans.parseBoolean(System.getProperty("es.datetime.fallback_parsers"), false);
 
     static {
-        // in some test cases ES logging may not have been initialized yet
+        // when this is used directly in tests ES logging may not have been initialized yet
         LoggerFactory logger;
         if (FALLBACK_TO_OLD_PARSERS && (logger = LoggerFactory.provider()) != null) {
-            logger.getLogger(DateFormatters.class).warn("Using fallback datetime parsers. This option will be removed in Elasticsearch v9");
+            logger.getLogger(DateFormatters.class)
+                .warn("Using fallback datetime parsers. This option will be removed in Elasticsearch v10");
         }
     }
 

@@ -19,7 +19,7 @@ breaking:
     nonsensical date-time strings that have multiple fractional seconds fields or multiple timezone specifiers.
     These strings are not valid according to ISO-8601, and the parsing behaviour of such strings was undefined.
     If the previous behaviour is desired, you can set the JVM property `es.datetime.fallback_parsers=true`.
-    Note that this option will be removed in the next major version.
+    Note that this option will be removed in Elasticsearch v10.
   impact: |-
     If your ingest data contains such invalid strings, they will be rejected as invalid data.
     Set the `es.datetime.fallback_parsers=true` JVM property to re-enable the old parsing behaviour.

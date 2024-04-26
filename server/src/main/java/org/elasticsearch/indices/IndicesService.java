@@ -914,7 +914,10 @@ public class IndicesService extends AbstractLifecycleComponent
         ActionListener<Void> shardsClosedListener
     ) {
         final String indexName = index.getName();
-        try {
+        ActionListener.run(shardsClosedListener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
+            l.onResponse(null);
+        }), l -> {
             final IndexService indexService;
             final IndexEventListener listener;
             synchronized (this) {
@@ -931,24 +934,25 @@ public class IndicesService extends AbstractLifecycleComponent
 
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
-            // ES-8334 TODO needs to be async
-            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+            // ES-8334 passthru enclosing method is async
+            indexService.close(
+                extraInfo,
+                reason == IndexRemovalReason.DELETED,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ActionListener.runBefore(l, () -> {
+                    logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+                    final IndexSettings indexSettings = indexService.getIndexSettings();
 
-            // ES-8334 TODO what of this needs to happen after the shard is closed?
-            logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
-            final IndexSettings indexSettings = indexService.getIndexSettings();
+                    // ES-8334: frees search contexts, presumably can happen any time
+                    listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
 
-            // ES-8334: frees search contexts, presumably can happen any time
-            listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
-
-            if (reason == IndexRemovalReason.DELETED) {
-                // now we are done - try to wipe data on disk if possible
-                // ES-8334: won't do anything if ShardLocks are still held, but who else cleans up the index when ShardLocks released?
-                deleteIndexStore(extraInfo, indexService.index(), indexSettings);
-            }
-        } catch (Exception e) {
-            logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
-        }
+                    if (reason == IndexRemovalReason.DELETED) {
+                        // now we are done - try to wipe data on disk if possible
+                        deleteIndexStore(extraInfo, indexService.index(), indexSettings);
+                    }
+                })
+            );
+        });
     }
 
     public IndicesFieldDataCache getIndicesFieldDataCache() {

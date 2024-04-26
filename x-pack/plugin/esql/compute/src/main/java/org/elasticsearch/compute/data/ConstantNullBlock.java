@@ -183,6 +183,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         }
 
         @Override
+        public long estimatedBytes() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
         public Block build() {
             if (closed) {
                 throw new IllegalStateException("already closed");

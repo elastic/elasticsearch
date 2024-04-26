@@ -39,9 +39,9 @@ nested is disabled:
 
 ---
 object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored values
+  - skip:
+      version: " - "
+      reason: "mapper.track_ignored_source"
 
   - do:
       indices.create:
@@ -84,9 +84,9 @@ object with unmapped fields:
 
 ---
 nested object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored values
+  - skip:
+      version: " - "
+      reason: "mapper.track_ignored_source"
 
   - do:
       indices.create:
@@ -130,9 +130,9 @@ nested object with unmapped fields:
 
 ---
 empty object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored values
+  - skip:
+      version: " - "
+      reason: "mapper.track_ignored_source"
 
   - do:
       indices.create:

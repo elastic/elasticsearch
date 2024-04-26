@@ -47,6 +47,7 @@ Configure the following environment variables.
 export ELASTIC_PASSWORD="<ES_PASSWORD>"  # password for "elastic" username
 export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used _internally_ by Kibana, must be at last 6 characters long
 ----
+// NOTCONSOLE
 
 [discrete]
 [[local-dev-create-docker-network]]
@@ -58,6 +59,7 @@ To run both {es} and {kib}, you'll need to create a Docker network:
 ----
 docker network create elastic-net
 ----
+// NOTCONSOLE
 
 [discrete]
 [[local-dev-run-es]]
@@ -74,6 +76,7 @@ docker run -p 127.0.0.1:9200:9200 -d --name elasticsearch --network elastic-net 
   -e "xpack.license.self_generated.type=trial" \
   {docker-image}
 ----
+// NOTCONSOLE
 
 [discrete]
 [[local-dev-run-kib]]
@@ -90,6 +93,7 @@ curl -u elastic:$ELASTIC_PASSWORD \
   -d '{"password":"'"$KIBANA_PASSWORD"'"}' \
   -H 'Content-Type: application/json'
 ----
+// NOTCONSOLE
 
 Start the {kib} container with the following command:
 
@@ -104,6 +108,7 @@ docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
   -e "xpack.license.self_generated.type=trial" \
   {kib-docker-image}
 ----
+// NOTCONSOLE
 
 [NOTE]
 ====

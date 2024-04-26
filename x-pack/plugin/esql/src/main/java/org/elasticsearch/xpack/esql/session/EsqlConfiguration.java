@@ -13,6 +13,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.session.Configuration;
 
@@ -21,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
@@ -40,6 +42,8 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     private final boolean profile;
 
+    private final Map<String, Map<String, Column>> tables;
+
     public EsqlConfiguration(
         ZoneId zi,
         Locale locale,
@@ -49,7 +53,8 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         int resultTruncationMaxSize,
         int resultTruncationDefaultSize,
         String query,
-        boolean profile
+        boolean profile,
+        Map<String, Map<String, Column>> tables
     ) {
         super(zi, username, clusterName);
         this.locale = locale;
@@ -58,6 +63,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.resultTruncationDefaultSize = resultTruncationDefaultSize;
         this.query = query;
         this.profile = profile;
+        this.tables = tables;
     }
 
     public EsqlConfiguration(StreamInput in) throws IOException {
@@ -72,6 +78,8 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         } else {
             this.profile = false;
         }
+        // NOCOMMIT read tables
+        this.tables = Map.of();
     }
 
     @Override
@@ -90,6 +98,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(profile);
         }
+        // NOCOMMIT write tables
     }
 
     public QueryPragmas pragmas() {
@@ -119,6 +128,13 @@ public class EsqlConfiguration extends Configuration implements Writeable {
      */
     public long absoluteStartedTimeInMillis() {
         return System.currentTimeMillis();
+    }
+
+    /**
+     * Tables specified in the request.
+     */
+    public Map<String, Map<String, Column>> tables() {
+        return tables;
     }
 
     /**
@@ -161,13 +177,23 @@ public class EsqlConfiguration extends Configuration implements Writeable {
                 && Objects.equals(pragmas, that.pragmas)
                 && Objects.equals(locale, that.locale)
                 && Objects.equals(that.query, query)
-                && profile == that.profile;
+                && profile == that.profile
+                && tables.equals(that.tables);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, resultTruncationDefaultSize, locale, query, profile);
+        return Objects.hash(
+            super.hashCode(),
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            locale,
+            query,
+            profile,
+            tables
+        );
     }
 }

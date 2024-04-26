@@ -11,21 +11,26 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -48,6 +53,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
+
+    private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
     static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
@@ -84,11 +91,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
-        if (onSnapshotBuild == false && pragmas.isEmpty() == false) {
-            validationException = addValidationError(
-                "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
-                validationException
-            );
+        if (onSnapshotBuild == false) {
+            if (pragmas.isEmpty() == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
+
         }
         return validationException;
     }
@@ -205,6 +215,33 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public void keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
+    }
+
+    public void addTable(String name, Map<String, Column> columns) {
+        for (Column c : columns.values()) {
+            if (false == c.values().blockFactory().breaker() instanceof NoopCircuitBreaker) {
+                throw new AssertionError("block tracking not supported on tables parameter");
+            }
+        }
+        Iterator<Column> itr = columns.values().iterator();
+        if (itr.hasNext()) {
+            int firstSize = itr.next().values().getPositionCount();
+            while (itr.hasNext()) {
+                int size = itr.next().values().getPositionCount();
+                if (size != firstSize) {
+                    throw new IllegalArgumentException("mismatched column lengths: was [" + size + "] but expected [" + firstSize + "]");
+                }
+            }
+        }
+        var prev = tables.put(name, columns);
+        if (prev != null) {
+            Releasables.close(prev.values());
+            throw new IllegalArgumentException("duplicate table for [" + name + "]");
+        }
+    }
+
+    public Map<String, Map<String, Column>> tables() {
+        return tables;
     }
 
     @Override

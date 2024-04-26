@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.session.EsqlConfiguration.QUERY_COMPRESS_THRESHOLD_CHARS;
+import java.util.Map;
 
 public class EsqlConfigurationSerializationTests extends AbstractWireSerializingTestCase<EsqlConfiguration> {
 
@@ -53,7 +54,8 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
             truncation,
             defaultTruncation,
             query,
-            profile
+            profile,
+            Map.of() // NOCOMMIT random tables
         );
     }
 
@@ -76,7 +78,8 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
             ordinal == 5 ? in.resultTruncationMaxSize() + randomIntBetween(3, 10) : in.resultTruncationMaxSize(),
             ordinal == 6 ? in.resultTruncationDefaultSize() + randomIntBetween(3, 10) : in.resultTruncationDefaultSize(),
             ordinal == 7 ? randomAlphaOfLength(100) : in.query(),
-            ordinal == 8 ? in.profile() == false : in.profile()
+            ordinal == 8 ? in.profile() == false : in.profile(),
+            Map.of() // NOCOMMIT random tables
         );
     }
 }

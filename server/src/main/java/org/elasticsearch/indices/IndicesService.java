@@ -403,7 +403,7 @@ public class IndicesService extends AbstractLifecycleComponent
             removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown", EsExecutors.DIRECT_EXECUTOR_SERVICE, l)));
         }
         try {
-            // Does this timeout make sense? It's a day by default and nobody changes it. TODO let's just wait forever
+            // TODO remove this timeout, see https://github.com/elastic/elasticsearch/issues/107938
             if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
                 logger.warn("Not all shards are closed yet, waited {}sec - stopping service", shardsClosedTimeout.seconds());
             }
@@ -995,7 +995,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-     * but does not deal with in-memory structures. For those call {@link IndicesClusterStateService.AllocatedIndices#removeIndex(Index, IndexRemovalReason, String, Executor, ActionListener)}
+     * but does not deal with in-memory structures. For those call {@link IndicesClusterStateService.AllocatedIndices#removeIndex}
      */
     @Override
     public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {

@@ -15,8 +15,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +39,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    @BeforeClass
+    // @BeforeClass
     public static void startWebServer() throws IOException {
         cohereEmbeddingsServer = new MockWebServer();
         cohereEmbeddingsServer.start();
@@ -50,13 +48,14 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         cohereRerankServer.start();
     }
 
-    @AfterClass
+    // @AfterClass // for the awaitsfix
     public static void shutdown() {
         cohereEmbeddingsServer.close();
         cohereRerankServer.close();
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testCohereEmbeddings() throws IOException {
         var embeddingsSupported = getOldClusterTestVersion().onOrAfter(COHERE_EMBEDDINGS_ADDED);
         assumeTrue("Cohere embedding service added in " + COHERE_EMBEDDINGS_ADDED, embeddingsSupported);
@@ -170,6 +169,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testRerank() throws IOException {
         var rerankSupported = getOldClusterTestVersion().onOrAfter(COHERE_RERANK_ADDED);
         assumeTrue("Cohere rerank service added in " + COHERE_RERANK_ADDED, rerankSupported);

@@ -12,8 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,7 +35,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    @BeforeClass
+    // @BeforeClass
     public static void startWebServer() throws IOException {
         openAiEmbeddingsServer = new MockWebServer();
         openAiEmbeddingsServer.start();
@@ -46,13 +44,14 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         openAiChatCompletionsServer.start();
     }
 
-    @AfterClass
+    // @AfterClass for the awaits fix
     public static void shutdown() {
         openAiEmbeddingsServer.close();
         openAiChatCompletionsServer.close();
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_EMBEDDINGS_ADDED);
         assumeTrue("OpenAI embedding service added in " + OPEN_AI_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
@@ -112,6 +111,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testOpenAiCompletions() throws IOException {
         var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_COMPLETIONS_ADDED);
         assumeTrue("OpenAI completions service added in " + OPEN_AI_COMPLETIONS_ADDED, openAiEmbeddingsSupported);

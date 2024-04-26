@@ -63,7 +63,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest();
         reloadSecureSettingsRequest.nodesIds(Strings.splitStringByCommaToArray(request.param("nodeId")));
-        reloadSecureSettingsRequest.timeout(request.param("timeout"));
+        reloadSecureSettingsRequest.timeout(request.paramAsTime("timeout", null));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
                 final ParsedRequestBody parsedRequestBody = PARSER.parse(parser, null);

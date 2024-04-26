@@ -36,31 +36,31 @@ The filtering property is used to configure sync rules (both basic and advanced)
 `rules`::
 (Optional, array of objects)
 An array of {enterprise-search-ref}/sync-rules.html#sync-rules-basic[basic sync rules], each with the following sub-attributes:
-- `id` (Required, string) +
+* `id` (Required, string) +
 A unique identifier for the rule.
-- `policy` (Required, string) +
+* `policy` (Required, string) +
 Specifies the policy, such as `include` or `exclude`.
-- `field` (Required, string) +
+* `field` (Required, string) +
 The field in the document to which this rule applies.
-- `rule` (Required, string) +
+* `rule` (Required, string) +
 The type of rule, such as `regex`, `starts_with`, `ends_with`, `contains`, `equals`, `<`, `>`, etc.
-- `value` (Required, string) +
+* `value` (Required, string) +
 The value to be used in conjunction with the rule for matching the contents of the document's field.
-- `order` (Required, number) +
+* `order` (Required, number) +
 The order in which the rules are applied. The first rule to match has its policy applied.
-- `created_at` (Optional, datetime) +
+* `created_at` (Optional, datetime) +
 The timestamp when the rule was added. Defaults to `now` UTC timestamp.
-- `updated_at` (Optional, datetime) +
+* `updated_at` (Optional, datetime) +
 The timestamp when the rule was last edited. Defaults to `now` UTC timestamp.
 
 `advanced_snippet`::
 (Optional, object)
 Used for {enterprise-search-ref}/sync-rules.html#sync-rules-advanced[advanced filtering] at query time, with the following sub-attributes:
-- `value` (Required, object or array) +
+* `value` (Required, object or array) +
 A JSON object/array passed directly to the connector for advanced filtering.
-- `created_at` (Optional, datetime) +
+* `created_at` (Optional, datetime) +
 The timestamp when this JSON object was created. Defaults to `now` UTC timestamp.
-- `updated_at` (Optional, datetime) +
+* `updated_at` (Optional, datetime) +
 The timestamp when this JSON object was last edited. Defaults to `now` UTC timestamp.
 
 

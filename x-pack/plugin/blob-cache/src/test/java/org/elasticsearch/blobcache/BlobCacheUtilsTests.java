@@ -35,6 +35,7 @@ public class BlobCacheUtilsTests extends ESTestCase {
         assertThat(BlobCacheUtils.roundUpToAlignedSize(8, 4), equalTo(8L));
         assertThat(BlobCacheUtils.roundUpToAlignedSize(9, 4), equalTo(12L));
         long alignment = randomLongBetween(1, Long.MAX_VALUE / 2);
+        assertThat(BlobCacheUtils.roundUpToAlignedSize(0, alignment), equalTo(0L));
         long value = randomLongBetween(0, Long.MAX_VALUE - alignment);
         assertThat(BlobCacheUtils.roundUpToAlignedSize(value, alignment), equalTo(roundUpUsingRemainder(value, alignment)));
     }
@@ -43,7 +44,7 @@ public class BlobCacheUtilsTests extends ESTestCase {
         assertThat(BlobCacheUtils.roundDownToAlignedSize(8, 4), equalTo(8L));
         assertThat(BlobCacheUtils.roundDownToAlignedSize(9, 4), equalTo(8L));
         long alignment = randomLongBetween(1, Long.MAX_VALUE / 2);
-        long value = randomLongBetween(0, Long.MAX_VALUE - alignment);
+        long value = randomLongBetween(0, Long.MAX_VALUE);
         assertThat(BlobCacheUtils.roundDownToAlignedSize(value, alignment), equalTo(roundDownUsingRemainder(value, alignment)));
     }
 
@@ -77,6 +78,5 @@ public class BlobCacheUtilsTests extends ESTestCase {
             return value - remainder;
         }
         return value;
-
     }
 }

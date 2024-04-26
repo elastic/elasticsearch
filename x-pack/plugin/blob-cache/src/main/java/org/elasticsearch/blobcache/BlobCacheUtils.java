@@ -36,6 +36,8 @@ public class BlobCacheUtils {
      * Round down the size to the nearest aligned size &lt;= size.
      */
     public static long roundDownToAlignedSize(long size, long alignment) {
+        assert size >= 0;
+        assert alignment > 0;
         return size / alignment * alignment;
     }
 
@@ -43,6 +45,11 @@ public class BlobCacheUtils {
      * Round up the size to the nearest aligned size &gt;= size
      */
     public static long roundUpToAlignedSize(long size, long alignment) {
+        assert size >= 0;
+        if (size == 0) {
+            return 0;
+        }
+        assert alignment > 0;
         return (((size - 1) / alignment) + 1) * alignment;
     }
 

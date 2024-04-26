@@ -184,7 +184,7 @@ PUT _connector/my-sql-connector/_filtering/_validation
 
 Note, you can also update draft `rules` and `advanced_snippet` in a single request.
 
-Once the draft is updated, its validation state is set to `edited`. Connector service will then validate the rules and report the validation state as either `invalid` or `valid`. If the state is `valid`, the draft filtering can be activated with:
+Once the draft is updated, its validation state is set to `edited`. The connector service will then validate the rules and report the validation state as either `invalid` or `valid`. If the state is `valid`, the draft filtering can be activated with:
 
 
 [source,console]

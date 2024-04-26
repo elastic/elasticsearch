@@ -36,13 +36,4 @@ public abstract class AcknowledgedRequestBuilder<
         return (RequestBuilder) this;
     }
 
-    /**
-     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
-     * to {@code 10s}.
-     */
-    @SuppressWarnings("unchecked")
-    public RequestBuilder setTimeout(String timeout) {
-        request.ackTimeout(timeout);
-        return (RequestBuilder) this;
-    }
 }

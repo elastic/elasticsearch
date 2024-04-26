@@ -110,9 +110,9 @@ public class IndexMetadataVerifier {
                 "The index "
                     + indexMetadata.getIndex()
                     + " has current compatibility version ["
-                    + indexMetadata.getCompatibilityVersion()
+                    + indexMetadata.getCompatibilityVersion().toReleaseVersion()
                     + "] but the minimum compatible version is ["
-                    + minimumIndexCompatibilityVersion
+                    + minimumIndexCompatibilityVersion.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
                     + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "

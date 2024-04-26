@@ -259,8 +259,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                             + "] or higher to support remote indices privileges"
                     )
                 );

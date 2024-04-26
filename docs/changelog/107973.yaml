@@ -1,0 +1,5 @@
+pr: 107973
+summary: "[logstash bridge]: bootstrap"
+area: Infra/Core
+type: enhancement
+issues: []

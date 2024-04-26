@@ -952,7 +952,8 @@ Contains statistics about indexed dense vector used in selected nodes.
 =====
 `value_count`::
 (integer)
-Total number of dense vector indexed in selected nodes.
+Total number of dense vector indexed across all primary shards assigned to
+selected nodes.
 =====
 ====
 

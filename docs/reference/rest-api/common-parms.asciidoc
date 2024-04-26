@@ -556,6 +556,12 @@ Size of the index in <<byte-units, byte units>>.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
+
+`dense_vector`::
+Total number of vectors indexed.
+
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
 --
 end::index-metric[]
 

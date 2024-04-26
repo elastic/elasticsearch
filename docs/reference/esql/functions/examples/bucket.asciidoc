@@ -3,7 +3,7 @@
 *Examples*
 
 `BUCKET` can work in two modes: one in which the size of the bucket is computed
-based on a buckets count recommendation (four parameters) and a range, and
+based on a buckets count recommendation (four parameters) and a range and
 another in which the bucket size is provided directly (two parameters).
 
 Using a target number of buckets, a start of a range, and an end of a range,
@@ -60,8 +60,8 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan]
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan-result]
 |===
 
-NOTE: When providing the bucket size as the second parameter, it must be a time
-duration or date period.
+NOTE: When providing the bucket size as the second parameter, its type must be
+of a time duration or date period type.
 
 `BUCKET` can also operate on numeric fields. For example, to create a salary histogram:
 [source.merge.styled,esql]
@@ -76,8 +76,8 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumeric-result]
 Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
 You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically.
 
-The range can be omitted if the desired bucket size is known in advance. Simply
-provide it as the second argument:
+If the desired bucket size is known in advance, simply provide it as the second
+argument, leaving the range out:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumericWithSpan]
@@ -87,8 +87,8 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumericWithSpan]
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumericWithSpan-result]
 |===
 
-NOTE: When providing the bucket size as the second parameter, it must be
-of a floating point type.
+NOTE: When providing the bucket size as the second parameter, its type must be
+of a floating type.
 
 Create hourly buckets for the last 24 hours, and calculate the number of events per hour:
 [source.merge.styled,esql]
@@ -109,15 +109,3 @@ include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg]
 include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg-result]
 |===
 
-`BUCKET` may be used in both the aggregating and grouping part of the
-<<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
-part the function is referenced by an alias defined in the
-grouping part, or that it is invoked with the exact same expression:
-[source.merge.styled,esql]
-----
-include::{esql-specs}/bucket.csv-spec[tag=reuseGroupingFunctionWithExpression]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/bucket.csv-spec[tag=reuseGroupingFunctionWithExpression-result]
-|===

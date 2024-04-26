@@ -56,6 +56,6 @@ public class CloseUtils {
      */
     public static final Executor NO_SHARDS_CREATED_EXECUTOR = r -> {
         assert false : r;
-        r.run();
+        r.run(); // just in case we're wrong, in production we need to actually run the task
     };
 }

@@ -21,6 +21,7 @@ PUT index1
       }
     }
   }
+}
 --------------------------------------------------
 
 
@@ -103,6 +104,7 @@ are more matches in that fragment.
   }
 }
 ----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request highlights "run" as well as "running" and "scissors",
 because the `matched_fields` parameter instructs that for highlighting
@@ -172,6 +174,7 @@ GET index1/_search
   }
 }
 ----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 // end::unified[]
 
@@ -204,6 +207,7 @@ PUT index2
       }
     }
   }
+}
 --------------------------------------------------
 
 
@@ -234,7 +238,7 @@ GET index2/_search
     "fields": {
       "comment": {
         "type" : "fvh"
-       }
+      }
     }
   }
 }
@@ -288,6 +292,7 @@ are more matches in that fragment.
   }
 }
 ----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request highlights "run" as well as "running" and "scissors",
 because the `matched_fields` parameter instructs that for highlighting
@@ -357,6 +362,7 @@ GET index2/_search
   }
 }
 ----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request wouldn't highlight "run" or "scissor" but shows that
 it is just fine not to list the field to which the matches are combined
@@ -427,6 +433,7 @@ GET index2/_search
   }
 }
 ----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 [NOTE]
 ===================================================================

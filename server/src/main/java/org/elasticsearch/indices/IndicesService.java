@@ -942,10 +942,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 ActionListener.runBefore(l, () -> {
                     logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
                     final IndexSettings indexSettings = indexService.getIndexSettings();
-
-                    // ES-8334: frees search contexts, presumably can happen any time
                     listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
-
                     if (reason == IndexRemovalReason.DELETED) {
                         // now we are done - try to wipe data on disk if possible
                         deleteIndexStore(extraInfo, indexService.index(), indexSettings);

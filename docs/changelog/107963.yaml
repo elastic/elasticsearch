@@ -1,0 +1,6 @@
+pr: 107963
+summary: Adding a wait-for-status parameter to the `health_report` API
+area: Health
+type: enhancement
+issues:
+ - 107796

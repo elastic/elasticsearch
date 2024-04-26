@@ -165,7 +165,7 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 /**
  * BlobStore - based implementation of Snapshot Repository
  * <p>
- * This repository works with any {@link BlobStore} implementation. The blobStore could be (and preferred) lazy initialized in
+ * This repository works with any {@link BlobStore} implementation. The blobStore could be (and is preferably) lazily initialized in
  * {@link #createBlobStore()}.
  * </p>
  * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
@@ -181,6 +181,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_SHARD_READ_THREAD_NAME = "stateless_shard_read";
     public static final String STATELESS_TRANSLOG_THREAD_NAME = "stateless_translog";
     public static final String STATELESS_SHARD_WRITE_THREAD_NAME = "stateless_shard_write";
+    public static final String STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME = "stateless_cluster_state";
+    public static final String STATELESS_SHARD_PREWARMING_THREAD_NAME = "stateless_prewarm";
 
     public static final String SNAPSHOT_PREFIX = "snap-";
 
@@ -679,7 +681,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
-        assertSnapshotOrGenericThread();
+        assertSnapshotOrStatelessPermittedThreadPool();
 
         if (lifecycle.started() == false) {
             throw notStartedException();
@@ -704,7 +706,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        assertSnapshotOrGenericThread();
+        assertSnapshotOrStatelessPermittedThreadPool();
 
         BlobStore store = blobStore.get();
         if (store == null) {
@@ -1993,7 +1995,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return restoreRateLimitingTimeInNanos.count();
     }
 
-    protected void assertSnapshotOrGenericThread() {
+    private void assertSnapshotOrStatelessPermittedThreadPool() {
         // The Stateless plugin adds custom thread pools for object store operations
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SNAPSHOT,
@@ -2001,7 +2003,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ThreadPool.Names.GENERIC,
             STATELESS_SHARD_READ_THREAD_NAME,
             STATELESS_TRANSLOG_THREAD_NAME,
-            STATELESS_SHARD_WRITE_THREAD_NAME
+            STATELESS_SHARD_WRITE_THREAD_NAME,
+            STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME,
+            STATELESS_SHARD_PREWARMING_THREAD_NAME
         );
     }
 
@@ -2342,7 +2346,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             toCache = repositoryData.withoutShardGenerations();
             assert repositoryData.indexMetaDataGenerations().equals(IndexMetaDataGenerations.EMPTY)
                 : "repository data should not contain index generations at version ["
-                    + version
+                    + version.toReleaseVersion()
                     + "] but saw ["
                     + repositoryData.indexMetaDataGenerations()
                     + "]";
@@ -3537,7 +3541,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
-        assertSnapshotOrGenericThread();
+        assertSnapshotOrStatelessPermittedThreadPool();
         if (isReadOnly()) {
             try {
                 latestIndexBlobId();

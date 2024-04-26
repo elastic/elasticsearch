@@ -82,7 +82,7 @@ public class ToIPTests extends AbstractFunctionTestCase {
             new TestCaseSupplier.TypedDataSupplier(
                 "<ipv6>",
                 () -> new BytesRef(NetworkAddress.format(ESTestCase.randomIp(false))),
-                DataTypes.KEYWORD
+                DataTypes.TEXT
             )
         );
     }

@@ -121,7 +121,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -271,6 +272,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             null,
             null,
             ingestStats,
+            null,
             null,
             null,
             null,

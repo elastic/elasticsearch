@@ -214,5 +214,11 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(1, 10)));
             assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(11, 100)));
         }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(randomIntBetween(1, 100));
+            terms.minDocCount(0);
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(1, 100)));
+        }
     }
 }

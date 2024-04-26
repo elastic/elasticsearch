@@ -24,8 +24,6 @@ NOTE: When run on `keyword` or `text` fields, this returns the last string
       in alphabetical order. When run on `boolean` columns this will return
       `true` if any values are `true`.
 
-*Supported types*
-
 include::types/greatest.asciidoc[]
 
 *Example*

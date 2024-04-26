@@ -43,7 +43,8 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
     public Least(
         Source source,
         @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
-        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) List<Expression> rest
+        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }, optional = true) List<
+            Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

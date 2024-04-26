@@ -15,6 +15,7 @@ import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
+import org.elasticsearch.snapshots.SnapshotInfoUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,7 +31,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
 
     @Override
     protected CreateSnapshotResponse doParseInstance(XContentParser parser) throws IOException {
-        return CreateSnapshotResponse.fromXContent(parser);
+        return SnapshotInfoUtils.createSnapshotResponseFromXContent(parser);
     }
 
     @Override

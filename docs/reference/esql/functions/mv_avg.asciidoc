@@ -19,8 +19,6 @@ Multivalue expression.
 Converts a multivalued expression into a single valued column containing the
 average of all of the values.
 
-*Supported types*
-
 include::types/mv_avg.asciidoc[]
 
 *Example*

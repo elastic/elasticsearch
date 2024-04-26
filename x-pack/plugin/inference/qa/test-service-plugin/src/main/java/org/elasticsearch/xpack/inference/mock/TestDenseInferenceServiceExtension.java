@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -73,9 +75,11 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         @Override
         public void infer(
             Model model,
+            @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
+            TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
@@ -94,10 +98,12 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         @Override
         public void chunkedInfer(
             Model model,
+            @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
+            TimeValue timeout,
             ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {

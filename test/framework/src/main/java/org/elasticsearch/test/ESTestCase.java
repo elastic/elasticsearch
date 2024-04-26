@@ -73,6 +73,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -83,6 +84,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -168,7 +170,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1044,6 +1048,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
+    public static String randomNullOrAlphaOfLength(int codeUnits) {
+        return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
+    }
+
     /**
      * Creates a valid random identifier such as node id or index name
      */
@@ -1149,21 +1157,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
     }
 
-    private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
-
-    public static String randomTimeValue(int lower, int upper, String... suffixes) {
-        return randomIntBetween(lower, upper) + randomFrom(suffixes);
+    public static TimeValue randomTimeValue(int lower, int upper, TimeUnit... units) {
+        return new TimeValue(between(lower, upper), randomFrom(units));
     }
 
-    public static String randomTimeValue(int lower, int upper) {
-        return randomTimeValue(lower, upper, TIME_SUFFIXES);
+    public static TimeValue randomTimeValue(int lower, int upper) {
+        return randomTimeValue(lower, upper, TimeUnit.values());
     }
 
-    public static String randomTimeValue() {
+    public static TimeValue randomTimeValue() {
         return randomTimeValue(0, 1000);
     }
 
-    public static String randomPositiveTimeValue() {
+    public static TimeValue randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
     }
 
@@ -1193,6 +1199,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomDateFormatterPattern() {
         return randomFrom(FormatNames.values()).getName();
+    }
+
+    /**
+     * Randomly choose between {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} (which does not fork), {@link ThreadPool#generic}, and one of the
+     * other named threadpool executors.
+     */
+    public static Executor randomExecutor(ThreadPool threadPool, String... otherExecutorNames) {
+        final var choice = between(0, otherExecutorNames.length + 1);
+        if (choice < otherExecutorNames.length) {
+            return threadPool.executor(otherExecutorNames[choice]);
+        } else if (choice == otherExecutorNames.length) {
+            return threadPool.generic();
+        } else {
+            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        }
     }
 
     /**
@@ -2080,6 +2101,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
+        }
+    }
+
+    public static void safeAcquire(Semaphore semaphore) {
+        try {
+            assertTrue("safeAcquire: Semaphore did not acquire permit within the timeout", semaphore.tryAcquire(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
         }
     }
 

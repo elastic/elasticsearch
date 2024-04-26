@@ -90,8 +90,8 @@
 
 ---
 "Test disable source":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: "behaviour of fields when source is disabled changed in 8.4.0"
 
   - do:
@@ -263,8 +263,8 @@
 
 ---
 "Test token count":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "support for token_count was instroduced in 7.10"
   - do:
       indices.create:

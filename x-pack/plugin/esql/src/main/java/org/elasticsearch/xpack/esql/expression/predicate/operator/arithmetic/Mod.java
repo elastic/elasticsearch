@@ -11,9 +11,10 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
 public class Mod extends EsqlArithmeticOperation {
 
@@ -42,21 +43,34 @@ public class Mod extends EsqlArithmeticOperation {
 
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int lhs, int rhs) {
+        if (rhs == 0) {
+            throw new ArithmeticException("/ by zero");
+        }
         return lhs % rhs;
     }
 
     @Evaluator(extraName = "Longs", warnExceptions = { ArithmeticException.class })
     static long processLongs(long lhs, long rhs) {
+        if (rhs == 0L) {
+            throw new ArithmeticException("/ by zero");
+        }
         return lhs % rhs;
     }
 
     @Evaluator(extraName = "UnsignedLongs", warnExceptions = { ArithmeticException.class })
     static long processUnsignedLongs(long lhs, long rhs) {
-        return asLongUnsigned(Long.remainderUnsigned(asLongUnsigned(lhs), asLongUnsigned(rhs)));
+        if (rhs == NumericUtils.ZERO_AS_UNSIGNED_LONG) {
+            throw new ArithmeticException("/ by zero");
+        }
+        return longToUnsignedLong(Long.remainderUnsigned(longToUnsignedLong(lhs, true), longToUnsignedLong(rhs, true)), true);
     }
 
-    @Evaluator(extraName = "Doubles")
+    @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        return lhs % rhs;
+        double value = lhs % rhs;
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            throw new ArithmeticException("/ by zero");
+        }
+        return value;
     }
 }

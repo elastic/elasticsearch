@@ -48,7 +48,7 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
         if (restRequest.hasParam(DeleteDatafeedAction.Request.FORCE.getPreferredName())) {
             request.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), request.isForce()));
         }
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(DeleteDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -7,8 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.License.LicenseType;
@@ -63,27 +61,24 @@ public class LicenseUtils {
      * Checks if the signature of a self generated license with older version needs to be
      * recreated with the new key
      */
-    public static boolean signatureNeedsUpdate(License license, DiscoveryNodes currentNodes) {
+    public static boolean signatureNeedsUpdate(License license) {
         assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
 
         String typeName = license.type();
-        return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName)) &&
-        // only upgrade signature when all nodes are ready to deserialize the new signature
-            (license.version() < License.VERSION_CRYPTO_ALGORITHMS
-                && compatibleLicenseVersion(currentNodes) >= License.VERSION_CRYPTO_ALGORITHMS);
+        return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName))
+            && license.version() < License.VERSION_CRYPTO_ALGORITHMS
+            && getMaxCompatibleLicenseVersion() >= License.VERSION_CRYPTO_ALGORITHMS;// only upgrade signature when all nodes are ready to
+                                                                                     // deserialize the new signature
     }
 
-    public static int compatibleLicenseVersion(DiscoveryNodes currentNodes) {
-        return getMaxLicenseVersion(currentNodes.getMinNodeVersion());
-    }
-
-    public static int getMaxLicenseVersion(Version version) {
-        if (version != null && version.before(Version.V_7_6_0)) {
-            return License.VERSION_CRYPTO_ALGORITHMS;
-        } else {
-            assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
-            return License.VERSION_ENTERPRISE;
-        }
+    /**
+     * Gets the maximum license version this cluster is compatible with. This is semantically different from {@link License#VERSION_CURRENT}
+     * as that field is the maximum that can be handled _by this node_, whereas this method determines the maximum license version
+     * that can be handled _by this cluster_.
+     */
+    public static int getMaxCompatibleLicenseVersion() {
+        assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
+        return License.VERSION_ENTERPRISE;
     }
 
     /**

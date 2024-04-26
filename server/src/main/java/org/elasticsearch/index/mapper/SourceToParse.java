@@ -52,6 +52,10 @@ public class SourceToParse {
         this(id, source, xContentType, null, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
     }
 
+    public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
+        this(id, source, xContentType, routing, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+    }
+
     public BytesReference source() {
         return this.source;
     }

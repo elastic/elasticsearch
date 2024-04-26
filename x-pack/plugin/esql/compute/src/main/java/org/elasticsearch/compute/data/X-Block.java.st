@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +22,12 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock$if(BytesRef)$$else$, $Type$BigArrayBlock$endif$ {
+$if(BytesRef)$
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
+    OrdinalBytesRefBlock {
+$else$
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock {
+$endif$
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
@@ -53,6 +59,9 @@ $endif$
     $Type$Block filter(int... positions);
 
     @Override
+    $Type$Block expand();
+
+    @Override
     default String getWriteableName() {
         return "$Type$Block";
     }
@@ -63,11 +72,25 @@ $endif$
         return readFrom((BlockStreamInput) in);
     }
 
-    private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
-        }
+    static $Type$Block readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> $Type$Block.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> $Type$ArrayBlock.readArrayBlock(in.blockFactory(), in);
+$if(BytesRef)$
+            case SERIALIZE_BLOCK_ORDINAL -> OrdinalBytesRefBlock.readOrdinalBlock(in.blockFactory(), in);
+$else$
+            case SERIALIZE_BLOCK_BIG_ARRAY -> $Type$BigArrayBlock.readArrayBlock(in.blockFactory(), in);
+$endif$
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
+            }
+        };
+    }
+
+    private static $Type$Block readValues(BlockStreamInput in) throws IOException {
         final int positions = in.readVInt();
         try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -89,26 +112,47 @@ $endif$
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         $Type$Vector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof $Type$ArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
 $if(BytesRef)$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+            out.writeByte(SERIALIZE_BLOCK_ORDINAL);
+            b.writeOrdinalBlock(out);
 $else$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof $Type$BigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
 $endif$
-                    }
+        } else {
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            $Type$Block.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues($Type$Block block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+$if(BytesRef)$
+                var scratch = new BytesRef();
+$endif$
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+$if(BytesRef)$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex, scratch));
+$else$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex));
+$endif$
                 }
             }
         }
@@ -233,19 +277,15 @@ $endif$
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
+$if(int)$
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
+         * An estimate of the number of bytes the {@link IntBlock} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
          */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
+        long estimatedBytes();
 
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition($Type$Block block);
-
+$endif$
         @Override
         $Type$Block build();
     }

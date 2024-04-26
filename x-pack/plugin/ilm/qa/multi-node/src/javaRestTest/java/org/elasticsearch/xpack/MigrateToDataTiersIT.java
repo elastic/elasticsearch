@@ -102,7 +102,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
@@ -378,7 +378,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));

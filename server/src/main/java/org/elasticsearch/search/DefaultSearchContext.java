@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -64,7 +65,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -123,7 +124,7 @@ final class DefaultSearchContext extends SearchContext {
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
-    private RankShardContext rankShardContext;
+    private QueryPhaseRankShardContext queryPhaseRankShardContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -480,7 +481,6 @@ final class DefaultSearchContext extends SearchContext {
         return this;
     }
 
-    @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
         // it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
         // parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
@@ -507,19 +507,18 @@ final class DefaultSearchContext extends SearchContext {
         return suggest;
     }
 
-    @Override
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
     }
 
     @Override
-    public RankShardContext rankShardContext() {
-        return rankShardContext;
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return queryPhaseRankShardContext;
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        this.rankShardContext = rankShardContext;
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        this.queryPhaseRankShardContext = queryPhaseRankShardContext;
     }
 
     @Override
@@ -612,7 +611,6 @@ final class DefaultSearchContext extends SearchContext {
         return timeout;
     }
 
-    @Override
     public void timeout(TimeValue timeout) {
         this.timeout = timeout;
     }
@@ -687,7 +685,6 @@ final class DefaultSearchContext extends SearchContext {
         return searchAfter;
     }
 
-    @Override
     public SearchContext collapse(CollapseContext collapse) {
         this.collapse = collapse;
         return this;
@@ -785,7 +782,6 @@ final class DefaultSearchContext extends SearchContext {
         return this.groupStats;
     }
 
-    @Override
     public void groupStats(List<String> groupStats) {
         this.groupStats = groupStats;
     }
@@ -897,20 +893,24 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            List<String> routingPaths = indexService.getMetadata().getRoutingPaths();
-            for (String routingField : routingPaths) {
-                if (routingField.contains("*")) {
-                    // In case the routing fields include path matches, find any matches and add them as distinct fields
-                    // to the routing path.
-                    Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
-                    for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                        if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
-                            matchingRoutingPaths.add(mapper.name());
+            IndexRouting.ExtractFromSource indexRouting = null;
+            List<String> routingPaths = null;
+            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
+                indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+                routingPaths = indexService.getMetadata().getRoutingPaths();
+                for (String routingField : routingPaths) {
+                    if (routingField.contains("*")) {
+                        // In case the routing fields include path matches, find any matches and add them as distinct fields
+                        // to the routing path.
+                        Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
+                        for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
+                                matchingRoutingPaths.add(mapper.name());
+                            }
                         }
+                        routingPaths = new ArrayList<>(matchingRoutingPaths);
+                        break;
                     }
-                    routingPaths = new ArrayList<>(matchingRoutingPaths);
-                    break;
                 }
             }
             return IdLoader.createTsIdLoader(indexRouting, routingPaths);

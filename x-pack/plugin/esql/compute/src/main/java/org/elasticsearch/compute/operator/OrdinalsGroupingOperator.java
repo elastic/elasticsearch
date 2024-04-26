@@ -20,6 +20,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator.Factory;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash.GroupSpec;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -29,7 +30,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -478,7 +478,12 @@ public class OrdinalsGroupingOperator implements Operator {
             );
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, groupingElementType)), driverContext, maxPageSize, false),
+                () -> BlockHash.build(
+                    List.of(new GroupSpec(channelIndex, groupingElementType)),
+                    driverContext.blockFactory(),
+                    maxPageSize,
+                    false
+                ),
                 driverContext
             );
         }

@@ -10,6 +10,7 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+META : 'meta'                 -> pushMode(META_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -88,7 +89,7 @@ fragment UNQUOTED_ID_BODY
     : (LETTER | DIGIT | UNDERSCORE)
     ;
 
-STRING
+QUOTED_STRING
     : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
@@ -109,6 +110,7 @@ BY : 'by';
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+CAST_OP : '::';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';
@@ -185,8 +187,10 @@ FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
+FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
-METADATA: 'metadata';
+OPTIONS : 'options';
+METADATA : 'metadata';
 
 fragment FROM_UNQUOTED_IDENTIFIER_PART
     : ~[=`|,[\]/ \t\r\n]
@@ -364,13 +368,12 @@ MVEXPAND_WS
     ;
 
 //
-// SHOW INFO
+// SHOW commands
 //
 mode SHOW_MODE;
 SHOW_PIPE : PIPE -> type(PIPE), popMode;
 
 INFO : 'info';
-FUNCTIONS : 'functions';
 
 SHOW_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -381,6 +384,26 @@ SHOW_MULTILINE_COMMENT
     ;
 
 SHOW_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+//
+// META commands
+//
+mode META_MODE;
+META_PIPE : PIPE -> type(PIPE), popMode;
+
+FUNCTIONS : 'functions';
+
+META_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_WS
     : WS -> channel(HIDDEN)
     ;
 

@@ -329,7 +329,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     @Override
     public IndexRequest routing(String routing) {
-        if (routing != null && routing.length() == 0) {
+        if (routing != null && routing.isEmpty()) {
             this.routing = null;
         } else {
             this.routing = routing;
@@ -858,7 +858,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
-        if (DataStream.isFailureStoreEnabled() && writeToFailureStore) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && writeToFailureStore) {
             if (ia.isDataStreamRelated() == false) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the targeted index is not a data stream"
@@ -881,7 +881,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source);
+        return indexRouting.indexShard(id, routing, contentType, source, this::routing);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

@@ -32,8 +32,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     private final Object[] rawSortValues;
 
     SearchSortValues(Object[] sortValues) {
-        this.formattedSortValues = Objects.requireNonNull(sortValues, "sort values must not be empty");
-        this.rawSortValues = EMPTY_ARRAY;
+        this(Objects.requireNonNull(sortValues, "sort values must not be empty"), EMPTY_ARRAY);
     }
 
     public SearchSortValues(Object[] rawSortValues, DocValueFormat[] sortValueFormats) {
@@ -52,9 +51,18 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         }
     }
 
-    SearchSortValues(StreamInput in) throws IOException {
-        this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+    public static SearchSortValues readFrom(StreamInput in) throws IOException {
+        Object[] formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        Object[] rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        if (formattedSortValues.length == 0 && rawSortValues.length == 0) {
+            return EMPTY;
+        }
+        return new SearchSortValues(formattedSortValues, rawSortValues);
+    }
+
+    private SearchSortValues(Object[] formattedSortValues, Object[] rawSortValues) {
+        this.formattedSortValues = formattedSortValues;
+        this.rawSortValues = rawSortValues;
     }
 
     @Override

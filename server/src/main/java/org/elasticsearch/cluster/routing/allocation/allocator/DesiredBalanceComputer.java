@@ -77,7 +77,18 @@ public class DesiredBalanceComputer {
         Predicate<DesiredBalanceInput> isFresh
     ) {
 
-        logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "Recomputing desired balance for [{}]: {}, {}, {}, {}",
+                desiredBalanceInput.index(),
+                previousDesiredBalance,
+                desiredBalanceInput.routingAllocation().routingNodes().toString(),
+                desiredBalanceInput.routingAllocation().clusterInfo().toString(),
+                desiredBalanceInput.routingAllocation().snapshotShardSizeInfo().toString()
+            );
+        } else {
+            logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
+        }
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
@@ -283,7 +294,6 @@ public class DesiredBalanceComputer {
                         hasChanges = true;
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
                         routingNodes.startShard(logger, shardRouting, changes, 0L);
-                        logger.trace("starting shard {}", shardRouting);
                     }
                 }
             }

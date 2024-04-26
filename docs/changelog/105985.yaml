@@ -1,0 +1,5 @@
+pr: 105985
+summary: Wait forever for `IndexTemplateRegistry` asset installation
+area: Indices APIs
+type: enhancement
+issues: []

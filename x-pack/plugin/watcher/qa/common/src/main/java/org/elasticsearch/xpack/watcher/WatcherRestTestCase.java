@@ -11,15 +11,15 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.hamcrest.Matchers;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.is;
 
 /**
  * Parent test class for Watcher (not-YAML) based REST tests
@@ -36,7 +36,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
                 case "stopped":
                     Response startResponse = ESRestTestCase.adminClient().performRequest(new Request("POST", "/_watcher/_start"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(startResponse).evaluate("acknowledged");
-                    Assert.assertThat(isAcknowledged, Matchers.is(true));
+                    assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until stopped state reached started state");
                 case "stopping":
                     throw new AssertionError("waiting until stopping state reached stopped state to start again");
@@ -68,7 +68,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
                 case "started":
                     Response stopResponse = ESRestTestCase.adminClient().performRequest(new Request("POST", "/_watcher/_stop"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(stopResponse).evaluate("acknowledged");
-                    Assert.assertThat(isAcknowledged, Matchers.is(true));
+                    assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until started state reached stopped state");
                 default:
                     throw new AssertionError("unknown state[" + state + "]");

@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
-import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;

@@ -42,11 +42,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_DESCRIPTOR;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
+import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -971,16 +973,21 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", false)));
         assertThat(fetchResponse.evaluate("api_keys.0.limited_by"), nullValue());
 
-        final Request deleteRequest = new Request("DELETE", "/_security/api_key");
-        deleteRequest.setJsonEntity(Strings.format("""
-            {"ids": ["%s"]}""", apiKeyId));
-        if (randomBoolean()) {
-            setUserForRequest(deleteRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
-        } else {
-            setUserForRequest(deleteRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        // Cannot invalidate cross cluster API keys with manage_api_key
+        {
+            final ObjectPath deleteResponse = invalidateApiKeys(MANAGE_API_KEY_USER, apiKeyId);
+            final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+            assertThat(
+                getErrorReasons(errors),
+                containsInAnyOrder(containsString("Cannot invalidate cross-cluster API key [" + apiKeyId + "]"))
+            );
         }
-        final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
-        assertThat(deleteResponse.evaluate("invalidated_api_keys"), equalTo(List.of(apiKeyId)));
+
+        {
+            final ObjectPath deleteResponse = invalidateApiKeys(MANAGE_SECURITY_USER, apiKeyId);
+            assertThat(deleteResponse.evaluate("invalidated_api_keys"), equalTo(List.of(apiKeyId)));
+            assertThat(deleteResponse.evaluate("error_count"), equalTo(0));
+        }
 
         // Cannot create cross-cluster API keys with either manage_api_key or manage_own_api_key privilege
         if (randomBoolean()) {
@@ -991,6 +998,157 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/create] is unauthorized"));
+    }
+
+    public void testInvalidateCrossClusterApiKeys() throws IOException {
+        final String id1 = createCrossClusterApiKey(MANAGE_SECURITY_USER);
+        final String id2 = createCrossClusterApiKey(MANAGE_SECURITY_USER);
+        final String id3 = createApiKey(MANAGE_API_KEY_USER, "rest-api-key-1", Map.of()).id();
+        final String id4 = createApiKey(MANAGE_API_KEY_USER, "rest-api-key-2", Map.of()).id();
+
+        // `manage_api_key` user cannot delete cross cluster API keys
+        {
+            final ObjectPath deleteResponse = invalidateApiKeys(MANAGE_API_KEY_USER, id1, id2);
+            assertThat(deleteResponse.evaluate("invalidated_api_keys"), is(empty()));
+            final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+            assertThat(
+                getErrorReasons(errors),
+                containsInAnyOrder(
+                    containsString("Cannot invalidate cross-cluster API key [" + id1 + "]"),
+                    containsString("Cannot invalidate cross-cluster API key [" + id2 + "]")
+                )
+            );
+        }
+
+        // `manage_api_key` user can delete REST API keys, in mixed request
+        {
+            final ObjectPath deleteResponse = invalidateApiKeys(MANAGE_API_KEY_USER, id1, id2, id3);
+            assertThat(deleteResponse.evaluate("invalidated_api_keys"), contains(id3));
+            final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+            assertThat(
+                getErrorReasons(errors),
+                containsInAnyOrder(
+                    containsString("Cannot invalidate cross-cluster API key [" + id1 + "]"),
+                    containsString("Cannot invalidate cross-cluster API key [" + id2 + "]")
+                )
+            );
+        }
+
+        // `manage_security` user can delete both cross-cluster and REST API keys
+        {
+            final ObjectPath deleteResponse = invalidateApiKeys(MANAGE_SECURITY_USER, id1, id2, id4);
+            assertThat(deleteResponse.evaluate("invalidated_api_keys"), containsInAnyOrder(id1, id2, id4));
+            assertThat(deleteResponse.evaluate("error_count"), equalTo(0));
+        }
+
+        // owner that loses `manage_security` cannot invalidate cross cluster API key anymore
+        {
+            final String user = "temp_manage_security_user";
+            createUser(user, END_USER_PASSWORD, List.of("temp_manage_security_role"));
+            createRole("temp_manage_security_role", Set.of("manage_security"));
+            final String apiKeyId = createCrossClusterApiKey(user);
+
+            // createRole can also be used to update
+            createRole("temp_manage_security_role", Set.of("manage_api_key"));
+
+            {
+                final ObjectPath deleteResponse = invalidateApiKeys(user, apiKeyId);
+                assertThat(deleteResponse.evaluate("invalidated_api_keys"), is(empty()));
+                final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+                assertThat(
+                    getErrorReasons(errors),
+                    containsInAnyOrder(containsString("Cannot invalidate cross-cluster API key [" + apiKeyId + "]"))
+                );
+            }
+
+            // also test other invalidation options, e.g., username and realm_name
+            {
+                final ObjectPath deleteResponse = invalidateApiKeysWithPayload(user, """
+                    {"username": "temp_manage_security_user"}""");
+                assertThat(deleteResponse.evaluate("invalidated_api_keys"), is(empty()));
+                final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+                assertThat(
+                    getErrorReasons(errors),
+                    containsInAnyOrder(containsString("Cannot invalidate cross-cluster API key [" + apiKeyId + "]"))
+                );
+            }
+
+            {
+                final ObjectPath deleteResponse = invalidateApiKeysWithPayload(user, """
+                    {"realm_name": "default_native"}""");
+                assertThat(deleteResponse.evaluate("invalidated_api_keys"), is(empty()));
+                final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+                assertThat(
+                    getErrorReasons(errors),
+                    containsInAnyOrder(containsString("Cannot invalidate cross-cluster API key [" + apiKeyId + "]"))
+                );
+            }
+
+            {
+                final ObjectPath deleteResponse = invalidateApiKeysWithPayload(user, """
+                    {"owner": "true"}""");
+                assertThat(deleteResponse.evaluate("invalidated_api_keys"), is(empty()));
+                final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+                assertThat(
+                    getErrorReasons(errors),
+                    containsInAnyOrder(containsString("Cannot invalidate cross-cluster API key [" + apiKeyId + "]"))
+                );
+            }
+
+            {
+                final ObjectPath deleteResponse = invalidateApiKeysWithPayload(MANAGE_SECURITY_USER, randomFrom("""
+                    {"username": "temp_manage_security_user"}""", """
+                    {"realm_name": "default_native"}""", """
+                    {"realm_name": "default_native", "username": "temp_manage_security_user"}"""));
+                assertThat(deleteResponse.evaluate("invalidated_api_keys"), containsInAnyOrder(apiKeyId));
+                assertThat(deleteResponse.evaluate("error_count"), equalTo(0));
+            }
+
+            deleteUser(user);
+            deleteRole("temp_manage_security_role");
+        }
+    }
+
+    private ObjectPath invalidateApiKeys(String user, String... ids) throws IOException {
+        return invalidateApiKeysWithPayload(user, Strings.format("""
+            {"ids": [%s]}""", Stream.of(ids).map(s -> "\"" + s + "\"").collect(Collectors.joining(","))));
+    }
+
+    private ObjectPath invalidateApiKeysWithPayload(String user, String payload) throws IOException {
+        final Request deleteRequest = new Request("DELETE", "/_security/api_key");
+        deleteRequest.setJsonEntity(payload);
+        setUserForRequest(deleteRequest, user, END_USER_PASSWORD);
+        return assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
+    }
+
+    private static List<String> getErrorReasons(List<Map<String, ?>> errors) {
+        return errors.stream().map(e -> {
+            try {
+                return (String) ObjectPath.evaluate(e, "reason");
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).collect(Collectors.toList());
+    }
+
+    private String createCrossClusterApiKey(String user) throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "my-key",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "metrics" ],
+                    "query": "{\\"term\\":{\\"score\\":42}}"
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(createRequest, user, END_USER_PASSWORD);
+
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
+        return createResponse.evaluate("id");
     }
 
     public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
@@ -1751,13 +1909,17 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private EncodedApiKey createApiKey(final String apiKeyName, final Map<String, Object> metadata) throws IOException {
+        return createApiKey(MANAGE_OWN_API_KEY_USER, apiKeyName, metadata);
+    }
+
+    private EncodedApiKey createApiKey(final String username, final String apiKeyName, final Map<String, Object> metadata)
+        throws IOException {
         final Map<String, Object> createApiKeyRequestBody = Map.of("name", apiKeyName, "metadata", metadata);
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
         createApiKeyRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(username, END_USER_PASSWORD))
         );
 
         final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
@@ -1824,9 +1986,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(response);
         try (XContentParser parser = responseAsParser(response)) {
             final var apiKeyResponse = GetApiKeyResponse.fromXContent(parser);
-            assertThat(apiKeyResponse.getApiKeyInfos().length, equalTo(1));
+            assertThat(apiKeyResponse.getApiKeyInfoList().size(), equalTo(1));
             // ApiKey metadata is set to empty Map if null
-            assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata == null ? Map.of() : expectedMetadata));
+            assertThat(
+                apiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getMetadata(),
+                equalTo(expectedMetadata == null ? Map.of() : expectedMetadata)
+            );
         }
     }
 

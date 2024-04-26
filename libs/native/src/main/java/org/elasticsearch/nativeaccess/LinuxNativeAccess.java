@@ -9,9 +9,19 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
 class LinuxNativeAccess extends PosixNativeAccess {
+
+    Systemd systemd;
+
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
         super("Linux", libraryProvider);
+        this.systemd = new Systemd(libraryProvider.getLibrary(SystemdLibrary.class));
+    }
+
+    @Override
+    public Systemd systemd() {
+        return systemd;
     }
 }

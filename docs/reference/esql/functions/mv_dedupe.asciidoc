@@ -18,8 +18,6 @@ Removes duplicates from a multivalue expression.
 
 NOTE: `MV_DEDUPE` may, but won't always, sort the values in the column.
 
-*Supported types*
-
 include::types/mv_dedupe.asciidoc[]
 
 *Example*

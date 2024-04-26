@@ -8,6 +8,7 @@
 package org.elasticsearch.search.source;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -81,6 +82,11 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
+        assertResponse(prepareSearch("test"), response -> {
+            assertThat(response.getHits().getAt(0).getId(), notNullValue());
+            assertThat(response.getHits().getAt(0).field("_routing"), notNullValue());
+            assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
+        });
         assertResponse(prepareSearch("test").storedFields("_none_").setFetchSource(false), response -> {
             assertThat(response.getHits().getAt(0).getId(), nullValue());
             assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
@@ -90,6 +96,40 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(0).getId(), nullValue());
             assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         });
+
+        GetResponse getResponse = client().prepareGet("test", "1").setRouting("toto").get();
+        assertTrue(getResponse.isExists());
+        assertEquals("toto", getResponse.getFields().get("_routing").getValue());
+    }
+
+    public void testWithIgnored() {
+        assertAcked(prepareCreate("test").setMapping("ip", "type=ip,ignore_malformed=true"));
+        ensureGreen();
+
+        prepareIndex("test").setId("1").setSource("ip", "value").get();
+        refresh();
+
+        assertResponse(prepareSearch("test"), response -> {
+            assertThat(response.getHits().getAt(0).getId(), notNullValue());
+            assertThat(response.getHits().getAt(0).field("_ignored").getValue(), equalTo("ip"));
+            assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
+        });
+        assertResponse(prepareSearch("test").storedFields("_none_"), response -> {
+            assertThat(response.getHits().getAt(0).getId(), nullValue());
+            assertThat(response.getHits().getAt(0).field("_ignored"), nullValue());
+            assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        });
+
+        {
+            GetResponse getResponse = client().prepareGet("test", "1").get();
+            assertTrue(getResponse.isExists());
+            assertThat(getResponse.getField("_ignored"), nullValue());
+        }
+        {
+            GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_ignored").get();
+            assertTrue(getResponse.isExists());
+            assertEquals("ip", getResponse.getField("_ignored").getValue());
+        }
     }
 
     public void testInvalid() {
@@ -127,5 +167,19 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             );
             assertThat(exc.getMessage(), equalTo("cannot combine _none_ with other fields"));
         }
+    }
+
+    public void testFetchId() {
+        assertAcked(prepareCreate("test"));
+        ensureGreen();
+
+        prepareIndex("test").setId("1").setSource("field", "value").get();
+        refresh();
+
+        assertResponse(prepareSearch("test").addFetchField("_id"), response -> {
+            assertEquals(1, response.getHits().getHits().length);
+            assertEquals("1", response.getHits().getAt(0).getId());
+            assertEquals("1", response.getHits().getAt(0).field("_id").getValue());
+        });
     }
 }

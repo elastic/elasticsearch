@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -78,7 +79,6 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -96,10 +96,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
@@ -107,7 +106,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
@@ -161,6 +159,7 @@ public class CsvTests extends ESTestCase {
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
+    private Executor executor;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -174,18 +173,17 @@ public class CsvTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "CsvTests",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                ESQL_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
+        if (randomBoolean()) {
+            int numThreads = randomBoolean() ? 1 : between(2, 16);
+            threadPool = new TestThreadPool(
+                "CsvTests",
+                new FixedExecutorBuilder(Settings.EMPTY, "esql_test", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            );
+            executor = threadPool.executor("esql_test");
+        } else {
+            threadPool = new TestThreadPool(getTestName());
+            executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        }
         HeaderWarning.setThreadContext(threadPool.getThreadContext());
     }
 
@@ -218,6 +216,10 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
+            /*
+             * We're intentionally not NodeFeatures here because we expect all
+             * of the features to be supported in this unit test.
+             */
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
             doTest();
         } catch (Throwable th) {
@@ -315,7 +317,11 @@ public class CsvTests extends ESTestCase {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
         if (indices.size() == 0) {
-            return CSV_DATASET_MAP.values().iterator().next(); // default dataset for `row` source command
+            /*
+             * If the data set doesn't matter we'll just grab one we know works.
+             * Employees is fine.
+             */
+            return CSV_DATASET_MAP.get("employees");
         } else if (preAnalysis.indices.size() > 1) {
             throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
@@ -343,7 +349,7 @@ public class CsvTests extends ESTestCase {
             bigArrays,
             ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
         );
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), threadPool.executor(ESQL_THREAD_POOL_NAME));
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
@@ -406,13 +412,7 @@ public class CsvTests extends ESTestCase {
             DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(
-                        threadPool.getThreadContext(),
-                        threadPool.executor(ESQL_THREAD_POOL_NAME),
-                        driver,
-                        between(1, 1000),
-                        driverListener
-                    );
+                    Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
                 }
             };
             PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
@@ -468,6 +468,6 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        assertMap(normalized, matchesList(testCase.expectedWarnings(true)));
+        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(true), testCase.expectedWarningsRegex());
     }
 }

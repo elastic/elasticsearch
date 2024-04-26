@@ -8,16 +8,27 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * {@link AsyncOperator} performs an external computation specified in {@link #performAsync(Page, ActionListener)}.
@@ -33,6 +44,7 @@ public abstract class AsyncOperator implements Operator {
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
+    private final LongAdder totalTimeInNanos = new LongAdder();
     private boolean finished = false;
     private volatile boolean closed = false;
 
@@ -81,7 +93,11 @@ public abstract class AsyncOperator implements Operator {
                 onFailure(e);
                 onSeqNoCompleted(seqNo);
             });
-            performAsync(input, ActionListener.runAfter(listener, driverContext::removeAsyncAction));
+            final long startNanos = System.nanoTime();
+            performAsync(input, ActionListener.runAfter(listener, () -> {
+                driverContext.removeAsyncAction();
+                totalTimeInNanos.add(System.nanoTime() - startNanos);
+            }));
             success = true;
         } finally {
             if (success == false) {
@@ -222,6 +238,109 @@ public abstract class AsyncOperator implements Operator {
                 blockedFuture = new SubscribableListener<>();
             }
             return blockedFuture;
+        }
+    }
+
+    @Override
+    public final Operator.Status status() {
+        return status(
+            Math.max(0L, checkpoint.getMaxSeqNo()),
+            Math.max(0L, checkpoint.getProcessedCheckpoint()),
+            TimeValue.timeValueNanos(totalTimeInNanos.sum()).millis()
+        );
+    }
+
+    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
+        return new Status(receivedPages, completedPages, totalTimeInMillis);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "async_operator",
+            Status::new
+        );
+
+        final long receivedPages;
+        final long completedPages;
+        final long totalTimeInMillis;
+
+        protected Status(long receivedPages, long completedPages, long totalTimeInMillis) {
+            this.receivedPages = receivedPages;
+            this.completedPages = completedPages;
+            this.totalTimeInMillis = totalTimeInMillis;
+        }
+
+        protected Status(StreamInput in) throws IOException {
+            this.receivedPages = in.readVLong();
+            this.completedPages = in.readVLong();
+            this.totalTimeInMillis = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(receivedPages);
+            out.writeVLong(completedPages);
+            out.writeVLong(totalTimeInMillis);
+        }
+
+        public long receivedPages() {
+            return receivedPages;
+        }
+
+        public long completedPages() {
+            return completedPages;
+        }
+
+        public long totalTimeInMillis() {
+            return totalTimeInMillis;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            innerToXContent(builder);
+            return builder.endObject();
+        }
+
+        protected final XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {
+            builder.field("received_pages", receivedPages);
+            builder.field("completed_pages", completedPages);
+            builder.field("total_time_in_millis", totalTimeInMillis);
+            if (totalTimeInMillis >= 0) {
+                builder.field("total_time", TimeValue.timeValueMillis(totalTimeInMillis));
+            }
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return receivedPages == status.receivedPages
+                && completedPages == status.completedPages
+                && totalTimeInMillis == status.totalTimeInMillis;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(receivedPages, completedPages, totalTimeInMillis);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ESQL_ENRICH_OPERATOR_STATUS;
         }
     }
 }

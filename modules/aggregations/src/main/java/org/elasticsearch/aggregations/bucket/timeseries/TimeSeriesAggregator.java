@@ -144,6 +144,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
             long currentTsidOrd = -1;
             long currentBucket = -1;
             long currentBucketOrdinal;
+            BytesRef currentTsid;
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -157,12 +158,16 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     return;
                 }
 
-                TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-                for (TsidConsumer consumer : dimensionConsumers.values()) {
-                    consumer.accept(doc, tsidBuilder);
+                BytesRef tsid;
+                if (currentTsidOrd == aggCtx.getTsidHashOrd()) {
+                    tsid = currentTsid;
+                } else {
+                    TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+                    for (TsidConsumer consumer : dimensionConsumers.values()) {
+                        consumer.accept(doc, tsidBuilder);
+                    }
+                    currentTsid = tsid = tsidBuilder.buildLegacyTsid().toBytesRef();
                 }
-
-                BytesRef tsid = tsidBuilder.buildLegacyTsid().toBytesRef();
                 long bucketOrdinal = bucketOrds.add(bucket, tsid);
                 if (bucketOrdinal < 0) { // already seen
                     bucketOrdinal = -1 - bucketOrdinal;

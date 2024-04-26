@@ -19,6 +19,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -40,8 +41,10 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -1423,7 +1426,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
-            context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
+            context.queryPhaseRankShardContext(source.rankBuilder().buildQueryPhaseShardContext(queries, context.from()));
         }
     }
 
@@ -1578,9 +1581,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         abstract void addResultsObject(SearchContext context);
     }
 
-    class Reaper implements Runnable {
+    class Reaper extends AbstractRunnable {
         @Override
-        public void run() {
+        protected void doRun() {
             assert Transports.assertNotTransportThread("closing contexts may do IO, e.g. deleting dangling files")
                 && ThreadPool.assertNotScheduleThread("closing contexts may do IO, e.g. deleting dangling files");
             for (ReaderContext context : activeReaders.values()) {
@@ -1589,6 +1592,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     freeReaderContext(context.id());
                 }
             }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("unexpected error when freeing search contexts", e);
+            assert false : e;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                logger.debug("rejected execution when freeing search contexts");
+            } else {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            // mustn't reject this task even if the queue is full
+            return true;
         }
     }
 
@@ -1759,8 +1783,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getRewriteContext(nowInMillis);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

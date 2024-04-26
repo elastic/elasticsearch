@@ -715,7 +715,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             mapperService,
             mappingLookup,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
-            null,
             indexSettings,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
@@ -725,7 +724,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             namedWriteableRegistry,
             valuesSourceRegistry,
             allowExpensiveQueries,
-            scriptService
+            scriptService,
+            null
         );
     }
 

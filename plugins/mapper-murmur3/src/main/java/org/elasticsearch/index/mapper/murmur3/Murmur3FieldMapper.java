@@ -80,7 +80,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new, isIndexed());
         }
 
         @Override

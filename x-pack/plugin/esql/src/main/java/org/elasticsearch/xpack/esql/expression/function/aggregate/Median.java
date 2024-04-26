@@ -11,6 +11,8 @@ import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -31,7 +33,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         description = "The value that is greater than half of all values and less than half of all values.",
         isAggregation = true
     )
-    public Median(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
+    public Median(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 
@@ -63,6 +65,11 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        return new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataTypes.INTEGER));
+        var s = source();
+        var field = field();
+
+        return field.foldable()
+            ? new MvMedian(s, new ToDouble(s, field))
+            : new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataTypes.INTEGER));
     }
 }

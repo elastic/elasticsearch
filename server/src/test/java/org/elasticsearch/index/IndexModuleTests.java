@@ -232,7 +232,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class)
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -257,7 +258,8 @@ public class IndexModuleTests extends ESTestCase {
             indexStoreFactories,
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class)
         );
 
         final IndexService indexService = newIndexService(module);
@@ -280,7 +282,8 @@ public class IndexModuleTests extends ESTestCase {
             Map.of(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class)
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -631,7 +634,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            mock(SlowLogFieldProvider.class)
         );
 
         final IndexService indexService = newIndexService(module);
@@ -651,7 +655,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class)
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -751,7 +756,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class)
         );
     }
 

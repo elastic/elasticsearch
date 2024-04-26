@@ -1,0 +1,5 @@
+pr: 105714
+summary: Cross check livedocs for terms aggs when index access control list is non-null
+area: "Aggregations"
+type: bug
+issues: []

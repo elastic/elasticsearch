@@ -363,8 +363,10 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testParseSkipSectionOsListTestFeaturesInRequires() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
+            - requires:
+               test_runner_features: skip_os
+               reason:      skip_os is needed for skip based on os
             - skip:
-               features:    [skip_os]
                os:          [debian-9,windows-95,ms-dos]
                reason:      see gh#xyz
             """);
@@ -389,6 +391,95 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
         Exception e = expectThrows(ParsingException.class, () -> PrerequisiteSection.parseInternal(parser));
         assertThat(e.getMessage(), is("if os is specified, test runner feature [skip_os] must be set"));
+    }
+
+    public void testParseRequireSectionClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            cluster_features:          needed-feature
+            reason:      test skipped when cluster lacks needed-feature
+            """);
+
+        var skipSectionBuilder = new PrerequisiteSection.PrerequisiteSectionBuilder();
+        PrerequisiteSection.parseRequiresSection(parser, skipSectionBuilder);
+        assertThat(skipSectionBuilder, notNullValue());
+        assertThat(skipSectionBuilder.skipVersionRange, emptyOrNullString());
+        assertThat(skipSectionBuilder.requiredClusterFeatures, contains("needed-feature"));
+        assertThat(skipSectionBuilder.requiresReason, is("test skipped when cluster lacks needed-feature"));
+    }
+
+    public void testParseSkipSectionClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            cluster_features:          undesired-feature
+            reason:      test skipped when undesired-feature is present
+            """);
+
+        var skipSectionBuilder = new PrerequisiteSection.PrerequisiteSectionBuilder();
+        PrerequisiteSection.parseSkipSection(parser, skipSectionBuilder);
+        assertThat(skipSectionBuilder, notNullValue());
+        assertThat(skipSectionBuilder.skipVersionRange, emptyOrNullString());
+        assertThat(skipSectionBuilder.skipClusterFeatures, contains("undesired-feature"));
+        assertThat(skipSectionBuilder.skipReason, is("test skipped when undesired-feature is present"));
+    }
+
+    public void testParseRequireAndSkipSectionsClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            - requires:
+               cluster_features: needed-feature
+               reason:      test needs needed-feature to run
+            - skip:
+               cluster_features: undesired-feature
+               reason:      test cannot run when undesired-feature are present
+            """);
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(skipSectionBuilder, notNullValue());
+        assertThat(skipSectionBuilder.skipVersionRange, emptyOrNullString());
+        assertThat(skipSectionBuilder.skipClusterFeatures, contains("undesired-feature"));
+        assertThat(skipSectionBuilder.requiredClusterFeatures, contains("needed-feature"));
+        assertThat(skipSectionBuilder.skipReason, is("test cannot run when undesired-feature are present"));
+        assertThat(skipSectionBuilder.requiresReason, is("test needs needed-feature to run"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
+    }
+
+    public void testParseRequireAndSkipSectionMultipleClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            - requires:
+                cluster_features: [needed-feature-1, needed-feature-2]
+                reason:      test needs some to run
+            - skip:
+                cluster_features:   [undesired-feature-1, undesired-feature-2]
+                reason:      test cannot run when some are present
+            """);
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(skipSectionBuilder, notNullValue());
+        assertThat(skipSectionBuilder.skipVersionRange, emptyOrNullString());
+        assertThat(skipSectionBuilder.skipClusterFeatures, containsInAnyOrder("undesired-feature-1", "undesired-feature-2"));
+        assertThat(skipSectionBuilder.requiredClusterFeatures, containsInAnyOrder("needed-feature-1", "needed-feature-2"));
+        assertThat(skipSectionBuilder.skipReason, is("test cannot run when some are present"));
+        assertThat(skipSectionBuilder.requiresReason, is("test needs some to run"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
+    }
+
+    public void testParseSameRequireAndSkipClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            - requires:
+               cluster_features: some-feature
+               reason: test needs some-feature to run
+            - skip:
+               cluster_features: some-feature
+               reason: test cannot run with some-feature
+            """);
+
+        var e = expectThrows(ParsingException.class, () -> PrerequisiteSection.parseInternal(parser));
+        assertThat(e.getMessage(), is("a cluster feature can be specified either in [requires] or [skip], not both"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
     }
 
     public void testSkipClusterFeaturesAllRequiredMatch() {

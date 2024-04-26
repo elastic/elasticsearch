@@ -40,12 +40,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
-import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
@@ -54,10 +54,18 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,6 +75,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -107,7 +116,6 @@ public class ConnectorIndexService {
         try {
             isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
                 if (isIndexNameInUse) {
-
                     l.onFailure(
                         new ElasticsearchStatusException(
                             "Index name [" + indexName + "] is used by another connector.",
@@ -188,7 +196,7 @@ public class ConnectorIndexService {
      * Creates a Connector with default values and specified parameters.
      *
      * @param description The description of the connector.
-     * @param indexName   The name of the index associated with the connector.
+     * @param indexName   The name of the index associated with the connector. It can be null to indicate that index is not attached yet.
      * @param isNative    Flag indicating if the connector is native; defaults to false if null.
      * @param language    The language supported by the connector.
      * @param name        The name of the connector; defaults to an empty string if null.
@@ -253,12 +261,13 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Deletes the {@link Connector} in the underlying index.
+     * Deletes the {@link Connector} and the related instances of {@link ConnectorSyncJob} in the underlying index.
      *
-     * @param connectorId The id of the connector object.
-     * @param listener    The action listener to invoke on response/failure.
+     * @param connectorId          The id of the {@link Connector}.
+     * @param shouldDeleteSyncJobs The flag indicating if {@link ConnectorSyncJob} should also be deleted.
+     * @param listener             The action listener to invoke on response/failure.
      */
-    public void deleteConnector(String connectorId, ActionListener<DeleteResponse> listener) {
+    public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<DeleteResponse> listener) {
 
         final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -269,7 +278,11 @@ public class ConnectorIndexService {
                     l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
-                l.onResponse(deleteResponse);
+                if (shouldDeleteSyncJobs) {
+                    new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> deleteResponse));
+                } else {
+                    l.onResponse(deleteResponse);
+                }
             }));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -418,7 +431,7 @@ public class ConnectorIndexService {
                         updateConfigurationScript,
                         Map.of(
                             Connector.CONFIGURATION_FIELD.getPreferredName(),
-                            request.getConfiguration(),
+                            request.getConfigurationAsMap(),
                             Connector.STATUS_FIELD.getPreferredName(),
                             ConnectorStatus.CONFIGURED.toString()
                         )
@@ -548,19 +561,19 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the {@link ConnectorFiltering} property of a {@link Connector}.
+     * Sets the {@link ConnectorFiltering} property of a {@link Connector}.
      *
-     * @param request   Request for updating connector filtering property.
-     * @param listener  Listener to respond to a successful response or an error.
+     * @param connectorId The ID of the {@link Connector} to update.
+     * @param filtering   The list of {@link ConnectorFiltering} .
+     * @param listener    Listener to respond to a successful response or an error.
      */
-    public void updateConnectorFiltering(UpdateConnectorFilteringAction.Request request, ActionListener<UpdateResponse> listener) {
+    public void updateConnectorFiltering(String connectorId, List<ConnectorFiltering> filtering, ActionListener<UpdateResponse> listener) {
         try {
-            String connectorId = request.getConnectorId();
             final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
                 new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                     .id(connectorId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), request.getFiltering()))
+                    .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), filtering))
             );
             client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                 if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
@@ -572,6 +585,169 @@ public class ConnectorIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Updates the draft filtering in a given {@link Connector}.
+     *
+     * @param connectorId     The ID of the {@link Connector} to be updated.
+     * @param advancedSnippet An instance of {@link FilteringAdvancedSnippet}.
+     * @param rules           A list of instances of {@link FilteringRule} to be applied.
+     * @param listener        Listener to respond to a successful response or an error.
+     */
+    public void updateConnectorFilteringDraft(
+        String connectorId,
+        FilteringAdvancedSnippet advancedSnippet,
+        List<FilteringRule> rules,
+        ActionListener<UpdateResponse> listener
+    ) {
+        try {
+            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+                List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
+                    connector.getSourceRef(),
+                    XContentType.JSON
+                );
+                // Connectors represent their filtering configuration as a singleton list
+                ConnectorFiltering connectorFilteringSingleton = connectorFilteringList.get(0);
+
+                // If advanced snippet or rules are not defined, keep the current draft state
+                FilteringAdvancedSnippet newDraftAdvancedSnippet = advancedSnippet == null
+                    ? connectorFilteringSingleton.getDraft().getAdvancedSnippet()
+                    : advancedSnippet;
+
+                List<FilteringRule> newDraftRules = rules == null ? connectorFilteringSingleton.getDraft().getRules() : rules;
+
+                ConnectorFiltering connectorFilteringWithUpdatedDraft = connectorFilteringSingleton.setDraft(
+                    new FilteringRules.Builder().setRules(newDraftRules)
+                        .setAdvancedSnippet(newDraftAdvancedSnippet)
+                        .setFilteringValidationInfo(FilteringValidationInfo.getInitialDraftValidationInfo())
+                        .build()
+                );
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), List.of(connectorFilteringWithUpdatedDraft)))
+                );
+
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                        return;
+                    }
+                    ll.onResponse(updateResponse);
+                }));
+            }));
+
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Updates the {@link FilteringValidationInfo} of the draft {@link ConnectorFiltering} property of a {@link Connector}.
+     *
+     * @param connectorId  Request for updating {@link ConnectorFiltering}.
+     * @param listener     Listener to respond to a successful response or an error.
+     */
+    public void updateConnectorDraftFilteringValidation(
+        String connectorId,
+        FilteringValidationInfo validation,
+        ActionListener<UpdateResponse> listener
+    ) {
+        getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            try {
+                List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
+                    connector.getSourceRef(),
+                    XContentType.JSON
+                );
+                // Connectors represent their filtering configuration as a singleton list
+                ConnectorFiltering connectorFilteringSingleton = connectorFilteringList.get(0);
+
+                ConnectorFiltering activatedConnectorFiltering = connectorFilteringSingleton.setDraft(
+                    new FilteringRules.Builder().setRules(connectorFilteringSingleton.getDraft().getRules())
+                        .setAdvancedSnippet(connectorFilteringSingleton.getDraft().getAdvancedSnippet())
+                        .setFilteringValidationInfo(validation)
+                        .build()
+                );
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), List.of(activatedConnectorFiltering)))
+                );
+
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, l, (ll, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                        return;
+                    }
+                    ll.onResponse(updateResponse);
+                }));
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }));
+
+    }
+
+    /**
+     * Activates the draft {@link ConnectorFiltering} property of a {@link Connector}.
+     *
+     * @param connectorId  Request for updating {@link ConnectorFiltering} property.
+     * @param listener     Listener to respond to a successful response or an error.
+     */
+    public void activateConnectorDraftFiltering(String connectorId, ActionListener<UpdateResponse> listener) {
+        getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            try {
+                List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
+                    connector.getSourceRef(),
+                    XContentType.JSON
+                );
+                // Connectors represent their filtering configuration as a singleton list
+                ConnectorFiltering connectorFilteringSingleton = connectorFilteringList.get(0);
+
+                FilteringValidationState currentValidationState = connectorFilteringSingleton.getDraft()
+                    .getFilteringValidationInfo()
+                    .getValidationState();
+
+                if (currentValidationState != FilteringValidationState.VALID) {
+                    throw new ElasticsearchStatusException(
+                        "Filtering draft needs to be validated by the connector service before activation. "
+                            + "Current filtering draft validation state ["
+                            + currentValidationState.toString()
+                            + "] is not equal to ["
+                            + FilteringValidationState.VALID
+                            + "].",
+                        RestStatus.BAD_REQUEST
+                    );
+                }
+
+                ConnectorFiltering activatedConnectorFiltering = connectorFilteringSingleton.setActive(
+                    connectorFilteringSingleton.getDraft()
+                );
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), List.of(activatedConnectorFiltering)))
+                );
+
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, l, (ll, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                        return;
+                    }
+                    ll.onResponse(updateResponse);
+                }));
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }));
+
     }
 
     /**
@@ -694,7 +870,8 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the index name property of a {@link Connector}.
+     * Updates the index name property of a {@link Connector}. Index name can be set to null to indicate that the connector
+     * is not associated with any index.
      *
      * @param request  The request for updating the connector's index name.
      * @param listener The listener for handling responses, including successful updates or errors.
@@ -720,8 +897,11 @@ public class ConnectorIndexService {
                     new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .id(connectorId)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .source(Map.of(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName()))
-
+                        .source(new HashMap<>() {
+                            {
+                                put(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName());
+                            }
+                        })
                 );
                 client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
@@ -912,6 +1092,10 @@ public class ConnectorIndexService {
      * @param listener     The listener for handling boolean responses and errors.
      */
     private void isDataIndexNameAlreadyInUse(String indexName, String connectorId, ActionListener<Boolean> listener) {
+        if (indexName == null) {
+            listener.onResponse(false);
+            return;
+        }
         try {
             BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
 

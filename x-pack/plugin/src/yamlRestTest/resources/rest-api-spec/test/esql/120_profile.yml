@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: "profile option added in 8.12"
-      features: warnings
+      test_runner_features: warnings
   - do:
       indices.create:
         index:  test
@@ -120,17 +120,17 @@ setup:
 
 ---
 avg 8.14 or after:
-  - skip:
-      features: ["node_selector"]
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "avg changed starting 8.14"
 
   - do:
-      node_selector:
-        version: "8.13.99 - "
       esql.query:
         body:
           query: 'FROM test | STATS AVG(data) | LIMIT 1'
           columnar: true
           profile: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "AVG(data)"}
   - match: {columns.0.type: "double"}

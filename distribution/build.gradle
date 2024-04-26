@@ -261,7 +261,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -292,6 +292,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
+    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
   }
 
   project.ext {
@@ -299,7 +300,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles =
+    libFiles = { os, architecture ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
@@ -330,7 +331,14 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/ansi-console') {
           from(configurations.libsAnsiConsole)
         }
+        into('platform') {
+          from(configurations.libsNative)
+          if (os != null) {
+            include (os + '-' + architecture + '/*')
+          }
+        }
       }
+    }
 
     modulesFiles = { os, architecture ->
       copySpec {

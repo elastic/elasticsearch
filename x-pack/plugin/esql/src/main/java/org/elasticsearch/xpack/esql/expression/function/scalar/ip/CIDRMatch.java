@@ -28,10 +28,10 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.fromIndex;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 /**
  * This function takes a first parameter of type IP, followed by one or more parameters evaluated to a CIDR specification:
@@ -53,7 +53,7 @@ public class CIDRMatch extends EsqlScalarFunction {
     public CIDRMatch(
         Source source,
         @Param(name = "ip", type = { "ip" }) Expression ipField,
-        @Param(name = "blockX", type = { "keyword" }, description = "CIDR block to test the IP against.") List<Expression> matches
+        @Param(name = "blockX", type = { "keyword", "text" }, description = "CIDR block to test the IP against.") List<Expression> matches
     ) {
         super(source, CollectionUtils.combine(singletonList(ipField), matches));
         this.ipField = ipField;
@@ -76,11 +76,10 @@ public class CIDRMatch extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
-        return dvrCtx -> new CIDRMatchEvaluator(
+        return new CIDRMatchEvaluator.Factory(
             source(),
-            ipEvaluatorSupplier.get(dvrCtx),
-            matches.stream().map(x -> toEvaluator.apply(x).get(dvrCtx)).toArray(EvalOperator.ExpressionEvaluator[]::new),
-            dvrCtx
+            ipEvaluatorSupplier,
+            matches.stream().map(x -> toEvaluator.apply(x)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
         );
     }
 

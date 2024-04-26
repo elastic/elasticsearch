@@ -1,0 +1,6 @@
+pr: 107383
+summary: Users with monitor privileges can access async_search/status endpoint 
+  even when setting keep_alive
+area: Authorization
+type: bug
+issues: []

@@ -74,7 +74,7 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
                                 builder.appendOrd(docValues.ordValue());
                             }
                         }
-                        try (BytesRefBlock build = builder.build()) {
+                        try (BytesRefBlock build = buildOrdinalsBuilder(builder)) {
                             for (int i = 0; i < build.getPositionCount(); i++) {
                                 counts.merge(build.getBytesRef(i, new BytesRef()).utf8ToString(), 1, (lhs, rhs) -> lhs + rhs);
                             }
@@ -141,7 +141,7 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
                                 builder.appendNull();
                             }
                         }
-                        try (BytesRefBlock built = builder.build()) {
+                        try (BytesRefBlock built = buildOrdinalsBuilder(builder)) {
                             for (int p = 0; p < built.getPositionCount(); p++) {
                                 assertThat(built.isNull(p), equalTo(true));
                             }
@@ -150,6 +150,14 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    static BytesRefBlock buildOrdinalsBuilder(SingletonOrdinalsBuilder builder) {
+        if (randomBoolean()) {
+            return builder.buildRegularBlock();
+        } else {
+            return builder.buildOrdinal();
         }
     }
 

@@ -93,13 +93,13 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context) {
-        Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(
+        Optional<MlAggsHelper.DoubleBucketValues> maybeBucketValues = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,
             BucketHelpers.GapPolicy.SKIP,
             true
         );
-        if (maybeBucketsValue.isEmpty()) {
+        if (maybeBucketValues.isEmpty()) {
             return new InternalChangePointAggregation(
                 name(),
                 metadata(),
@@ -107,7 +107,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 new ChangeType.Indeterminable("unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "]")
             );
         }
-        MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketsValue.get();
+        MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketValues.get();
         if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
             return new InternalChangePointAggregation(
                 name(),
@@ -146,7 +146,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     static ChangeType testForSpikeOrDip(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         try {
             SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
-            ChangeType result = detect.at(pValueThreshold);
+            ChangeType result = detect.at(pValueThreshold, bucketValues);
             logger.trace("spike or dip p-value: [{}]", result.pValue());
             return result;
         } catch (NotStrictlyPositiveException nspe) {
@@ -552,7 +552,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 case TREND_CHANGE:
                     return new ChangeType.TrendChange(pValueVsStationary(), rSquared(), bucketValues.getBucketIndex(changePoint));
                 case DISTRIBUTION_CHANGE:
-                    return new ChangeType.DistributionChange(pValue, changePoint);
+                    return new ChangeType.DistributionChange(pValue, bucketValues.getBucketIndex(changePoint));
             }
             throw new RuntimeException("Unknown change type [" + type + "].");
         }

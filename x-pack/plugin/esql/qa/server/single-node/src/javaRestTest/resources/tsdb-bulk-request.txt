@@ -1,0 +1,17 @@
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2001818691, "rx": 802133794},"cpu": {"limit": 0.3787411612903226, "nanocores": 35222928, "node": 0.048845732}}}}
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "uid":"947e4ced-1786-4e53-9e0c-5c447e959508", "network": {"tx": 2005177954, "rx": 801479970},"cpu": {"limit": 0.5786461612903226, "nanocores": 25222928, "node": 0.505805732}}}}
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"947e4ced-1786-4e53-9e0c-5c447e959509", "network": {"tx": 2006223737, "rx": 802337279},"cpu": {"limit": 0.5787451612903226, "nanocores": 55252928, "node": 0.606805732}}}}
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "rat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959510", "network": {"tx": 2012916202, "rx": 803685721},"cpu": {"limit": 0.6786461612903226, "nanocores": 75227928, "node": 0.058855732}}}}
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "rat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959510", "network": {"tx": 1434521831, "rx": 530575198},"cpu": {"limit": 0.7787411712903226, "nanocores": 75727928, "node": 0.068865732}}}}
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"947e4ced-1786-4e53-9e0c-5c447e959509", "network": {"tx": 1434577921, "rx": 530600088},"cpu": {"limit": 0.2782412612903226, "nanocores": 25222228, "node": 0.078875732}}}}
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "uid":"947e4ced-1786-4e53-9e0c-5c447e959508", "network": {"tx": 1434587694, "rx": 530604797},"cpu": {"limit": 0.1717411612903226, "nanocores": 15121928, "node": 0.808805732}}}}
+{"create": {}}
+{"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 1434595272, "rx": 530605511},"cpu": {"limit": 0.8787481682903226, "nanocores": 95292928, "node": 0.908905732}}}}
+

@@ -17,8 +17,6 @@ Multivalue expression.
 Converts a multivalued column into a single valued column containing the sum
 of all of the values.
 
-*Supported types*
-
 include::types/mv_sum.asciidoc[]
 
 *Example*

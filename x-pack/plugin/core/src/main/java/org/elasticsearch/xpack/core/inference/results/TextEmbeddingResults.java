@@ -78,7 +78,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
                 }
             } else {
                 throw new IllegalArgumentException(
-                    "Received invalid inference result, was type of " + result.getClass().getName() + " but expected TextEmbeddingResults."
+                    "Received invalid inference result, of type " + result.getClass().getName() + " but expected TextEmbeddingResults."
                 );
             }
         }

@@ -56,6 +56,7 @@ fix problems that an {es} deployment might encounter.
 * <<watcher-troubleshooting,Troubleshooting Watcher>>
 * <<troubleshooting-searches,Troubleshooting searches>>
 * <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>
+* <<troubleshooting-unbalanced-cluster,Troubleshooting an unbalanced cluster>>
 * <<remote-clusters-troubleshooting,Troubleshooting remote clusters>>
 
 [discrete]
@@ -135,3 +136,5 @@ include::watcher/troubleshooting.asciidoc[]
 include::troubleshooting/troubleshooting-searches.asciidoc[]
 
 include::troubleshooting/troubleshooting-shards-capacity.asciidoc[]
+
+include::troubleshooting/troubleshooting-unbalanced-cluster.asciidoc[]

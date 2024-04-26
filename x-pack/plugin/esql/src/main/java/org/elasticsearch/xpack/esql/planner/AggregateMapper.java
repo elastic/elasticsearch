@@ -11,17 +11,16 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -42,7 +41,6 @@ import java.lang.invoke.MethodType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -54,17 +52,17 @@ public class AggregateMapper {
     static final List<String> NUMERIC = List.of("Int", "Long", "Double");
     static final List<String> SPATIAL = List.of("GeoPoint", "CartesianPoint");
 
-    /** List of all ESQL agg functions. */
+    /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
     static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
         Count.class,
         CountDistinct.class,
         Max.class,
-        Median.class,
         MedianAbsoluteDeviation.class,
         Min.class,
         Percentile.class,
         SpatialCentroid.class,
-        Sum.class
+        Sum.class,
+        Values.class
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
@@ -77,7 +75,7 @@ public class AggregateMapper {
     private final HashMap<Expression, List<? extends NamedExpression>> cache = new HashMap<>();
 
     AggregateMapper() {
-        this(AGG_FUNCTIONS.stream().filter(Predicate.not(SurrogateExpression.class::isAssignableFrom)).toList());
+        this(AGG_FUNCTIONS);
     }
 
     AggregateMapper(List<? extends Class<? extends Function>> aggregateFunctionClasses) {
@@ -148,6 +146,9 @@ public class AggregateMapper {
         } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {
             types = SPATIAL;
             extraConfigs = List.of("SourceValues", "DocValues");
+        } else if (Values.class.isAssignableFrom(clazz)) {
+            // TODO can't we figure this out from the function itself?
+            types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();

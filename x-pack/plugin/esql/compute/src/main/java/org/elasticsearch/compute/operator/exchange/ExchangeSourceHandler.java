@@ -44,10 +44,10 @@ public final class ExchangeSourceHandler {
         this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
     }
 
-    private class LocalExchangeSource implements ExchangeSource {
+    private class ExchangeSourceImpl implements ExchangeSource {
         private boolean finished;
 
-        LocalExchangeSource() {
+        ExchangeSourceImpl() {
             outstandingSources.trackNewInstance();
         }
 
@@ -95,7 +95,7 @@ public final class ExchangeSourceHandler {
      * @see ExchangeSinkOperator
      */
     public ExchangeSource createExchangeSource() {
-        return new LocalExchangeSource();
+        return new ExchangeSourceImpl();
     }
 
     /**
@@ -203,6 +203,7 @@ public final class ExchangeSourceHandler {
                 }
                 return first;
             });
+            buffer.waitForReading().onResponse(null); // resume the Driver if it is being blocked on reading
             onSinkComplete();
         }
 

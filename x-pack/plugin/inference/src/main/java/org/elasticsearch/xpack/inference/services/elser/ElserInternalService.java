@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -29,6 +30,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -253,9 +256,11 @@ public class ElserInternalService implements InferenceService {
     @Override
     public void infer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         // No task settings to override with requestTaskSettings
@@ -271,7 +276,7 @@ public class ElserInternalService implements InferenceService {
             model.getConfigurations().getInferenceEntityId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
         client.execute(
             InferTrainedModelDeploymentAction.INSTANCE,
@@ -280,13 +285,27 @@ public class ElserInternalService implements InferenceService {
         );
     }
 
-    @Override
     public void chunkedInfer(
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
+        @Nullable ChunkingOptions chunkingOptions,
+        TimeValue timeout,
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
+    ) {
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+    }
+
+    @Override
+    public void chunkedInfer(
+        Model model,
+        @Nullable String query,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
@@ -296,15 +315,15 @@ public class ElserInternalService implements InferenceService {
             return;
         }
 
-        var configUpdate = chunkingOptions.settingsArePresent()
+        var configUpdate = chunkingOptions != null
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : TextExpansionConfigUpdate.EMPTY_UPDATE;
+            : new TokenizationConfigUpdate(null, null);
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),
             configUpdate,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
         request.setChunkResults(true);
 
@@ -388,6 +407,8 @@ public class ElserInternalService implements InferenceService {
         for (var inferenceResult : inferenceResults) {
             if (inferenceResult instanceof ChunkedTextExpansionResults mlChunkedResult) {
                 translated.add(ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
+            } else if (inferenceResult instanceof ErrorInferenceResults error) {
+                translated.add(new ErrorChunkedInferenceResults(error.getException()));
             } else {
                 throw new ElasticsearchStatusException(
                     "Expected a chunked inference [{}] received [{}]",

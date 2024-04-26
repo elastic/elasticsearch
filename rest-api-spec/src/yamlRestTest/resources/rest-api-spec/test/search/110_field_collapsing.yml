@@ -517,8 +517,8 @@ setup:
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
 ---
 "Test collapse with inner_hits and missing name fails":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: fixed in 8.13
   - do:
       catch: bad_request

@@ -92,27 +92,34 @@ class CountedTermsAggregator extends TermsAggregator {
             int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
             // as users can't control sort order, in practice we'll always sort by doc count descending
-            BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
-            StringTerms.Bucket spare = null;
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            Supplier<StringTerms.Bucket> emptyBucketBuilder = () -> new StringTerms.Bucket(new BytesRef(), 0, null, false, 0, format);
-            while (ordsEnum.next()) {
-                long docCount = bucketDocCount(ordsEnum.ord());
-                otherDocCounts[ordIdx] += docCount;
-                if (spare == null) {
-                    spare = emptyBucketBuilder.get();
+            try (
+                BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(
+                    size,
+                    bigArrays(),
+                    partiallyBuiltBucketComparator
+                )
+            ) {
+                StringTerms.Bucket spare = null;
+                BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                Supplier<StringTerms.Bucket> emptyBucketBuilder = () -> new StringTerms.Bucket(new BytesRef(), 0, null, false, 0, format);
+                while (ordsEnum.next()) {
+                    long docCount = bucketDocCount(ordsEnum.ord());
+                    otherDocCounts[ordIdx] += docCount;
+                    if (spare == null) {
+                        spare = emptyBucketBuilder.get();
+                    }
+                    ordsEnum.readValue(spare.getTermBytes());
+                    spare.setDocCount(docCount);
+                    spare.setBucketOrd(ordsEnum.ord());
+                    spare = ordered.insertWithOverflow(spare);
                 }
-                ordsEnum.readValue(spare.getTermBytes());
-                spare.setDocCount(docCount);
-                spare.setBucketOrd(ordsEnum.ord());
-                spare = ordered.insertWithOverflow(spare);
-            }
 
-            topBucketsPerOrd[ordIdx] = new StringTerms.Bucket[ordered.size()];
-            for (int i = ordered.size() - 1; i >= 0; --i) {
-                topBucketsPerOrd[ordIdx][i] = ordered.pop();
-                otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][i].getDocCount();
-                topBucketsPerOrd[ordIdx][i].setTermBytes(BytesRef.deepCopyOf(topBucketsPerOrd[ordIdx][i].getTermBytes()));
+                topBucketsPerOrd[ordIdx] = new StringTerms.Bucket[(int) ordered.size()];
+                for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                    topBucketsPerOrd[ordIdx][i] = ordered.pop();
+                    otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][i].getDocCount();
+                    topBucketsPerOrd[ordIdx][i].setTermBytes(BytesRef.deepCopyOf(topBucketsPerOrd[ordIdx][i].getTermBytes()));
+                }
             }
         }
 

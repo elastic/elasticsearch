@@ -36,7 +36,7 @@ public class BlobCacheUtils {
      * Rounds the length up so that it is aligned on the next page size (defined by SharedBytes.PAGE_SIZE). For example
      */
     public static long toPageAlignedSize(long length) {
-        int remainder = (int) length % SharedBytes.PAGE_SIZE;
+        int remainder = (int) (length % SharedBytes.PAGE_SIZE);
         if (remainder > 0L) {
             return length + (SharedBytes.PAGE_SIZE - remainder);
         }
@@ -61,6 +61,10 @@ public class BlobCacheUtils {
             (position / rangeSize) * rangeSize,
             Math.min((((position + size - 1) / rangeSize) + 1) * rangeSize, blobLength)
         );
+    }
+
+    public static ByteRange computeRange(long rangeSize, long position, long size) {
+        return ByteRange.of((position / rangeSize) * rangeSize, (((position + size - 1) / rangeSize) + 1) * rangeSize);
     }
 
     public static void ensureSlice(String sliceName, long sliceOffset, long sliceLength, IndexInput input) {

@@ -376,7 +376,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return statsCollectors.statsMap();
+        return statsCollectors.statsMap(service.isStateless);
     }
 
     // Package private for testing
@@ -461,7 +461,12 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    record StatsKey(Operation operation, OperationPurpose purpose) {}
+    record StatsKey(Operation operation, OperationPurpose purpose) {
+        @Override
+        public String toString() {
+            return purpose.getKey() + "_" + operation.getKey();
+        }
+    }
 
     class StatsCollectors {
         final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
@@ -470,10 +475,16 @@ class S3BlobStore implements BlobStore {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
         }
 
-        Map<String, Long> statsMap() {
-            final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
-            collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
-            return Map.copyOf(m);
+        Map<String, Long> statsMap(boolean isStateless) {
+            if (isStateless) {
+                return collectors.entrySet()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> entry.getValue().counter.sum()));
+            } else {
+                final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
+                collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
+                return Map.copyOf(m);
+            }
         }
 
         IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {

@@ -918,8 +918,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testStopDoesntWaitIfGraceIsZero() {
-        try (var noWait = LogExpectation.unexpectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
+    public void testStopWaitsIndefinitelyIfGraceIsZero() {
+        try (var wait = LogExpectation.expectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(testHttpRequest(), httpChannel);
@@ -927,7 +927,33 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.doStop();
             assertFalse(transport.testHttpServerChannel.isOpen());
             assertFalse(httpChannel.isOpen());
-            noWait.assertExpectationsMatched();
+            wait.assertExpectationsMatched();
+        }
+    }
+
+    public void testStopLogsProgress() throws Exception {
+        TestHttpChannel httpChannel = new TestHttpChannel();
+        var doneWithRequest = new CountDownLatch(1);
+        try (var wait = LogExpectation.expectUpdate(1); var transport = new TestHttpServerTransport(gracePeriod(SHORT_GRACE_PERIOD_MS))) {
+
+            httpChannel.blockSendResponse();
+            var inResponse = httpChannel.notifyInSendResponse();
+
+            transport.serverAcceptedChannel(httpChannel);
+            new Thread(() -> {
+                transport.incomingRequest(testHttpRequest(), httpChannel);
+                doneWithRequest.countDown();
+            }, "testStopLogsProgress -> incomingRequest").start();
+
+            inResponse.await();
+
+            transport.doStop();
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+            wait.assertExpectationsMatched();
+        } finally {
+            httpChannel.allowSendResponse();
+            doneWithRequest.await();
         }
     }
 
@@ -1345,20 +1371,24 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
 
         public static LogExpectation expectTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(true).wait(true);
+            return new LogExpectation(grace).timedOut(true).wait(false);
         }
 
         public static LogExpectation unexpectedTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(false).wait(true);
+            return new LogExpectation(grace).timedOut(false).wait(false);
         }
 
-        public static LogExpectation unexpectWait() {
-            return new LogExpectation(0).wait(false);
+        public static LogExpectation expectWait() {
+            return new LogExpectation(0).wait(true);
+        }
+
+        public static LogExpectation expectUpdate(int connections) {
+            return new LogExpectation(0).update(connections);
         }
 
         private LogExpectation timedOut(boolean expected) {
             var message = "timed out while waiting [" + grace + "]ms for clients to close connections";
-            var name = "message";
+            var name = "timed out message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.WARN;
             if (expected) {
@@ -1370,15 +1400,24 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
 
         private LogExpectation wait(boolean expected) {
-            var message = "closing all client connections immediately";
-            var name = "message";
+            var message = "waiting indefinitely for clients to close connections";
+            var name = "wait message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.DEBUG;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
-            } else {
                 appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+            } else {
+                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
             }
+            return this;
+        }
+
+        private LogExpectation update(int connections) {
+            var message = "still waiting on " + connections + " client connections to close";
+            var name = "update message";
+            var logger = AbstractHttpServerTransport.class.getName();
+            var level = Level.INFO;
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
             return this;
         }
 

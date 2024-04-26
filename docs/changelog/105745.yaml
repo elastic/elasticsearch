@@ -1,0 +1,6 @@
+pr: 105745
+summary: Fix `noop_update_total` is not being updated when using the `_bulk`
+area: CRUD
+type: bug
+issues:
+  - 105742

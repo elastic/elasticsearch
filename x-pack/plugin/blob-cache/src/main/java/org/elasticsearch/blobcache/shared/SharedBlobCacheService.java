@@ -62,6 +62,9 @@ import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * A caching layer on a local node to minimize network roundtrips to the remote blob store.
+ */
 public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
@@ -295,9 +298,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     // executor to run reading from the blobstore on
     private final Executor ioExecutor;
 
-    // executor to run bulk reading from the blobstore on
-    private final Executor bulkIOExecutor;
-
     private final SharedBytes sharedBytes;
     private final long cacheSize;
     private final int regionSize;
@@ -330,20 +330,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         String ioExecutor,
         BlobCacheMetrics blobCacheMetrics
     ) {
-        this(environment, settings, threadPool, ioExecutor, ioExecutor, blobCacheMetrics);
-    }
-
-    public SharedBlobCacheService(
-        NodeEnvironment environment,
-        Settings settings,
-        ThreadPool threadPool,
-        String ioExecutor,
-        String bulkExecutor,
-        BlobCacheMetrics blobCacheMetrics
-    ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
-        this.bulkIOExecutor = threadPool.executor(bulkExecutor);
         long totalFsSize;
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
@@ -468,21 +456,27 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     /**
      * Fetch and cache the full blob for the given cache entry from the remote repository if there
      * are enough free pages in the cache to do so.
-     *
+     * <p>
      * This method returns as soon as the download tasks are instantiated, but the tasks themselves
      * are run on the bulk executor.
-     *
+     * <p>
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey  the key to fetch data for
-     * @param length    the length of the blob to fetch
-     * @param writer    a writer that handles writing of newly downloaded data to the shared cache
-     * @param listener  listener that is called once all downloading has finished
-     *
+     * @param cacheKey      the key to fetch data for
+     * @param length        the length of the blob to fetch
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param listener      listener that is called once all downloading has finished
      * @return {@code true} if there were enough free pages to start downloading the full entry
      */
-    public boolean maybeFetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer, ActionListener<Void> listener) {
+    public boolean maybeFetchFullEntry(
+        KeyType cacheKey,
+        long length,
+        RangeMissingHandler writer,
+        Executor fetchExecutor,
+        ActionListener<Void> listener
+    ) {
         int finalRegion = getEndingRegion(length);
         if (freeRegionCount() < finalRegion) {
             // Not enough room to download a full file without evicting existing data, so abort
@@ -514,7 +508,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     rangeToWrite,
                     (channel, pos, relativePos, len) -> Math.toIntExact(len),
                     writer,
-                    bulkIOExecutor,
+                    fetchExecutor,
                     regionListener.delegateResponse((l, e) -> {
                         if (e instanceof AlreadyClosedException) {
                             l.onResponse(0);
@@ -530,46 +524,45 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     /**
      * Fetch and write in cache a region of a blob if there are enough free pages in the cache to do so.
-     *
+     * <p>
      * This method returns as soon as the download tasks are instantiated, but the tasks themselves
      * are run on the bulk executor.
-     *
+     * <p>
      * If an exception is thrown from the writer then the cache entry being downloaded is freed
      * and unlinked
      *
-     * @param cacheKey  the key to fetch data for
-     * @param region    the region of the blob to fetch
-     * @param blobLength the length of the blob from which the region is fetched (used to compute the size of the ending region)
-     * @param writer    a writer that handles writing of newly downloaded data to the shared cache
-     * @param listener  a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in which
-     *                  case the data is available in cache. The listener is completed with {@code false} in every other cases: if the
-     *                  region to write is already available in cache, if the region is pending fetching via another thread or if there is
-     *                  not enough free pages to fetch the region.
+     * @param cacheKey      the key to fetch data for
+     * @param region        the region of the blob to fetch
+     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
+     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
+     *                      the region to write is already available in cache, if the region is pending fetching via another thread or if
+     *                      there is not enough free pages to fetch the region.
      */
     public void maybeFetchRegion(
         final KeyType cacheKey,
         final int region,
         final long blobLength,
         final RangeMissingHandler writer,
+        final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
         if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
+            logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
             return;
         }
-        long regionLength = regionSize;
         try {
-            if (region == getEndingRegion(blobLength)) {
-                regionLength = blobLength - getRegionStart(region);
-            }
-            ByteRange regionRange = ByteRange.of(0, regionLength);
+            ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
             if (regionRange.isEmpty()) {
                 listener.onResponse(false);
                 return;
             }
             final CacheFileRegion entry = get(cacheKey, blobLength, region);
-            entry.populate(regionRange, writer, bulkIOExecutor, listener);
+            entry.populate(regionRange, writer, fetchExecutor, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -715,6 +708,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         CacheFileRegion(RegionKey<KeyType> regionKey, int regionSize) {
             this.regionKey = regionKey;
             assert regionSize > 0;
+            // NOTE we use a constant string for description to avoid consume extra heap space
             tracker = new SparseFileTracker("file", regionSize);
         }
 
@@ -1002,7 +996,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
-            assert assertOffsetsWithinFileLength(rangeToWrite.start(), rangeToWrite.length(), length);
+            // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
+            assert rangeToWrite.start() >= 0 : rangeToWrite;
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.

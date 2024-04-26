@@ -37,6 +37,7 @@ import org.elasticsearch.transport.NodeNotConnectedException;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -77,6 +78,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Using a volatile reference to ensure that there is a single instance of monitoring running at all times.
     // No need for extra synchronization because all the writes are executed on the cluster applier thread.
     private volatile Monitoring monitoring;
+    // This variable keeps track of whether there's an in-flight request. We keep this variable here rather than the Monitoring class,
+    // as we'll create new instances of that class when we're (re)starting this local health monitoring process.
+    // This variable allows us to ensure that there's always, at most, 1 request in-flight, at any given moment.
+    private final AtomicBoolean inFlightRequest = new AtomicBoolean(false);
 
     private LocalHealthMonitor(
         Settings settings,
@@ -152,7 +157,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
             if (isMonitorRunning() == false) {
-                monitoring = Monitoring.start(monitorInterval, threadPool, lastSeenHealthNode, healthTrackers, clusterService, client);
+                // First create the Monitoring instance, so we always have something to cancel.
+                monitoring = new Monitoring(monitorInterval, threadPool, healthTrackers, clusterService, client, inFlightRequest);
+                monitoring.start();
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
                 logger.trace("Local health monitoring already started {}, skipping", monitoring);
@@ -175,8 +182,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
             // On health node or on master node changes, the health node might be reset so the reported
             // health info gets reset to null, to ensure it will be resent.
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
-            // Reset the reference of each HealthTracker.
-            healthTrackers.forEach(HealthTracker::reset);
             if (logger.isDebugEnabled()) {
                 String reason;
                 if (healthNodeChanged && masterNodeChanged) {
@@ -227,61 +232,50 @@ public class LocalHealthMonitor implements ClusterStateListener {
      * This class is responsible for running the health monitoring. It evaluates and checks the health info of this node
      * in the configured intervals. The first run happens upon initialization. If there is an exception, it will log it
      * and continue to schedule the next run.
+     * Usually, there will only be one instance of this class alive. However, when we're restarting
+     * the monitoring process (e.g. due to a health node change, see {@link LocalHealthMonitor#clusterChanged}), there will likely (shortly)
+     * be two instances alive at the same time. To avoid any concurrency issues, we're ensuring that there's always only one in-flight
+     * request and if a {@link Monitoring} instance is cancelled while a request is in-flight, we'll prevent it from updating the state
+     * of the {@link HealthTracker}s (and it'll be up to the next/new {@link Monitoring} instance to send a new request and update the
+     * {@link HealthTracker}s' state).
      */
     static class Monitoring implements Runnable, Scheduler.Cancellable {
 
         private final TimeValue interval;
         private final Executor executor;
-        private final Scheduler scheduler;
+        private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final Client client;
 
-        private final AtomicReference<String> lastSeenHealthNode;
         private final List<HealthTracker<?>> healthTrackers;
 
+        private final AtomicBoolean inFlightRequest;
         private volatile boolean cancelled = false;
+        private volatile boolean fistRun = true;
         private volatile Scheduler.ScheduledCancellable scheduledRun;
 
         private Monitoring(
             TimeValue interval,
-            Scheduler scheduler,
-            Executor executor,
-            AtomicReference<String> lastSeenHealthNode,
+            ThreadPool threadPool,
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
-            Client client
+            Client client,
+            AtomicBoolean inFlightRequest
         ) {
             this.interval = interval;
-            this.executor = executor;
-            this.scheduler = scheduler;
-            this.lastSeenHealthNode = lastSeenHealthNode;
+            this.threadPool = threadPool;
+            this.executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
             this.clusterService = clusterService;
             this.healthTrackers = healthTrackers;
             this.client = client;
+            this.inFlightRequest = inFlightRequest;
         }
 
         /**
-         * Creates a monitoring instance and starts the schedules the first run.
+         * Schedule the first run of the monitor.
          */
-        static Monitoring start(
-            TimeValue interval,
-            ThreadPool threadPool,
-            AtomicReference<String> lastSeenHealthNode,
-            List<HealthTracker<?>> healthTrackers,
-            ClusterService clusterService,
-            Client client
-        ) {
-            Monitoring monitoring = new Monitoring(
-                interval,
-                threadPool,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                lastSeenHealthNode,
-                healthTrackers,
-                clusterService,
-                client
-            );
-            monitoring.scheduledRun = threadPool.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
-            return monitoring;
+        public void start() {
+            scheduledRun = threadPool.schedule(this, TimeValue.ZERO, executor);
         }
 
         /**
@@ -301,7 +295,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return false;
             }
             cancelled = true;
-            scheduledRun.cancel();
+            var scheduledRun = this.scheduledRun;
+            // There is a chance this Monitoring instance gets cancelled before the `scheduledRun` field is assigned.
+            // However, this is not a problem as the most important thing is the `cancelled` field being set to false in this class,
+            // as that field actually prevents any updates to the HealthTrackers' states.
+            if (scheduledRun != null) {
+                scheduledRun.cancel();
+            }
             return true;
         }
 
@@ -318,41 +318,57 @@ public class LocalHealthMonitor implements ClusterStateListener {
             if (cancelled) {
                 return;
             }
-            boolean nextRunScheduled = false;
-            Runnable scheduleNextRun = new RunOnce(this::scheduleNextRunIfNecessary);
+            // Before we do anything, we're first going to make sure there is no in-flight request at this moment.
+            // If that's the case, we'll acquire the "lock", which prevents any other threads/instances from sending any requests
+            // and writing to the health trackers' states.
+            if (inFlightRequest.compareAndSet(false, true) == false) {
+                logger.debug("Not allowed to send health info update request due to in-flight request, will try again.");
+                // Since we weren't able to acquire the lock, we don't need to release it, and we can schedule the next run right away.
+                scheduleNextRunIfNecessary();
+                return;
+            }
             try {
-                List<HealthTracker.HealthProgress<?>> healthProgresses = getHealthProgresses();
-                if (healthProgresses.isEmpty()) {
-                    // Next run will still be scheduled in the `finally` block.
+                // On the first run, we're resetting all the health trackers. When we're in a first run, we either got restarted
+                // (health/master node change, manual restart, etc.) or we're actually starting the whole LocalHealthMonitor for
+                // the first time. In either case, we want to make sure we're (re)sending all the info to the health node, hence the reset.
+                // We're doing it _here_, so that we've acquired the inFlightRequest lock before we make any changes to the health trackers.
+                if (fistRun) {
+                    healthTrackers.forEach(HealthTracker::reset);
+                    fistRun = false;
+                }
+                List<HealthTracker<?>> changedHealthTrackers = getChangedHealthTrackers();
+                if (changedHealthTrackers.isEmpty()) {
+                    releaseAndScheduleNextRun();
                     return;
                 }
+
                 // Create builder and add the current value of each (changed) health tracker to the request.
                 var builder = new UpdateHealthInfoCacheAction.Request.Builder().nodeId(clusterService.localNode().getId());
-                healthProgresses.forEach(changedHealthInfo -> changedHealthInfo.updateRequestBuilder(builder));
+                changedHealthTrackers.forEach(changedHealthTracker -> changedHealthTracker.addToRequestBuilder(builder));
 
-                var healthNodeId = lastSeenHealthNode.get();
-                var listener = ActionListener.<AcknowledgedResponse>wrap(response -> {
-                    // Don't update the latest health info if the health node has changed while this request was being processed.
-                    if (Objects.equals(healthNodeId, lastSeenHealthNode.get()) == false) {
-                        return;
-                    }
-                    healthProgresses.forEach(HealthTracker.HealthProgress::recordProgressIfRelevant);
-                }, e -> {
+                // We don't need to do anything with the response when the request was successful, as HealthTracker#checkHealthChanged has
+                // already updated it's internal state.
+                var listener = ActionListener.<AcknowledgedResponse>wrap(response -> {}, e -> {
                     if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
                         logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
                     } else {
                         logger.debug(() -> format("Failed to send health info to health node, will try again."), e);
                     }
+                    // If anything went wrong, we're going to reset the changed trackers to make
+                    // sure their health will get reported in the next iteration.
+                    changedHealthTrackers.forEach(HealthTracker::reset);
                 });
-                client.execute(UpdateHealthInfoCacheAction.INSTANCE, builder.build(), ActionListener.runAfter(listener, scheduleNextRun));
-                nextRunScheduled = true;
+                client.execute(
+                    UpdateHealthInfoCacheAction.INSTANCE,
+                    builder.build(),
+                    ActionListener.runAfter(listener, new RunOnce(this::releaseAndScheduleNextRun))
+                );
             } catch (Exception e) {
                 logger.warn(() -> format("Failed to run scheduled health monitoring on thread pool [%s]", executor), e);
-            } finally {
-                // If the next run isn't scheduled because for example the health info hasn't changed, we schedule it here.
-                if (nextRunScheduled == false) {
-                    scheduleNextRun.run();
-                }
+                // If anything went wrong, we're going to reset all the trackers to make
+                // sure their health will get reported in the next iteration.
+                healthTrackers.forEach(HealthTracker::reset);
+                releaseAndScheduleNextRun();
             }
         }
 
@@ -361,17 +377,19 @@ public class LocalHealthMonitor implements ClusterStateListener {
          *
          * @return a list of changed health info's.
          */
-        private List<HealthTracker.HealthProgress<?>> getHealthProgresses() {
+        private List<HealthTracker<?>> getChangedHealthTrackers() {
             var healthMetadata = HealthMetadata.getFromClusterState(clusterService.state());
             // Don't try to run the health trackers if the HealthMetadata is not available.
             if (healthMetadata == null) {
                 return List.of();
             }
 
-            return healthTrackers.stream().<HealthTracker.HealthProgress<?>>map(HealthTracker::trackHealth)
-                // Only return changed values.
-                .filter(HealthTracker.HealthProgress::hasChanged)
-                .toList();
+            return healthTrackers.stream().filter(HealthTracker::checkHealthChanged).toList();
+        }
+
+        private void releaseAndScheduleNextRun() {
+            inFlightRequest.set(false);
+            scheduleNextRunIfNecessary();
         }
 
         private void scheduleNextRunIfNecessary() {
@@ -379,7 +397,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return;
             }
             try {
-                scheduledRun = scheduler.schedule(this, interval, executor);
+                scheduledRun = threadPool.schedule(this, interval, executor);
             } catch (final EsRejectedExecutionException e) {
                 logger.debug(() -> format("Scheduled health monitoring was rejected on thread pool [%s]", executor), e);
             }

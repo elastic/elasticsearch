@@ -25,6 +25,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * A blob container that by default delegates all methods to an internal BlobContainer. Implementations must define {@link #wrapChild} so
+ * that the abstraction is complete: so that the internal BlobContainer instance cannot leak out of this wrapper.
+ *
+ * Inheritors can safely modify needed methods while continuing to have access to a complete BlobContainer implementation beneath.
+ */
 public abstract class FilterBlobContainer implements BlobContainer {
 
     private final BlobContainer delegate;
@@ -33,6 +39,10 @@ public abstract class FilterBlobContainer implements BlobContainer {
         this.delegate = Objects.requireNonNull(delegate);
     }
 
+    /**
+     * Wraps up any instances of the internal BlobContainer type in another BlobContainer type (presumably the implementation's type).
+     * Ensures that the internal {@link #delegate} type never leaks out of the BlobContainer wrapper type.
+     */
     protected abstract BlobContainer wrapChild(BlobContainer child);
 
     @Override

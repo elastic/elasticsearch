@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -95,6 +96,11 @@ public abstract class AggregationBuilder
     /** Return the configured set of subaggregations **/
     public Collection<AggregationBuilder> getSubAggregations() {
         return factoriesBuilder.getAggregatorFactories();
+    }
+
+    /** Return the aggregation's query if it's different from the search query, or null otherwise. */
+    public QueryBuilder getQuery() {
+        return null;
     }
 
     /** Return the configured set of pipeline aggregations **/

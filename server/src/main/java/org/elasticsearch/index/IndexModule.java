@@ -194,13 +194,14 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final SlowLogFieldProvider slowLogFieldProvider
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;

@@ -21,16 +21,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -104,83 +102,68 @@ public class SystemdPluginTests extends ESTestCase {
     }
 
     public void testOnNodeStartedSuccess() {
-        runTestOnNodeStarted(Boolean.TRUE.toString(), randomIntBetween(0, Integer.MAX_VALUE), (maybe, plugin) -> {
+        runTestOnNodeStarted(Boolean.TRUE.toString(), false, (maybe, plugin) -> {
             assertThat(maybe, OptionalMatchers.isEmpty());
+            assertThat(plugin.invokedReady.get(), is(true));
             verify(plugin.extender()).cancel();
         });
     }
 
     public void testOnNodeStartedFailure() {
-        final int rc = randomIntBetween(Integer.MIN_VALUE, -1);
-        runTestOnNodeStarted(
-            Boolean.TRUE.toString(),
-            rc,
-            (maybe, plugin) -> assertThat(
-                maybe,
-                isPresentWith(
-                    allOf(instanceOf(RuntimeException.class), hasToString(containsString("sd_notify returned error [" + rc + "]")))
-                )
-            )
-        );
+        runTestOnNodeStarted(Boolean.TRUE.toString(), true, (maybe, plugin) -> {
+            assertThat(maybe, isPresentWith(allOf(instanceOf(RuntimeException.class), hasToString(containsString("notify ready failed")))));
+            assertThat(plugin.invokedReady.get(), is(true));
+        });
     }
 
     public void testOnNodeStartedNotEnabled() {
-        runTestOnNodeStarted(Boolean.FALSE.toString(), randomInt(), (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
+        runTestOnNodeStarted(Boolean.FALSE.toString(), randomBoolean(), (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
     }
 
     private void runTestOnNodeStarted(
         final String esSDNotify,
-        final int rc,
-        final BiConsumer<Optional<Exception>, SystemdPlugin> assertions
+        final boolean invokeFailure,
+        final BiConsumer<Optional<Exception>, TestSystemdPlugin> assertions
     ) {
-        runTest(esSDNotify, rc, assertions, SystemdPlugin::onNodeStarted, "READY=1");
+        runTest(esSDNotify, invokeFailure, assertions, SystemdPlugin::onNodeStarted);
     }
 
     public void testCloseSuccess() {
-        runTestClose(
-            Boolean.TRUE.toString(),
-            randomIntBetween(1, Integer.MAX_VALUE),
-            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty())
-        );
+        runTestClose(Boolean.TRUE.toString(), false, (maybe, plugin) -> {
+            assertThat(maybe, OptionalMatchers.isEmpty());
+            assertThat(plugin.invokedStopping.get(), is(true));
+        });
     }
 
     public void testCloseFailure() {
-        runTestClose(
-            Boolean.TRUE.toString(),
-            randomIntBetween(Integer.MIN_VALUE, -1),
-            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty())
-        );
+        runTestClose(Boolean.TRUE.toString(), true, (maybe, plugin) -> {
+            assertThat(maybe, OptionalMatchers.isEmpty());
+            assertThat(plugin.invokedStopping.get(), is(true));
+        });
     }
 
     public void testCloseNotEnabled() {
-        runTestClose(Boolean.FALSE.toString(), randomInt(), (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
+        runTestClose(Boolean.FALSE.toString(), randomBoolean(), (maybe, plugin) -> {
+            assertThat(maybe, OptionalMatchers.isEmpty());
+            assertThat(plugin.invokedStopping.get(), is(false));
+        });
     }
 
-    private void runTestClose(final String esSDNotify, final int rc, final BiConsumer<Optional<Exception>, SystemdPlugin> assertions) {
-        runTest(esSDNotify, rc, assertions, SystemdPlugin::close, "STOPPING=1");
+    private void runTestClose(
+        final String esSDNotify,
+        boolean invokeFailure,
+        final BiConsumer<Optional<Exception>, TestSystemdPlugin> assertions
+    ) {
+        runTest(esSDNotify, invokeFailure, assertions, SystemdPlugin::close);
     }
 
     private void runTest(
         final String esSDNotify,
-        final int rc,
-        final BiConsumer<Optional<Exception>, SystemdPlugin> assertions,
-        final CheckedConsumer<SystemdPlugin, IOException> invocation,
-        final String expectedState
+        final boolean invokeReadyFailure,
+        final BiConsumer<Optional<Exception>, TestSystemdPlugin> assertions,
+        final CheckedConsumer<SystemdPlugin, IOException> invocation
     ) {
-        final AtomicBoolean invoked = new AtomicBoolean();
-        final AtomicInteger invokedUnsetEnvironment = new AtomicInteger();
-        final AtomicReference<String> invokedState = new AtomicReference<>();
-        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, esSDNotify) {
-
-            @Override
-            int sd_notify(final int unset_environment, final String state) {
-                invoked.set(true);
-                invokedUnsetEnvironment.set(unset_environment);
-                invokedState.set(state);
-                return rc;
-            }
-
-        };
+        final TestSystemdPlugin plugin = new TestSystemdPlugin(esSDNotify, invokeReadyFailure);
         startPlugin(plugin);
         if (Boolean.TRUE.toString().equals(esSDNotify)) {
             assertNotNull(plugin.extender());
@@ -198,13 +181,29 @@ public class SystemdPluginTests extends ESTestCase {
         if (success) {
             assertions.accept(Optional.empty(), plugin);
         }
-        if (Boolean.TRUE.toString().equals(esSDNotify)) {
-            assertTrue(invoked.get());
-            assertThat(invokedUnsetEnvironment.get(), equalTo(0));
-            assertThat(invokedState.get(), equalTo(expectedState));
-        } else {
-            assertFalse(invoked.get());
-        }
     }
 
+    class TestSystemdPlugin extends SystemdPlugin {
+        final AtomicBoolean invokedReady = new AtomicBoolean();
+        final AtomicBoolean invokedStopping = new AtomicBoolean();
+        final boolean invokeReadyFailure;
+
+        TestSystemdPlugin(String esSDNotify, boolean invokeFailure) {
+            super(false, randomPackageBuildType, esSDNotify);
+            this.invokeReadyFailure = invokeFailure;
+        }
+
+        @Override
+        void notifyReady() {
+            invokedReady.set(true);
+            if (invokeReadyFailure) {
+                throw new RuntimeException("notify ready failed");
+            }
+        }
+
+        @Override
+        void notifyStopping() {
+            invokedStopping.set(true);
+        }
+    }
 }

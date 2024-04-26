@@ -456,7 +456,11 @@ public class PublicationTransportHandler {
 
             final ReleasableBytesReference bytes = serializedDiffs.get(connection.getTransportVersion());
             assert bytes != null
-                : "failed to find serialized diff for node " + destination + " of version [" + connection.getTransportVersion() + "]";
+                : "failed to find serialized diff for node "
+                    + destination
+                    + " of version ["
+                    + connection.getTransportVersion().toReleaseVersion()
+                    + "]";
 
             // acquire a ref to the context just in case we need to try again with the full cluster state
             if (tryIncRef() == false) {

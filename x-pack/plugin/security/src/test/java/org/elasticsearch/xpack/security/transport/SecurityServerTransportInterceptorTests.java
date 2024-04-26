@@ -1005,7 +1005,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 "Settings for remote cluster ["
                     + remoteClusterAlias
                     + "] indicate cross cluster access headers should be sent but target cluster version ["
-                    + connection.getTransportVersion()
+                    + connection.getTransportVersion().toReleaseVersion()
                     + "] does not support receiving them"
             )
         );

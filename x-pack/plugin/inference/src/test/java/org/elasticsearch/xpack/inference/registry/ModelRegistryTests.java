@@ -105,7 +105,7 @@ public class ModelRegistryTests extends ESTestCase {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is("Failed to load inference endpoint [1]. Enpoint is in an invalid state, try deleting and reinitializing the service")
+            is("Failed to load inference endpoint [1]. Endpoint is in an invalid state, try deleting and reinitializing the service")
         );
     }
 

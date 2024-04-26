@@ -35,7 +35,7 @@
             },
             "inference_id":{
               "type":"string",
-              "description":"The model Id"
+              "description":"The inference Id"
             }
           }
         }

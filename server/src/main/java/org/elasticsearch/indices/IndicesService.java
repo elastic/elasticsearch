@@ -164,6 +164,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -397,16 +398,12 @@ public class IndicesService extends AbstractLifecycleComponent
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final Index index : indices) {
-            indicesStopExecutor.execute(() -> {
-                try {
-                    // ES-8334 complete, node shutdown can be blocking
-                    removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown");
-                } finally {
-                    latch.countDown();
-                }
-            });
+            indicesStopExecutor.execute(() -> ActionListener.run(ActionListener.<Void>releasing(latch::countDown), l ->
+            // ES-8334 complete, node shutdown can be blocking
+            removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown", EsExecutors.DIRECT_EXECUTOR_SERVICE, l)));
         }
         try {
+            // Does this timeout make sense? It's a day by default and nobody changes it. TODO let's just wait forever
             if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
                 logger.warn("Not all shards are closed yet, waited {}sec - stopping service", shardsClosedTimeout.seconds());
             }
@@ -907,7 +904,13 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public void removeIndex(final Index index, final IndexRemovalReason reason, final String extraInfo) {
+    public void removeIndex(
+        final Index index,
+        final IndexRemovalReason reason,
+        final String extraInfo,
+        Executor shardCloseExecutor,
+        ActionListener<Void> shardsClosedListener
+    ) {
         final String indexName = index.getName();
         try {
             final IndexService indexService;
@@ -992,7 +995,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-     * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
+     * but does not deal with in-memory structures. For those call {@link IndicesClusterStateService.AllocatedIndices#removeIndex(Index, IndexRemovalReason, String, Executor, ActionListener)}
      */
     @Override
     public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -48,4 +49,13 @@ public class CloseUtils {
             throw new RuntimeException("unexpected exception on shard close", closeException);
         }
     }
+
+    /**
+     * Utility shard-close executor for the cases where we close an {@link IndexService} without having created any shards, so we can assert
+     * that it's never used.
+     */
+    public static final Executor NO_SHARDS_CREATED_EXECUTOR = r -> {
+        assert false : r;
+        r.run();
+    };
 }

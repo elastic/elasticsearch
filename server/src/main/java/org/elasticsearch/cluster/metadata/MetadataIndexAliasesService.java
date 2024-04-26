@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -198,7 +199,13 @@ public class MetadataIndexAliasesService {
         } finally {
             for (Index index : indicesToClose) {
                 // ES-8334 complete no shards created
-                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created for alias processing");
+                indicesService.removeIndex(
+                    index,
+                    NO_LONGER_ASSIGNED,
+                    "created for alias processing",
+                    CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
+                    ActionListener.noop()
+                );
             }
         }
     }

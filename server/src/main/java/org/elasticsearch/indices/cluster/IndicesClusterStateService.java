@@ -232,11 +232,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
                 // also cleans shards
-                // ES-8334 TBD electing a new master, should we avoid blocking here?
+                // ES-8334 TODO
                 indicesService.removeIndex(
                     indexService.getIndexSettings().getIndex(),
                     NO_LONGER_ASSIGNED,
-                    "cleaning index (disabled block persistence)"
+                    "cleaning index (disabled block persistence)",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    ActionListener.noop()
                 );
             }
             return;
@@ -322,7 +324,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
                 // ES-8334 TODO go async here
-                indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
+                indicesService.removeIndex(
+                    index,
+                    DELETED,
+                    "index no longer part of the metadata",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    ActionListener.noop()
+                );
             } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 final IndexMetadata metadata = previousState.metadata().index(index);
@@ -410,7 +418,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 // ES-8334 TBD opening or closing index, might not be a big deal
-                indicesService.removeIndex(index, reason, "removing index (" + reason + ")");
+                indicesService.removeIndex(
+                    index,
+                    reason,
+                    "removing index (" + reason + ")",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    ActionListener.noop()
+                );
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
@@ -527,7 +541,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 } else {
                     failShardReason = "failed to update mapping for index";
                     // ES-8334 TBD failure path, should we block?
-                    indicesService.removeIndex(index, FAILURE, "removing index (mapping update failed)");
+                    indicesService.removeIndex(
+                        index,
+                        FAILURE,
+                        "removing index (mapping update failed)",
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        ActionListener.noop()
+                    );
                 }
                 for (ShardRouting shardRouting : entry.getValue()) {
                     sendFailShard(shardRouting, failShardReason, e, state);
@@ -576,7 +596,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
                     // ES-8334 TBD we're on the failure path, might not be important
-                    indicesService.removeIndex(index, FAILURE, "removing index (" + reason + ")");
+                    indicesService.removeIndex(
+                        index,
+                        FAILURE,
+                        "removing index (" + reason + ")",
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        ActionListener.noop()
+                    );
 
                     // fail shards that would be created or updated by createOrUpdateShards
                     RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
@@ -1100,18 +1126,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-         * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
+         * but does not deal with in-memory structures. For those call {@link #removeIndex}
          */
         void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index
          * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-         * @param index the index to remove
-         * @param reason the reason to remove the index
-         * @param extraInfo extra information that will be used for logging and reporting
+         *
+         * @param index                the index to remove
+         * @param reason               the reason to remove the index
+         * @param extraInfo            extra information that will be used for logging and reporting
+         * @param shardCloseExecutor   executor to use to close individual shards
+         * @param shardsClosedListener listener which is completed when all shards have been closed
          */
-        void removeIndex(Index index, IndexRemovalReason reason, String extraInfo);
+        void removeIndex(
+            Index index,
+            IndexRemovalReason reason,
+            String extraInfo,
+            Executor shardCloseExecutor,
+            ActionListener<Void> shardsClosedListener
+        );
 
         /**
          * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.

@@ -215,7 +215,13 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public synchronized void removeIndex(Index index, IndexRemovalReason reason, String extraInfo) {
+        public synchronized void removeIndex(
+            Index index,
+            IndexRemovalReason reason,
+            String extraInfo,
+            Executor shardCloseExecutor,
+            ActionListener<Void> shardsClosedListener
+        ) {
             if (hasIndex(index)) {
                 Map<String, MockIndexService> newIndices = new HashMap<>(indices);
                 newIndices.remove(index.getUUID());

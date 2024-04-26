@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +28,7 @@ public class MappedActionFilters implements ActionFilter {
         for (var filter : mappedFilters) {
             map.computeIfAbsent(filter.actionName(), k -> new ArrayList<>()).add(filter);
         }
-        map.replaceAll((k, l) -> List.copyOf(l));
+        map.replaceAll((k, l) -> l.stream().sorted(Comparator.comparingInt(ActionFilter::order)).toList());
         this.filtersByAction = Map.copyOf(map);
     }
 

@@ -125,7 +125,7 @@ public class MappedActionFiltersTests extends ESTestCase {
 
             @Override
             public int order() {
-                return 0;
+                return 1;
             }
 
             @Override
@@ -141,7 +141,7 @@ public class MappedActionFiltersTests extends ESTestCase {
                 chain.proceed(task, action, request, listener);
             }
         };
-        var actionFilter = new MappedActionFilters(List.of(filter1, filter2));
+        var actionFilter = new MappedActionFilters(randomBoolean() ? List.of(filter1, filter2) : List.of(filter2, filter1));
 
         var chain = new ActionFilterChain<DummyRequest, DummyResponse>() {
             @Override

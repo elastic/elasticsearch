@@ -136,6 +136,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -180,7 +181,8 @@ public class MetadataIndexTemplateService {
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -190,6 +192,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -333,10 +336,11 @@ public class MetadataIndexTemplateService {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateLifecycleIsOnlyAppliedOnDataStreams(
+                    validateLifecycle(
                         tempStateWithComponentTemplateAdded.metadata(),
                         composableTemplateName,
-                        composableTemplate
+                        composableTemplate,
+                        globalRetentionResolver.resolve(currentState)
                     );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
@@ -357,6 +361,12 @@ public class MetadataIndexTemplateService {
             if (validationFailure != null) {
                 throw validationFailure;
             }
+        }
+
+        if (finalComponentTemplate.template().lifecycle() != null) {
+            finalComponentTemplate.template()
+                .lifecycle()
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -715,7 +725,7 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycleIsOnlyAppliedOnDataStreams(currentState.metadata(), name, templateToValidate);
+        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionResolver.resolve(currentState));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
@@ -784,19 +794,25 @@ public class MetadataIndexTemplateService {
             );
     }
 
-    private static void validateLifecycleIsOnlyAppliedOnDataStreams(
+    // Visible for testing
+    static void validateLifecycle(
         Metadata metadata,
         String indexTemplateName,
-        ComposableIndexTemplate template
+        ComposableIndexTemplate template,
+        @Nullable DataStreamGlobalRetention globalRetention
     ) {
-        boolean hasLifecycle = (template.template() != null && template.template().lifecycle() != null)
-            || resolveLifecycle(template, metadata.componentTemplates()) != null;
-        if (hasLifecycle && template.getDataStreamTemplate() == null) {
-            throw new IllegalArgumentException(
-                "index template ["
-                    + indexTemplateName
-                    + "] specifies lifecycle configuration that can only be used in combination with a data stream"
-            );
+        DataStreamLifecycle lifecycle = template.template() != null && template.template().lifecycle() != null
+            ? template.template().lifecycle()
+            : resolveLifecycle(template, metadata.componentTemplates());
+        if (lifecycle != null) {
+            if (template.getDataStreamTemplate() == null) {
+                throw new IllegalArgumentException(
+                    "index template ["
+                        + indexTemplateName
+                        + "] specifies lifecycle configuration that can only be used in combination with a data stream"
+                );
+            }
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
         }
     }
 

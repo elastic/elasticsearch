@@ -44,15 +44,7 @@ public interface ExistingShardsAllocator {
      * Called during a round of allocation after attempting to allocate all the primaries but before any replicas, allowing the allocator
      * to prepare for replica allocation.
      */
-    @Deprecated(forRemoval = true)
-    default void afterPrimariesBeforeReplicas(@SuppressWarnings("unused") RoutingAllocation allocation) {
-        assert false : "must be overridden";
-        throw new UnsupportedOperationException();
-    }
-
-    default void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {
-        afterPrimariesBeforeReplicas(allocation);
-    }
+    void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate);
 
     /**
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.

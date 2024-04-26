@@ -47,6 +47,11 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public BooleanVector build() {
         if (nextIndex < 0) {
             throw new IllegalStateException("already closed");

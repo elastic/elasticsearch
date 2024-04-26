@@ -9,6 +9,7 @@ Rollup and downsampling are two different features that allow historical time ba
 From a high level rollup offers more functionality compared to downsampling, but downsampling is a more robust and easier to use feature.
 
 The following features are missing from downsampling:
+
 * Downsampling can only rollup metrics by the `_tsid` (combination of all dimensions) and `@timestamp` field. Rollup allows
   to group by other fields. For example `@timestamp` and hostname or any other combination of fields.
 * Downsampling doesn't support calendar time intervals. Only fixed intervals are supported.
@@ -19,6 +20,7 @@ The following features are missing from downsampling:
   over it can be downsampled. This is because downsampling can only occur when a backing index is marked read only.
 
 The following aspects of downsampling are easier or more robust:
+
 * No need to schedule jobs. Downsampling is integrated with Index Lifecycle Management (ILM) and Data Stream Lifecycle (DSL).
 * No separate search API. Downsampled indices can be accessed via the search api and es|ql.
 * No separate rollup configuration. Downsampling uses the time series dimension and metric configuration from the mapping.
@@ -101,7 +103,15 @@ PUT _index_template/sensor-template
   }
 }
 --------------------------------------------------
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE _index_template/sensor-template
+----
 // TEST
+////
 
 The downsample configuration is included in the above template for a <<tsds,time series data stream (TSDS)>>.
 Only the `downsampling` part is necessary to enable downsampling, which indicates when to downsample to what fixed interval.

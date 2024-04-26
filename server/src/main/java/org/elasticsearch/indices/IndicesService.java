@@ -668,7 +668,7 @@ public class IndicesService extends AbstractLifecycleComponent
         } finally {
             if (success == false) {
                 // ES-8334 complete, we're on the failure path and didn't create any shards to close
-                CloseUtils.executeDirectly(l -> indexService.close("plugins_failed", true, EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
+                CloseUtils.executeDirectly(l -> indexService.close("plugins_failed", true, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l));
             }
         }
     }
@@ -708,7 +708,7 @@ public class IndicesService extends AbstractLifecycleComponent
         try (
             // ES-8334 complete, we don't start any shards here, just auxiliary services
             Closeable ignored = () -> CloseUtils.executeDirectly(
-                l -> indexService.close("temp", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+                l -> indexService.close("temp", false, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l)
             )
         ) {
             return indexServiceConsumer.apply(indexService);
@@ -853,7 +853,9 @@ public class IndicesService extends AbstractLifecycleComponent
             );
             // ES-8334 complete, no shards created
             closeables.add(
-                () -> CloseUtils.executeDirectly(l -> service.close("metadata verification", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
+                () -> CloseUtils.executeDirectly(
+                    l -> service.close("metadata verification", false, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l)
+                )
             );
             service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metadata.equals(metadataUpdate) == false) {

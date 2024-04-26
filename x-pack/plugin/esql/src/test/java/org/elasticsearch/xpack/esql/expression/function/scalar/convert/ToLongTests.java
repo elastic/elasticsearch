@@ -218,6 +218,14 @@ public class ToLongTests extends AbstractFunctionTestCase {
             l -> l,
             List.of()
         );
+        TestCaseSupplier.unary(
+            suppliers,
+            evaluatorName.apply("Integer"),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, EsqlDataTypes.COUNTER_INTEGER)),
+            DataTypes.LONG,
+            l -> ((Integer) l).longValue(),
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

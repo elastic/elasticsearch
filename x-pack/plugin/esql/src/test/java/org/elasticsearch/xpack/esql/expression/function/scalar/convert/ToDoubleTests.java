@@ -123,6 +123,22 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
             l -> l,
             List.of()
         );
+        TestCaseSupplier.unary(
+            suppliers,
+            evaluatorName.apply("Integer"),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), EsqlDataTypes.COUNTER_INTEGER)),
+            DataTypes.DOUBLE,
+            l -> ((Integer) l).doubleValue(),
+            List.of()
+        );
+        TestCaseSupplier.unary(
+            suppliers,
+            evaluatorName.apply("Long"),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomLongBetween(1, 1000), EsqlDataTypes.COUNTER_LONG)),
+            DataTypes.DOUBLE,
+            l -> ((Long) l).doubleValue(),
+            List.of()
+        );
 
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }

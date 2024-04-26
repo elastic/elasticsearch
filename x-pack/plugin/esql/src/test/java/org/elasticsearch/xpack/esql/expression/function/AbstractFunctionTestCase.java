@@ -946,7 +946,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or datetime or numeric or string"
         ),
-        // to_int, to_long, to_double
+        // to_int
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,
@@ -962,9 +962,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or counter_integer or datetime or numeric or string"
         ),
+        // to_long
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,
+                EsqlDataTypes.COUNTER_INTEGER,
                 EsqlDataTypes.COUNTER_LONG,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
@@ -975,12 +977,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 DataTypes.UNSIGNED_LONG,
                 DataTypes.NULL
             ),
-            "boolean or counter_long or datetime or numeric or string"
+            "boolean or counter_integer or counter_long or datetime or numeric or string"
         ),
+        // to_double
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 EsqlDataTypes.COUNTER_DOUBLE,
+                EsqlDataTypes.COUNTER_INTEGER,
+                EsqlDataTypes.COUNTER_LONG,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
                 DataTypes.INTEGER,
@@ -990,7 +995,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 DataTypes.UNSIGNED_LONG,
                 DataTypes.NULL
             ),
-            "boolean or counter_double or datetime or numeric or string"
+            "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
         ),
         Map.entry(
             Set.of(

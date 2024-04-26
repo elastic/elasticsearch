@@ -45,7 +45,8 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
-        Map.entry(EsqlDataTypes.COUNTER_LONG, (field, source) -> field)
+        Map.entry(EsqlDataTypes.COUNTER_LONG, (field, source) -> field),
+        Map.entry(EsqlDataTypes.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -69,7 +70,17 @@ public class ToLong extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer", "counter_long" },
+            type = {
+                "boolean",
+                "date",
+                "keyword",
+                "text",
+                "double",
+                "long",
+                "unsigned_long",
+                "integer",
+                "counter_integer",
+                "counter_long" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

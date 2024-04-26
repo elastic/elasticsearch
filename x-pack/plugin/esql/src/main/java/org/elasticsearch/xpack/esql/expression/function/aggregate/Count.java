@@ -92,13 +92,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> EsqlDataTypes.isCounterType(dt) == false,
-            sourceText(),
-            DEFAULT,
-            "any type except counter_long or counter_integer or counter_double"
-        );
+        return isType(field(), dt -> EsqlDataTypes.isCounterType(dt) == false, sourceText(), DEFAULT, "any type except counter types");
     }
 
     @Override

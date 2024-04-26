@@ -74,7 +74,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long], found value [first_name] type [keyword]",
+            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+                + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
@@ -380,8 +381,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long or counter_long or"
-                + " counter_integer or counter_double], found value [hire_date] type [datetime]",
+            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long or counter types],"
+                + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
     }
@@ -487,26 +488,24 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM tests | STATS min(network.bytes_in)", tsdb),
             equalTo(
-                "1:20: argument of [min(network.bytes_in)] must be "
-                    + "[datetime or numeric except unsigned_long or counter_long or counter_integer or counter_double], "
-                    + "found value [min(network.bytes_in)] type [counter_long]"
+                "1:20: argument of [min(network.bytes_in)] must be [datetime or numeric except unsigned_long or counter types],"
+                    + " found value [min(network.bytes_in)] type [counter_long]"
             )
         );
 
         assertThat(
             error("FROM tests | STATS max(network.bytes_in)", tsdb),
             equalTo(
-                "1:20: argument of [max(network.bytes_in)] must be "
-                    + "[datetime or numeric except unsigned_long or counter_long or counter_integer or counter_double], "
-                    + "found value [max(network.bytes_in)] type [counter_long]"
+                "1:20: argument of [max(network.bytes_in)] must be [datetime or numeric except unsigned_long or counter types],"
+                    + " found value [max(network.bytes_in)] type [counter_long]"
             )
         );
 
         assertThat(
             error("FROM tests | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:20: argument of [count(network.bytes_out)] must be [any type except counter_long or counter_integer"
-                    + " or counter_double], found value [network.bytes_out] type [counter_long]"
+                "1:20: argument of [count(network.bytes_out)] must be [any type except counter types]," +
+                    " found value [network.bytes_out] type [counter_long]"
             )
         );
     }

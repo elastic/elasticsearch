@@ -55,6 +55,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
         private final int id;
         private final String symbol;
+        // Temporary mapping to the old enum, to satisfy the superclass constructor signature.
         private final BinaryComparisonProcessor.BinaryComparisonOperation shim;
         private final BinaryOperatorConstructor constructor;
 

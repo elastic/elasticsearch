@@ -154,10 +154,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 record IndexInfo(String name, Instant timeSeriesStart, Instant timeSeriesEnd) implements Comparable<IndexInfo> {
                     @Override
                     public int compareTo(IndexInfo o) {
-                        return Comparator
-                            .comparing(IndexInfo::timeSeriesStart)
-                            .thenComparing(IndexInfo::timeSeriesEnd)
-                            .compare(this, o);
+                        return Comparator.comparing(IndexInfo::timeSeriesStart).thenComparing(IndexInfo::timeSeriesEnd).compare(this, o);
                     }
                 }
 
@@ -168,7 +165,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 // We need indices to be sorted by time series range
                 // to produce temporal ranges.
                 // But it is not enforced in API, so we explicitly sort here.
-                var sortedRanges = dataStream.getIndices().stream()
+                var sortedRanges = dataStream.getIndices()
+                    .stream()
                     .map(metadata::index)
                     .filter(m -> m.getIndexMode() == IndexMode.TIME_SERIES)
                     .map(m -> new IndexInfo(m.getIndex().getName(), m.getTimeSeriesStart(), m.getTimeSeriesEnd()))

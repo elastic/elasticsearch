@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.index.mapper.IgnoredValuesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.IpScriptFieldType;
@@ -259,7 +259,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(TimeSeriesRoutingHashFieldMapper.NAME, TimeSeriesRoutingHashFieldMapper.PARSER);
         builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
         builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);
-        builtInMetadataMappers.put(IgnoredValuesFieldMapper.NAME, IgnoredValuesFieldMapper.PARSER);
+        builtInMetadataMappers.put(IgnoredSourceFieldMapper.NAME, IgnoredSourceFieldMapper.PARSER);
         builtInMetadataMappers.put(NestedPathFieldMapper.NAME, NestedPathFieldMapper.PARSER);
         builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);

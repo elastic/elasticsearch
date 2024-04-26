@@ -26,7 +26,7 @@ import static java.util.Collections.emptyList;
  */
 public abstract class IgnoreMalformedStoredValues {
     public static StoredField storedField(String name, XContentParser parser) throws IOException {
-        return FieldDataParseHelper.storedField(name(name), parser);
+        return XContentDataHelper.storedField(name(name), parser);
     }
 
     /**
@@ -99,7 +99,7 @@ public abstract class IgnoreMalformedStoredValues {
         public void write(XContentBuilder b) throws IOException {
             for (Object v : values) {
                 if (v instanceof BytesRef r) {
-                    FieldDataParseHelper.decodeAndWrite(b, r);
+                    XContentDataHelper.decodeAndWrite(b, r);
                 } else {
                     b.value(v);
                 }

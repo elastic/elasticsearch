@@ -27,7 +27,7 @@ import java.util.Collections;
  * This overlaps with {@link IgnoredFieldMapper} that tracks just the ignored field names. It's worth evaluating
  * if we can replace it for all use cases to avoid duplication, assuming that the storage tradeoff is favorable.
  */
-public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
+public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     // This factor is used to combine two offsets within the same integer:
     // - the offset of the end of the parent field within the field name (N / PARENT_OFFSET_IN_NAME_OFFSET)
@@ -37,7 +37,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_ignored_values";
 
-    public static final IgnoredValuesFieldMapper INSTANCE = new IgnoredValuesFieldMapper();
+    public static final IgnoredSourceFieldMapper INSTANCE = new IgnoredSourceFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(context -> INSTANCE);
 
@@ -80,7 +80,7 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private IgnoredValuesFieldMapper() {
+    private IgnoredSourceFieldMapper() {
         super(IgnoredValuesFieldMapperType.INSTANCE);
     }
 

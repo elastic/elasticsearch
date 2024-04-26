@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.index.mapper.IgnoredValuesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -86,7 +86,7 @@ public class IndicesModuleTests extends ESTestCase {
         TimeSeriesRoutingHashFieldMapper.NAME,
         IndexFieldMapper.NAME,
         SourceFieldMapper.NAME,
-        IgnoredValuesFieldMapper.NAME,
+        IgnoredSourceFieldMapper.NAME,
         NestedPathFieldMapper.NAME,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,

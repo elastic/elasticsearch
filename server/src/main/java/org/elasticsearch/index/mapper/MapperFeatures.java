@@ -19,6 +19,6 @@ import java.util.Set;
 public class MapperFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(IgnoredValuesFieldMapper.TRACK_IGNORED_VALUES);
+        return Set.of(IgnoredSourceFieldMapper.TRACK_IGNORED_VALUES);
     }
 }

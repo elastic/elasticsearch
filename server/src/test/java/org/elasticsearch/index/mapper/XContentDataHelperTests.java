@@ -23,7 +23,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FieldDataParseHelperTests extends ESTestCase {
+public class XContentDataHelperTests extends ESTestCase {
 
     private String encodeAndDecode(String value) throws IOException {
         XContentParser p = createParser(JsonXContent.jsonXContent, "{ \"foo\": " + value + " }");
@@ -34,7 +34,7 @@ public class FieldDataParseHelperTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
-        FieldDataParseHelper.decodeAndWrite(builder, FieldDataParseHelper.encodeToken(p));
+        XContentDataHelper.decodeAndWrite(builder, XContentDataHelper.encodeToken(p));
         return Strings.toString(builder);
     }
 
@@ -94,7 +94,7 @@ public class FieldDataParseHelperTests extends ESTestCase {
         assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
-        FieldDataParseHelper.decodeAndWrite(builder, FieldDataParseHelper.encodeToken(p));
+        XContentDataHelper.decodeAndWrite(builder, XContentDataHelper.encodeToken(p));
         assertEquals(object, Strings.toString(builder));
     }
 

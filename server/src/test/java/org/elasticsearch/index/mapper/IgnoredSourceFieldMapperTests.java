@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Base64;
 
-public class IgnoredValuedFieldMapperTests extends MapperServiceTestCase {
+public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     private String getSyntheticSource(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         DocumentMapper documentMapper = createMapperService(

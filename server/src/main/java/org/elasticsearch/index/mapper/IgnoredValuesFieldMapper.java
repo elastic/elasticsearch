@@ -122,6 +122,8 @@ public class IgnoredValuesFieldMapper extends MetadataFieldMapper {
         return new NameValue(name, parentOffset, value);
     }
 
+    // This mapper doesn't contribute to source directly as it has no access to the object structure. Instead, its contents
+    // are loaded by SourceLoader and passed to object mappers that, in turn, write their ignore fields at the appropriate level.
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return SourceLoader.SyntheticFieldLoader.NOTHING;

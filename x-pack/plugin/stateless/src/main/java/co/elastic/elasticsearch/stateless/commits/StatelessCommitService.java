@@ -487,56 +487,62 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
         // todo: reevaluate this.
         blobReference.incRef();
-        var bccUpload = new BatchedCompoundCommitUpload(
-            commitState,
-            ActionListener.runAfter(
-                ActionListener.wrap(
-                    uploadedBcc -> commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc),
-                    new Consumer<>() {
-                        @Override
-                        public void accept(Exception e) {
-                            assert assertClosedOrRejectionFailure(e);
-                            ShardCommitState.State state = commitState.state;
-                            if (commitState.isClosed()) {
-                                logger.debug(
-                                    () -> format(
-                                        "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
-                                        virtualBcc.getShardId(),
-                                        virtualBcc.getPrimaryTermAndGeneration().generation(),
-                                        state
-                                    ),
-                                    e
-                                );
-                            } else {
-                                logger.warn(
-                                    () -> format(
-                                        "%s failed to upload BCC [%s] to object store for unexpected reason",
-                                        virtualBcc.getShardId(),
-                                        virtualBcc.getPrimaryTermAndGeneration().generation()
-                                    ),
-                                    e
-                                );
-                            }
-                        }
-
-                        private boolean assertClosedOrRejectionFailure(final Exception e) {
-                            final var closed = commitState.isClosed();
-                            assert closed
-                                || e instanceof EsRejectedExecutionException
-                                || e instanceof IndexNotFoundException
-                                || e instanceof ShardNotFoundException : closed + " vs " + e;
-                            return true;
-                        }
-                    }
-                ),
-                () -> {
-                    IOUtils.closeWhileHandlingException(virtualBcc);
-                    blobReference.decRef();
+        var bccUpload = new BatchedCompoundCommitUpload(commitState, ActionListener.runAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(BatchedCompoundCommit uploadedBcc) {
+                try {
+                    commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
+                } catch (Exception e) {
+                    // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
+                    logger.warn(
+                        () -> format(
+                            "%s failed to send new uploaded BCC [%s] notification",
+                            virtualBcc.getShardId(),
+                            virtualBcc.getPrimaryTermAndGeneration().generation()
+                        ),
+                        e
+                    );
                 }
-            ),
-            virtualBcc,
-            TimeValue.timeValueMillis(50)
-        );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert assertClosedOrRejectionFailure(e);
+                ShardCommitState.State state = commitState.state;
+                if (commitState.isClosed()) {
+                    logger.debug(
+                        () -> format(
+                            "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
+                            virtualBcc.getShardId(),
+                            virtualBcc.getPrimaryTermAndGeneration().generation(),
+                            state
+                        ),
+                        e
+                    );
+                } else {
+                    logger.warn(
+                        () -> format(
+                            "%s failed to upload BCC [%s] to object store for unexpected reason",
+                            virtualBcc.getShardId(),
+                            virtualBcc.getPrimaryTermAndGeneration().generation()
+                        ),
+                        e
+                    );
+                }
+            }
+
+            private boolean assertClosedOrRejectionFailure(final Exception e) {
+                final var closed = commitState.isClosed();
+                assert closed
+                    || e instanceof EsRejectedExecutionException
+                    || e instanceof IndexNotFoundException
+                    || e instanceof ShardNotFoundException : closed + " vs " + e;
+                return true;
+            }
+        }, () -> {
+            IOUtils.closeWhileHandlingException(virtualBcc);
+            blobReference.decRef();
+        }), virtualBcc, TimeValue.timeValueMillis(50));
         bccUpload.run();
     }
 

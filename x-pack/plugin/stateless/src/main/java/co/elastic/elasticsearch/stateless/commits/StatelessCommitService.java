@@ -225,6 +225,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.statelessUploadDelayed = STATELESS_UPLOAD_DELAYED.get(settings);
+        logger.info("[{}] is [{}]", STATELESS_UPLOAD_DELAYED.getKey(), statelessUploadDelayed ? "enabled" : "disabled");
         this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
         if (statelessUploadDelayed) {
             this.scheduledUploadMonitor = new ScheduledUploadMonitor(

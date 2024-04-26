@@ -107,6 +107,29 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         }
     }
 
+    public void testIndexCanBeCleanedUpAfterTest() {
+        startMasterAndIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
+                .build()
+        );
+        startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(10, 100));
+        refresh(indexName);
+
+        final String anotherIndexName = randomIdentifier();
+        createIndex(anotherIndexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(anotherIndexName);
+        indexDocs(anotherIndexName, randomIntBetween(10, 100));
+        refresh(anotherIndexName);
+        // test should not fail in clean up because of the non-flushed commit
+    }
+
     public void testBCCDoesNotHoldHoldCommitReferencesAfterIndexShardClose() throws Exception {
         final String indexNode = startMasterAndIndexNode(
             Settings.builder()

@@ -1045,8 +1045,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testMatchedFieldsUnified() throws Exception {
-        // unified highlighter doesn't support require_field_match when matched fields are used
-        checkMatchedFieldsCase(randomBoolean(), "unified");
+        // unified highlighter requires that "require_field_match" is true when matched fields are used
+        checkMatchedFieldsCase(true, "unified");
     }
 
     private void checkMatchedFieldsCase(boolean requireFieldMatch, String type) throws Exception {

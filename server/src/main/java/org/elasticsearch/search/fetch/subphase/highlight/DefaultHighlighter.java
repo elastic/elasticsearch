@@ -21,6 +21,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,6 +48,9 @@ import java.util.function.Predicate;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class DefaultHighlighter implements Highlighter {
+
+    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields");
+
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
         return true;
@@ -147,8 +151,11 @@ public class DefaultHighlighter implements Highlighter {
         builder.withFormatter(passageFormatter);
 
         Set<String> matchedFields = fieldContext.field.fieldOptions().matchedFields();
-        // Masked fields require that the default field matcher is used
         if (matchedFields != null && matchedFields.isEmpty() == false) {
+            // Masked fields require that the default field matcher is used
+            if (fieldContext.field.fieldOptions().requireFieldMatch() == false) {
+                throw new IllegalArgumentException("Matched fields are not supported when [require_field_match] is set to [false]");
+            }
             builder.withMaskedFieldsFunc((fieldName) -> fieldName.equals(fieldContext.fieldName) ? matchedFields : Collections.emptySet());
         } else {
             builder.withFieldMatcher(fieldMatcher(fieldContext));

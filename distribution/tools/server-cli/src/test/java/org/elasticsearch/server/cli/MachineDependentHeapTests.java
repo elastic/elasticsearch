@@ -90,13 +90,4 @@ public class MachineDependentHeapTests extends ESTestCase {
     private static SystemMemoryInfo systemMemoryInGigabytes(double gigabytes) {
         return () -> (long) (gigabytes * 1024 * 1024 * 1024);
     }
-
-    private static Path configPath() {
-        URL resource = MachineDependentHeapTests.class.getResource("/config/elasticsearch.yml");
-        try {
-            return Paths.get(resource.toURI()).getParent();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

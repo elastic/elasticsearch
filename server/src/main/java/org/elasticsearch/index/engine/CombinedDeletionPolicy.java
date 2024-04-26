@@ -42,7 +42,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
+    private final Map<IndexCommit, Integer> acquiredIndexCommits; // Number of references held against each commit point.
 
     interface CommitsListener {
 
@@ -71,7 +71,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.commitsListener = commitsListener;
-        this.snapshottedCommits = new HashMap<>();
+        this.acquiredIndexCommits = new HashMap<>();
     }
 
     @Override
@@ -120,7 +120,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
             for (int i = 0; i < keptPosition; i++) {
                 final IndexCommit commit = commits.get(i);
-                if (snapshottedCommits.containsKey(commit) == false) {
+                if (acquiredIndexCommits.containsKey(commit) == false) {
                     deleteCommit(commit);
                     if (deletedCommits == null) {
                         deletedCommits = new ArrayList<>();
@@ -213,7 +213,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
-        snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
+        acquiredIndexCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
         return wrapCommit(snapshotting);
     }
 
@@ -228,15 +228,15 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      */
     synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
         final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).getIndexCommit();
-        assert snapshottedCommits.containsKey(releasingCommit)
+        assert acquiredIndexCommits.containsKey(releasingCommit)
             : "Release non-snapshotted commit;"
                 + "snapshotted commits ["
-                + snapshottedCommits
+                + acquiredIndexCommits
                 + "], releasing commit ["
                 + releasingCommit
                 + "]";
         // release refCount
-        final Integer refCount = snapshottedCommits.compute(releasingCommit, (key, count) -> {
+        final Integer refCount = acquiredIndexCommits.compute(releasingCommit, (key, count) -> {
             if (count == 1) {
                 return null;
             }
@@ -296,10 +296,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Checks whether the deletion policy is holding on to snapshotted commits
+     * Checks whether the deletion policy is holding on to acquired index commits
      */
-    synchronized boolean hasSnapshottedCommits() {
-        return snapshottedCommits.isEmpty() == false;
+    synchronized boolean hasAcquiredIndexCommits() {
+        return acquiredIndexCommits.isEmpty() == false;
     }
 
     /**

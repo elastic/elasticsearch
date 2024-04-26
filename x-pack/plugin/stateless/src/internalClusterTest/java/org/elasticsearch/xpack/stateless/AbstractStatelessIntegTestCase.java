@@ -145,6 +145,14 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return List.of(SystemIndexTestPlugin.class, BlobCachePlugin.class, Stateless.class, MockTransportService.TestPlugin.class);
     }
 
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        if (internalCluster().size() > 0) {
+            flush(); // clear out index commits that could be held by current VBCC
+        }
+        super.beforeIndexDeletion();
+    }
+
     protected static OperationPurpose operationPurpose;
 
     @BeforeClass

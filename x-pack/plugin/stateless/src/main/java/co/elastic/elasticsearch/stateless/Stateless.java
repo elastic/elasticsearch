@@ -826,6 +826,7 @@ public class Stateless extends Plugin
                 public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
                     if (indexShard != null) {
                         statelessCommitService.unregisterNewCommitSuccessListener(shardId);
+                        statelessCommitService.closeShard(shardId);
                     }
                 }
 

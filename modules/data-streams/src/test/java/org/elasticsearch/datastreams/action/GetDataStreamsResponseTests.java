@@ -160,9 +160,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(
-                        DataStream.INDICES_FIELD.getPreferredName()
-                    );
+                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
                     Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                     assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
                     assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
@@ -253,9 +251,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(
-                        DataStream.INDICES_FIELD.getPreferredName()
-                    );
+                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
                     Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                     assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
                     assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));

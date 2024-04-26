@@ -221,6 +221,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
         addClassCodebase(codebases, "elasticsearch-preallocate", "org.elasticsearch.preallocate.Preallocate");
         addClassCodebase(codebases, "elasticsearch-vec", "org.elasticsearch.vec.VectorScorer");
+        addClassCodebase(codebases, "elasticsearch-logstash-bridge", "org.elasticsearch.logstashbridge.LogstashBridge");
         addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }

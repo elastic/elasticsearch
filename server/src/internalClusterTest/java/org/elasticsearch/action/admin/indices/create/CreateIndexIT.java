@@ -337,11 +337,23 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         // all should fail
         settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "all").build();
-        assertFalse(indicesAdmin().prepareCreate("test-idx-2").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged());
+        assertFalse(
+            indicesAdmin().prepareCreate("test-idx-2")
+                .setSettings(settings)
+                .setTimeout(TimeValue.timeValueMillis(100))
+                .get()
+                .isShardsAcknowledged()
+        );
 
         // the numeric equivalent of all should also fail
         settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas + 1)).build();
-        assertFalse(indicesAdmin().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged());
+        assertFalse(
+            indicesAdmin().prepareCreate("test-idx-3")
+                .setSettings(settings)
+                .setTimeout(TimeValue.timeValueMillis(100))
+                .get()
+                .isShardsAcknowledged()
+        );
     }
 
     public void testInvalidPartitionSize() {

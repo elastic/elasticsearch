@@ -2,4 +2,4 @@
 
 *Description*
 
-Converts a number in radians to degrees.
+Converts a number in {wikipedia}/Radian[radians] to {wikipedia}/Degree_(angle)[degrees].

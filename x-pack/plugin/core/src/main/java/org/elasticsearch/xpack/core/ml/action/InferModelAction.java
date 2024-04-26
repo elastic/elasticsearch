@@ -414,7 +414,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         }
 
         public static class Builder {
-            private List<InferenceResults> inferenceResults = new ArrayList<>();
+            private final List<InferenceResults> inferenceResults = new ArrayList<>();
             private String id;
             private boolean isLicensed;
 

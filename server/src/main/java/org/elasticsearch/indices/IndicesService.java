@@ -402,7 +402,6 @@ public class IndicesService extends AbstractLifecycleComponent
             });
         }
         try {
-            // infinite wait
             latch.await();
         } catch (InterruptedException e) {
             // continue with shutdown

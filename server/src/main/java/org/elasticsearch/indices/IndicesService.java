@@ -405,7 +405,8 @@ public class IndicesService extends AbstractLifecycleComponent
             // infinite wait
             latch.await();
         } catch (InterruptedException e) {
-            // ignore
+            // continue with shutdown
+            Thread.currentThread().interrupt();
         } finally {
             indicesStopExecutor.shutdown();
         }

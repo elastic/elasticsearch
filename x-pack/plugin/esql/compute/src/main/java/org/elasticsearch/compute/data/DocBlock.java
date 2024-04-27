@@ -161,6 +161,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
+        public long estimatedBytes() {
+            return DocVector.BASE_RAM_BYTES_USED + shards.estimatedBytes() + segments.estimatedBytes() + docs.estimatedBytes();
+        }
+
+        @Override
         public DocBlock build() {
             // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
             IntVector shards = null;

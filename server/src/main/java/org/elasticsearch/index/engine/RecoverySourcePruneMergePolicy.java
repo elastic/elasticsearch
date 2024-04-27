@@ -18,12 +18,14 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -31,6 +33,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
@@ -40,6 +43,9 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
+    private final String recoverySourceField;
+    private final Supplier<Query> retainSourceQuerySupplier;
+
     RecoverySourcePruneMergePolicy(
         String recoverySourceField,
         boolean pruneIdField,
@@ -53,6 +59,31 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier);
             }
         });
+        this.recoverySourceField = recoverySourceField;
+        this.retainSourceQuerySupplier = retainSourceQuerySupplier;
+    }
+
+    @Override
+    public int numDeletesToMerge(SegmentCommitInfo info, int delCount, IOSupplier<CodecReader> readerSupplier) throws IOException {
+        final CodecReader reader = readerSupplier.get();
+        // treat documents with _recovery_source as deletes in merges
+        final int numRecoverySourcesToDrop = numRecoverySourcesToDrop(reader);
+        if (numRecoverySourcesToDrop == reader.maxDoc()) {
+            return numRecoverySourcesToDrop;
+        }
+        final int numDeletesToMerge = super.numDeletesToMerge(info, delCount, readerSupplier);
+        return Math.max(numRecoverySourcesToDrop, numDeletesToMerge);
+    }
+
+    private int numRecoverySourcesToDrop(CodecReader reader) throws IOException {
+        final IndexSearcher searcher = new IndexSearcher(reader);
+        searcher.setQueryCache(null);
+        final int totalRecoverySources = searcher.count(new FieldExistsQuery(recoverySourceField));
+        if (totalRecoverySources == 0) {
+            return 0;
+        }
+        final int numRecoverySourcesToKeep = searcher.count(retainSourceQuerySupplier.get());
+        return totalRecoverySources - numRecoverySourcesToKeep;
     }
 
     private static CodecReader wrapReader(

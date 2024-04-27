@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -19,12 +20,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -173,6 +177,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneNone() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setMergePolicy(randomFrom(new LogByteSizeMergePolicy(), new TieredMergePolicy()));
             iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", false, MatchAllDocsQuery::new, iwc.getMergePolicy()));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
@@ -199,6 +204,80 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         assertEquals(i, extra_source.nextDoc());
                     }
                     assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
+                }
+            }
+        }
+    }
+
+    public void testPruneMergedSegments() throws Exception {
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", false, MatchAllDocsQuery::new, iwc.getMergePolicy()));
+            int numDocs = randomIntBetween(20, 25);
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    if (i > 0 && randomBoolean()) {
+                        writer.flush();
+                    }
+                    Document doc = new Document();
+                    doc.add(new StoredField("source", "hello world"));
+                    doc.add(new StoredField("extra_source", "hello world"));
+                    doc.add(new NumericDocValuesField("extra_source", 1));
+                    doc.add(new LongPoint("seq_no", i));
+                    doc.add(new NumericDocValuesField("seq_no", i));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+                writer.commit();
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    assertEquals(1, reader.leaves().size());
+                    NumericDocValues extraSource = reader.leaves().get(0).reader().getNumericDocValues("extra_source");
+                    assertNotNull(extraSource);
+                    StoredFields storedFields = reader.storedFields();
+                    for (int i = 0; i < reader.maxDoc(); i++) {
+                        Document document = storedFields.document(i);
+                        Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
+                        assertTrue(collect.contains("source"));
+                        assertTrue(collect.contains("extra_source"));
+                        assertEquals(i, extraSource.nextDoc());
+                    }
+                    assertEquals(DocIdSetIterator.NO_MORE_DOCS, extraSource.nextDoc());
+                }
+            }
+            int fromSeqNo = between(15, 20);
+            iwc = newIndexWriterConfig();
+            iwc.setMergePolicy(
+                new RecoverySourcePruneMergePolicy(
+                    "extra_source",
+                    false,
+                    () -> LongPoint.newRangeQuery("seq_no", fromSeqNo, Long.MAX_VALUE),
+                    new TieredMergePolicy()
+                )
+            );
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                writer.forceMerge(1);
+                writer.commit();
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    assertEquals(1, reader.leaves().size());
+                    LeafReader leaf = reader.leaves().get(0).reader();
+                    assertEquals(numDocs, leaf.maxDoc());
+                    NumericDocValues extractSource = leaf.getNumericDocValues("extra_source");
+                    NumericDocValues seqNos = leaf.getNumericDocValues("seq_no");
+                    assertNotNull(extractSource);
+                    StoredFields storedFields = reader.storedFields();
+                    for (int i = 0; i < numDocs; i++) {
+                        Document document = storedFields.document(i);
+                        Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
+                        assertTrue(collect.contains("source"));
+                        assertTrue(seqNos.advanceExact(i));
+                        if (seqNos.longValue() < fromSeqNo) {
+                            assertFalse(collect.contains("extra_source"));
+                            assertFalse(extractSource.advanceExact(i));
+                        } else {
+                            assertTrue(collect.contains("extra_source"));
+                            assertTrue(extractSource.advanceExact(i));
+                        }
+                    }
                 }
             }
         }

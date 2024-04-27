@@ -18,7 +18,7 @@ refer to
 
 You can create {transform} rules under **{stack-manage-app} > {rules-ui}**.
 
-. Click *Create rule* window and select the {transform} health rule type.
+. Click *Create rule* and select the {transform} health rule type.
 
 . Give a name to the rule and optionally provide tags.
 

@@ -32,7 +32,7 @@ $endif$
  */
 final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
     private final $Type$ArrayVector vector;
 

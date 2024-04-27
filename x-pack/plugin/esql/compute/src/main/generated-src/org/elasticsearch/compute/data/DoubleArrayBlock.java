@@ -20,7 +20,7 @@ import java.util.BitSet;
  */
 final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
 
     private final DoubleArrayVector vector;
 

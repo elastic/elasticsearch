@@ -921,6 +921,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexEventListener listener;
             synchronized (this) {
                 if (hasIndex(index) == false) {
+                    // ES-8334 TODO must complete listener here, but ideally outside mutex
                     return;
                 }
 

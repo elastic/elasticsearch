@@ -383,6 +383,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     removeShard(shardId, reason, shardCloseExecutor, l));
                 }
             }
+        } else {
+            closeListener.onResponse(null);
         }
     }
 
@@ -577,6 +579,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
         final IndexShard indexShard = shards.get(shardId);
         if (indexShard == null) {
+            closeListener.onResponse(null);
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);

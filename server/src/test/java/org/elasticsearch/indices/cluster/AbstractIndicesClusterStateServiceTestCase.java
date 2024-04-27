@@ -227,6 +227,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 newIndices.remove(index.getUUID());
                 indices = unmodifiableMap(newIndices);
             }
+            shardsClosedListener.onResponse(null);
         }
 
         @Override

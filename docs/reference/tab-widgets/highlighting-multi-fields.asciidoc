@@ -313,7 +313,7 @@ GET index2/_search
     "fields": {
       "comment": {
         "type" : "fvh",
-        "matched_fields": ["comment", comment.english"]
+        "matched_fields": ["comment", "comment.english"]
       }
     }
   }

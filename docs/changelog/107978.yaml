@@ -1,0 +1,6 @@
+pr: 107978
+summary: Drop shards close timeout when stopping node.
+area: Data
+type: enhancement
+issues:
+ - 107938

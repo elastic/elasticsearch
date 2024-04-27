@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.TableColumnAttribute;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -26,9 +28,11 @@ import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -45,6 +49,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -86,6 +91,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -312,10 +318,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveRefs extends BaseAnalyzerRule {
+    private static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
             final List<Attribute> childrenOutput = new ArrayList<>();
 
             for (LogicalPlan child : plan.children()) {
@@ -349,6 +358,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof MvExpand p) {
                 return resolveMvExpand(p, childrenOutput);
+            }
+
+            if (plan instanceof Lookup p) {
+                return resolveLookup(context.configuration(), p, childrenOutput);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -405,6 +418,52 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return a;
+        }
+
+        private LogicalPlan resolveLookup(EsqlConfiguration config, Lookup p, List<Attribute> childrenOutput) {
+            if (p.expressionsResolved()) {
+                return p;
+            }
+            String tableName = p.tableName().name();
+            Map<String, Column> table = config.tables().get(tableName);
+            if (table == null) {
+                return p;
+            }
+            table = new TreeMap<>(table);
+            // TODO what's the right type for this thing?!
+            Attribute resolvedTableName = new MetadataAttribute(p.tableName().source(), tableName, KEYWORD, false);
+            List<Attribute> matchFields = new ArrayList<>(p.matchFields().size());
+            List<TableColumnAttribute> matchValues = new ArrayList<>(p.matchFields().size());
+            for (Attribute m : p.matchFields()) {
+                Column c = table.remove(m.name());
+                if (c == null) {
+                    // Can't resolve
+                    matchFields.add(m);
+                    continue;
+                }
+                if (m instanceof UnresolvedAttribute ua) {
+                    m = maybeResolveAttribute(ua, childrenOutput);
+                }
+
+                matchFields.add(m);
+                matchValues.add(new TableColumnAttribute(m.source(), m.name(), c.type(), null, c.values()));
+                if (m.dataType() != c.type()) {
+                    throw new IllegalArgumentException("NOCOMMIT how do I make this a more normal failure?");
+                }
+            }
+            List<TableColumnAttribute> mergeValues = new ArrayList<>(table.size());
+            for (Map.Entry<String, Column> unmatched : table.entrySet()) {
+                mergeValues.add(
+                    new TableColumnAttribute(
+                        p.source(),
+                        unmatched.getKey(),
+                        unmatched.getValue().type(),
+                        null,
+                        unmatched.getValue().values()
+                    )
+                );
+            }
+            return new Lookup(p.source(), p.child(), resolvedTableName, matchFields, matchValues, mergeValues);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

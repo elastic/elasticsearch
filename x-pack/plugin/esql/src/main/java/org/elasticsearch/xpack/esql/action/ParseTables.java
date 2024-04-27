@@ -14,11 +14,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.Map;
@@ -97,6 +99,7 @@ class ParseTables {
 
     private Column parseColumn(String type) throws IOException {
         return switch (type) {
+            case "int" -> parseIntColumn();
             case "keyword" -> parseKeywordColumn();
             case "long" -> parseLongColumn();
             default -> throw new XContentParseException(p.getTokenLocation(), "unsupported type [" + type + "]");
@@ -113,7 +116,7 @@ class ParseTables {
             while (true) {
                 switch (p.nextToken()) {
                     case END_ARRAY -> {
-                        return new Column("keyword", builder.build());
+                        return new Column(DataTypes.KEYWORD, builder.build());
                     }
                     case START_ARRAY -> parseTextArray(builder, scratch);
                     case VALUE_NULL -> builder.appendNull();
@@ -149,6 +152,48 @@ class ParseTables {
         builder.appendBytesRef(scratch.get());
     }
 
+    private Column parseIntColumn() throws IOException {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(100)) { // TODO 100?!
+            XContentParser.Token token = p.nextToken();
+            if (token != XContentParser.Token.START_ARRAY) {
+                throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.START_ARRAY);
+            }
+            while (true) {
+                switch (p.nextToken()) {
+                    case END_ARRAY -> {
+                        return new Column(DataTypes.INTEGER, builder.build());
+                    }
+                    case START_ARRAY -> parseIntArray(builder);
+                    case VALUE_NULL -> builder.appendNull();
+                    case VALUE_NUMBER -> appendInt(builder);
+                    default -> throw new XContentParseException(p.getTokenLocation(), "expected number, array of numbers, or null");
+                }
+            }
+        }
+    }
+
+    private void parseIntArray(IntBlock.Builder builder) throws IOException {
+        builder.beginPositionEntry();
+        while (true) {
+            switch (p.nextToken()) {
+                case END_ARRAY -> {
+                    builder.endPositionEntry();
+                    return;
+                }
+                case VALUE_NUMBER -> appendInt(builder);
+                default -> throw new XContentParseException(p.getTokenLocation(), "expected number");
+            }
+        }
+    }
+
+    private void appendInt(IntBlock.Builder builder) throws IOException {
+        length += Integer.BYTES;
+        if (length > MAX_LENGTH) {
+            throw new XContentParseException(p.getTokenLocation(), "tables too big");
+        }
+        builder.appendInt(p.intValue());
+    }
+
     private Column parseLongColumn() throws IOException {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(100)) { // TODO 100?!
             XContentParser.Token token = p.nextToken();
@@ -158,7 +203,7 @@ class ParseTables {
             while (true) {
                 switch (p.nextToken()) {
                     case END_ARRAY -> {
-                        return new Column("long", builder.build());
+                        return new Column(DataTypes.LONG, builder.build());
                     }
                     case START_ARRAY -> parseLongArray(builder);
                     case VALUE_NULL -> builder.appendNull();

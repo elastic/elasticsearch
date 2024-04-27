@@ -4863,12 +4863,12 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class LookupCommandContext extends ParserRuleContext {
-    public QualifiedNamePatternContext tableName;
+    public IdentifierContext tableName;
     public QualifiedNamesContext matchFields;
     public TerminalNode LOOKUP() { return getToken(EsqlBaseParser.LOOKUP, 0); }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
-    public QualifiedNamePatternContext qualifiedNamePattern() {
-      return getRuleContext(QualifiedNamePatternContext.class,0);
+    public IdentifierContext identifier() {
+      return getRuleContext(IdentifierContext.class,0);
     }
     public QualifiedNamesContext qualifiedNames() {
       return getRuleContext(QualifiedNamesContext.class,0);
@@ -4902,7 +4902,7 @@ public class EsqlBaseParser extends Parser {
       setState(547);
       match(LOOKUP);
       setState(548);
-      ((LookupCommandContext)_localctx).tableName = qualifiedNamePattern();
+      ((LookupCommandContext)_localctx).tableName = identifier();
       setState(549);
       match(ON);
       setState(550);
@@ -5383,7 +5383,7 @@ public class EsqlBaseParser extends Parser {
     "\u0000\u021e\u0220\u0001\u0000\u0000\u0000\u021f\u021c\u0001\u0000\u0000"+
     "\u0000\u021f\u0220\u0001\u0000\u0000\u0000\u0220\u0221\u0001\u0000\u0000"+
     "\u0000\u0221\u0222\u00034\u001a\u0000\u0222k\u0001\u0000\u0000\u0000\u0223"+
-    "\u0224\u0005\u000b\u0000\u0000\u0224\u0225\u00034\u001a\u0000\u0225\u0226"+
+    "\u0224\u0005\u000b\u0000\u0000\u0224\u0225\u00036\u001b\u0000\u0225\u0226"+
     "\u0005W\u0000\u0000\u0226\u0227\u0003n7\u0000\u0227m\u0001\u0000\u0000"+
     "\u0000\u0228\u022d\u00032\u0019\u0000\u0229\u022a\u0005$\u0000\u0000\u022a"+
     "\u022c\u00032\u0019\u0000\u022b\u0229\u0001\u0000\u0000\u0000\u022c\u022f"+

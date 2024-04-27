@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.ql.type.DataType;
 
-public record Column(String type, Block values) implements Releasable {
+public record Column(DataType type, Block values) implements Releasable {
     @Override
     public void close() {
         Releasables.closeExpectNoException(values);

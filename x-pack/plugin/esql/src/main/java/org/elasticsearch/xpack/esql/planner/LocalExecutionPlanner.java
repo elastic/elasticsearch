@@ -22,6 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.HashLookupOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MvExpandOperator;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -218,6 +220,8 @@ public class LocalExecutionPlanner {
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
+        } else if (node instanceof LookupExec lookup) {
+            return planLookup(lookup, context);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -478,6 +482,23 @@ public class LocalExecutionPlanner {
             ),
             layout
         );
+    }
+
+    private PhysicalOperation planLookup(LookupExec lookup, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(lookup.child(), context);
+        Layout.Builder layoutBuilder = source.layout.builder();
+        layoutBuilder.append(lookup.mergeValues());
+        Layout layout = layoutBuilder.build();
+        assert lookup.matchValues().size() == lookup.matchFields().size();
+        Block[] keyBlocks = new Block[lookup.matchFields().size()];
+        int[] blockMapping = new int[lookup.matchFields().size()];
+        for (int k = 0; k < lookup.matchFields().size(); k++) {
+            keyBlocks[k] = lookup.matchValues().get(k).block();
+            Layout.ChannelAndType input = source.layout.get(lookup.matchFields().get(k).id());
+            blockMapping[k] = input.channel();
+        }
+        // NOCOMMIT add the operator for looking up fields
+        return source.with(new HashLookupOperator.Factory(keyBlocks, blockMapping), layout);
     }
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {

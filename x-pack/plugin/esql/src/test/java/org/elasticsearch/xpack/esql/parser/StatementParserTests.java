@@ -1039,7 +1039,12 @@ public class StatementParserTests extends ESTestCase {
     public void testLookup() {
         var plan = statement("ROW a = 1 | LOOKUP t ON j");
         var lookup = as(plan, Lookup.class);
-        assertThat(as(lookup.tableName(), UnresolvedAttribute.class).name(), equalTo("t"));
+        var tableName = as(lookup.tableName(), UnresolvedAttribute.class);
+        assertThat(tableName.name(), equalTo("t"));
+        assertThat(tableName.dataType(), equalTo(KEYWORD));
+        assertThat(lookup.matchFields(), hasSize(1));
+        var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
+        assertThat(matchField.name(), equalTo("j"));
     }
 
     public void testInlineConvertUnsupportedType() {

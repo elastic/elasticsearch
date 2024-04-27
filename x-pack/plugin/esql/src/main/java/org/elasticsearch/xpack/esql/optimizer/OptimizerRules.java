@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -104,6 +105,10 @@ class OptimizerRules {
                 // The enrichFields are NamedExpressions, so we compute their references as well when just calling enrich.references().
                 // But they are not actually referring to attributes from the input plan - only the match field does.
                 return enrich.matchField().references();
+            }
+            if (plan instanceof Lookup lookup) {
+                // NOCOMMIT what in the world am I doing?
+                return Expressions.references(lookup.matchFields());
             }
             return super.references(plan);
         }

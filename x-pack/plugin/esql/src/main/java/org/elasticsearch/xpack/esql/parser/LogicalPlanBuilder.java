@@ -413,14 +413,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
         return p -> {
             var source = source(ctx);
-            Literal tableName = new Literal(source(ctx.tableName), ctx.tableName.getText(), DataTypes.KEYWORD);
-            List<UnresolvedAttribute> matchFields = visitQualifiedNames(ctx.matchFields);
-            return new Lookup(
-                source,
-                p,
-                tableName,
-                matchFields
-            );
+            UnresolvedAttribute tableName = new UnresolvedAttribute(source(ctx.tableName), ctx.tableName.getText());
+            List<Attribute> matchFields = visitQualifiedNames(ctx.matchFields);
+            return new Lookup(source, p, tableName, matchFields, null, null);
         };
     }
 

@@ -275,7 +275,7 @@ enrichWithClause
     ;
 
 lookupCommand
-    : LOOKUP tableName=qualifiedNamePattern ON matchFields=qualifiedNames
+    : LOOKUP tableName=identifier ON matchFields=qualifiedNames
     ;
 
 qualifiedNames

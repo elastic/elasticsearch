@@ -5,14 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.expression.TableColumnAttribute;
-import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -21,16 +18,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Lookup extends UnaryPlan {
+public class LookupExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute tableName;
     private final List<Attribute> matchFields;
     private final List<TableColumnAttribute> matchValues;
     private final List<TableColumnAttribute> mergeValues;
     private List<Attribute> output;
 
-    public Lookup(
+    public LookupExec(
         Source source,
-        LogicalPlan child,
+        PhysicalPlan child,
         Attribute tableName,
         List<Attribute> matchFields,
         @Nullable List<TableColumnAttribute> matchValues,
@@ -41,10 +38,6 @@ public class Lookup extends UnaryPlan {
         this.matchFields = matchFields;
         this.matchValues = matchValues;
         this.mergeValues = mergeValues;
-    }
-
-    public Attribute tableName() {
-        return tableName;
     }
 
     public List<Attribute> matchFields() {
@@ -60,38 +53,24 @@ public class Lookup extends UnaryPlan {
     }
 
     @Override
-    public boolean expressionsResolved() {
-        if (matchValues == null || mergeValues == null) {
-            return false;
-        }
-        return tableName.resolved()
-            && Resolvables.resolved(matchFields)
-            && Resolvables.resolved(matchValues)
-            && Resolvables.resolved(mergeValues);
-    }
-
-    @Override
-    public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Lookup(source(), newChild, tableName, matchFields, matchValues, mergeValues);
-    }
-
-    @Override
-    protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Lookup::new, child(), tableName, matchFields, matchValues, mergeValues);
+    public PhysicalPlan estimateRowSize(State state) {
+        state.add(false, mergeValues);
+        return this;
     }
 
     @Override
     public List<Attribute> output() {
-        if (mergeValues == null) {
-            throw new IllegalStateException("unresolved");
-        }
-        if (mergeValues.isEmpty()) {
-            return child().output();
-        }
-        if (this.output == null) {
-            this.output = mergeOutputAttributes(mergeValues, child().output());
-        }
-        return output;
+        return mergeOutputAttributes(mergeValues, child().output());
+    }
+
+    @Override
+    public LookupExec replaceChild(PhysicalPlan newChild) {
+        return new LookupExec(source(), newChild, tableName, matchFields, matchValues, mergeValues);
+    }
+
+    @Override
+    protected NodeInfo<? extends PhysicalPlan> info() {
+        return NodeInfo.create(this, LookupExec::new, child(), tableName, matchFields, matchValues, mergeValues);
     }
 
     @Override
@@ -99,7 +78,7 @@ public class Lookup extends UnaryPlan {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        Lookup lookup = (Lookup) o;
+        LookupExec lookup = (LookupExec) o;
         return Objects.equals(tableName, lookup.matchFields)
             && Objects.equals(matchFields, lookup.matchFields)
             && Objects.equals(matchValues, lookup.matchValues)

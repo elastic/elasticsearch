@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
@@ -88,14 +89,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             }
 
             if (requestedTaskType.isAnyOrSame(unparsedModel.taskType()) == false) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Requested task type [{}] does not match the inference endpoint's task type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        requestedTaskType,
-                        unparsedModel.taskType()
-                    )
-                );
+                delegate.onFailure(InferenceExceptions.mismatchedTaskTypeException(requestedTaskType, unparsedModel.taskType()));
                 return;
             }
 

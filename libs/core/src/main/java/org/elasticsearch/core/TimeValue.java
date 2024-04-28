@@ -371,20 +371,20 @@ public class TimeValue implements Comparable<TimeValue> {
         }
         final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
         if (normalized.endsWith("nanos")) {
-            return new TimeValue(parse(sValue, normalized, "nanos", settingName), TimeUnit.NANOSECONDS);
+            return TimeValue.timeValueNanos(parse(sValue, normalized, "nanos", settingName));
         } else if (normalized.endsWith("micros")) {
             return new TimeValue(parse(sValue, normalized, "micros", settingName), TimeUnit.MICROSECONDS);
         } else if (normalized.endsWith("ms")) {
-            return new TimeValue(parse(sValue, normalized, "ms", settingName), TimeUnit.MILLISECONDS);
+            return TimeValue.timeValueMillis(parse(sValue, normalized, "ms", settingName));
         } else if (normalized.endsWith("s")) {
-            return new TimeValue(parse(sValue, normalized, "s", settingName), TimeUnit.SECONDS);
+            return TimeValue.timeValueSeconds(parse(sValue, normalized, "s", settingName));
         } else if (sValue.endsWith("m")) {
             // parsing minutes should be case-sensitive as 'M' means "months", not "minutes"; this is the only special case.
-            return new TimeValue(parse(sValue, normalized, "m", settingName), TimeUnit.MINUTES);
+            return TimeValue.timeValueMinutes(parse(sValue, normalized, "m", settingName));
         } else if (normalized.endsWith("h")) {
-            return new TimeValue(parse(sValue, normalized, "h", settingName), TimeUnit.HOURS);
+            return TimeValue.timeValueHours(parse(sValue, normalized, "h", settingName));
         } else if (normalized.endsWith("d")) {
-            return new TimeValue(parse(sValue, normalized, "d", settingName), TimeUnit.DAYS);
+            return TimeValue.timeValueDays(parse(sValue, normalized, "d", settingName));
         } else if (normalized.matches("-0*1")) {
             return TimeValue.MINUS_ONE;
         } else if (normalized.matches("0+")) {

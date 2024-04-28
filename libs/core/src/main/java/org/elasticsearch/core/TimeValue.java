@@ -17,9 +17,11 @@ public class TimeValue implements Comparable<TimeValue> {
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
 
-    public static final TimeValue MINUS_ONE = timeValueMillis(-1);
-    public static final TimeValue ZERO = timeValueMillis(0);
-    public static final TimeValue MAX_VALUE = TimeValue.timeValueNanos(Long.MAX_VALUE);
+    public static final TimeValue MINUS_ONE = new TimeValue(-1, TimeUnit.MILLISECONDS);
+    public static final TimeValue ZERO = new TimeValue(0, TimeUnit.MILLISECONDS);
+    public static final TimeValue MAX_VALUE = new TimeValue(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+    public static final TimeValue THIRTY_SECONDS = new TimeValue(30, TimeUnit.SECONDS);
+    public static final TimeValue ONE_MINUTE = new TimeValue(1, TimeUnit.MINUTES);
 
     private static final long C0 = 1L;
     private static final long C1 = C0 * 1000L;
@@ -49,14 +51,28 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     public static TimeValue timeValueMillis(long millis) {
+        if (millis == 0) {
+            return ZERO;
+        }
+        if (millis == -1) {
+            return MINUS_ONE;
+        }
         return new TimeValue(millis, TimeUnit.MILLISECONDS);
     }
 
     public static TimeValue timeValueSeconds(long seconds) {
+        if (seconds == 30) {
+            // common value, no need to allocate each time
+            return THIRTY_SECONDS;
+        }
         return new TimeValue(seconds, TimeUnit.SECONDS);
     }
 
     public static TimeValue timeValueMinutes(long minutes) {
+        if (minutes == 1) {
+            // common value, no need to allocate each time
+            return ONE_MINUTE;
+        }
         return new TimeValue(minutes, TimeUnit.MINUTES);
     }
 

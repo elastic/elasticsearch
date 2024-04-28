@@ -23,7 +23,6 @@ public class LookupExec extends UnaryExec implements EstimatesRowSize {
     private final List<Attribute> matchFields;
     private final List<TableColumnAttribute> matchValues;
     private final List<TableColumnAttribute> mergeValues;
-    private List<Attribute> output;
 
     public LookupExec(
         Source source,

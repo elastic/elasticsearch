@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.expression.TableColumnAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -95,6 +97,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
@@ -486,6 +489,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLookup(LookupExec lookup, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(lookup.child(), context);
+        int positionsChannel = source.layout.numberOfChannels();
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(lookup.mergeValues());
         Layout layout = layoutBuilder.build();
@@ -497,8 +501,20 @@ public class LocalExecutionPlanner {
             Layout.ChannelAndType input = source.layout.get(lookup.matchFields().get(k).id());
             blockMapping[k] = input.channel();
         }
-        // NOCOMMIT add the operator for looking up fields
-        return source.with(new HashLookupOperator.Factory(keyBlocks, blockMapping), layout);
+
+        // Load the "positions" of each match
+        source = source.with(new HashLookupOperator.Factory(keyBlocks, blockMapping), layout);
+
+        // Load the "values" from each match
+        for (TableColumnAttribute merge : lookup.mergeValues()) {
+            source = source.with(new ColumnLoadOperator.Factory(merge.block(), positionsChannel), layout);
+        }
+
+        // Drop the "positions" of the match
+        List<Integer> projection = new ArrayList<>();
+        IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + lookup.mergeValues().size()).boxed().forEach(projection::add);
+        return source.with(new ProjectOperatorFactory(projection), layout);
     }
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {

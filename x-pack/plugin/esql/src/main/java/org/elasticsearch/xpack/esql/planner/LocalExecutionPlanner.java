@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.LookupExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -223,7 +223,7 @@ public class LocalExecutionPlanner {
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
-        } else if (node instanceof LookupExec lookup) {
+        } else if (node instanceof HashJoinExec lookup) {
             return planLookup(lookup, context);
         }
         // output
@@ -487,7 +487,7 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private PhysicalOperation planLookup(LookupExec lookup, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planLookup(HashJoinExec lookup, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(lookup.child(), context);
         int positionsChannel = source.layout.numberOfChannels();
         Layout.Builder layoutBuilder = source.layout.builder();

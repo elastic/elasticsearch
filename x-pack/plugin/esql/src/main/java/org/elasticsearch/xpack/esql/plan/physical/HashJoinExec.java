@@ -18,13 +18,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class LookupExec extends UnaryExec implements EstimatesRowSize {
+public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute tableName;
     private final List<Attribute> matchFields;
     private final List<TableColumnAttribute> matchValues;
     private final List<TableColumnAttribute> mergeValues;
 
-    public LookupExec(
+    public HashJoinExec(
         Source source,
         PhysicalPlan child,
         Attribute tableName,
@@ -63,13 +63,13 @@ public class LookupExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public LookupExec replaceChild(PhysicalPlan newChild) {
-        return new LookupExec(source(), newChild, tableName, matchFields, matchValues, mergeValues);
+    public HashJoinExec replaceChild(PhysicalPlan newChild) {
+        return new HashJoinExec(source(), newChild, tableName, matchFields, matchValues, mergeValues);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, LookupExec::new, child(), tableName, matchFields, matchValues, mergeValues);
+        return NodeInfo.create(this, HashJoinExec::new, child(), tableName, matchFields, matchValues, mergeValues);
     }
 
     @Override
@@ -77,7 +77,7 @@ public class LookupExec extends UnaryExec implements EstimatesRowSize {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        LookupExec lookup = (LookupExec) o;
+        HashJoinExec lookup = (HashJoinExec) o;
         return Objects.equals(tableName, lookup.matchFields)
             && Objects.equals(matchFields, lookup.matchFields)
             && Objects.equals(matchValues, lookup.matchValues)

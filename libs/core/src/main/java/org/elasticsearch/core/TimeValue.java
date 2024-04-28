@@ -384,7 +384,7 @@ public class TimeValue implements Comparable<TimeValue> {
         } else if (normalized.endsWith("h")) {
             return TimeValue.timeValueHours(parse(sValue, normalized, "h", settingName));
         } else if (normalized.endsWith("d")) {
-            return TimeValue.timeValueDays(parse(sValue, normalized, "d", settingName));
+            return new TimeValue(parse(sValue, normalized, "d", settingName), TimeUnit.DAYS);
         } else if (normalized.matches("-0*1")) {
             return TimeValue.MINUS_ONE;
         } else if (normalized.matches("0+")) {

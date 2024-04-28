@@ -213,7 +213,7 @@ public enum SearchResponseUtils {
                 if (SearchResponse.SCROLL_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     scrollId = parser.text();
                 } else if (SearchResponse.POINT_IN_TIME_ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                    searchContextId = new BytesArray(Base64.getDecoder().decode(parser.text()));
+                    searchContextId = new BytesArray(Base64.getUrlDecoder().decode(parser.text()));
                 } else if (SearchResponse.TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
                     tookInMillis = parser.longValue();
                 } else if (SearchResponse.TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {

@@ -347,7 +347,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             // Reader context with scroll
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(
-                    new PointInTimeBuilder(new BytesArray(Base64.getEncoder().encode("id".getBytes(StandardCharsets.UTF_8))))
+                    new PointInTimeBuilder(new BytesArray(Base64.getUrlEncoder().encode("id".getBytes(StandardCharsets.UTF_8))))
                 )
             ).scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
             ActionRequestValidationException validationErrors = searchRequest.validate();

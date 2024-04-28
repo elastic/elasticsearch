@@ -448,7 +448,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> pit = (Map<String, Object>) sourceAsMap.get("pit");
         assertEquals(
-            new String(Base64.getEncoder().encode("id".getBytes(StandardCharsets.UTF_8)), StandardCharsets.ISO_8859_1),
+            new String(Base64.getUrlEncoder().encode("id".getBytes(StandardCharsets.UTF_8)), StandardCharsets.ISO_8859_1),
             pit.get("id")
         );
         if (keepAlive != null) {

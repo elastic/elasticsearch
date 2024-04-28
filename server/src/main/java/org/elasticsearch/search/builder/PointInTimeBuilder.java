@@ -73,7 +73,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(ID_FIELD.getPreferredName(), Base64.getEncoder().encodeToString(BytesReference.toBytes(encodedId)));
+        builder.field(ID_FIELD.getPreferredName(), Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(encodedId)));
         if (keepAlive != null) {
             builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive.getStringRep());
         }

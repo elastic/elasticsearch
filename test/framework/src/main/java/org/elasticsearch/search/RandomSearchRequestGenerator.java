@@ -383,7 +383,7 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             PointInTimeBuilder pit = new PointInTimeBuilder(
-                new BytesArray(Base64.getEncoder().encode(randomAlphaOfLengthBetween(3, 10).getBytes(StandardCharsets.UTF_8)))
+                new BytesArray(Base64.getUrlEncoder().encode(randomAlphaOfLengthBetween(3, 10).getBytes(StandardCharsets.UTF_8)))
             );
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));

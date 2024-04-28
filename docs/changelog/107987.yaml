@@ -2,4 +2,5 @@ pr: 107987
 summary: "ESQL: Implement LOOKUP, an \"inline\" enrich"
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 107306

@@ -9,6 +9,8 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.action.search.SearchContextId;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Objects;
 
 /**
@@ -35,7 +38,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
 
     static {
         PARSER = new ObjectParser<>(SearchSourceBuilder.POINT_IN_TIME.getPreferredName(), XContentParams::new);
-        PARSER.declareString((params, id) -> params.encodedId = id, ID_FIELD);
+        PARSER.declareString((params, id) -> params.encodedId = new BytesArray(Base64.getUrlDecoder().decode(id)), ID_FIELD);
         PARSER.declareField(
             (params, keepAlive) -> params.keepAlive = keepAlive,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_FIELD.getPreferredName()),
@@ -45,32 +48,32 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     }
 
     private static final class XContentParams {
-        private String encodedId;
+        private BytesReference encodedId;
         private TimeValue keepAlive;
     }
 
-    private final String encodedId;
+    private final BytesReference encodedId;
     private transient SearchContextId searchContextId; // lazily decoded from the encodedId
     private TimeValue keepAlive;
 
-    public PointInTimeBuilder(String pitID) {
+    public PointInTimeBuilder(BytesReference pitID) {
         this.encodedId = Objects.requireNonNull(pitID, "Point in time ID must be provided");
     }
 
     public PointInTimeBuilder(StreamInput in) throws IOException {
-        encodedId = in.readString();
+        encodedId = in.readBytesReference();
         keepAlive = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(encodedId);
+        out.writeBytesReference(encodedId);
         out.writeOptionalTimeValue(keepAlive);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(ID_FIELD.getPreferredName(), encodedId);
+        builder.field(ID_FIELD.getPreferredName(), Base64.getEncoder().encodeToString(BytesReference.toBytes(encodedId)));
         if (keepAlive != null) {
             builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive.getStringRep());
         }
@@ -88,7 +91,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     /**
      * Returns the encoded id of this point in time
      */
-    public String getEncodedId() {
+    public BytesReference getEncodedId() {
         return encodedId;
     }
 

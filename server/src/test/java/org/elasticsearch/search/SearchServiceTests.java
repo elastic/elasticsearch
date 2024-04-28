@@ -44,6 +44,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -1841,7 +1843,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
         indicesAdmin().prepareRefresh("test").get();
 
-        String pitId = client().execute(
+        BytesReference pitId = client().execute(
             TransportOpenPointInTimeAction.TYPE,
             new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(10))
         ).actionGet().getPointInTimeId();
@@ -1863,7 +1865,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (ShardSearchRequest shardRequest : shardRequests) {
             assertNotNull(shardRequest.source());
             assertNotNull(shardRequest.source().pointInTimeBuilder());
-            assertThat(shardRequest.source().pointInTimeBuilder().getEncodedId(), equalTo(""));
+            assertThat(shardRequest.source().pointInTimeBuilder().getEncodedId(), equalTo(BytesArray.EMPTY));
         }
     }
 

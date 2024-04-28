@@ -21,6 +21,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
+/**
+ * Looks up values from the {@code tables} request parameter.
+ * <p>
+ *     This class exists in two very different modes - an "unresolved" mode
+ *     which contains only the {@link #tableName} and {@link #matchValues},
+ *     and a "resolved" mode which contains everything. The process of
+ *     resolving all of the references adds the extra columns by looking
+ *     up the table from the analysis context.
+ * </p>
+ */
 public class Lookup extends UnaryPlan {
     private final Attribute tableName;
     private final List<Attribute> matchFields;

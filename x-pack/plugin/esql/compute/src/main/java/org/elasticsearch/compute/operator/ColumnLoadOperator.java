@@ -31,6 +31,7 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
 
         @Override
         public String describe() {
+            // TODO name of the column
             return "ColumnLoad[type=" + values.elementType() + ", positions=" + positionsOrd + "]";
         }
     }

@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
-import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -431,7 +429,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             table = new TreeMap<>(table);
             // TODO what's the right type for this thing?!
-            Attribute resolvedTableName = new MetadataAttribute(p.tableName().source(), tableName, KEYWORD, false);
+            Attribute resolvedTableName = new ReferenceAttribute(p.tableName().source(), tableName, KEYWORD);
             List<Attribute> matchFields = new ArrayList<>(p.matchFields().size());
             List<TableColumnAttribute> matchValues = new ArrayList<>(p.matchFields().size());
             for (Attribute m : p.matchFields()) {

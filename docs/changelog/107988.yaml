@@ -1,0 +1,5 @@
+pr: 107988
+summary: Support negative size in ByteSizeValue.
+area: Data
+type: enhancement
+issues: []

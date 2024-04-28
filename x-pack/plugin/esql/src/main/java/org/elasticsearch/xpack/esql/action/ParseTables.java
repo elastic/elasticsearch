@@ -26,6 +26,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * Parses the {@code tables} request body parameter.
+ */
 class ParseTables {
     private static final int MAX_LENGTH = (int) ByteSizeValue.ofMb(1).getBytes();
 

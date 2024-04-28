@@ -54,6 +54,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
 
+    /**
+     * "Tables" provided in the request for use with things like {@code LOOKUP}.
+     */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
     static EsqlQueryRequest syncEsqlQueryRequest() {
@@ -217,6 +220,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.keepOnCompletion = keepOnCompletion;
     }
 
+    /**
+     * Add a "table" to the request for use with things like {@code LOOKUP}.
+     */
     public void addTable(String name, Map<String, Column> columns) {
         for (Column c : columns.values()) {
             if (false == c.values().blockFactory().breaker() instanceof NoopCircuitBreaker) {

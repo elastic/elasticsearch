@@ -12,6 +12,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+/**
+ * A "column" from a {@code table} provided in the request.
+ */
 public record Column(DataType type, Block values) implements Releasable {
     @Override
     public void close() {

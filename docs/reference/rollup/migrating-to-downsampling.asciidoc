@@ -5,15 +5,16 @@
 <titleabbrev>Migrating to downsampling</titleabbrev>
 ++++
 
-Rollup and downsampling are two different features that allow historical time based data to be rolled up.
-From a high level rollup offers more functionality compared to downsampling, but downsampling is a more robust and easier to use feature.
+Rollup and downsampling are two different features that allow historical metrics to be rolled up.
+From a high level rollup offers more functionality compared to downsampling, but downsampling is a more robust and
+easier feature to downsample metrics.
 
 The following features are missing from downsampling:
 
 * Downsampling can only rollup metrics by the `_tsid` (combination of all dimensions) and `@timestamp` field. Rollup allows
   to group by other fields. For example `@timestamp` and hostname or any other combination of fields.
 * Downsampling doesn't support calendar time intervals. Only fixed intervals are supported.
-* Downsampling can only downsample time series data streams, which means the data source need to be metrics, with
+* Downsampling can only downsample time series data streams, which means a data source needs to be metrics, with
   configured dimension, metric fields and a `@timestamp` field. The rollup feature can rollup any index with a timestamp field.
 * Downsampling has less flexible scheduling control and it isn't possible to rollup data after short intervals. This
   is because downsampling is tied to life cycle management. Essentially only after an index has been rolled

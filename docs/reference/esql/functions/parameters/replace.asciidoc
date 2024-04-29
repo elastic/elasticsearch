@@ -3,10 +3,10 @@
 *Parameters*
 
 `string`::
-
+String expression.
 
 `regex`::
-
+Regular expression.
 
 `newString`::
-
+Replacement string.

@@ -730,6 +730,7 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private boolean hasValue;
+        private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
             this.fields = fields;
@@ -793,8 +794,25 @@ public class ObjectMapper extends Mapper {
                     field.write(b);
                 }
             }
-            b.endObject();
             hasValue = false;
+            if (ignoredValues != null) {
+                for (IgnoredSourceFieldMapper.NameValue ignored : ignoredValues) {
+                    b.field(ignored.getFieldName());
+                    XContentDataHelper.decodeAndWrite(b, ignored.value());
+                }
+                ignoredValues = null;
+            }
+            b.endObject();
+        }
+
+        @Override
+        public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            ignoredValues = objectsWithIgnoredFields.get(name());
+            hasValue |= ignoredValues != null;
+            for (SourceLoader.SyntheticFieldLoader loader : fields) {
+                hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
+            }
+            return this.ignoredValues != null;
         }
     }
 

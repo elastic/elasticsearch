@@ -18,7 +18,6 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
@@ -40,17 +39,18 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107417")
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
         assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
     }
 
     public void testDefault() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("default");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
@@ -59,6 +59,7 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testBestCompression() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",

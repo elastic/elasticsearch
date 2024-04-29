@@ -628,7 +628,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             format,
             state,
             mappings,
-            Map.of(indexName, new SystemIndexDescriptor.MappingsVersion(1, 0))
+            Map.of(indexName, new SystemIndexDescriptor.MappingsVersion(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT, 0))
         );
     }
 

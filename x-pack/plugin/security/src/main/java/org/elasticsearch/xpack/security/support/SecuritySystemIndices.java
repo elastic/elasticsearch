@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
-    public static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = 2;
+    public static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = SecurityMainIndexMappingVersion.ADD_DESCRIPTION_FIELD;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
@@ -138,7 +138,7 @@ public class SecuritySystemIndices {
                         .setIndexPattern(".security-[0-9]+*")
                         .setPrimaryIndex(MAIN_INDEX_CONCRETE_NAME)
                         .setDescription("Contains Security configuration")
-                        .setMappings(getMainIndexMappings(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT - 1))
+                        .setMappings(getMainIndexMappings(SecurityMainIndexMappingVersion.INITIAL))
                         .setSettings(getMainIndexSettings())
                         .setAliasName(SECURITY_MAIN_ALIAS)
                         .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
@@ -402,7 +402,7 @@ public class SecuritySystemIndices {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    if (version >= 2) { // TODO: Define named version constants !
+                    if (version >= SecurityMainIndexMappingVersion.ADD_DESCRIPTION_FIELD) {
                         builder.startObject("description");
                         builder.field("type", "text");
                         builder.endObject();
@@ -1014,6 +1014,23 @@ public class SecuritySystemIndices {
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    /**
+     * Every change to the mapping of .security index must be versioned.
+     * For readability, this class holds named constants of all mapping versions.
+     */
+    public static class SecurityMainIndexMappingVersion {
+
+        /**
+         * Initial .security index mapping version.
+         */
+        public static final int INITIAL = 1;
+
+        /**
+         * The mapping was changed to add a new text description field.
+         */
+        public static final int ADD_DESCRIPTION_FIELD = 2;
     }
 
 }

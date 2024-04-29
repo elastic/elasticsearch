@@ -34,10 +34,12 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_SETTING;
@@ -59,12 +61,15 @@ class ReplicasUpdater {
     private final SearchMetricsService searchMetricsService;
     private final NodeClient client;
 
+    private volatile boolean enableReplicasForInstantFailover;
     private volatile int searchPowerMinSetting;
     private volatile int searchPowerMaxSetting;
 
     ReplicasUpdater(SearchMetricsService searchMetricsService, ClusterSettings clusterSettings, NodeClient client) {
         this.searchMetricsService = searchMetricsService;
         this.client = client;
+        this.enableReplicasForInstantFailover = clusterSettings.get(ENABLE_REPLICAS_FOR_INSTANT_FAILOVER);
+        clusterSettings.initializeAndWatch(ENABLE_REPLICAS_FOR_INSTANT_FAILOVER, this::updateEnableReplicasForInstantFailover);
         this.searchPowerMinSetting = clusterSettings.get(SEARCH_POWER_MIN_SETTING);
         this.searchPowerMaxSetting = clusterSettings.get(SEARCH_POWER_MAX_SETTING);
         clusterSettings.initializeAndWatch(SEARCH_POWER_SETTING, this::updateSearchPower);
@@ -72,10 +77,19 @@ class ReplicasUpdater {
         clusterSettings.initializeAndWatch(SEARCH_POWER_MAX_SETTING, this::updateSearchPowerMax);
     }
 
+    void updateEnableReplicasForInstantFailover(Boolean value) {
+        this.enableReplicasForInstantFailover = value;
+        if (value) {
+            publishUpdate(getNumberOfReplicaChanges());
+        } else {
+            publishUpdate(resetNumReplicasForAllIndices());
+        }
+    }
+
     void updateSearchPower(Integer sp) {
         if (this.searchPowerMinSetting == this.searchPowerMaxSetting) {
-            this.searchPowerMinSetting = sp;
-            this.searchPowerMaxSetting = sp;
+            updateSearchPowerMin(sp);
+            updateSearchPowerMax(sp);
         } else {
             throw new IllegalArgumentException(
                 "Updating "
@@ -97,24 +111,21 @@ class ReplicasUpdater {
 
     void updateSearchPowerMin(Integer spMin) {
         this.searchPowerMinSetting = spMin;
+        if (enableReplicasForInstantFailover) {
+            publishUpdate(getNumberOfReplicaChanges());
+        }
     }
 
     void updateSearchPowerMax(Integer spMax) {
         this.searchPowerMaxSetting = spMax;
     }
 
-    Map<Integer, List<String>> getNumberOfReplicaChanges() {
-        Map<Integer, List<String>> numReplicaChanges = new HashMap<>(2);
+    Map<Integer, Set<String>> getNumberOfReplicaChanges() {
         if (searchPowerMinSetting < SEARCH_POWER_MIN_NO_REPLICATION) {
-            Map<Index, SearchMetricsService.IndexProperties> indicesMap = this.searchMetricsService.getIndices();
-            for (Map.Entry<Index, SearchMetricsService.IndexProperties> entry : indicesMap.entrySet()) {
-                Index index = entry.getKey();
-                SearchMetricsService.IndexProperties settings = entry.getValue();
-                if (settings.replicas() != 1) {
-                    setNumReplicasForIndex(index.getName(), 1, numReplicaChanges);
-                }
-            }
-        } else if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
+            return resetNumReplicasForAllIndices();
+        }
+        Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(2);
+        if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
             Map<Index, SearchMetricsService.IndexProperties> indicesMap = this.searchMetricsService.getIndices();
             Map<ShardId, SearchMetricsService.ShardMetrics> shardMetricsMap = this.searchMetricsService.getShardMetrics();
             for (Map.Entry<Index, SearchMetricsService.IndexProperties> entry : indicesMap.entrySet()) {
@@ -192,20 +203,33 @@ class ReplicasUpdater {
         return numReplicaChanges;
     }
 
-    private static void setNumReplicasForIndex(String index, int numReplicas, Map<Integer, List<String>> numReplicaChanges) {
+    private Map<Integer, Set<String>> resetNumReplicasForAllIndices() {
+        Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(1);
+        Map<Index, SearchMetricsService.IndexProperties> indicesMap = this.searchMetricsService.getIndices();
+        for (Map.Entry<Index, SearchMetricsService.IndexProperties> entry : indicesMap.entrySet()) {
+            Index index = entry.getKey();
+            SearchMetricsService.IndexProperties settings = entry.getValue();
+            if (settings.replicas() != 1) {
+                setNumReplicasForIndex(index.getName(), 1, numReplicaChanges);
+            }
+        }
+        return numReplicaChanges;
+    }
+
+    private static void setNumReplicasForIndex(String index, int numReplicas, Map<Integer, Set<String>> numReplicaChanges) {
         numReplicaChanges.compute(numReplicas, (integer, strings) -> {
             if (strings == null) {
-                strings = new ArrayList<>();
+                strings = new HashSet<>();
             }
             strings.add(index);
             return strings;
         });
     }
 
-    private void publishUpdate(Map<Integer, List<String>> replicaUpdates) {
-        for (Map.Entry<Integer, List<String>> entry : replicaUpdates.entrySet()) {
+    private void publishUpdate(Map<Integer, Set<String>> replicaUpdates) {
+        for (Map.Entry<Integer, Set<String>> entry : replicaUpdates.entrySet()) {
             int numReplicas = entry.getKey();
-            List<String> indices = entry.getValue();
+            Set<String> indices = entry.getValue();
             Settings settings = Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas).build();
             UpdateSettingsRequest request = new UpdateSettingsRequest(settings, indices.toArray(new String[0]));
             client.executeLocally(TransportUpdateSettingsAction.TYPE, request, new ActionListener<>() {

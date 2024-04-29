@@ -14,8 +14,6 @@ If you just want to test {es} in local development, refer to <<run-elasticsearch
 Please note that this setup is not suitable for production environments.
 ====
 
-[[docker-cli-run]]
-
 [[docker-cli-run-dev-mode]]
 ==== Run {es} in Docker
 

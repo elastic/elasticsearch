@@ -37,6 +37,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
@@ -108,16 +110,14 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        assumeFalse("can't support variable maxPageSize", true); // TODO allow testing this
-        return "LuceneTopNSourceOperator[shardId=0, maxPageSize=**random**]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return matchesRegex("LuceneTopNSourceOperator\\[shardId=0, maxPageSize=\\d+]");
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        assumeFalse("can't support variable maxPageSize", true); // TODO allow testing this
-        return """
-            LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = **random**, limit = 100, sorts = [{"s":{"order":"asc"}}]]""";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return matchesRegex("LuceneTopNSourceOperator\\[dataPartitioning = SHARD, maxPageSize = \\d+, limit = 100, sorts = " + """
+            \\[\\{"s":\\{"order":"asc"}}]]""");
     }
 
     // TODO tests for the other data partitioning configurations

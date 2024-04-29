@@ -419,7 +419,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         // Hard-code a failure here.
         doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString());
-        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(1, 0)));
+        doReturn(null).when(descriptorSpy)
+            .getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT, 0)));
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.
@@ -628,7 +629,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             format,
             state,
             mappings,
-            Map.of(indexName, new SystemIndexDescriptor.MappingsVersion(1, 0))
+            Map.of(indexName, new SystemIndexDescriptor.MappingsVersion(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT, 0))
         );
     }
 

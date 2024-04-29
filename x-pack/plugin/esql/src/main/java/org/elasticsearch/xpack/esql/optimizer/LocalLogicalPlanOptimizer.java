@@ -171,7 +171,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         }
     }
 
-    static class InferIsNotNull extends OptimizerRules.InferIsNotNull {
+    static class InferIsNotNull extends LocalOptimizerRules.InferIsNotNull {
 
         @Override
         protected boolean skipExpression(Expression e) {

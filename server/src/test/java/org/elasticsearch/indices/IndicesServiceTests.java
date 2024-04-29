@@ -64,6 +64,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,6 +76,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -308,6 +310,15 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
+
+        // closing index shard runs on a GENERIC thread - flush the pool to ensure it has completed
+        final var threadPool = getInstanceFromNode(ThreadPool.class);
+        final var threadCount = threadPool.info(ThreadPool.Names.GENERIC).getMax();
+        final var barrier = new CyclicBarrier(threadCount + 1);
+        for (int i = 0; i < threadCount; i++) {
+            threadPool.generic().execute(() -> safeAwait(barrier));
+        }
+        safeAwait(barrier);
 
         assertFalse(firstPath.exists());
 

@@ -132,7 +132,7 @@ public class TransportVersions {
     public static final TransportVersion ML_DIMENSIONS_SET_BY_USER_ADDED = def(8_592_00_0);
     public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
-    public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
+    public static final TransportVersion V_8_13_0 = def(8_595_00_0);
     // 8.14.0+
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
     public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);

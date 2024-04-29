@@ -204,7 +204,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
         }).get(20, TimeUnit.SECONDS);
     }
 
-    public static ChannelDuplexHandler defaultContextAssertingChannelHandler(ThreadContext threadContext) {
+    private static ChannelDuplexHandler defaultContextAssertingChannelHandler(ThreadContext threadContext) {
         return new ChannelDuplexHandler() {
             @Override
             public void bind(ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) throws Exception {

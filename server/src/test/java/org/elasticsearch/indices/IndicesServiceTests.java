@@ -58,6 +58,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -76,7 +77,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -311,14 +311,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
-        // closing index shard runs on a GENERIC thread - flush the pool to ensure it has completed
-        final var threadPool = getInstanceFromNode(ThreadPool.class);
-        final var threadCount = threadPool.info(ThreadPool.Names.GENERIC).getMax();
-        final var barrier = new CyclicBarrier(threadCount + 1);
-        for (int i = 0; i < threadCount; i++) {
-            threadPool.generic().execute(() -> safeAwait(barrier));
-        }
-        safeAwait(barrier);
+        AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks(getInstanceFromNode(ThreadPool.class));
 
         assertFalse(firstPath.exists());
 

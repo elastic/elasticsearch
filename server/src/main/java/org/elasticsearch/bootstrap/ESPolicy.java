@@ -93,6 +93,21 @@ final class ESPolicy extends Policy {
         return coll;
     }
 
+    private static PermissionCollection createPermission(List<FilePermission> permissions) {
+        PermissionCollection coll = null;
+        for (FilePermission permission : permissions) {
+            if (coll == null) {
+                coll = permission.newPermissionCollection();
+            }
+            coll.add(permission);
+        }
+        if (coll == null) {
+            coll = new Permissions();
+        }
+        coll.setReadOnly();
+        return coll;
+    }
+
     @Override
     @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {

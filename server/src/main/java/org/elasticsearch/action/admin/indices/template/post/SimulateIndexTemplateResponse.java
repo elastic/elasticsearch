@@ -69,6 +69,22 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         this.globalRetention = globalRetention;
     }
 
+    public Template getResolvedTemplate() {
+        return resolvedTemplate;
+    }
+
+    public Map<String, List<String>> getOverlappingTemplates() {
+        return overlappingTemplates;
+    }
+
+    public RolloverConfiguration getRolloverConfiguration() {
+        return rolloverConfiguration;
+    }
+
+    public DataStreamGlobalRetention getGlobalRetention() {
+        return globalRetention;
+    }
+
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
         super(in);
         resolvedTemplate = in.readOptionalWriteable(Template::new);

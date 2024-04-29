@@ -446,7 +446,7 @@ public class CsvTests extends ESTestCase {
     }
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
-    private static void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
+    private void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
         for (var plan : plans) {
             var tmp = plan;
             do {
@@ -455,7 +455,7 @@ public class CsvTests extends ESTestCase {
                 }
             } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
 
-            SerializationTestUtils.assertSerialization(plan);
+            SerializationTestUtils.assertSerialization(plan, configuration);
         }
     }
 

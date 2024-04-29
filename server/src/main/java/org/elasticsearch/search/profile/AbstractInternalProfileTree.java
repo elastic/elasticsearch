@@ -48,7 +48,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    public PB getProfileBreakdown(E query) {
+    public final synchronized PB getProfileBreakdown(E query) {
         int token = currentToken;
 
         boolean stackEmpty = stack.isEmpty();
@@ -109,7 +109,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     /**
      * Removes the last (e.g. most recent) value on the stack
      */
-    public void pollLast() {
+    public final synchronized void pollLast() {
         stack.pollLast();
     }
 
@@ -120,7 +120,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<ProfileResult> getTree() {
+    public final synchronized List<ProfileResult> getTree() {
         ArrayList<ProfileResult> results = new ArrayList<>(roots.size());
         for (Integer root : roots) {
             results.add(doGetTree(root));

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestRetryAction extends BaseRestHandler {
 
@@ -37,7 +38,7 @@ public class RestRetryAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
         TransportRetryAction.Request request = new TransportRetryAction.Request(indices);
         request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         request.indices(indices);
         request.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         return channel -> client.execute(ILMActions.RETRY, request, new RestToXContentListener<>(channel));

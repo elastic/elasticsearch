@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.packageloader.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,8 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xpack.core.common.notifications.Level;
-import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
@@ -59,7 +56,7 @@ class ModelImporter {
         if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
             uploadVocabulary();
 
-            writeDebugNotification(modelId, format("imported model vocabulary [%s]", config.getVocabularyFile()));
+            logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
         }
 
         URI uri = ModelLoaderUtils.resolvePackageLocation(
@@ -151,15 +148,5 @@ class ModelImporter {
         }
 
         client.execute(action, request).actionGet();
-    }
-
-    private void writeDebugNotification(String modelId, String message) {
-        client.execute(
-            AuditMlNotificationAction.INSTANCE,
-            new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, Level.INFO),
-            ActionListener.noop()
-        );
-
-        logger.debug(() -> format("[%s] %s", modelId, message));
     }
 }

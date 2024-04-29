@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -71,18 +70,22 @@ public class HashLookupOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple() {
         return new HashLookupOperator.Factory(
-            new Block[] { TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock() },
+            new HashLookupOperator.Key[] {
+                new HashLookupOperator.Key(
+                    "foo",
+                    TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock()
+                ) },
             new int[] { 0 }
         );
     }
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "HashLookup[keys=[{type=LONG, positions=4, size=104b}], mapping=[0]]";
+        return "HashLookup[keys=[{name=foo, type=LONG, positions=4, size=104b}], mapping=[0]]";
     }
 
     @Override
     protected String expectedToStringOfSimple() {
-        return "HashLookup[hash=PackedValuesBlockHash{groups=[0:LONG], entries=4, size=552b}, mapping=[0]]";
+        return "HashLookup[keys=[foo], hash=PackedValuesBlockHash{groups=[0:LONG], entries=4, size=544b}, mapping=[0]]";
     }
 }

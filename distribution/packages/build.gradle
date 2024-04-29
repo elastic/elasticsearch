@@ -45,17 +45,6 @@ import java.util.regex.Pattern
 plugins {
   id "com.netflix.nebula.ospackage-base" version "11.9.0"
 }
-//buildscript {
-//  repositories {
-//    maven {
-//      url 'https://jitpack.io'
-//    }
-//    mavenCentral()
-//  }
-//  dependencies {
-//    classpath "com.github.breskeby:gradle-ospackage-plugin:2da19425133"
-//  }
-//}
 
 apply plugin: "com.netflix.nebula.ospackage-base"
 

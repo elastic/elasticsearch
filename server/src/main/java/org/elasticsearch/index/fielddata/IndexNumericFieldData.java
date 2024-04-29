@@ -121,6 +121,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             case LONG:
             case DOUBLE:
                 // longs, doubles and dates use the same type for doc-values and points.
+                sortField.setOptimizeSortWithPoints(isIndexed());
                 break;
 
             default:
@@ -132,11 +133,17 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     }
 
     /**
-     * Does {@link #sortField} require a custom comparator because of the way
-     * the data is stored in doc values ({@code true}) or are the docs values
-     * stored such that they can be sorted without decoding ({@code false}).
+     * Should sorting use a custom comparator source vs. rely on a Lucene {@link SortField}. Using a Lucene {@link SortField} when possible
+     * is important because index sorting cannot be configured with a custom comparator, and because it gives better performance by
+     * dynamically pruning irrelevant hits. On the other hand, Lucene {@link SortField}s are less flexible and make stronger assumptions
+     * about how the data is indexed. Therefore, they cannot be used in all cases.
      */
     protected abstract boolean sortRequiresCustomComparator();
+
+    /**
+     * Return true if, and only if the field is indexed with points that match the content of doc values.
+     */
+    protected abstract boolean isIndexed();
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {

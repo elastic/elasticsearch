@@ -121,6 +121,14 @@ public class RolloverIT extends ESIntegTestCase {
         );
     }
 
+    public void testInfiniteMasterNodeTimeout() {
+        assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
+        indexDoc("test_index-2", "1", "field", "value");
+        flush("test_index-2");
+        final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias").setMasterNodeTimeout(TimeValue.MINUS_ONE).get();
+        assertTrue(response.isShardsAcknowledged());
+    }
+
     public void testRolloverWithExplicitWriteIndex() throws Exception {
         long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias").writeIndex(true)).get());

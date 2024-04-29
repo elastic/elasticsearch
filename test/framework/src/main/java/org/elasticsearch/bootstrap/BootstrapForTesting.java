@@ -174,7 +174,8 @@ public class BootstrapForTesting {
                     perms,
                     getPluginPermissions(),
                     true,
-                    Security.toFilePermissions(fastPathPermissions)
+                    Security.toFilePermissions(fastPathPermissions),
+                    List.of()
                 );
                 Policy.setPolicy(new Policy() {
                     @Override
@@ -220,6 +221,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
         addClassCodebase(codebases, "elasticsearch-preallocate", "org.elasticsearch.preallocate.Preallocate");
+        addClassCodebase(codebases, "elasticsearch-vec", "org.elasticsearch.vec.VectorScorer");
         addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }

@@ -62,13 +62,13 @@ public class MrjarPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
-        var isIdea = System.getProperty("idea.active", "false").equals("true");
+        var isIdeaSync = System.getProperty("idea.sync.active", "false").equals("true");
         var ideaSourceSetsEnabled = project.hasProperty(MRJAR_IDEA_ENABLED) && project.property(MRJAR_IDEA_ENABLED).equals("true");
 
         // Ignore version-specific source sets if we are importing into IntelliJ and have not explicitly enabled this.
         // Avoids an IntelliJ bug:
         // https://youtrack.jetbrains.com/issue/IDEA-285640/Compiler-Options-Settings-language-level-is-set-incorrectly-with-JDK-19ea
-        if (isIdea == false || ideaSourceSetsEnabled) {
+        if (isIdeaSync == false || ideaSourceSetsEnabled) {
             List<Integer> mainVersions = findSourceVersions(project);
             List<String> mainSourceSets = new ArrayList<>();
             mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);

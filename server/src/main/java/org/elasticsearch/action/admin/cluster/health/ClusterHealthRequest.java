@@ -121,14 +121,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     public ClusterHealthRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
-        if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
-            masterNodeTimeout = timeout;
-        }
         return this;
-    }
-
-    public ClusterHealthRequest timeout(String timeout) {
-        return this.timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
     public ClusterHealthStatus waitForStatus() {

@@ -103,11 +103,11 @@ and indices, omit this parameter or use `*` or `_all`.
 [[forcemerge-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -118,7 +118,7 @@ If `true`,
 after the force merge.
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_num_segments`::
 +

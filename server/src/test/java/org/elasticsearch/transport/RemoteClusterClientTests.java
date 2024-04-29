@@ -267,7 +267,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
                     // check that we quickly fail
                     expectThrows(
-                        NoSuchRemoteClusterException.class,
+                        ConnectTransportException.class,
                         () -> PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
                             f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                         )
@@ -282,7 +282,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                         PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
                             f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                         );
-                    } catch (NoSuchRemoteClusterException e) {
+                    } catch (ConnectTransportException e) {
                         // keep retrying on this exception, the goal is to check that we eventually reconnect
                         throw new AssertionError(e);
                     }

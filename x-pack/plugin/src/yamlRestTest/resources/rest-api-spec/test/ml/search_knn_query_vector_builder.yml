@@ -105,8 +105,8 @@ setup:
 
 ---
 "Test vector search with query_vector_builder":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "introduced after 8.13"
   - do:
       search:
@@ -124,8 +124,8 @@ setup:
 
 ---
 "nested kNN search with inner_hits size":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "introduced after 8.13"
   - do:
       headers:

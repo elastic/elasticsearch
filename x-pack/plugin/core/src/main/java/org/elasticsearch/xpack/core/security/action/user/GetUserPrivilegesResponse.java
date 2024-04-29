@@ -111,9 +111,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersions.V_8_8_0
+                    + TransportVersions.V_8_8_0.toReleaseVersion()
                     + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         }

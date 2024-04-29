@@ -22,7 +22,7 @@ usage below the <<cluster-routing-watermark-low,low watermark>> before to restar
 . *Disable shard allocation.*
 +
 --
-include::{es-repo-dir}/upgrade/disable-shard-alloc.asciidoc[]
+include::{es-ref-dir}/upgrade/disable-shard-alloc.asciidoc[]
 --
 // end::disable_shard_alloc[]
 
@@ -72,7 +72,7 @@ or jobs with large model states.
 . *Shut down all nodes.*
 +
 --
-include::{es-repo-dir}/upgrade/shut-down-node.asciidoc[]
+include::{es-ref-dir}/upgrade/shut-down-node.asciidoc[]
 --
 
 . *Perform any needed changes.*
@@ -176,7 +176,7 @@ the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 === Rolling restart
 
 
-include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
+include::{es-ref-dir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
 
 . *Stop non-essential indexing and perform a flush.* (Optional)
 +
@@ -191,7 +191,7 @@ POST /_flush
 --------------------------------------------------
 --
 
-include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=stop_ml]
+include::{es-ref-dir}/setup/restart-cluster.asciidoc[tag=stop_ml]
 +
 --
 * If you perform a rolling restart, you can also leave your machine learning
@@ -204,7 +204,7 @@ cluster.
 . *Shut down a single node in case of rolling restart.*
 +
 --
-include::{es-repo-dir}/upgrade/shut-down-node.asciidoc[]
+include::{es-ref-dir}/upgrade/shut-down-node.asciidoc[]
 --
 
 . *Perform any needed changes.*
@@ -248,4 +248,4 @@ When the node has recovered and the cluster is stable, repeat these steps
 for each node that needs to be changed.
 --
 
-include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=restart_ml]
+include::{es-ref-dir}/setup/restart-cluster.asciidoc[tag=restart_ml]

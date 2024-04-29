@@ -168,4 +168,18 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertThat(exc.getMessage(), equalTo("cannot combine _none_ with other fields"));
         }
     }
+
+    public void testFetchId() {
+        assertAcked(prepareCreate("test"));
+        ensureGreen();
+
+        prepareIndex("test").setId("1").setSource("field", "value").get();
+        refresh();
+
+        assertResponse(prepareSearch("test").addFetchField("_id"), response -> {
+            assertEquals(1, response.getHits().getHits().length);
+            assertEquals("1", response.getHits().getAt(0).getId());
+            assertEquals("1", response.getHits().getAt(0).field("_id").getValue());
+        });
+    }
 }

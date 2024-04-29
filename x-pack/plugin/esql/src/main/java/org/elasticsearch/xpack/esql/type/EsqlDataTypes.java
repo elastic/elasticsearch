@@ -249,7 +249,12 @@ public final class EsqlDataTypes {
     }
 
     public static DataType getCounterType(String typeName) {
-        return fromTypeName("counter_" + typeName);
+        final DataType rootType = widenSmallNumericTypes(fromName(typeName));
+        if (rootType == UNSUPPORTED) {
+            return rootType;
+        }
+        assert rootType == LONG || rootType == INTEGER || rootType == DOUBLE : rootType;
+        return fromTypeName("counter_" + rootType.typeName());
     }
 
     public static boolean isCounterType(DataType dt) {

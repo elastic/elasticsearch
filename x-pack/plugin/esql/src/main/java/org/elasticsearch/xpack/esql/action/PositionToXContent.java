@@ -61,21 +61,21 @@ abstract class PositionToXContent {
 
     public static PositionToXContent positionToXContent(ColumnInfo columnInfo, Block block, BytesRef scratch) {
         return switch (columnInfo.type()) {
-            case "long" -> new PositionToXContent(block) {
+            case "long", "counter_long" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((LongBlock) block).getLong(valueIndex));
                 }
             };
-            case "integer" -> new PositionToXContent(block) {
+            case "integer", "counter_integer" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
-            case "double" -> new PositionToXContent(block) {
+            case "double", "counter_double" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

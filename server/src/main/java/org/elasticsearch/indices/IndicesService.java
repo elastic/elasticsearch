@@ -920,16 +920,23 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexService indexService;
             final IndexEventListener listener;
             synchronized (this) {
-                if (hasIndex(index) == false) {
-                    // ES-8334 TODO must complete listener here, but ideally outside mutex
-                    return;
+                if (hasIndex(index)) {
+                    logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
+                    indexService = indices.get(index.getUUID());
+                    assert indexService != null : "IndexService is null for index: " + index;
+                    indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
+                    listener = indexService.getIndexEventListener();
+                } else {
+                    indexService = null;
+                    listener = null;
                 }
+            }
 
-                logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
-                indexService = indices.get(index.getUUID());
-                assert indexService != null : "IndexService is null for index: " + index;
-                indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
-                listener = indexService.getIndexEventListener();
+            assert (indexService == null) == (listener == null) : indexService + " vs " + listener;
+
+            if (indexService == null) {
+                l.onResponse(null);
+                return;
             }
 
             listener.beforeIndexRemoved(indexService, reason);

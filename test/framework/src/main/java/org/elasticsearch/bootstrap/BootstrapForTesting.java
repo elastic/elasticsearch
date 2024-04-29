@@ -251,7 +251,7 @@ public class BootstrapForTesting {
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Map<String, Policy> getPluginPermissions() throws Exception {
+    static Map<URL, Policy> getPluginPermissions() throws Exception {
         List<URL> pluginPolicies = Collections.list(
             BootstrapForTesting.class.getClassLoader().getResources(PluginDescriptor.ES_PLUGIN_POLICY)
         );
@@ -303,9 +303,9 @@ public class BootstrapForTesting {
         }
 
         // consult each policy file for those codebases
-        Map<String, Policy> map = new HashMap<>();
+        Map<URL, Policy> map = new HashMap<>();
         for (URL url : codebases) {
-            map.put(url.getFile(), new Policy() {
+            map.put(url, new Policy() {
                 @Override
                 public boolean implies(ProtectionDomain domain, Permission permission) {
                     // implements union

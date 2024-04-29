@@ -151,11 +151,7 @@ public class ESPolicyUnitTests extends ESTestCase {
             true,
             List.of(),
             List.of(),
-            Map.ofEntries(
-                entry(file1, Set.of(codebase1.getFile())),
-                entry(file2, Set.of(codebase1.getFile(), codebase2.getFile())),
-                entry(dir1 + "*", Set.of(codebase3.getFile()))
-            )
+            Map.ofEntries(entry(file1, Set.of(codebase1)), entry(file2, Set.of(codebase1, codebase2)), entry(dir1 + "*", Set.of(codebase3)))
         );
 
         ProtectionDomain nullDomain = new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions());

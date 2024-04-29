@@ -120,7 +120,7 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
-        Map<String, Policy> pluginPolicies = getPluginAndModulePermissions(environment);
+        Map<URL, Policy> pluginPolicies = getPluginAndModulePermissions(environment);
         Policy.setPolicy(
             new ESPolicy(
                 codebases,
@@ -149,8 +149,8 @@ final class Security {
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static Map<String, Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
-        Map<String, Policy> map = new HashMap<>();
+    static Map<URL, Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
+        Map<URL, Policy> map = new HashMap<>();
         Consumer<PluginPolicyInfo> addPolicy = pluginPolicy -> {
             if (pluginPolicy == null) {
                 return;
@@ -158,7 +158,7 @@ final class Security {
 
             // consult this policy for each of the plugin's jars:
             for (URL jar : pluginPolicy.jars()) {
-                if (map.put(jar.getFile(), pluginPolicy.policy()) != null) {
+                if (map.put(jar, pluginPolicy.policy()) != null) {
                     // just be paranoid ok?
                     throw new IllegalStateException("per-plugin permissions already granted for jar file: " + jar);
                 }
@@ -204,12 +204,12 @@ final class Security {
         return toFilePermissions(policy);
     }
 
-    private static Map<String, Set<String>> createPluginExclusiveFiles(Environment environment, Map<String, Policy> pluginPolicies)
+    private static Map<String, Set<URL>> createPluginExclusiveFiles(Environment environment, Map<URL, Policy> pluginPolicies)
         throws IOException {
-        Map<String, Set<String>> exclusiveFiles = new HashMap<>();
+        Map<String, Set<URL>> exclusiveFiles = new HashMap<>();
 
         for (var pp : pluginPolicies.entrySet()) {
-            var permissions = PolicyUtil.getPolicyPermissions(new URL(pp.getKey()), pp.getValue(), environment.tmpFile());
+            var permissions = PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile());
             permissions.stream()
                 .filter(p -> p instanceof PluginExclusiveFileAccessPermission)
                 .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(pp.getKey()));

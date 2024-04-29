@@ -45,19 +45,19 @@ final class ESPolicy extends Policy {
     final PermissionCollection dynamic;
     final PermissionCollection dataPathPermission;
     final PermissionCollection forbiddenFilePermission;
-    final Map<String, Policy> plugins;
+    final Map<URL, Policy> plugins;
     final PermissionCollection allExclusiveFiles;
-    final Map<FilePermission, Set<String>> pluginExclusiveFiles;
+    final Map<FilePermission, Set<URL>> pluginExclusiveFiles;
 
     @SuppressForbidden(reason = "Need to access and check file permissions directly")
     ESPolicy(
         Map<String, URL> codebases,
         PermissionCollection dynamic,
-        Map<String, Policy> plugins,
+        Map<URL, Policy> plugins,
         boolean filterBadDefaults,
         List<FilePermission> dataPathPermissions,
         List<FilePermission> forbiddenFilePermissions,
-        Map<String, Set<String>> pluginExclusiveFiles
+        Map<String, Set<URL>> pluginExclusiveFiles
     ) {
         this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
         this.dataPathPermission = createPermission(dataPathPermissions);
@@ -130,7 +130,7 @@ final class ESPolicy extends Policy {
             }
             // check for an additional plugin permission: plugin policy is
             // only consulted for its codesources.
-            Policy plugin = plugins.get(location.getFile());
+            Policy plugin = plugins.get(location);
             if (plugin != null && plugin.implies(domain, permission)) {
                 return true;
             }
@@ -170,10 +170,10 @@ final class ESPolicy extends Policy {
         }
 
         // check the plugin source
-        Set<String> accessibleSources = pluginExclusiveFiles.get(permission);
+        Set<URL> accessibleSources = pluginExclusiveFiles.get(permission);
         if (accessibleSources != null) {
             // simple case - single-file referenced directly
-            return accessibleSources.contains(location.getFile());
+            return accessibleSources.contains(location);
         } else {
             // there's a directory reference in there somewhere
             // do a manual search :(
@@ -181,7 +181,7 @@ final class ESPolicy extends Policy {
             return pluginExclusiveFiles.entrySet()
                 .stream()
                 .filter(e -> e.getKey().implies(permission))
-                .anyMatch(e -> e.getValue().contains(location.getFile()));
+                .anyMatch(e -> e.getValue().contains(location));
         }
     }
 

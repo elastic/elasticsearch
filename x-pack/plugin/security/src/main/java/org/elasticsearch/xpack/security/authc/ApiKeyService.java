@@ -202,6 +202,8 @@ public class ApiKeyService {
         Property.NodeScope
     );
 
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
+
     private final Clock clock;
     private final Client client;
     private final SecurityIndexManager securityIndex;
@@ -320,8 +322,8 @@ public class ApiKeyService {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
@@ -331,8 +333,8 @@ public class ApiKeyService {
                 && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                             + "] or higher to support creating cross cluster API keys"
                     )
                 );
@@ -379,8 +381,8 @@ public class ApiKeyService {
             // creating/updating API keys with restrictions is not allowed in a mixed cluster.
             if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
                 return new IllegalArgumentException(
-                    "all nodes must have transport version ["
-                        + WORKFLOWS_RESTRICTION_VERSION
+                    "all nodes must have version ["
+                        + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
                         + "] or higher to support restrictions for API keys"
                 );
             }
@@ -490,8 +492,8 @@ public class ApiKeyService {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
-                    "all nodes must have transport version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    "all nodes must have version ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -987,7 +989,7 @@ public class ApiKeyService {
                         XContentType.JSON
                     )
                 ) {
-                    return RoleDescriptor.parse(name, parser, false);
+                    return ROLE_DESCRIPTOR_PARSER.parse(name, parser);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -1027,7 +1029,7 @@ public class ApiKeyService {
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 parser.nextToken(); // role name
                 String roleName = parser.currentName();
-                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+                roleDescriptors.add(ROLE_DESCRIPTOR_PARSER.parse(roleName, parser));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

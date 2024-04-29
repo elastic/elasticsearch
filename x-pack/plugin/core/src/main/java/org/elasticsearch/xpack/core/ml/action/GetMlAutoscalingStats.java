@@ -52,7 +52,7 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(timeout);
+            return Objects.hash(ackTimeout());
         }
 
         @Override
@@ -64,7 +64,7 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
                 return false;
             }
             GetMlAutoscalingStats.Request other = (GetMlAutoscalingStats.Request) obj;
-            return Objects.equals(timeout, other.timeout);
+            return Objects.equals(ackTimeout(), other.ackTimeout());
         }
     }
 

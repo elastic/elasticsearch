@@ -24,7 +24,7 @@ values may differ.
 
 The currently supported options are:
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
@@ -37,7 +37,7 @@ missing or closed index.
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/search/search.asciidoc[tag=search-preference]
+include::{es-ref-dir}/search/search.asciidoc[tag=search-preference]
 
 *Examples*
 

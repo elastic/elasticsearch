@@ -22,19 +22,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ExecutableRequestCreatorTests {
-    public static ExecutableRequestCreator createMock() {
-        var mockCreator = mock(ExecutableRequestCreator.class);
+    public static RequestManager createMock() {
+        var mockCreator = mock(RequestManager.class);
         when(mockCreator.create(any(), anyList(), any(), any(), any(), any())).thenReturn(() -> {});
 
         return mockCreator;
     }
 
-    public static ExecutableRequestCreator createMock(RequestSender requestSender) {
+    public static RequestManager createMock(RequestSender requestSender) {
         return createMock(requestSender, "id");
     }
 
-    public static ExecutableRequestCreator createMock(RequestSender requestSender, String modelId) {
-        var mockCreator = mock(ExecutableRequestCreator.class);
+    public static RequestManager createMock(RequestSender requestSender, String modelId) {
+        var mockCreator = mock(RequestManager.class);
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")

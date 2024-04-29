@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -34,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -230,11 +230,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
                 .setReason(this.getTestName())
                 .setStartedAtMillis(1L)
                 .setTargetNodeName(targetNodeName)
-                .setGracePeriod(
-                    shutdownType == SingleNodeShutdownMetadata.Type.SIGTERM
-                        ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                        : null
-                )
+                .setGracePeriod(shutdownType == SIGTERM ? randomTimeValue() : null)
                 .build()
         );
     }

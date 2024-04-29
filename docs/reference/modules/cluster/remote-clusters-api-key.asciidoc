@@ -198,4 +198,4 @@ Configuring the `remote_cluster_client` settings in `elasticsearch.yml` still re
 include::remote-clusters-connect.asciidoc[]
 :!trust-mechanism:
 
-include::{es-repo-dir}/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]
+include::{es-ref-dir}/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]

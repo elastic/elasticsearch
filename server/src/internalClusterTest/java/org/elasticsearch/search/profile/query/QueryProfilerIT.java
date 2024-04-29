@@ -21,7 +21,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -30,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,6 +41,75 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class QueryProfilerIT extends ESIntegTestCase {
+
+    public void testKnnPrefilterProfile() throws Exception {
+        String textField = "text_field";
+        String numericField = "number";
+        String vectorField = "vector";
+        String indexName = "text-query-vector-profile";
+        assertAcked(
+            prepareCreate(indexName).setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject(vectorField)
+                    .field("type", "dense_vector")
+                    .field("dims", 3)
+                    .field("index", true)
+                    .field("similarity", "cosine")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen();
+
+        int numDocs = randomIntBetween(10, 50);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = prepareIndex(indexName).setId(String.valueOf(i))
+                .setSource(
+                    textField,
+                    English.intToEnglish(i),
+                    numericField,
+                    i,
+                    vectorField,
+                    new float[] { randomFloat(), randomFloat(), randomFloat() }
+                );
+        }
+        indexRandom(true, docs);
+        refresh();
+        int iters = between(5, 10);
+        for (int i = 0; i < iters; i++) {
+            QueryBuilder q = randomQueryBuilder(List.of(textField), List.of(numericField), numDocs, 3);
+            KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+                vectorField,
+                new float[] { randomFloat(), randomFloat(), randomFloat() },
+                50,
+                randomBoolean() ? null : randomFloat()
+            );
+            if (randomBoolean() || true) {
+                knnQuery.addFilterQuery(q);
+            }
+            q = QueryBuilders.boolQuery().must(q).must(knnQuery);
+            assertResponse(prepareSearch().setQuery(q).setTrackTotalHits(true).setProfile(true), response -> {
+                assertNotNull("Profile response element should not be null", response.getProfileResults());
+                assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
+                for (Map.Entry<String, SearchProfileShardResult> shard : response.getProfileResults().entrySet()) {
+                    for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
+                        for (ProfileResult result : searchProfiles.getQueryResults()) {
+                            assertNotNull(result.getQueryName());
+                            assertNotNull(result.getLuceneDescription());
+                            assertThat(result.getTime(), greaterThan(0L));
+                        }
+                        CollectorResult result = searchProfiles.getCollectorResult();
+                        assertThat(result.getName(), is(not(emptyOrNullString())));
+                        assertThat(result.getTime(), greaterThan(0L));
+                    }
+                }
+            });
+        }
+    }
 
     /**
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,

@@ -212,7 +212,7 @@ public class MetadataDataStreamsService {
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
-            atLeastOneDataStreamIsNotSystem = atLeastOneDataStreamIsNotSystem || dataStream.isSystem();
+            atLeastOneDataStreamIsNotSystem = atLeastOneDataStreamIsNotSystem || dataStream.isSystem() == false;
         }
         if (lifecycle != null) {
             if (atLeastOneDataStreamIsNotSystem) {

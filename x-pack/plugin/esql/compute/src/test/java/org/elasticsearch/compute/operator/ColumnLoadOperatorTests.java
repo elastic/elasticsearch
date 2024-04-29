@@ -9,20 +9,23 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HashLookupOperatorTests extends OperatorTestCase {
+public class ColumnLoadOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> randomFrom(1, 7, 14, 20)));
+        return new SequenceIntBlockSourceOperator(blockFactory, IntStream.range(0, size).map(l -> between(0, 4)));
     }
 
     @Override
@@ -30,59 +33,56 @@ public class HashLookupOperatorTests extends OperatorTestCase {
         int count = input.stream().mapToInt(Page::getPositionCount).sum();
         assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(count));
         int keysIdx = 0;
-        int ordsIdx = 0;
-        LongBlock keys = null;
+        int loadedIdx = 0;
+        IntBlock keys = null;
         int keysOffset = 0;
-        IntBlock ords = null;
-        int ordsOffset = 0;
+        LongBlock loaded = null;
+        int loadedOffset = 0;
         int p = 0;
         while (p < count) {
             if (keys == null) {
                 keys = input.get(keysIdx++).getBlock(0);
             }
-            if (ords == null) {
-                ords = results.get(ordsIdx++).getBlock(1);
+            if (loaded == null) {
+                loaded = results.get(loadedIdx++).getBlock(1);
             }
             int valueCount = keys.getValueCount(p - keysOffset);
-            assertThat(ords.getValueCount(p - ordsOffset), equalTo(valueCount));
+            assertThat(loaded.getValueCount(p - loadedOffset), equalTo(valueCount));
             int keysStart = keys.getFirstValueIndex(p - keysOffset);
-            int ordsStart = ords.getFirstValueIndex(p - ordsOffset);
-            for (int k = keysStart, l = ordsStart; k < keysStart + valueCount; k++, l++) {
-                assertThat(ords.getInt(l), equalTo(switch((int) keys.getLong(k)) {
-                    case 1 -> 0;
-                    case 7 -> 1;
-                    case 14 -> 2;
-                    case 20 -> 3;
-                    default -> null;
-                }));
+            int loadedStart = loaded.getFirstValueIndex(p - loadedOffset);
+            for (int k = keysStart, l = loadedStart; k < keysStart + valueCount; k++, l++) {
+                assertThat(loaded.getLong(l), equalTo(3L * keys.getInt(k)));
             }
             p++;
             if (p - keysOffset == keys.getPositionCount()) {
                 keysOffset += keys.getPositionCount();
                 keys = null;
             }
-            if (p - ordsOffset == ords.getPositionCount()) {
-                ordsOffset += ords.getPositionCount();
-                ords = null;
+            if (p - loadedOffset == loaded.getPositionCount()) {
+                loadedOffset += loaded.getPositionCount();
+                loaded = null;
             }
         }
     }
 
     @Override
     protected Operator.OperatorFactory simple() {
-        return new HashLookupOperator.Factory(
-            new Block[] { TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock() },
-            new int[] { 0 }
+        return new ColumnLoadOperator.Factory(
+            new ColumnLoadOperator.Values(
+                "values",
+                TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 0, 3, 6, 9, 12 }, 5).asBlock()
+            ),
+            0
         );
     }
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "HashLookup[keys=[{type=LONG, positions=4, size=104b}], mapping=[0]]";
+        return "ColumnLoad[values=values:LONG, positions=0]";
     }
 
     @Override
     protected String expectedToStringOfSimple() {
-        return "HashLookup[hash=PackedValuesBlockHash{groups=[0:LONG], entries=4, size=552b}, mapping=[0]]";
+        return expectedDescriptionOfSimple();
     }
 }

@@ -7,7 +7,7 @@
  */
 
 #ifdef _MSC_VER
-#define EXPORT extern "C" __declspec(dllexport)
+#define EXPORT __declspec(dllexport)
 #elif defined(__GNUC__) && !defined(__clang__)
 #define EXPORT __attribute__((externally_visible,visibility("default")))
 #elif __clang__

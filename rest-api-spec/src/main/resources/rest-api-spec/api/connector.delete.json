@@ -26,6 +26,13 @@
           }
         }
       ]
+    },
+    "params": {
+      "delete_sync_jobs": {
+        "type": "boolean",
+        "default": false,
+        "description": "Determines whether associated sync jobs are also deleted."
+      }
     }
   }
 }

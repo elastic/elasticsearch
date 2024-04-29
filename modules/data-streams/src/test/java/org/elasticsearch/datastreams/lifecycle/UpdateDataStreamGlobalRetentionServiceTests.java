@@ -11,11 +11,14 @@ package org.elasticsearch.datastreams.lifecycle;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -34,6 +37,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.empty;
 
 public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
     private static TestThreadPool threadPool;
@@ -48,7 +52,10 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
     @Before
     public void setupServices() {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        service = new UpdateDataStreamGlobalRetentionService(clusterService);
+        service = new UpdateDataStreamGlobalRetentionService(
+            clusterService,
+            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
+        );
     }
 
     @After
@@ -101,6 +108,22 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
                 service.updateGlobalRetention(clusterState, expectedRetention)
             );
             assertThat(updatedRetention, equalTo(expectedRetention));
+        }
+
+        // No change means no new cluster state
+        {
+            UpdateDataStreamGlobalRetentionService serviceWithRandomFactoryRetention = new UpdateDataStreamGlobalRetentionService(
+                clusterService,
+                new DataStreamGlobalRetentionResolver(
+                    randomBoolean() ? DataStreamFactoryRetention.emptyFactoryRetention() : randomNonEmptyFactoryRetention()
+                )
+            );
+            var retention = randomBoolean() ? null : randomNonEmptyGlobalRetention();
+            ClusterState clusterState = retention == null
+                ? ClusterState.EMPTY_STATE
+                : ClusterState.builder(ClusterName.DEFAULT).putCustom(DataStreamGlobalRetention.TYPE, retention).build();
+            var updatedClusterState = serviceWithRandomFactoryRetention.updateGlobalRetention(clusterState, retention);
+            assertThat(updatedClusterState == clusterState, is(true));
         }
     }
 
@@ -188,6 +211,18 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
             assertThat(dataStream.previousEffectiveRetention(), nullValue());
             assertThat(dataStream.newEffectiveRetention(), equalTo(globalRetention.getMaxRetention()));
         }
+
+        // Requested global retention match the factory retention, so no affected data streams
+        {
+            DataStreamFactoryRetention factoryRetention = randomNonEmptyFactoryRetention();
+            UpdateDataStreamGlobalRetentionService serviceWithRandomFactoryRetention = new UpdateDataStreamGlobalRetentionService(
+                clusterService,
+                new DataStreamGlobalRetentionResolver(factoryRetention)
+            );
+            var globalRetention = new DataStreamGlobalRetention(factoryRetention.getDefaultRetention(), factoryRetention.getMaxRetention());
+            var affectedDataStreams = serviceWithRandomFactoryRetention.determineAffectedDataStreams(globalRetention, clusterState);
+            assertThat(affectedDataStreams, is(empty()));
+        }
     }
 
     private static DataStreamGlobalRetention randomNonEmptyGlobalRetention() {
@@ -196,5 +231,27 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
             withDefault ? TimeValue.timeValueDays(randomIntBetween(1, 1000)) : null,
             withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1000, 2000)) : null
         );
+    }
+
+    private static DataStreamFactoryRetention randomNonEmptyFactoryRetention() {
+        boolean withDefault = randomBoolean();
+        TimeValue defaultRetention = withDefault ? TimeValue.timeValueDays(randomIntBetween(10, 20)) : null;
+        TimeValue maxRetention = withDefault && randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(50, 200));
+        return new DataStreamFactoryRetention() {
+            @Override
+            public TimeValue getMaxRetention() {
+                return maxRetention;
+            }
+
+            @Override
+            public TimeValue getDefaultRetention() {
+                return defaultRetention;
+            }
+
+            @Override
+            public void init(ClusterSettings clusterSettings) {
+
+            }
+        };
     }
 }

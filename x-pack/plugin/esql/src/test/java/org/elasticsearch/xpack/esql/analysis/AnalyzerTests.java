@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -44,8 +46,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -1003,13 +1003,7 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where emp_no COMPARISON "foo"
                 """.replace("COMPARISON", comparison)));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "first argument of [emp_no COMPARISON \"foo\"] is [numeric] so second argument must also be [numeric] but was [keyword]"
-                        .replace("COMPARISON", comparison)
-                )
-            );
+            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
         }
     }
 
@@ -1019,13 +1013,7 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where "foo" COMPARISON emp_no
                 """.replace("COMPARISON", comparison)));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "first argument of [\"foo\" COMPARISON emp_no] is [keyword] so second argument must also be [keyword] but was [integer]"
-                        .replace("COMPARISON", comparison)
-                )
-            );
+            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
         }
     }
 
@@ -1051,11 +1039,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testCompareDateToStringFails() {
         for (String comparison : COMPARISONS) {
-            verifyUnsupported("""
-                from test
-                | where date COMPARISON "not-a-date"
-                | keep date
-                """.replace("COMPARISON", comparison), "Invalid date [not-a-date]", "mapping-multi-field-variation.json");
+            verifyUnsupported(
+                """
+                    from test
+                    | where date COMPARISON "not-a-date"
+                    | keep date
+                    """.replace("COMPARISON", comparison),
+                "Cannot convert string [not-a-date] to [DATETIME]",
+                "mapping-multi-field-variation.json"
+            );
         }
     }
 
@@ -1118,36 +1110,36 @@ public class AnalyzerTests extends ESTestCase {
     public void testDateTruncOnInt() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", int)
-            """, "first argument of [date_trunc(\"1M\", int)] must be [datetime], found value [int] type [integer]");
+            | eval date_trunc(1 month, int)
+            """, "second argument of [date_trunc(1 month, int)] must be [datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", float)
-            """, "first argument of [date_trunc(\"1M\", float)] must be [datetime], found value [float] type [double]");
+            | eval date_trunc(1 month, float)
+            """, "second argument of [date_trunc(1 month, float)] must be [datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", keyword)
-            """, "first argument of [date_trunc(\"1M\", keyword)] must be [datetime], found value [keyword] type [keyword]");
+            | eval date_trunc(1 month, keyword)
+            """, "second argument of [date_trunc(1 month, keyword)] must be [datetime], found value [keyword] type [keyword]");
     }
 
     public void testDateTruncWithNumericInterval() {
         verifyUnsupported("""
             from test
             | eval date_trunc(1, date)
-            """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+            """, "first argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
     }
 
     public void testDateTruncWithDateInterval() {
         verifyUnsupported("""
             from test
             | eval date_trunc(date, date)
-            """, "second argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
+            """, "first argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
     }
 
     // check field declaration is validated even across duplicated declarations
@@ -1785,45 +1777,45 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedTypesInStats() {
-        verifyUnsupported(
-            """
-                  row x = to_unsigned_long(\"10\")
-                  | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
-                """,
-            "Found 8 problems\n"
-                + "line 2:12: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
-                + "line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long], "
-                + "found value [x] type [unsigned_long]\n"
-                + "line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [max(x)] type [unsigned_long]\n"
-                + "line 2:47: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
-                + "line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
-                + "found value [x] type [unsigned_long]\n"
-                + "line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [min(x)] type [unsigned_long]\n"
-                + "line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
-                + "found value [x] type [unsigned_long]\n"
-                + "line 2:115: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]"
-        );
+        verifyUnsupported("""
+              row x = to_unsigned_long(\"10\")
+              | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+            """, """
+            Found 8 problems
+            line 2:12: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [max(x)] type [unsigned_long]
+            line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [min(x)] type [unsigned_long]
+            line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
+             found value [x] type [unsigned_long]
+            line 2:115: argument of [sum(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]""");
 
-        verifyUnsupported(
-            """
-                row x = to_version("1.2")
-                | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
-                """,
-            "Found 7 problems\n"
-                + "line 2:10: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
-                + "line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [max(x)] type [version]\n"
-                + "line 2:26: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
-                + "line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
-                + "found value [x] type [version]\n"
-                + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [min(x)] type [version]\n"
-                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
-                + "found value [x] type [version]\n"
-                + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [version]"
-        );
+        verifyUnsupported("""
+            row x = to_version("1.2")
+            | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+            """, """
+            Found 7 problems
+            line 2:10: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [max(x)] type [version]
+            line 2:26: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [min(x)] type [version]
+            line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
+            line 2:94: argument of [sum(x)] must be [numeric except unsigned_long or counter types], found value [x] type [version]""");
     }
 
     public void testInOnText() {

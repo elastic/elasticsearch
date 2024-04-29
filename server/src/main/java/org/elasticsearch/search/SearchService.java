@@ -19,6 +19,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -1425,7 +1426,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
-            context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
+            context.queryPhaseRankShardContext(source.rankBuilder().buildQueryPhaseShardContext(queries, context.from()));
         }
     }
 
@@ -1453,9 +1454,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.collapse() != null) {
             if (hasScroll) {
                 throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
-            }
-            if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                throw new IllegalArgumentException("cannot use `collapse` in conjunction with `rescore`");
             }
         }
         if (source.slice() != null) {
@@ -1782,8 +1780,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getRewriteContext(nowInMillis);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Registers repositories
@@ -50,8 +51,8 @@ public class RestPutRepositoryAction extends BaseRestHandler {
             putRepositoryRequest.source(parser.mapOrdered());
         }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
-        putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
-        putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
+        putRepositoryRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        putRepositoryRequest.ackTimeout(request.paramAsTime("timeout", putRepositoryRequest.ackTimeout()));
         return channel -> client.admin()
             .cluster()
             .putRepository(

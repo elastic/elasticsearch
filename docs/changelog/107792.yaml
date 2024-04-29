@@ -1,0 +1,5 @@
+pr: 107792
+summary: Halt Indexer on Stop/Abort API
+area: Transform
+type: bug
+issues: []

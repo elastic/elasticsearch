@@ -20,11 +20,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
-import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
-import org.elasticsearch.compute.operator.MultivalueDedupeDouble;
-import org.elasticsearch.compute.operator.MultivalueDedupeInt;
-import org.elasticsearch.compute.operator.MultivalueDedupeLong;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
@@ -166,20 +165,6 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     @Override
     public DataType dataType() {
         return field.dataType();
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, order);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvSort other = (MvSort) obj;
-        return Objects.equals(other.field, field) && Objects.equals(other.order, order);
     }
 
     @Override

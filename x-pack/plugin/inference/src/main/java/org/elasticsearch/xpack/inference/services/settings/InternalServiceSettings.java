@@ -40,13 +40,17 @@ public abstract class InternalServiceSettings implements ServiceSettings {
                 ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
             );
         } else if (numAllocations < 1) {
-            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_ALLOCATIONS, numAllocations));
+            validationException.addValidationError(
+                ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS, numAllocations)
+            );
         }
 
         if (numThreads == null) {
             validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
         } else if (numThreads < 1) {
-            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_THREADS, numThreads));
+            validationException.addValidationError(
+                ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, numThreads)
+            );
         }
     }
 

@@ -122,7 +122,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70595")
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
+        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null, false));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 

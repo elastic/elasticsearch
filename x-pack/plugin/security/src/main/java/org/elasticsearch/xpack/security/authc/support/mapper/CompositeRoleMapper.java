@@ -54,8 +54,8 @@ public class CompositeRoleMapper implements UserRoleMapper {
     }
 
     @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
-        this.delegates.forEach(mapper -> mapper.refreshRealmOnChange(realm));
+    public void clearRealmCacheOnChange(CachingRealm realm) {
+        this.delegates.forEach(mapper -> mapper.clearRealmCacheOnChange(realm));
     }
 
 }

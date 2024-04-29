@@ -7,13 +7,12 @@
  */
 package org.elasticsearch.aggregations.bucket.histogram;
 
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -22,6 +21,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.BucketReducer;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -35,6 +35,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -133,10 +134,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             return Long.compare(key, other.key);
         }
 
-        public DocValueFormat getFormatter() {
-            return format;
-        }
-
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 key,
@@ -232,6 +229,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         } else {
             bucketInnerInterval = 1; // Calculated on merge.
         }
+        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+            // list is mutable by #readCollectionAsList contract
+            buckets.sort(Comparator.comparingLong(b -> b.key));
+        }
     }
 
     @Override
@@ -273,7 +275,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return targetBuckets;
     }
 
-    public BucketInfo getBucketInfo() {
+    BucketInfo getBucketInfo() {
         return bucketInfo;
     }
 
@@ -285,6 +287,61 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
         return new Bucket(prototype.key, prototype.docCount, prototype.format, aggregations);
+    }
+
+    /**
+     * This method works almost exactly the same as
+     * InternalDateHistogram#reduceBuckets(List, ReduceContext), the different
+     * here is that we need to round all the keys we see using the highest level
+     * rounding returned across all the shards so the resolution of the buckets
+     * is the same and they can be reduced together.
+     */
+    private BucketReduceResult reduceBuckets(
+        PriorityQueue<IteratorAndCurrent<Bucket>> pq,
+        int reduceRoundingIdx,
+        long min,
+        long max,
+        AggregationReduceContext reduceContext
+    ) {
+        // First we need to find the highest level rounding used across all the
+        // shards
+        Rounding.Prepared reduceRounding = prepare(reduceRoundingIdx, min, max);
+
+        List<Bucket> reducedBuckets = new ArrayList<>();
+        if (pq.size() > 0) {
+            // list of buckets coming from different shards that have the same key
+            List<Bucket> currentBuckets = new ArrayList<>();
+            long key = reduceRounding.round(pq.top().current().key);
+
+            do {
+                final IteratorAndCurrent<Bucket> top = pq.top();
+
+                if (reduceRounding.round(top.current().key) != key) {
+                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
+                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
+                    reducedBuckets.add(reduced);
+                    currentBuckets.clear();
+                    key = reduceRounding.round(top.current().key);
+                }
+
+                currentBuckets.add(top.current());
+
+                if (top.hasNext()) {
+                    top.next();
+                    assert top.current().key > key : "shards must return data sorted by key";
+                    pq.updateTop();
+                } else {
+                    pq.pop();
+                }
+            } while (pq.size() > 0);
+
+            if (currentBuckets.isEmpty() == false) {
+                final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
+                reducedBuckets.add(reduced);
+            }
+        }
+
+        return mergeBucketsIfNeeded(new BucketReduceResult(reducedBuckets, reduceRoundingIdx, 1, reduceRounding, min, max), reduceContext);
     }
 
     private BucketReduceResult mergeBucketsIfNeeded(BucketReduceResult firstPassResult, AggregationReduceContext reduceContext) {
@@ -338,13 +395,12 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
     private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
-        long docCount = 0;
-        for (Bucket bucket : buckets) {
-            docCount += bucket.docCount;
+        try (BucketReducer<Bucket> reducer = new BucketReducer<>(buckets.get(0), context, buckets.size())) {
+            for (Bucket bucket : buckets) {
+                reducer.accept(bucket);
+            }
+            return createBucket(reducer.getProto().key, reducer.getDocCount(), reducer.getAggregations());
         }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
     private record BucketReduceResult(
@@ -434,87 +490,33 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return currentRoundingIdx - 1;
     }
 
-    /**
-     * This method works almost exactly the same as
-     * InternalDateHistogram#reduceBuckets(List, ReduceContext), the different
-     * here is that we need to round all the keys we see using the highest level
-     * rounding returned across all the shards so the resolution of the buckets
-     * is the same and they can be reduced together.
-     */
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final LongObjectPagedHashMap<BucketReducer<Bucket>> bucketsReducer = new LongObjectPagedHashMap<>(
-                getBuckets().size(),
-                reduceContext.bigArrays()
-            );
-            int reduceRoundingIdx = 0;
-            long min = Long.MAX_VALUE;
-            long max = Long.MIN_VALUE;
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+                @Override
+                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                    return a.current().key < b.current().key;
+                }
+            };
+            private int reduceRoundingIdx = 0;
+            private long min = Long.MAX_VALUE;
+            private long max = Long.MIN_VALUE;
 
             @Override
             public void accept(InternalAggregation aggregation) {
-                final InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
+                InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
                 reduceRoundingIdx = Math.max(histogram.bucketInfo.roundingIdx, reduceRoundingIdx);
-                if (false == histogram.buckets.isEmpty()) {
+                if (histogram.buckets.isEmpty() == false) {
                     min = Math.min(min, histogram.buckets.get(0).key);
                     max = Math.max(max, histogram.buckets.get(histogram.buckets.size() - 1).key);
-                    for (Bucket bucket : histogram.buckets) {
-                        BucketReducer<Bucket> reducer = bucketsReducer.get(bucket.key);
-                        if (reducer == null) {
-                            reducer = new BucketReducer<>(bucket, reduceContext, size);
-                            bucketsReducer.put(bucket.key, reducer);
-                        }
-                        reducer.accept(bucket);
-                    }
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
                 }
             }
 
             @Override
             public InternalAggregation get() {
-                // First we need to find the highest level rounding used across all the
-                // shards
-                final Rounding.Prepared reduceRounding = prepare(reduceRoundingIdx, min, max);
-
-                final long[] keys = new long[(int) bucketsReducer.size()];
-                {
-                    // fill the array and sort it
-                    final int[] index = new int[] { 0 };
-                    bucketsReducer.forEach(c -> keys[index[0]++] = c.key);
-                    Arrays.sort(keys);
-                }
-
-                final List<Bucket> reducedBuckets = new ArrayList<>();
-                if (keys.length > 0) {
-                    // list of buckets coming from different shards that have the same key
-                    BucketReducer<Bucket> currentReducer = null;
-                    long key = reduceRounding.round(keys[0]);
-                    for (long top : keys) {
-                        if (reduceRounding.round(top) != key) {
-                            assert currentReducer != null;
-                            // the key changes, reduce what we already buffered and reset the buffer for current buckets
-                            reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.getAggregations()));
-                            currentReducer = null;
-                            key = reduceRounding.round(top);
-                        }
-
-                        final BucketReducer<Bucket> nextReducer = bucketsReducer.get(top);
-                        if (currentReducer == null) {
-                            currentReducer = nextReducer;
-                        } else {
-                            currentReducer.accept(createBucket(key, nextReducer.getDocCount(), nextReducer.getAggregations()));
-                        }
-                    }
-
-                    if (currentReducer != null) {
-                        reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.getAggregations()));
-                    }
-                }
-
-                BucketReduceResult reducedBucketsResult = mergeBucketsIfNeeded(
-                    new BucketReduceResult(reducedBuckets, reduceRoundingIdx, 1, reduceRounding, min, max),
-                    reduceContext
-                );
+                BucketReduceResult reducedBucketsResult = reduceBuckets(pq, reduceRoundingIdx, min, max, reduceContext);
 
                 if (reduceContext.isFinalReduce()) {
                     // adding empty buckets if needed
@@ -542,12 +544,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
                     getMetadata(),
                     reducedBucketsResult.innerInterval
                 );
-            }
-
-            @Override
-            public void close() {
-                bucketsReducer.forEach(c -> Releasables.close(c.value));
-                Releasables.close(bucketsReducer);
             }
         };
     }

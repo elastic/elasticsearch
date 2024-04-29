@@ -63,8 +63,8 @@ setup:
 
 ---
 composite aggregation on tsid:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -113,8 +113,8 @@ composite aggregation on tsid:
 
 ---
 composite aggregation on tsid with after:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:

@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
 public class RestPutShutdownNodeAction extends BaseRestHandler {
 
     @Override
@@ -38,7 +40,7 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
         String nodeId = request.param("nodeId");
         try (XContentParser parser = request.contentParser()) {
             PutShutdownNodeAction.Request parsedRequest = PutShutdownNodeAction.Request.parseRequest(nodeId, parser);
-            parsedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", parsedRequest.masterNodeTimeout()));
+            parsedRequest.masterNodeTimeout(getMasterNodeTimeout(request));
             return channel -> client.execute(PutShutdownNodeAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
         }
     }

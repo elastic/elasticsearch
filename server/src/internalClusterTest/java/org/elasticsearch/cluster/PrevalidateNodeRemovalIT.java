@@ -58,7 +58,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalRequest.Builder req = PrevalidateNodeRemovalRequest.builder();
         switch (randomIntBetween(0, 2)) {
             case 0 -> req.setNames(nodeName);
-            case 1 -> req.setIds(internalCluster().clusterService(nodeName).localNode().getId());
+            case 1 -> req.setIds(getNodeId(nodeName));
             case 2 -> req.setExternalIds(internalCluster().clusterService(nodeName).localNode().getExternalId());
             default -> throw new IllegalStateException("Unexpected value");
         }
@@ -156,7 +156,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         // Prevalidate removal of node1
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node1).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
-        String node1Id = internalCluster().clusterService(node1).localNode().getId();
+        String node1Id = getNodeId(node1);
         assertFalse(resp.getPrevalidation().isSafe());
         assertThat(resp.getPrevalidation().message(), equalTo("removal of the following nodes might not be safe: [" + node1Id + "]"));
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
@@ -184,10 +184,11 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()
             .setNames(node2)
             .build()
+            .masterNodeTimeout(TimeValue.timeValueSeconds(1))
             .timeout(TimeValue.timeValueSeconds(1));
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertFalse("prevalidation result should return false", resp.getPrevalidation().isSafe());
-        String node2Id = internalCluster().clusterService(node2).localNode().getId();
+        String node2Id = getNodeId(node2);
         assertThat(
             resp.getPrevalidation().message(),
             equalTo("cannot prevalidate removal of nodes with the following IDs: [" + node2Id + "]")

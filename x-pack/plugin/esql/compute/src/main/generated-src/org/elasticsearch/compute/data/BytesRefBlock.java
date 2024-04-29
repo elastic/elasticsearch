@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -41,6 +43,9 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
     @Override
     BytesRefBlock filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
     BytesRefBlock expand();
@@ -228,19 +233,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(BytesRefBlock block);
 
         @Override
         BytesRefBlock build();

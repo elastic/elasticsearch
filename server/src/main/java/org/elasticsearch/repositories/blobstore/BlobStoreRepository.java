@@ -182,6 +182,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_TRANSLOG_THREAD_NAME = "stateless_translog";
     public static final String STATELESS_SHARD_WRITE_THREAD_NAME = "stateless_shard_write";
     public static final String STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME = "stateless_cluster_state";
+    public static final String STATELESS_SHARD_PREWARMING_THREAD_NAME = "stateless_prewarm";
 
     public static final String SNAPSHOT_PREFIX = "snap-";
 
@@ -680,7 +681,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
-        assertSnapshotOrGenericThread();
+        assertSnapshotOrStatelessPermittedThreadPool();
 
         if (lifecycle.started() == false) {
             throw notStartedException();
@@ -705,7 +706,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        assertSnapshotOrGenericThread();
+        assertSnapshotOrStatelessPermittedThreadPool();
 
         BlobStore store = blobStore.get();
         if (store == null) {
@@ -1994,7 +1995,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return restoreRateLimitingTimeInNanos.count();
     }
 
-    protected void assertSnapshotOrGenericThread() {
+    private void assertSnapshotOrStatelessPermittedThreadPool() {
         // The Stateless plugin adds custom thread pools for object store operations
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SNAPSHOT,
@@ -2003,7 +2004,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             STATELESS_SHARD_READ_THREAD_NAME,
             STATELESS_TRANSLOG_THREAD_NAME,
             STATELESS_SHARD_WRITE_THREAD_NAME,
-            STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME
+            STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME,
+            STATELESS_SHARD_PREWARMING_THREAD_NAME
         );
     }
 
@@ -2344,7 +2346,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             toCache = repositoryData.withoutShardGenerations();
             assert repositoryData.indexMetaDataGenerations().equals(IndexMetaDataGenerations.EMPTY)
                 : "repository data should not contain index generations at version ["
-                    + version
+                    + version.toReleaseVersion()
                     + "] but saw ["
                     + repositoryData.indexMetaDataGenerations()
                     + "]";
@@ -3539,7 +3541,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
-        assertSnapshotOrGenericThread();
+        assertSnapshotOrStatelessPermittedThreadPool();
         if (isReadOnly()) {
             try {
                 latestIndexBlobId();

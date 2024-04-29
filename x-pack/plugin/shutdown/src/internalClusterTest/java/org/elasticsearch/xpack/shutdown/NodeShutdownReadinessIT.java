@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -91,17 +88,6 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
 
     private void deleteNodeShutdown(String nodeId) {
         assertAcked(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(nodeId)));
-    }
-
-    private String getNodeId(String nodeName) {
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        return nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(nodeName))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
     }
 
     private void assertNoShuttingDownNodes(String nodeId) throws ExecutionException, InterruptedException {

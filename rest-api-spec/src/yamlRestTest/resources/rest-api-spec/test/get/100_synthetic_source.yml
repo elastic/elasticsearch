@@ -1,6 +1,6 @@
 keyword:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -37,8 +37,8 @@ keyword:
 
 ---
 fetch without refresh also produces synthetic source:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -82,8 +82,8 @@ fetch without refresh also produces synthetic source:
 
 ---
 force_synthetic_source_ok:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -131,8 +131,8 @@ force_synthetic_source_ok:
 
 ---
 force_synthetic_source_bad_mapping:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -175,8 +175,8 @@ force_synthetic_source_bad_mapping:
 
 ---
 stored text:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -248,8 +248,8 @@ stored text:
 
 ---
 stored keyword:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -289,8 +289,8 @@ stored keyword:
 
 ---
 doc values keyword with ignore_above:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -372,8 +372,8 @@ doc values keyword with ignore_above:
 
 ---
 stored keyword with ignore_above:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -457,8 +457,8 @@ stored keyword with ignore_above:
 
 ---
 indexed dense vectors:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -501,8 +501,8 @@ indexed dense vectors:
 
 ---
 non-indexed dense vectors:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
@@ -544,8 +544,8 @@ non-indexed dense vectors:
 
 ---
 _source filtering:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -586,8 +586,8 @@ _source filtering:
 
 ---
 _doc_count:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: introduced in 8.6.0
 
   - do:
@@ -714,10 +714,10 @@ _doc_count:
   - is_false: fields
 
 ---
-ip with ignore_malformed:
-  - skip:
-      version: " - 8.5.99"
-      reason: introduced in 8.6.0
+fields with ignore_malformed:
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason: support for boolean ignore_malformed was added in 8.8.0
 
   - do:
       indices.create:
@@ -729,6 +729,15 @@ ip with ignore_malformed:
             properties:
               ip:
                 type: ip
+                ignore_malformed: true
+              bool_field:
+                type: boolean
+                ignore_malformed: true
+              int_field:
+                type: integer
+                ignore_malformed: true
+              double_field:
+                type: double
                 ignore_malformed: true
 
   - do:
@@ -809,11 +818,140 @@ ip with ignore_malformed:
           - 7
   - is_false: fields
 
+  - do:
+      index:
+        index: test
+        id: 10
+        refresh: true
+        body:
+          bool_field: true
+  - do:
+      index:
+        index: test
+        id: 11
+        refresh: true
+        body:
+          bool_field: garbage
+  - do:
+      catch: "/failed to parse field \\[bool_field\\] of type \\[boolean\\] in document with id '12'. Preview of field's value: '\\{object=wow\\}'/"
+      index:
+        index: test
+        id: 12
+        refresh: true
+        body:
+          bool_field:
+            object: wow
+
+  - do:
+      get:
+        index: test
+        id: 10
+  - match: { _index: "test" }
+  - match: { _id: "10" }
+  - match: { found: true }
+  - match:
+      _source:
+        bool_field: true
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id: 11
+  - match: { _index: "test" }
+  - match: { _id: "11" }
+  - match: { found: true }
+  - match:
+      _source:
+        bool_field: garbage
+  - is_false: fields
+
+  - do:
+      index:
+        index: test
+        id: 20
+        refresh: true
+        body:
+          int_field: 10
+          double_field: 100.0
+  - do:
+      index:
+        index: test
+        id: 21
+        refresh: true
+        body:
+          int_field: false
+          double_field: true
+  - do:
+      catch: "/failed to parse field \\[int_field\\] of type \\[integer\\] in document with id '22'. Preview of field's value: '\\{object=wow\\}'/"
+      index:
+        index: test
+        id: 22
+        refresh: true
+        body:
+          int_field:
+            object: wow
+
+  - do:
+      get:
+        index: test
+        id: 20
+  - match: { _index: "test" }
+  - match: { _id: "20" }
+  - match: { found: true }
+  - match:
+      _source:
+        int_field: 10
+        double_field: 100.0
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id: 21
+  - match: { _index: "test" }
+  - match: { _id: "21" }
+  - match: { found: true }
+  - match:
+      _source:
+        # fields saved by ignore_malformed are sorted
+        double_field: true
+        int_field: false
+  - is_false: fields
+
+  - do:
+      index:
+        index: test
+        id: 30
+        refresh: true
+        body:
+          ip:
+            - 10.10.1.1
+            - ip garbage
+          bool_field: bool garbage
+          int_field: int garbage
+
+  - do:
+      get:
+        index: test
+        id: 30
+  - match: { _index: "test" }
+  - match: { _id: "30" }
+  - match: { _version: 1 }
+  - match: { found: true }
+  - match:
+      _source:
+        ip:
+          - 10.10.1.1
+          - ip garbage
+        bool_field: bool garbage
+        int_field: int garbage
+  - is_false: fields
 
 ---
 flattened field:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:
@@ -904,8 +1042,8 @@ flattened field:
 
 ---
 flattened field no doc values:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:
@@ -923,8 +1061,8 @@ flattened field no doc values:
 
 ---
 flattened field with ignore_above:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:

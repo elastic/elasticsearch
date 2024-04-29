@@ -106,9 +106,15 @@ public class Lookup extends UnaryPlan {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         Lookup lookup = (Lookup) o;
         return Objects.equals(tableName, lookup.matchFields)
             && Objects.equals(matchFields, lookup.matchFields)

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.util.Objects;
+
 /**
  * An {@link Attribute} that contains a {@link Block} of values.
  */
@@ -53,5 +55,15 @@ public class TableColumnAttribute extends TypedAttribute {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, TableColumnAttribute::new, name(), dataType(), id(), block);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o) && block.equals(((TableColumnAttribute) o).block);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), block);
     }
 }

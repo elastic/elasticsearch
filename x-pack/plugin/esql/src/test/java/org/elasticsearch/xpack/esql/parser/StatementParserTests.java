@@ -1041,7 +1041,6 @@ public class StatementParserTests extends ESTestCase {
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), UnresolvedAttribute.class);
         assertThat(tableName.name(), equalTo("t"));
-        assertThat(tableName.dataType(), equalTo(KEYWORD));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -23,7 +22,7 @@ import java.util.concurrent.Executor;
  * uses as its basic source, possibly transforming the requests / responses along the
  * way or providing additional functionality.
  */
-public abstract class FilterClient extends AbstractClient {
+public abstract class FilterClient extends Client {
 
     protected final Client in;
 

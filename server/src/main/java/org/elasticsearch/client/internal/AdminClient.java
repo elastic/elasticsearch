@@ -11,18 +11,23 @@ package org.elasticsearch.client.internal;
 /**
  * Administrative actions/operations against the cluster or the indices.
  *
- *
  * @see org.elasticsearch.client.internal.Client#admin()
  */
-public interface AdminClient {
+public final class AdminClient {
 
-    /**
-     * A client allowing to perform actions/operations against the cluster.
-     */
-    ClusterAdminClient cluster();
+    private final ClusterAdminClient clusterAdmin;
+    private final IndicesAdminClient indicesAdmin;
 
-    /**
-     * A client allowing to perform actions/operations against the indices.
-     */
-    IndicesAdminClient indices();
+    public AdminClient(ElasticsearchClient client) {
+        this.clusterAdmin = new ClusterAdminClient(client);
+        this.indicesAdmin = new IndicesAdminClient(client);
+    }
+
+    public ClusterAdminClient cluster() {
+        return clusterAdmin;
+    }
+
+    public IndicesAdminClient indices() {
+        return indicesAdmin;
+    }
 }

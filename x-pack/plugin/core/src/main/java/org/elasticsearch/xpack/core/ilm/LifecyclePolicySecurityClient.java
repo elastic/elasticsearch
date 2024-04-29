@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.Map;
@@ -26,7 +25,7 @@ import java.util.Map;
  * the intent is that the wrapped client is shared between multiple instances of
  * this class.
  */
-public class LifecyclePolicySecurityClient extends AbstractClient {
+public class LifecyclePolicySecurityClient extends Client {
 
     private Client client;
     private Map<String, String> headers;

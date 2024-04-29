@@ -156,7 +156,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.bootstrap;
     exports org.elasticsearch.client.internal;
     exports org.elasticsearch.client.internal.node;
-    exports org.elasticsearch.client.internal.support;
     exports org.elasticsearch.client.internal.transport;
     exports org.elasticsearch.cluster;
     exports org.elasticsearch.cluster.ack;

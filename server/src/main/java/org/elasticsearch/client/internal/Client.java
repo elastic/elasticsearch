@@ -8,29 +8,41 @@
 
 package org.elasticsearch.client.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -42,23 +54,37 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -71,342 +97,279 @@ import java.util.concurrent.Executor;
  *
  * @see org.elasticsearch.node.Node#client()
  */
-public interface Client extends ElasticsearchClient {
+public abstract class Client implements ElasticsearchClient {
 
-    // Note: This setting is registered only for bwc. The value is never read.
-    Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", (s) -> {
-        return switch (s) {
-            case "node", "transport" -> s;
-            default -> throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
-        };
+    @UpdateForV9 // Note: This setting is registered only for bwc. The value is never read.
+    public static final Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", s -> switch (s) {
+        case "node", "transport" -> s;
+        default -> throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
     }, Property.NodeScope, Property.Deprecated);
 
-    /**
-     * The admin client that can be used to perform administrative operations.
-     */
-    AdminClient admin();
+    protected final Logger logger;
+    protected final Settings settings;
+    protected final ThreadPool threadPool;
+    protected final AdminClient admin;
+
+    public Client(Settings settings, ThreadPool threadPool) {
+        this.logger = LogManager.getLogger(this.getClass());
+        this.settings = settings;
+        this.threadPool = threadPool;
+        this.admin = new AdminClient(this);
+    }
+
+    @Override
+    public final ThreadPool threadPool() {
+        return this.threadPool;
+    }
+
+    public final AdminClient admin() {
+        return admin;
+    }
+
+    @Override
+    public final <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
+        ActionType<Response> action,
+        Request request
+    ) {
+        PlainActionFuture<Response> actionFuture = new Client.RefCountedFuture<>();
+        execute(action, request, actionFuture);
+        return actionFuture;
+    }
 
     /**
-     * Index a JSON source associated with a given index.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param request The index request
-     * @return The result future
+     * This is the single execution point of *all* clients.
      */
-    ActionFuture<DocWriteResponse> index(IndexRequest request);
+    @Override
+    public final <Request extends ActionRequest, Response extends ActionResponse> void execute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        try {
+            doExecute(action, request, listener);
+        } catch (Exception e) {
+            assert false : new AssertionError(e);
+            listener.onFailure(e);
+        }
+    }
 
-    /**
-     * Index a document associated with a given index.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param request  The index request
-     * @param listener A listener to be notified with a result
-     */
-    void index(IndexRequest request, ActionListener<DocWriteResponse> listener);
+    protected abstract <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    );
 
-    /**
-     * Index a document associated with a given index.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     */
-    IndexRequestBuilder prepareIndex();
+    public ActionFuture<DocWriteResponse> index(final IndexRequest request) {
+        return execute(TransportIndexAction.TYPE, request);
+    }
 
-    /**
-     * Index a document associated with a given index.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param index The index to index the document to
-     */
-    IndexRequestBuilder prepareIndex(String index);
+    public void index(final IndexRequest request, final ActionListener<DocWriteResponse> listener) {
+        execute(TransportIndexAction.TYPE, request, listener);
+    }
 
-    /**
-     * Updates a document based on a script.
-     *
-     * @param request The update request
-     * @return The result future
-     */
-    ActionFuture<UpdateResponse> update(UpdateRequest request);
+    public IndexRequestBuilder prepareIndex() {
+        return new IndexRequestBuilder(this, null);
+    }
 
-    /**
-     * Updates a document based on a script.
-     *
-     * @param request  The update request
-     * @param listener A listener to be notified with a result
-     */
-    void update(UpdateRequest request, ActionListener<UpdateResponse> listener);
+    public IndexRequestBuilder prepareIndex(String index) {
+        return new IndexRequestBuilder(this, index);
+    }
 
-    /**
-     * Updates a document based on a script.
-     */
-    UpdateRequestBuilder prepareUpdate();
+    public ActionFuture<UpdateResponse> update(final UpdateRequest request) {
+        return execute(TransportUpdateAction.TYPE, request);
+    }
 
-    /**
-     * Updates a document based on a script.
-     */
-    UpdateRequestBuilder prepareUpdate(String index, String id);
+    public void update(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+        execute(TransportUpdateAction.TYPE, request, listener);
+    }
 
-    /**
-     * Deletes a document from the index based on the index and id.
-     *
-     * @param request The delete request
-     * @return The result future
-     */
-    ActionFuture<DeleteResponse> delete(DeleteRequest request);
+    public UpdateRequestBuilder prepareUpdate() {
+        return new UpdateRequestBuilder(this, null, null);
+    }
 
-    /**
-     * Deletes a document from the index based on the index and id.
-     *
-     * @param request  The delete request
-     * @param listener A listener to be notified with a result
-     */
-    void delete(DeleteRequest request, ActionListener<DeleteResponse> listener);
+    public UpdateRequestBuilder prepareUpdate(String index, String id) {
+        return new UpdateRequestBuilder(this, index, id);
+    }
 
-    /**
-     * Deletes a document from the index based on the index and id.
-     */
-    DeleteRequestBuilder prepareDelete();
+    public ActionFuture<DeleteResponse> delete(final DeleteRequest request) {
+        return execute(TransportDeleteAction.TYPE, request);
+    }
 
-    /**
-     * Deletes a document from the index based on the index and id.
-     *
-     * @param index The index to delete the document from
-     * @param id    The id of the document to delete
-     */
-    DeleteRequestBuilder prepareDelete(String index, String id);
+    public void delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+        execute(TransportDeleteAction.TYPE, request, listener);
+    }
 
-    /**
-     * Executes a bulk of index / delete operations.
-     *
-     * @param request The bulk request
-     * @return The result future
-     */
-    ActionFuture<BulkResponse> bulk(BulkRequest request);
+    public DeleteRequestBuilder prepareDelete() {
+        return new DeleteRequestBuilder(this, null);
+    }
 
-    /**
-     * Executes a bulk of index / delete operations.
-     *
-     * @param request  The bulk request
-     * @param listener A listener to be notified with a result
-     */
-    void bulk(BulkRequest request, ActionListener<BulkResponse> listener);
+    public DeleteRequestBuilder prepareDelete(String index, String id) {
+        return prepareDelete().setIndex(index).setId(id);
+    }
 
-    /**
-     * Executes a bulk of index / delete operations.
-     */
-    BulkRequestBuilder prepareBulk();
+    public ActionFuture<BulkResponse> bulk(final BulkRequest request) {
+        return execute(TransportBulkAction.TYPE, request);
+    }
 
-    /**
-     * Executes a bulk of index / delete operations with default index
-     */
-    BulkRequestBuilder prepareBulk(@Nullable String globalIndex);
+    public void bulk(final BulkRequest request, final ActionListener<BulkResponse> listener) {
+        execute(TransportBulkAction.TYPE, request, listener);
+    }
 
-    /**
-     * Gets the document that was indexed from an index with an id.
-     *
-     * @param request The get request
-     * @return The result future
-     */
-    ActionFuture<GetResponse> get(GetRequest request);
+    public BulkRequestBuilder prepareBulk() {
+        return new BulkRequestBuilder(this);
+    }
 
-    /**
-     * Gets the document that was indexed from an index with an id.
-     *
-     * @param request  The get request
-     * @param listener A listener to be notified with a result
-     */
-    void get(GetRequest request, ActionListener<GetResponse> listener);
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex) {
+        return new BulkRequestBuilder(this, globalIndex);
+    }
 
-    /**
-     * Gets the document that was indexed from an index with an id.
-     */
-    GetRequestBuilder prepareGet();
+    public ActionFuture<GetResponse> get(final GetRequest request) {
+        return execute(TransportGetAction.TYPE, request);
+    }
 
-    /**
-     * Gets the document that was indexed from an index with an id.
-     */
-    GetRequestBuilder prepareGet(String index, String id);
+    public void get(final GetRequest request, final ActionListener<GetResponse> listener) {
+        execute(TransportGetAction.TYPE, request, listener);
+    }
 
-    /**
-     * Multi get documents.
-     */
-    ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request);
+    public GetRequestBuilder prepareGet() {
+        return new GetRequestBuilder(this, null);
+    }
 
-    /**
-     * Multi get documents.
-     */
-    void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener);
+    public GetRequestBuilder prepareGet(String index, String id) {
+        return prepareGet().setIndex(index).setId(id);
+    }
 
-    /**
-     * Multi get documents.
-     */
-    MultiGetRequestBuilder prepareMultiGet();
+    public ActionFuture<MultiGetResponse> multiGet(final MultiGetRequest request) {
+        return execute(TransportMultiGetAction.TYPE, request);
+    }
 
-    /**
-     * Search across one or more indices with a query.
-     *
-     * @param request The search request
-     * @return The result future
-     */
-    ActionFuture<SearchResponse> search(SearchRequest request);
+    public void multiGet(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+        execute(TransportMultiGetAction.TYPE, request, listener);
+    }
 
-    /**
-     * Search across one or more indices with a query.
-     *
-     * @param request  The search request
-     * @param listener A listener to be notified of the result
-     */
-    void search(SearchRequest request, ActionListener<SearchResponse> listener);
+    public MultiGetRequestBuilder prepareMultiGet() {
+        return new MultiGetRequestBuilder(this);
+    }
 
-    /**
-     * Search across one or more indices with a query.
-     */
-    SearchRequestBuilder prepareSearch(String... indices);
+    public ActionFuture<SearchResponse> search(final SearchRequest request) {
+        return execute(TransportSearchAction.TYPE, request);
+    }
 
-    /**
-     * A search scroll request to continue searching a previous scrollable search request.
-     *
-     * @param request The search scroll request
-     * @return The result future
-     */
-    ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request);
+    public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
+        execute(TransportSearchAction.TYPE, request, listener);
+    }
 
-    /**
-     * A search scroll request to continue searching a previous scrollable search request.
-     *
-     * @param request  The search scroll request
-     * @param listener A listener to be notified of the result
-     */
-    void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
+    public SearchRequestBuilder prepareSearch(String... indices) {
+        return new SearchRequestBuilder(this).setIndices(indices);
+    }
 
-    /**
-     * A search scroll request to continue searching a previous scrollable search request.
-     */
-    SearchScrollRequestBuilder prepareSearchScroll(String scrollId);
+    public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
+        return execute(TransportSearchScrollAction.TYPE, request);
+    }
 
-    /**
-     * Performs multiple search requests.
-     */
-    ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request);
+    public void searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
+        execute(TransportSearchScrollAction.TYPE, request, listener);
+    }
 
-    /**
-     * Performs multiple search requests.
-     */
-    void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener);
+    public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
+        return new SearchScrollRequestBuilder(this, scrollId);
+    }
 
-    /**
-     * Performs multiple search requests.
-     */
-    MultiSearchRequestBuilder prepareMultiSearch();
+    public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
+        return execute(TransportMultiSearchAction.TYPE, request);
+    }
 
-    /**
-     * An action that returns the term vectors for a specific document.
-     *
-     * @param request The term vector request
-     * @return The response future
-     */
-    ActionFuture<TermVectorsResponse> termVectors(TermVectorsRequest request);
+    public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+        execute(TransportMultiSearchAction.TYPE, request, listener);
+    }
 
-    /**
-     * An action that returns the term vectors for a specific document.
-     *
-     * @param request The term vector request
-     */
-    void termVectors(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener);
+    public MultiSearchRequestBuilder prepareMultiSearch() {
+        return new MultiSearchRequestBuilder(this);
+    }
 
-    /**
-     * Builder for the term vector request.
-     */
-    TermVectorsRequestBuilder prepareTermVectors();
+    public ActionFuture<TermVectorsResponse> termVectors(final TermVectorsRequest request) {
+        return execute(TermVectorsAction.INSTANCE, request);
+    }
 
-    /**
-     * Builder for the term vector request.
-     *
-     * @param index The index to load the document from
-     * @param id    The id of the document
-     */
-    TermVectorsRequestBuilder prepareTermVectors(String index, String id);
+    public void termVectors(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
+        execute(TermVectorsAction.INSTANCE, request, listener);
+    }
 
-    /**
-     * Multi get term vectors.
-     */
-    ActionFuture<MultiTermVectorsResponse> multiTermVectors(MultiTermVectorsRequest request);
+    public TermVectorsRequestBuilder prepareTermVectors() {
+        return new TermVectorsRequestBuilder(this);
+    }
 
-    /**
-     * Multi get term vectors.
-     */
-    void multiTermVectors(MultiTermVectorsRequest request, ActionListener<MultiTermVectorsResponse> listener);
+    public TermVectorsRequestBuilder prepareTermVectors(String index, String id) {
+        return new TermVectorsRequestBuilder(this, index, id);
+    }
 
-    /**
-     * Multi get term vectors.
-     */
-    MultiTermVectorsRequestBuilder prepareMultiTermVectors();
+    public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
+        return execute(MultiTermVectorsAction.INSTANCE, request);
+    }
 
-    /**
-     * Computes a score explanation for the specified request.
-     *
-     * @param index The index this explain is targeted for
-     * @param id    The document identifier this explain is targeted for
-     */
-    ExplainRequestBuilder prepareExplain(String index, String id);
+    public void multiTermVectors(final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
+        execute(MultiTermVectorsAction.INSTANCE, request, listener);
+    }
 
-    /**
-     * Computes a score explanation for the specified request.
-     *
-     * @param request The request encapsulating the query and document identifier to compute a score explanation for
-     */
-    ActionFuture<ExplainResponse> explain(ExplainRequest request);
+    public MultiTermVectorsRequestBuilder prepareMultiTermVectors() {
+        return new MultiTermVectorsRequestBuilder(this);
+    }
 
-    /**
-     * Computes a score explanation for the specified request.
-     *
-     * @param request  The request encapsulating the query and document identifier to compute a score explanation for
-     * @param listener A listener to be notified of the result
-     */
-    void explain(ExplainRequest request, ActionListener<ExplainResponse> listener);
+    public ExplainRequestBuilder prepareExplain(String index, String id) {
+        return new ExplainRequestBuilder(this, index, id);
+    }
 
-    /**
-     * Clears the search contexts associated with specified scroll ids.
-     */
-    ClearScrollRequestBuilder prepareClearScroll();
+    public ActionFuture<ExplainResponse> explain(ExplainRequest request) {
+        return execute(TransportExplainAction.TYPE, request);
+    }
 
-    /**
-     * Clears the search contexts associated with specified scroll ids.
-     */
-    ActionFuture<ClearScrollResponse> clearScroll(ClearScrollRequest request);
+    public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+        execute(TransportExplainAction.TYPE, request, listener);
+    }
 
-    /**
-     * Clears the search contexts associated with specified scroll ids.
-     */
-    void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
+    public ClearScrollRequestBuilder prepareClearScroll() {
+        return new ClearScrollRequestBuilder(this);
+    }
 
-    /**
-     * Builder for the field capabilities request.
-     */
-    FieldCapabilitiesRequestBuilder prepareFieldCaps(String... indices);
+    public ActionFuture<ClearScrollResponse> clearScroll(ClearScrollRequest request) {
+        return execute(TransportClearScrollAction.TYPE, request);
+    }
 
-    /**
-     * An action that returns the field capabilities from the provided request
-     */
-    ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request);
+    public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
+        execute(TransportClearScrollAction.TYPE, request, listener);
+    }
 
-    /**
-     * An action that returns the field capabilities from the provided request
-     */
-    void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener);
+    public FieldCapabilitiesRequestBuilder prepareFieldCaps(String... indices) {
+        return new FieldCapabilitiesRequestBuilder(this, indices);
+    }
 
-    /**
-     * Returns this clients settings
-     */
-    Settings settings();
+    public ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request) {
+        return execute(TransportFieldCapabilitiesAction.TYPE, request);
+    }
 
-    /**
-     * Returns a new lightweight Client that applies all given headers to each of the requests
-     * issued from it.
-     */
-    Client filterWithHeader(Map<String, String> headers);
+    public void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
+        execute(TransportFieldCapabilitiesAction.TYPE, request, listener);
+    }
+
+    public final Settings settings() {
+        return this.settings;
+    }
+
+    public Client filterWithHeader(Map<String, String> headers) {
+        return new FilterClient(this) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                ThreadContext threadContext = threadPool().getThreadContext();
+                try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
+                    super.doExecute(action, request, listener);
+                }
+            }
+        };
+    }
 
     /**
      * Returns a client to a remote cluster with the given cluster alias.
@@ -414,11 +377,41 @@ public interface Client extends ElasticsearchClient {
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
-    default RemoteClusterClient getRemoteClusterClient(
+    public RemoteClusterClient getRemoteClusterClient(
         String clusterAlias,
         Executor responseExecutor,
         RemoteClusterService.DisconnectedStrategy disconnectedStrategy
     ) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
+    }
+
+    /**
+     * Same as {@link PlainActionFuture} but for use with {@link RefCounted} result types. Unlike {@code PlainActionFuture} this future
+     * acquires a reference to its result. This means that the result reference must be released by a call to {@link RefCounted#decRef()}
+     * on the result before it goes out of scope.
+     * @param <R> reference counted result type
+     */
+    private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
+
+        @Override
+        public final void onResponse(R result) {
+            result.mustIncRef();
+            if (set(result) == false) {
+                result.decRef();
+            }
+        }
+
+        private final AtomicBoolean getCalled = new AtomicBoolean(false);
+
+        @Override
+        public R get() throws InterruptedException, ExecutionException {
+            final boolean firstCall = getCalled.compareAndSet(false, true);
+            if (firstCall == false) {
+                final IllegalStateException ise = new IllegalStateException("must only call .get() once per instance to avoid leaks");
+                assert false : ise;
+                throw ise;
+            }
+            return super.get();
+        }
     }
 }

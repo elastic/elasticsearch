@@ -20,8 +20,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -226,7 +226,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         }
     }
 
-    private static class MockClient extends AbstractClient {
+    private static class MockClient extends Client {
         private ExecuteRequest<?, ?> executeRequest;
 
         MockClient(ThreadPool threadPool) {

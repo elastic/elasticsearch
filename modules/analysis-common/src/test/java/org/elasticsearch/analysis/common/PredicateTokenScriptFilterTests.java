@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -92,7 +91,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
     }
 
-    private static class MockClient extends AbstractClient {
+    private static class MockClient extends Client {
         MockClient(Settings settings, ThreadPool threadPool) {
             super(settings, threadPool);
         }

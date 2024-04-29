@@ -67,8 +67,8 @@ public class TransportResolveClusterActionTests extends ESTestCase {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     throw new UnsupportedOperationException(
-                        "ResolveClusterAction requires at least Transport Version "
-                            + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED.toReleaseVersion()
+                        "ResolveClusterAction requires at least version "
+                            + TransportVersions.V_8_13_0.toReleaseVersion()
                             + " but was "
                             + out.getTransportVersion().toReleaseVersion()
                     );

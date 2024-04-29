@@ -343,6 +343,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1730",
         value = "co.elastic.elasticsearch.stateless.autoscaling.indexing:TRACE"
     )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1730")
     public void testMasterFailoverWithOnGoingMetricPublication() throws Exception {
         for (int i = 0; i < 2; i++) {
             startMasterNode();

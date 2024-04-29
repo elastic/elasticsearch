@@ -67,9 +67,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -494,20 +494,24 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(lookup.mergeValues());
         Layout layout = layoutBuilder.build();
         assert lookup.matchValues().size() == lookup.matchFields().size();
-        Block[] keyBlocks = new Block[lookup.matchFields().size()];
+        HashLookupOperator.Key[] keys = new HashLookupOperator.Key[lookup.matchFields().size()];
         int[] blockMapping = new int[lookup.matchFields().size()];
         for (int k = 0; k < lookup.matchFields().size(); k++) {
-            keyBlocks[k] = lookup.matchValues().get(k).block();
+            TableColumnAttribute attr = lookup.matchValues().get(k);
+            keys[k] = new HashLookupOperator.Key(attr.name(), attr.block());
             Layout.ChannelAndType input = source.layout.get(lookup.matchFields().get(k).id());
             blockMapping[k] = input.channel();
         }
 
         // Load the "positions" of each match
-        source = source.with(new HashLookupOperator.Factory(keyBlocks, blockMapping), layout);
+        source = source.with(new HashLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
         for (TableColumnAttribute merge : lookup.mergeValues()) {
-            source = source.with(new ColumnLoadOperator.Factory(merge.block(), positionsChannel), layout);
+            source = source.with(
+                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(merge.name(), merge.block()), positionsChannel),
+                layout
+            );
         }
 
         // Drop the "positions" of the match

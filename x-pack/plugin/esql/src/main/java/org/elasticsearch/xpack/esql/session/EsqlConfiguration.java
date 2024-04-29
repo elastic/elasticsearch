@@ -13,6 +13,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -66,7 +67,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.tables = tables;
     }
 
-    public EsqlConfiguration(StreamInput in) throws IOException {
+    public EsqlConfiguration(BlockStreamInput in) throws IOException {
         super(in.readZoneId(), Instant.ofEpochSecond(in.readVLong(), in.readVInt()), in.readOptionalString(), in.readOptionalString());
         locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
@@ -78,8 +79,11 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         } else {
             this.profile = false;
         }
-        // NOCOMMIT read tables
-        this.tables = Map.of();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
+            this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
+        } else {
+            this.tables = Map.of();
+        }
     }
 
     @Override
@@ -98,7 +102,9 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(profile);
         }
-        // NOCOMMIT write tables
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
+            out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, (o2, column) -> column.writeTo(o2)));
+        }
     }
 
     public QueryPragmas pragmas() {
@@ -195,5 +201,26 @@ public class EsqlConfiguration extends Configuration implements Writeable {
             profile,
             tables
         );
+    }
+
+    @Override
+    public String toString() {
+        return "EsqlConfiguration{"
+            + "pragmas="
+            + pragmas
+            + ", resultTruncationMaxSize="
+            + resultTruncationMaxSize
+            + ", resultTruncationDefaultSize="
+            + resultTruncationDefaultSize
+            + ", locale="
+            + locale
+            + ", query='"
+            + query
+            + '\''
+            + ", profile="
+            + profile
+            + ", tables="
+            + tables
+            + '}';
     }
 }

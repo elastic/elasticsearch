@@ -20,16 +20,19 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
  * Parses the {@code tables} request body parameter.
  */
-class ParseTables {
+public class ParseTables {
+    public static final Set<DataType> SUPPORTED_TYPES = Set.of(DataTypes.INTEGER, DataTypes.KEYWORD, DataTypes.LONG);
     private static final int MAX_LENGTH = (int) ByteSizeValue.ofMb(1).getBytes();
 
     private final BlockFactory blockFactory;

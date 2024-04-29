@@ -35,7 +35,6 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
         );
     }
 
-    // TODO add test for question
     public static QuestionAnsweringConfigUpdate mutateForVersion(QuestionAnsweringConfigUpdate instance, TransportVersion version) {
         if (version.before(TransportVersions.V_8_1_0)) {
             return new QuestionAnsweringConfigUpdate(
@@ -44,15 +43,6 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 instance.getMaxAnswerLength(),
                 instance.getResultsField(),
                 null
-            );
-        }
-        if (version.before(TransportVersions.ML_QUESTION_ANSWERING_CONFIG_REQUIRE_QUESTION_NON_NULL)) {
-            return new QuestionAnsweringConfigUpdate(
-                instance.getQuestion() == null ? instance.getQuestion() : null,
-                instance.getNumTopClasses(),
-                instance.getMaxAnswerLength(),
-                instance.getResultsField(),
-                instance.getTokenizationUpdate()
             );
         }
         return instance;

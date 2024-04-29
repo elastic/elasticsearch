@@ -148,11 +148,7 @@ public class QuestionAnsweringConfig implements NlpConfig {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_QUESTION_ANSWERING_CONFIG_REQUIRE_QUESTION_NON_NULL)) {
-            question = in.readString();
-        } else {
-            question = in.readOptionalString();
-        }
+        question = in.readOptionalString();
     }
 
     @Override
@@ -162,11 +158,7 @@ public class QuestionAnsweringConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeOptionalString(resultsField);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_QUESTION_ANSWERING_CONFIG_REQUIRE_QUESTION_NON_NULL)) {
-            out.writeString(question);
-        } else {
-            out.writeOptionalString(question);
-        }
+        out.writeOptionalString(question);
     }
 
     @Override
@@ -179,7 +171,9 @@ public class QuestionAnsweringConfig implements NlpConfig {
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
-        builder.field(QUESTION.getPreferredName(), question);
+        if (question != null) {
+            builder.field(QUESTION.getPreferredName(), question);
+        }
         builder.endObject();
         return builder;
     }

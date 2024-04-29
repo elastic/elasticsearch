@@ -38,6 +38,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -552,7 +553,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
-    public void testX() throws Exception {
+    public void testChannelAcceptorCannotTamperThreadContext() throws Exception {
         HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
@@ -566,10 +567,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 throw new AssertionError();
             }
         };
+        // there's only one netty worker thread that's reused across client requests
         Settings settings = Settings.builder()
-                .put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
-                .put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
-                .build();
+            .put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
+            .put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
+            .build();
         NioEventLoopGroup group = new NioEventLoopGroup();
         AtomicBoolean acceptChannel = new AtomicBoolean();
         try (

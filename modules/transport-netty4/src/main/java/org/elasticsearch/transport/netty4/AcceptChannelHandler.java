@@ -11,6 +11,7 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ipfilter.AbstractRemoteAddressFilter;
+
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 

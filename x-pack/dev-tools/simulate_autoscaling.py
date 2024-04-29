@@ -8,7 +8,10 @@ import matplotlib.pyplot as plt
 START_TIME = 0
 END_TIME = 5*3600
 
-DECAY_TIME = 300
+DECAY_TIME = 60
+AUTO_SCALE_UP_THRESHOLD = 0.9
+AUTO_SCALE_DOWN_THRESHOLD = 0.8
+
 AVG_INFERENCE_TIME = 0.1
 PHYSICAL_CORES_PER_NODE = 4
 
@@ -23,13 +26,13 @@ def linear_increasing(time):
   return 20 * time / END_TIME
 
 def oscallating_2h(time):
-  return 10 * (1 - math.cos(2 * math.pi * time / (2*3600)))
+  return 100 * (1 - math.cos(2 * math.pi * time / (2*3600)))
 
 def oscallating_5h(time):
-  return 50 * (1 - math.cos(2 * math.pi * time / (5*3600)))
+  return 1 * (1 - math.cos(2 * math.pi * time / (5*3600)))
 
 
-get_request_rate = oscallating_5h
+get_request_rate = oscallating_2h
 
 
 def get_avg_inference_time(num_allocations):
@@ -46,6 +49,8 @@ def get_inference_time(num_allocations):
   return random.uniform(0.5, 1.5) * get_avg_inference_time(num_allocations)
 
 
+print('simulating traffic...')
+
 events = []  # contains tuple of (time, type, allocation_id, inference_time)
 
 # initial allocations
@@ -54,7 +59,7 @@ for alloc_id in range(num_allocations):
   heapq.heappush(events, (0, EventType.ALLOCATION_STARTED, alloc_id, None))
 
 # create all requests
-TIME_STEP = 0.01
+TIME_STEP = 0.001
 time = START_TIME + TIME_STEP / 2
 while time < END_TIME:
   if random.random() < get_request_rate(time) * TIME_STEP:
@@ -80,6 +85,8 @@ wait_times = []
 queue_sizes = []
 num_allocations_list = []
 num_ml_nodes = []
+
+last_data_time = 0
 
 while events:
   # handle events
@@ -113,36 +120,43 @@ while events:
     heapq.heappush(events, (time + inference_time, EventType.INFERENCE_COMPLETED, alloc_id, inference_time))
 
   # collect data
-  queue_sizes.append((time, len(inference_queue)))
-  num_allocations_list.append((time, num_allocations))
-  num_ml_nodes.append((time, math.ceil(num_allocations / (2 * PHYSICAL_CORES_PER_NODE))))
+  collect_data = time > last_data_time + 1
+  if collect_data:
+    last_data_time = time
+
+  if collect_data:
+    queue_sizes.append((time, len(inference_queue)))
+    num_allocations_list.append((time, num_allocations))
+    num_ml_nodes.append((time, math.ceil(num_allocations / (2 * PHYSICAL_CORES_PER_NODE))))
 
   total_weight = DECAY_TIME * (1 - math.exp(-(time - START_TIME) / DECAY_TIME))
   if not total_weight:
     continue
 
   est_request_count = sum_request_count * math.exp(-(time - sum_request_count_last_update) / DECAY_TIME) / total_weight
-  est_request_counts.append((time, est_request_count))
-  real_request_counts.append((time, get_request_rate(time)))
+  if collect_data:
+    est_request_counts.append((time, est_request_count))
+    real_request_counts.append((time, get_request_rate(time)))
 
   est_inference_count = sum_inference_count * math.exp(-(time - sum_inference_last_update) / DECAY_TIME) / total_weight
   if not est_inference_count:
     continue
 
   est_inference_time = sum_inference_time * math.exp(-(time - sum_inference_last_update) / DECAY_TIME) / total_weight / est_inference_count
-  est_inference_times.append((time, est_inference_time))
-  real_inference_times.append((time, get_avg_inference_time(num_allocations)))
+  if collect_data:
+    est_inference_times.append((time, est_inference_time))
+    real_inference_times.append((time, get_avg_inference_time(num_allocations)))
 
   # autoscaling
-  wanted_allocations = est_request_count * est_inference_time / 0.95
-  while wanted_allocations > num_allocations:
+  needed_allocations = est_request_count * est_inference_time
+  while needed_allocations > AUTO_SCALE_UP_THRESHOLD * num_allocations:
     heapq.heappush(events, (time, EventType.ALLOCATION_STARTED, num_allocations, None))
     num_allocations += 1
-    print(time, f'autoscale up to {num_allocations} (wanted={wanted_allocations})')
+    print(time, f'autoscale up to {num_allocations} (wanted={needed_allocations})')
 
-  while num_allocations > 1 and wanted_allocations < 0.9 * (num_allocations - 1):
+  while num_allocations > 1 and needed_allocations < AUTO_SCALE_DOWN_THRESHOLD * (num_allocations - 1):
     num_allocations -= 1
-    print(time, f'autoscale down to {num_allocations} (wanted={wanted_allocations})')
+    print(time, f'autoscale down to {num_allocations} (wanted={needed_allocations})')
 
 
 # bucket the wait times
@@ -154,6 +168,8 @@ for time, wait in wait_times:
 max_wait_time = [(time, max(waits)) for time, waits in bucketed_wait_times.items()]
 avg_wait_time = [(time, sum(waits) / len(waits)) for time, waits in bucketed_wait_times.items()]
 
+
+print('rendering graphs...')
 
 # make graphs
 fig, axs = plt.subplots(5)

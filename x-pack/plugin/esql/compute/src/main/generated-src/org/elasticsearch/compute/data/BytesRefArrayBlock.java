@@ -10,7 +10,9 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -23,7 +25,7 @@ import java.util.BitSet;
  */
 final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
     private final BytesRefArrayVector vector;
 
@@ -114,6 +116,11 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
             }
             return builder.mvOrdering(mvOrdering()).build();
         }
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(this, positions, targetBlockSize);
     }
 
     @Override

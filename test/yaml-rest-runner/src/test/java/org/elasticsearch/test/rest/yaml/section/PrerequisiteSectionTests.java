@@ -313,6 +313,16 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertThat(skipSectionBuilder.skipReason, equalTo("Delete ignores the parent param"));
     }
 
+    public void testParseSkipSectionAwaitsFix() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            skip:
+              awaits_fix: "bugurl"
+            """);
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(skipSectionBuilder.skipAwaitsFix, is("bugurl"));
+    }
+
     public void testParseSkipSectionKnownIssues() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             skip:
@@ -361,7 +371,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             """);
 
         Exception e = expectThrows(ParsingException.class, () -> PrerequisiteSection.parseInternal(parser));
-        assertThat(e.getMessage(), is("reason is mandatory within skip section"));
+        assertThat(e.getMessage(), is("reason is mandatory within this skip section"));
     }
 
     public void testParseSkipSectionNoVersionNorFeature() throws Exception {

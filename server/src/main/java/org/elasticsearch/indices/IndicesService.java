@@ -935,20 +935,15 @@ public class IndicesService extends AbstractLifecycleComponent
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
             // ES-8334 passthru enclosing method is async
-            indexService.close(
-                extraInfo,
-                reason == IndexRemovalReason.DELETED,
-                shardCloseExecutor,
-                ActionListener.runBefore(l, () -> {
-                    logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
-                    final IndexSettings indexSettings = indexService.getIndexSettings();
-                    listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
-                    if (reason == IndexRemovalReason.DELETED) {
-                        // now we are done - try to wipe data on disk if possible
-                        deleteIndexStore(extraInfo, indexService.index(), indexSettings);
-                    }
-                })
-            );
+            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, shardCloseExecutor, ActionListener.runBefore(l, () -> {
+                logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+                final IndexSettings indexSettings = indexService.getIndexSettings();
+                listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
+                if (reason == IndexRemovalReason.DELETED) {
+                    // now we are done - try to wipe data on disk if possible
+                    deleteIndexStore(extraInfo, indexService.index(), indexSettings);
+                }
+            }));
         });
     }
 

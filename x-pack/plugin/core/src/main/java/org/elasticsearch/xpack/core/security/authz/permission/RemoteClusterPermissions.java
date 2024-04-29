@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,7 +86,8 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         return this;
     }
 
-    public String[] privilegeNames(final String remoteClusterAlias) {
+    public String[] privilegeNames(final String remoteClusterAlias, TransportVersion remoteClusterVersion) {
+        // TODO: look at the remote cluster version and return the appropriate privileges for that version
         return remoteClusterPermissionGroups.stream()
             .filter(group -> group.hasPrivileges(remoteClusterAlias))
             .flatMap(groups -> Arrays.stream(groups.clusterPrivileges()))

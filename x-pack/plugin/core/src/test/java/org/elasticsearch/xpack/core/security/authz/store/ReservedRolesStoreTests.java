@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.store;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
@@ -2702,7 +2703,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
         assertThat(
-            superuserRole.remoteCluster().privilegeNames("*"),
+            superuserRole.remoteCluster().privilegeNames("*", TransportVersion.current()),
             equalTo(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]))
         );
     }

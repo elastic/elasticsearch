@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
@@ -187,10 +188,14 @@ public interface Role {
      * Returns the intersection of role descriptors defined for a remote cluster with the given alias.
      *
      * @param remoteClusterAlias the remote cluster alias for which to return a role descriptors intersection
+     * @param remoteClusterVersion the version of the remote cluster
      * @return an intersection of role descriptors that describe the remote privileges towards a given cluster,
      *         otherwise an empty intersection if remote privileges are not defined
      */
-    RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(String remoteClusterAlias);
+    RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(
+        String remoteClusterAlias,
+        TransportVersion remoteClusterVersion
+    );
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -186,6 +187,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                     ActionTestUtils.assertNoFailureListener(nothing -> {
                         authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                             concreteClusterAlias,
+                            TransportVersion.current(),
                             authentication.getEffectiveSubject(),
                             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
                                 assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
@@ -197,6 +199,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             } else {
                 authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                     concreteClusterAlias,
+                    TransportVersion.current(),
                     authentication.getEffectiveSubject(),
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
                         assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());

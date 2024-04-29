@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -196,7 +197,10 @@ public class SimpleRoleTests extends ESTestCase {
             )
             .build();
 
-        RoleDescriptorsIntersection intersection = role.getRoleDescriptorsIntersectionForRemoteCluster("remote-cluster-a");
+        RoleDescriptorsIntersection intersection = role.getRoleDescriptorsIntersectionForRemoteCluster(
+            "remote-cluster-a",
+            TransportVersion.current()
+        );
 
         assertThat(intersection.roleDescriptorsList().isEmpty(), equalTo(false));
         assertThat(
@@ -230,7 +234,7 @@ public class SimpleRoleTests extends ESTestCase {
         // Requesting role descriptors intersection for a cluster alias
         // that has no cross cluster access defined should result in an empty intersection.
         assertThat(
-            role.getRoleDescriptorsIntersectionForRemoteCluster("non-existing-cluster-alias"),
+            role.getRoleDescriptorsIntersectionForRemoteCluster("non-existing-cluster-alias", TransportVersion.current()),
             equalTo(RoleDescriptorsIntersection.EMPTY)
         );
     }
@@ -253,7 +257,10 @@ public class SimpleRoleTests extends ESTestCase {
             RESTRICTED_INDICES
         );
 
-        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLength(8)), equalTo(RoleDescriptorsIntersection.EMPTY));
+        assertThat(
+            role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLength(8), TransportVersion.current()),
+            equalTo(RoleDescriptorsIntersection.EMPTY)
+        );
     }
 
     public void testForWorkflowWithRestriction() {

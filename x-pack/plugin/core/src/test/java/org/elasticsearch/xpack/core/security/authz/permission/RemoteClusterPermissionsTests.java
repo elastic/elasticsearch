@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -88,7 +89,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
             String[] clusters = groupClusters.get(i);
             for (String cluster : clusters) {
                 Arrays.sort(privileges);
-                String[] found = remoteClusterPermission.privilegeNames(cluster);
+                String[] found = remoteClusterPermission.privilegeNames(cluster, TransportVersion.current());
                 Arrays.sort(found);
                 assertArrayEquals(privileges, found);
             }

@@ -1084,7 +1084,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(forRemote, Set.of("*"), indexGroup("remote-idx-2-*"));
         assertValidRemoteClusterPermissions(role.remoteCluster(), new String[] { "remote-*" });
         assertThat(
-            role.remoteCluster().privilegeNames("remote-foobar"),
+            role.remoteCluster().privilegeNames("remote-foobar", TransportVersion.current()),
             equalTo(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]))
         );
     }
@@ -3157,7 +3157,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             assertTrue(permissions.hasPrivileges(alias));
             assertFalse(permissions.hasPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
             assertThat(
-                permissions.privilegeNames(alias),
+                permissions.privilegeNames(alias, TransportVersion.current()),
                 arrayContaining(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]))
             );
         }

@@ -695,8 +695,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     }
 
-    // ES-8334 TODO test async shard closing
-
     /**
      * Close an {@link IndexShard}, optionally flushing first, without performing the consistency checks that {@link #closeShard} performs.
      */

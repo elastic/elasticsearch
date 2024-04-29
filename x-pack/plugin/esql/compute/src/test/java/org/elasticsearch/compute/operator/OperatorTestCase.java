@@ -201,19 +201,13 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
 
         List<Page> results = drive(simple().get(context), input.iterator(), context);
         assertSimpleOutput(origInput, results);
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        assertThat(context.breaker().getUsed(), equalTo(0L));
 
-        List<Block> resultBlocks = new ArrayList<>();
         // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.
         for (Page p : results) {
-            for (int i = 0; i < p.getBlockCount(); i++) {
-                resultBlocks.add(p.getBlock(i));
-            }
-
             p.releaseBlocks();
         }
 

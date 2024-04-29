@@ -20,7 +20,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -63,22 +62,19 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
     }
 
     private static OpenAiEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map) {
+        // Reading previously persisted config, assume the validation
+        // passed at that time and never throw.
         ValidationException validationException = new ValidationException();
 
         var commonFields = fromMap(map, validationException);
 
         Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
         if (dimensionsSetByUser == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
-            );
+            // Setting added in 8.13, default to false for configs created prior
+            dimensionsSetByUser = Boolean.FALSE;
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new OpenAiEmbeddingsServiceSettings(commonFields, Boolean.TRUE.equals(dimensionsSetByUser));
+        return new OpenAiEmbeddingsServiceSettings(commonFields, dimensionsSetByUser);
     }
 
     private static OpenAiEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map) {
@@ -186,7 +182,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         } else {
             dimensionsSetByUser = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             modelId = in.readString();
         } else {
             modelId = "unset";
@@ -326,7 +322,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
             out.writeBoolean(dimensionsSetByUser);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeString(modelId);
         }
 

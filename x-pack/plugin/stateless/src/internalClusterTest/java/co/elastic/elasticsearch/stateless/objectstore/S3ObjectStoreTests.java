@@ -130,6 +130,12 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/pull/1543")
+    @Override
+    public void testBlobStoreStats() throws IOException {
+        super.testBlobStoreStats();
+    }
+
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
         assertTrue(EXPECTED_MAIN_STORE_REQUEST_NAMES.containsAll(repositoryStats.requestCounts.keySet()));

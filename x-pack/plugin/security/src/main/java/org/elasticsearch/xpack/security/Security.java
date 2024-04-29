@@ -844,7 +844,7 @@ public class Security extends Plugin
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
-					new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState())
+                    new ValidateRequestInterceptor(threadPool, getLicenseState())
                 )
             );
         }

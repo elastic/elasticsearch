@@ -13,7 +13,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -129,8 +131,8 @@ public class SearchRequestInterceptorTests extends ESTestCase {
             assertThat(interceptor.hasRemoteIndices(searchRequest), is(false));
         }
     }
-	
-	 public void testForceExcludeDeletedDocs() {
+
+    public void testForceExcludeDeletedDocs() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
@@ -138,14 +140,18 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         searchSourceBuilder.aggregation(termsAggregationBuilder);
         searchRequest.source(searchSourceBuilder);
 
-        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
-            {"term":{"username":"foo"}}""")));
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{\"username\":\"foo\"}}"))
+        );
         final String index = randomAlphaOfLengthBetween(3, 8);
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
         assertFalse(termsAggregationBuilder.excludeDeletedDocs());
         interceptor.disableFeatures(
             searchRequest,
-            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
+            Collections.singletonMap(
+                index,
+                new IndicesAccessControl.IndexAccessControl(false, FieldPermissions.DEFAULT, documentPermissions)
+            ),
             listener
         );
         assertTrue(termsAggregationBuilder.excludeDeletedDocs()); // changed value
@@ -159,14 +165,18 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         searchSourceBuilder.aggregation(termsAggregationBuilder);
         searchRequest.source(searchSourceBuilder);
 
-        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
-            {"term":{"username":"foo"}}""")));
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{\"username\":\"foo\"}}"))
+        );
         final String index = randomAlphaOfLengthBetween(3, 8);
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
         assertFalse(termsAggregationBuilder.excludeDeletedDocs());
         interceptor.disableFeatures(
             searchRequest,
-            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
+            Collections.singletonMap(
+                index,
+                new IndicesAccessControl.IndexAccessControl(false, FieldPermissions.DEFAULT, documentPermissions)
+            ),
             listener
         );
         assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value
@@ -174,7 +184,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         termsAggregationBuilder.minDocCount(0);
         interceptor.disableFeatures(
             searchRequest,
-            Map.of(), // no DLS
+            Collections.emptyMap(), // no DLS
             listener
         );
         assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value

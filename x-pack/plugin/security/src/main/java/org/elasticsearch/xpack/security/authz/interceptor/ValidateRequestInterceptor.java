@@ -48,7 +48,8 @@ public class ValidateRequestInterceptor extends FieldAndDocumentLevelSecurityReq
 
     @Override
     public boolean supports(IndicesRequest request) {
-        if (request instanceof ValidateQueryRequest validateQueryRequest) {
+        if (request instanceof ValidateQueryRequest) {
+            ValidateQueryRequest validateQueryRequest = (ValidateQueryRequest) request;
             return hasRewrite(validateQueryRequest);
         } else {
             return false;

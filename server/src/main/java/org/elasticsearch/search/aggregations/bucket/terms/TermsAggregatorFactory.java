@@ -100,8 +100,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                metadata,
-			    excludeDeletedDocs)
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
+            ) throws IOException {
                 ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -172,8 +173,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                metadata,
-		    	excludeDeletedDocs)
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
+            ) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                     throw new AggregationExecutionException(
@@ -426,7 +428,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     .getValuesSource();
                 SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
                 long maxOrd = values.getValueCount();
-                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS && context.enableRewriteToFilterByFilter() && false == excludeDeletedDocs) {
+                if (maxOrd > 0
+                    && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
+                    && context.enableRewriteToFilterByFilter()
+                    && false == excludeDeletedDocs) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,

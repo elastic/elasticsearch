@@ -329,6 +329,9 @@ public class AggregatorFactories {
 
             }
             return false;
+        }
+
+        /**
          * Return true if any of the builders is a terms aggregation with min_doc_count=0
          */
         public boolean hasZeroMinDocTermsAggregation() {
@@ -338,7 +341,8 @@ public class AggregatorFactories {
                 if (current == null) {
                     continue;
                 }
-                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                if (current instanceof TermsAggregationBuilder) {
+                    TermsAggregationBuilder termsBuilder = (TermsAggregationBuilder) current;
                     if (termsBuilder.minDocCount() == 0) {
                         return true;
                     }
@@ -359,16 +363,14 @@ public class AggregatorFactories {
                 if (current == null) {
                     continue;
                 }
-                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                if (current instanceof TermsAggregationBuilder) {
+                    TermsAggregationBuilder termsBuilder = (TermsAggregationBuilder) current;
                     if (termsBuilder.minDocCount() == 0) {
                         termsBuilder.excludeDeletedDocs(true);
                     }
                 }
                 queue.addAll(current.getSubAggregations());
             }
-        }
-
-        /**
         }
 
         public Builder addAggregator(AggregationBuilder factory) {

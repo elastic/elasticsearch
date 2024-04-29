@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -22,8 +24,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.containsString;
@@ -50,15 +52,16 @@ public class ValidateRequestInterceptorTests extends ESTestCase {
     }
 
     public void testValidateRequestWithDLS() {
-        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
-            {"term":{"username":"foo"}}"""))); // value does not matter
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{\"username\":\"foo\"}}"))
+        ); // value does not matter
         ElasticsearchClient client = mock(ElasticsearchClient.class);
-        ValidateQueryRequestBuilder builder = new ValidateQueryRequestBuilder(client);
+        ValidateQueryRequestBuilder builder = new ValidateQueryRequestBuilder(client, ValidateQueryAction.INSTANCE);
         final String index = randomAlphaOfLengthBetween(3, 8);
         final PlainActionFuture<Void> listener1 = new PlainActionFuture<>();
-        Map<String, IndicesAccessControl.IndexAccessControl> accessControlMap = Map.of(
+        Map<String, IndicesAccessControl.IndexAccessControl> accessControlMap = Collections.singletonMap(
             index,
-            new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)
+            new IndicesAccessControl.IndexAccessControl(false, FieldPermissions.DEFAULT, documentPermissions)
         );
         // with DLS and rewrite enabled
         interceptor.disableFeatures(builder.setRewrite(true).request(), accessControlMap, listener1);
@@ -75,12 +78,12 @@ public class ValidateRequestInterceptorTests extends ESTestCase {
     public void testValidateRequestWithOutDLS() {
         final DocumentPermissions documentPermissions = null; // no DLS
         ElasticsearchClient client = mock(ElasticsearchClient.class);
-        ValidateQueryRequestBuilder builder = new ValidateQueryRequestBuilder(client);
+        ValidateQueryRequestBuilder builder = new ValidateQueryRequestBuilder(client, ValidateQueryAction.INSTANCE);
         final String index = randomAlphaOfLengthBetween(3, 8);
         final PlainActionFuture<Void> listener1 = new PlainActionFuture<>();
-        Map<String, IndicesAccessControl.IndexAccessControl> accessControlMap = Map.of(
+        Map<String, IndicesAccessControl.IndexAccessControl> accessControlMap = Collections.singletonMap(
             index,
-            new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)
+            new IndicesAccessControl.IndexAccessControl(false, FieldPermissions.DEFAULT, documentPermissions)
         );
         // without DLS and rewrite enabled
         interceptor.disableFeatures(builder.setRewrite(true).request(), accessControlMap, listener1);

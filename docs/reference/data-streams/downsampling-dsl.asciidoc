@@ -193,7 +193,6 @@ PUT _index_template/datastream_template
   }
 }
 ----
-// TEST[continued]
 
 ////
 [source,console]
@@ -240,7 +239,7 @@ PUT /datastream/_bulk?refresh
 {"@timestamp":"2022-06-21T15:38:30Z","kubernetes":{"host":"gke-apps-0","node":"gke-apps-0-0","pod":"gke-apps-0-0-0","container":{"cpu":{"usage":{"nanocores":40018,"core":{"ns":12828317850},"node":{"pct":2.77905e-05},"limit":{"pct":2.77905e-05}}},"memory":{"available":{"bytes":1062428344},"usage":{"bytes":265142477,"node":{"pct":0.01770037710617187},"limit":{"pct":9.923134671484496e-05}},"workingset":{"bytes":2294743},"rss":{"bytes":340623},"pagefaults":224530,"majorpagefaults":0},"start_time":"2021-03-30T07:59:06Z","name":"container-name-44"},"namespace":"namespace26"}}
 
 ----
-// TEST[skip: The @timestamp value won't match an accepted range in the TSDS]
+// TEST[skip: timestamp values won't match an accepted range in the TSDS]
 
 [discrete]
 [[downsampling-dsl-view-data-stream-state]]
@@ -253,7 +252,7 @@ the current state of the new index.
 ----
 GET _data_stream
 ----
-// TEST[skip: The @timestamp value won't match an accepted range in the TSDS]
+// TEST[skip: temporal_ranges and index names won't match]
 
 If the data stream lifecycle policy has not yet been applied, your results will be like the
 following. Note the original `index_name`: `.ds-datastream-2024.04.29-000001`.
@@ -304,7 +303,7 @@ following. Note the original `index_name`: `.ds-datastream-2024.04.29-000001`.
   ]
 }
 ----
-// TEST[skip:todo]
+// TEST[skip: some fields are removed for brevity]
 // TEST[continued]
 
 Next, run a search query:
@@ -313,7 +312,7 @@ Next, run a search query:
 ----
 GET datastream/_search
 ----
-// TEST[skip: The @timestamp value won't match an accepted range in the TSDS]
+// TEST[skip: timestamp values won't match]
 
 The query returns your ten newly added documents.
 
@@ -335,7 +334,7 @@ The query returns your ten newly added documents.
     },
 ...
 ----
-// TEST[skip:todo]
+// TEST[skip: some fields are removed for brevity]
 // TEST[continued]
 
 [discrete]
@@ -363,7 +362,7 @@ has lapsed as the source index is still expected to receive major writes until t
 ----
 GET _data_stream
 ----
-// TEST[skip: The @timestamp value won't match an accepted range in the TSDS]
+// TEST[skip: temporal_ranges and index names won't match]
 
 After the data stream lifecycle action was executed, original
 `.ds-datastream-2024.04.29-000001` index is replaced with a new, downsampled
@@ -392,7 +391,7 @@ index, in this case `downsample-1h-.ds-datastream-2024.04.29-000001`.
       ],
 ...
 ----
-// TEST[skip:todo]
+// TEST[skip: some fields are removed for brevity]
 // TEST[continued]
 
 Run a search query on the datastream (note that when querying downsampled indices there are <<querying-downsampled-indices-notes,a few nuances to be aware of>>).
@@ -514,7 +513,7 @@ metrics.
   }
 }
 ----
-// TEST[skip:todo]
+// TEST[skip: timestamp values won't match]
 // TEST[continued]
 
 Use the <<data-stream-stats-api,data stream stats API>> to get statistics for
@@ -549,7 +548,7 @@ GET /_data_stream/datastream/_stats?human=true
   ]
 }
 ----
-// TEST[skip:todo]
+// TEST[skip: exact size may be different]
 // TEST[continued]
 
 This example demonstrates how downsampling works as part of a data stream lifecycle to

@@ -199,7 +199,6 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                             + end
                             + "]";
                         assert currentMergedRange.v2().compareTo(start) < 0 : message;
-                        LOGGER.warn(message);
                     }
                     previous = info;
                 }

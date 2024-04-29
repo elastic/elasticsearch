@@ -184,7 +184,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION = def(8_643_00_0);
     public static final TransportVersion ESQL_MV_ORDERING_SORTED_ASCENDING = def(8_644_00_0);
     public static final TransportVersion ESQL_PAGE_MAPPING_TO_ITERATOR = def(8_645_00_0);
-    public static final TransportVersion COMPACT_PIT_ID = def(8_646_00_0);
+    public static final TransportVersion BINARY_PIT_ID = def(8_646_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

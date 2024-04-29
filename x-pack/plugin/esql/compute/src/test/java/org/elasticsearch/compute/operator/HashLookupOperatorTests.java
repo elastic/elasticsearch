@@ -48,7 +48,7 @@ public class HashLookupOperatorTests extends OperatorTestCase {
             int keysStart = keys.getFirstValueIndex(p - keysOffset);
             int ordsStart = ords.getFirstValueIndex(p - ordsOffset);
             for (int k = keysStart, l = ordsStart; k < keysStart + valueCount; k++, l++) {
-                assertThat(ords.getInt(l), equalTo(switch((int) keys.getLong(k)) {
+                assertThat(ords.getInt(l), equalTo(switch ((int) keys.getLong(k)) {
                     case 1 -> 0;
                     case 7 -> 1;
                     case 14 -> 2;

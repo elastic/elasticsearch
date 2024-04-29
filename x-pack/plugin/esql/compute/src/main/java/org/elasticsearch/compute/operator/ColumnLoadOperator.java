@@ -9,11 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.core.Releasables;
 
 /**
  * {@link Block#lookup Looks up} values from a provided {@link Block} and

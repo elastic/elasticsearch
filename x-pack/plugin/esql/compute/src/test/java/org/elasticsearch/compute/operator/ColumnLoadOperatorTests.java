@@ -7,18 +7,14 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 

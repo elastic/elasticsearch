@@ -177,7 +177,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     ) throws IOException {
         builder.startObject();
         builder.field(TEMPLATE.getPreferredName());
-        this.template.toXContent(builder, params, rolloverConfiguration, globalRetention);
+        this.template.toXContent(builder, params, rolloverConfiguration, globalRetention, false);
         if (this.version != null) {
             builder.field(VERSION.getPreferredName(), this.version);
         }

@@ -137,22 +137,30 @@ public class GetDataStreamLifecycleAction {
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
-        public record DataStreamLifecycle(String dataStreamName, @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle)
-            implements
-                Writeable,
-                ToXContentObject {
+        public record DataStreamLifecycle(
+            String dataStreamName,
+            @Nullable org.elasticsearch.cluster.metadata.DataStreamLifecycle lifecycle,
+            boolean isSystemDataStream
+        ) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
 
             DataStreamLifecycle(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalWriteable(org.elasticsearch.cluster.metadata.DataStreamLifecycle::new));
+                this(
+                    in.readString(),
+                    in.readOptionalWriteable(org.elasticsearch.cluster.metadata.DataStreamLifecycle::new),
+                    in.getTransportVersion().onOrAfter(TransportVersions.NO_LIFECYCLE_FOR_SYSTEM_DATA_STREAMS) && in.readBoolean()
+                );
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
                 out.writeOptionalWriteable(lifecycle);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.NO_LIFECYCLE_FOR_SYSTEM_DATA_STREAMS)) {
+                    out.writeBoolean(isSystemDataStream);
+                }
             }
 
             @Override
@@ -178,7 +186,8 @@ public class GetDataStreamLifecycleAction {
                         builder,
                         org.elasticsearch.cluster.metadata.DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
                         rolloverConfiguration,
-                        globalRetention
+                        globalRetention,
+                        isSystemDataStream
                     );
                 }
                 builder.endObject();

@@ -812,7 +812,12 @@ public class MetadataIndexTemplateService {
                         + "] specifies lifecycle configuration that can only be used in combination with a data stream"
                 );
             }
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+            boolean isSystemDataStream = template.getDataStreamTemplate() != null
+                && template.getDataStreamTemplate().isHidden()
+                && template.indexPatterns().stream().anyMatch(indexPattern -> indexPattern.startsWith("."));
+            if (isSystemDataStream == false) {
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
+            }
         }
     }
 

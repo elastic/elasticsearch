@@ -17,6 +17,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -226,8 +227,35 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     @Override
     protected void doClose() {}
 
+    /**
+     * Completed when all the shards removed by the last-applied cluster state have fully closed.
+     */
+    private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.newSucceeded(null);
+
+    @Nullable // if not currently applying a cluster state
+    private RefCountingListener currentClusterStateShardsClosedListeners;
+
+    /**
+     * @param action Action to run when all the shards removed by the last-applied cluster state have fully closed. May run on the calling
+     *               thread, or on the thread that completed the closing of the last such shard.
+     */
+    public void onClusterStateShardsClosed(Runnable action) {
+        lastClusterStateShardsClosedListener.andThenAccept(ignored -> action.run());
+    }
+
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
+        lastClusterStateShardsClosedListener = new SubscribableListener<>();
+        currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
+        try {
+            doApplyClusterState(event);
+        } finally {
+            currentClusterStateShardsClosedListeners.close();
+            currentClusterStateShardsClosedListeners = null;
+        }
+    }
+
+    private void doApplyClusterState(final ClusterChangedEvent event) {
         if (lifecycle.started() == false) {
             return;
         }
@@ -253,7 +281,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     NO_LONGER_ASSIGNED,
                     "cleaning index (disabled block persistence)",
                     shardCloseExecutor,
-                    ActionListener.noop()
+                    currentClusterStateShardsClosedListeners.acquire()
                 );
             }
             return;
@@ -395,6 +423,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         return "processPendingDeletes[" + index + "]";
                     }
                 }));
+                indexServiceClosedListener.addListener(currentClusterStateShardsClosedListeners.acquire());
             }
         }
     }
@@ -437,7 +466,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 // ES-8334 complete
-                indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, ActionListener.noop());
+                indicesService.removeIndex(
+                    index,
+                    reason,
+                    "removing index (" + reason + ")",
+                    shardCloseExecutor,
+                    currentClusterStateShardsClosedListeners.acquire()
+                );
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
@@ -449,7 +484,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // once all shards are allocated
                         logger.debug("{} removing shard (not allocated)", shardId);
                         // ES-8334 complete
-                        indexService.removeShard(shardId.id(), "removing shard (not allocated)", shardCloseExecutor, ActionListener.noop());
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (not allocated)",
+                            shardCloseExecutor,
+                            currentClusterStateShardsClosedListeners.acquire()
+                        );
                     } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
                         logger.debug(
                             "{} removing shard (stale allocation id, stale {}, new {})",
@@ -458,7 +498,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             newShardRouting
                         );
                         // ES-8334 complete
-                        indexService.removeShard(shardId.id(), "removing shard (stale copy)", shardCloseExecutor, ActionListener.noop());
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (stale copy)",
+                            shardCloseExecutor,
+                            currentClusterStateShardsClosedListeners.acquire()
+                        );
                     } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
                         // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
                         // is assigned to it. Batch cluster state processing or if shard fetching completes before the node gets a new
@@ -466,14 +511,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // started shard.
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
                         // ES-8334 complete
-                        indexService.removeShard(shardId.id(), "removing shard (stale copy)", shardCloseExecutor, ActionListener.noop());
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (stale copy)",
+                            shardCloseExecutor,
+                            currentClusterStateShardsClosedListeners.acquire()
+                        );
                     } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
                         assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
                         // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
                         // and assigning an initializing primary to this node
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
                         // ES-8334 complete
-                        indexService.removeShard(shardId.id(), "removing shard (stale copy)", shardCloseExecutor, ActionListener.noop());
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (stale copy)",
+                            shardCloseExecutor,
+                            currentClusterStateShardsClosedListeners.acquire()
+                        );
                     }
                 }
             }

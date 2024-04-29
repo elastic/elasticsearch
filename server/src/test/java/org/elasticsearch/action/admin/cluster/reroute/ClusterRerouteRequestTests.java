@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 
 /**
  * Test for serialization and parsing of {@link ClusterRerouteRequest} and its commands. See the superclass for, well, everything.
@@ -202,7 +203,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
         if (false == original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
-            params.put("master_timeout", original.masterNodeTimeout().toString());
+            params.put(REST_MASTER_TIMEOUT_PARAM, original.masterNodeTimeout().toString());
         }
         if (original.getCommands() != null) {
             hasBody = true;

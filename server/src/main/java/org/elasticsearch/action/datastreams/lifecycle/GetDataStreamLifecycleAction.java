@@ -174,7 +174,12 @@ public class GetDataStreamLifecycleAction {
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
                 if (lifecycle != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    lifecycle.toXContent(
+                        builder,
+                        org.elasticsearch.cluster.metadata.DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                        rolloverConfiguration,
+                        globalRetention
+                    );
                 }
                 builder.endObject();
                 return builder;
@@ -220,6 +225,10 @@ public class GetDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
@@ -240,7 +249,7 @@ public class GetDataStreamLifecycleAction {
                     dataStreamLifecycles.iterator(),
                     dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(
                         builder,
-                        params,
+                        outerParams,
                         rolloverConfiguration,
                         globalRetention
                     )

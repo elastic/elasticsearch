@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestImportDanglingIndexAction extends BaseRestHandler {
     @Override
@@ -40,7 +41,7 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
         );
 
         importRequest.ackTimeout(request.paramAsTime("timeout", importRequest.ackTimeout()));
-        importRequest.masterNodeTimeout(request.paramAsTime("master_timeout", importRequest.masterNodeTimeout()));
+        importRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.execute(
             TransportImportDanglingIndexAction.TYPE,

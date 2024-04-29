@@ -9,7 +9,9 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -184,5 +186,20 @@ public class RestUtilsTests extends ESTestCase {
                 is(expectMatch)
             );
         }
+    }
+
+    public void testGetMasterNodeTimeout() {
+        assertEquals(
+            TimeValue.timeValueSeconds(30),
+            RestUtils.getMasterNodeTimeout(new FakeRestRequest.Builder(xContentRegistry()).build())
+        );
+
+        final var timeout = randomTimeValue();
+        assertEquals(
+            timeout,
+            RestUtils.getMasterNodeTimeout(
+                new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("master_timeout", timeout.getStringRep())).build()
+            )
+        );
     }
 }

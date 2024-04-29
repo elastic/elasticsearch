@@ -268,7 +268,8 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                 this.collector = (doc, bucket) -> {
                     if (singleton.advanceExact(doc)) {
                         collect(doc, singleton.binaryValue(), bucket, 0);
-                    }};
+                    }
+                };
             } else {
                 this.collector = (doc, bucket) -> {
                     if (values.advanceExact(doc)) {

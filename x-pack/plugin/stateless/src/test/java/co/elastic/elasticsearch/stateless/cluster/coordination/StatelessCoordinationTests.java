@@ -103,6 +103,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
      * that an error message gets logged and the node refuses to run for election.
      */
     @TestLogging(reason = "test uses a Coordinator log msg", value = "org.elasticsearch.cluster.coordination.Coordinator:TRACE")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1700")
     public void testShutdownLogMessageDuringElectionAttempt() {
         // There are two nodes so that a non-leader can be set to shutdown and then made to try to run for election.
         try (AbstractCoordinatorTestCase.Cluster cluster = new AbstractCoordinatorTestCase.Cluster(randomIntBetween(2, 5))) {

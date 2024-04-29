@@ -29,17 +29,29 @@ You can use these APIs to create, get, delete and update connectors.
 Use the following APIs to manage connectors:
 
 * <<create-connector-api>>
+beta:[]
 * <<delete-connector-api>>
+beta:[]
 * <<get-connector-api>>
+beta:[]
 * <<list-connector-api>>
+beta:[]
 * <<update-connector-api-key-id-api>>
+beta:[]
 * <<update-connector-configuration-api>>
+beta:[]
 * <<update-connector-filtering-api>>
+beta:[]
 * <<update-connector-index-name-api>>
+beta:[]
 * <<update-connector-name-description-api>>
+beta:[]
 * <<update-connector-pipeline-api>>
+beta:[]
 * <<update-connector-scheduling-api>>
+beta:[]
 * <<update-connector-service-type-api>>
+beta:[]
 
 
 [discrete]
@@ -51,40 +63,53 @@ You can use these APIs to create, cancel, delete and update sync jobs.
 Use the following APIs to manage sync jobs:
 
 * <<create-connector-sync-job-api>>
+beta:[]
 * <<cancel-connector-sync-job-api>>
+beta:[]
 * <<delete-connector-sync-job-api>>
+beta:[]
 * <<get-connector-sync-job-api>>
+beta:[]
 * <<list-connector-sync-jobs-api>>
+beta:[]
+
 
 [discrete]
 [[service-apis]]
-=== Connector Service APIs
+=== Service APIs
 
 preview::[]
 
-*Connector Service APIs* are a set of framework-level endpoints related to connectors and sync jobs. All operations are governed by the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol]. These APIs are not intended for direct connector management by users but are there to support the implementation of services that utilize the Conector Protocol to communicate with {es}.
+*Connector Service APIs* are a subset of Connector API endpoints, that represent framework-level operations defined in the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol]. These APIs are not intended for direct connector management by users but are there to support the implementation of services that utilize the Conector Protocol to communicate with {es}.
 
 [TIP]
-===
+====
 All Elastic connectors are built using our Python connector framework. The source code is available in the https://github.com/elastic/connectors[elastic/connectors] repository on GitHub.
-===
+====
 
 [discrete]
 [[connector-service-apis]]
 ==== Connector Service APIs
 
 * <<check-in-connector-api>>
+preview:[]
 * <<update-connector-error-api>>
+preview:[]
 * <<update-connector-last-sync-api>>
+preview:[]
 * <<update-connector-status-api>>
+preview:[]
 
 [discrete]
 [[sync-job-service-apis]]
 ==== Sync Job Service APIs
 
 * <<check-in-connector-sync-job-api>>
+preview:[]
 * <<set-connector-sync-job-error-api>>
+preview:[]
 * <<set-connector-sync-job-stats-api>>
+preview:[]
 
 
 
@@ -98,7 +123,7 @@ include::update-connector-index-name-api.asciidoc[]
 include::update-connector-filtering-api.asciidoc[]
 include::update-connector-name-description-api.asciidoc[]
 include::update-connector-pipeline-api.asciidoc[]
-include::update-connector-scheduling-api.asciidoc
+include::update-connector-scheduling-api.asciidoc[]
 include::update-connector-service-type-api.asciidoc[]
 
 include::create-connector-sync-job-api.asciidoc[]
@@ -106,3 +131,12 @@ include::cancel-connector-sync-job-api.asciidoc[]
 include::delete-connector-sync-job-api.asciidoc[]
 include::get-connector-sync-job-api.asciidoc[]
 include::list-connector-sync-jobs-api.asciidoc[]
+
+include::check-in-connector-api.asciidoc[]
+include::update-connector-error-api.asciidoc[]
+include::update-connector-last-sync-api.asciidoc[]
+include::update-connector-status-api.asciidoc[]
+
+include::check-in-connector-sync-job-api.asciidoc[]
+include::set-connector-sync-job-error-api.asciidoc[]
+include::set-connector-sync-job-stats-api.asciidoc[]

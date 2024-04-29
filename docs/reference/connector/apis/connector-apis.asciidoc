@@ -1,7 +1,7 @@
 [[connector-apis]]
 == Connector APIs
 
-preview::[]
+beta::[]
 
 The connector and sync jobs APIs provide a convenient way to create and manage Elastic {enterprise-search-ref}/connectors.html[connectors^] and sync jobs in an internal index.
 
@@ -32,18 +32,14 @@ Use the following APIs to manage connectors:
 * <<delete-connector-api>>
 * <<get-connector-api>>
 * <<list-connector-api>>
-* <<check-in-connector-api>>
 * <<update-connector-api-key-id-api>>
 * <<update-connector-configuration-api>>
-* <<update-connector-error-api>>
 * <<update-connector-filtering-api>>
 * <<update-connector-index-name-api>>
-* <<update-connector-last-sync-api>>
 * <<update-connector-name-description-api>>
 * <<update-connector-pipeline-api>>
 * <<update-connector-scheduling-api>>
 * <<update-connector-service-type-api>>
-* <<update-connector-status-api>>
 
 
 [discrete]
@@ -54,38 +50,59 @@ You can use these APIs to create, cancel, delete and update sync jobs.
 
 Use the following APIs to manage sync jobs:
 
-
-* <<cancel-connector-sync-job-api>>
-* <<check-in-connector-sync-job-api>>
 * <<create-connector-sync-job-api>>
+* <<cancel-connector-sync-job-api>>
 * <<delete-connector-sync-job-api>>
 * <<get-connector-sync-job-api>>
 * <<list-connector-sync-jobs-api>>
+
+[discrete]
+[[service-apis]]
+=== Connector Service APIs
+
+preview::[]
+
+*Connector Service APIs* are a set of framework-level endpoints related to connectors and sync jobs. All operations are governed by the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol]. These APIs are not intended for direct connector management by users but are there to support the implementation of services that utilize the Conector Protocol to communicate with {es}.
+
+[TIP]
+===
+All Elastic connectors are built using our Python connector framework. The source code is available in the https://github.com/elastic/connectors[elastic/connectors] repository on GitHub.
+===
+
+[discrete]
+[[connector-service-apis]]
+==== Connector Service APIs
+
+* <<check-in-connector-api>>
+* <<update-connector-error-api>>
+* <<update-connector-last-sync-api>>
+* <<update-connector-status-api>>
+
+[discrete]
+[[sync-job-service-apis]]
+==== Sync Job Service APIs
+
+* <<check-in-connector-sync-job-api>>
 * <<set-connector-sync-job-error-api>>
 * <<set-connector-sync-job-stats-api>>
 
 
-include::cancel-connector-sync-job-api.asciidoc[]
-include::check-in-connector-api.asciidoc[]
-include::check-in-connector-sync-job-api.asciidoc[]
+
 include::create-connector-api.asciidoc[]
-include::create-connector-sync-job-api.asciidoc[]
 include::delete-connector-api.asciidoc[]
-include::delete-connector-sync-job-api.asciidoc[]
 include::get-connector-api.asciidoc[]
-include::get-connector-sync-job-api.asciidoc[]
 include::list-connectors-api.asciidoc[]
-include::list-connector-sync-jobs-api.asciidoc[]
-include::set-connector-sync-job-error-api.asciidoc[]
-include::set-connector-sync-job-stats-api.asciidoc[]
 include::update-connector-api-key-id-api.asciidoc[]
 include::update-connector-configuration-api.asciidoc[]
-include::update-connector-error-api.asciidoc[]
-include::update-connector-filtering-api.asciidoc[]
 include::update-connector-index-name-api.asciidoc[]
-include::update-connector-last-sync-api.asciidoc[]
+include::update-connector-filtering-api.asciidoc[]
 include::update-connector-name-description-api.asciidoc[]
 include::update-connector-pipeline-api.asciidoc[]
-include::update-connector-scheduling-api.asciidoc[]
+include::update-connector-scheduling-api.asciidoc
 include::update-connector-service-type-api.asciidoc[]
-include::update-connector-status-api.asciidoc[]
+
+include::create-connector-sync-job-api.asciidoc[]
+include::cancel-connector-sync-job-api.asciidoc[]
+include::delete-connector-sync-job-api.asciidoc[]
+include::get-connector-sync-job-api.asciidoc[]
+include::list-connector-sync-jobs-api.asciidoc[]

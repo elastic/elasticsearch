@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.tree;
 
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.ArrayList;
@@ -71,17 +72,25 @@ public abstract class Node<T extends Node<T>> {
 
     @SuppressWarnings("unchecked")
     public <E extends T> void forEachDown(Class<E> typeToken, Consumer<? super E> action) {
-        forEachDown(t -> {
-            if (typeToken.isInstance(t)) {
-                action.accept((E) t);
-            }
-        });
+        try {
+            forEachDown(t -> {
+                if (typeToken.isInstance(t)) {
+                    action.accept((E) t);
+                }
+            });
+        } catch (StackOverflowError e) {
+            throw new ParsingException("Statement is too large, causing stack overflow during execution planning: [{}]", this.sourceText());
+        }
     }
 
     @SuppressWarnings("unchecked")
     public void forEachUp(Consumer<? super T> action) {
-        children().forEach(c -> c.forEachUp(action));
-        action.accept((T) this);
+        try {
+            children().forEach(c -> c.forEachUp(action));
+            action.accept((T) this);
+        } catch (StackOverflowError e) {
+            throw new ParsingException("Statement is too large, causing stack overflow during execution planning: [{}]", this.sourceText());
+        }
     }
 
     @SuppressWarnings("unchecked")

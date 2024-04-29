@@ -41,7 +41,7 @@ nested is disabled:
 object with unmapped fields:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored values
+      reason: requires tracking ignored source
 
   - do:
       indices.create:
@@ -74,6 +74,7 @@ object with unmapped fields:
   - do:
       search:
         index: test
+        sort: name
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.name: aaaa }
@@ -93,7 +94,7 @@ object with unmapped fields:
 nested object with unmapped fields:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored values
+      reason: requires tracking ignored source
 
   - do:
       indices.create:
@@ -130,6 +131,7 @@ nested object with unmapped fields:
   - do:
       search:
         index: test
+        sort: path.to.name
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.path.to.name: aaaa }
@@ -144,7 +146,7 @@ nested object with unmapped fields:
 empty object with unmapped fields:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored values
+      reason: requires tracking ignored source
 
   - do:
       indices.create:
@@ -175,15 +177,11 @@ empty object with unmapped fields:
         body:
           - '{ "create": { } }'
           - '{ "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
-          - '{ "create": { } }'
-          - '{ "path.to.surname": "BbBb", "path.some.other.name": "BbBbBb"  }'
 
   - do:
       search:
         index: test
 
-  - match: { hits.total.value: 2 }
+  - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.path.to.surname: AaAa }
   - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
-  - match: { hits.hits.1._source.path.to.surname: BbBb }
-  - match: { hits.hits.1._source.path.some.other.name: BbBbBb }

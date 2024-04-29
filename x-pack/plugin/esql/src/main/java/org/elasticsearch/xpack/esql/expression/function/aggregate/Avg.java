@@ -38,7 +38,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
             dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long"
+            "numeric except unsigned_long or counter types"
         );
     }
 

@@ -20,6 +20,10 @@ import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
+/**
+ * The result of a rank feature search phase.
+ * Each instance holds a {@code RankFeatureShardResult} along with the references associated with it.
+ */
 public class RankFeatureResult extends SearchPhaseResult {
 
     private RankFeatureShardResult rankShardResult;

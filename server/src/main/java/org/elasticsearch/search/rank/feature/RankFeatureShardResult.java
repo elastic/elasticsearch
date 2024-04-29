@@ -18,15 +18,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * The result set of {@link RankFeatureDoc} docs for the shard.
+ */
 public class RankFeatureShardResult implements RankShardResult {
 
-    /**
-     * The result set of {@link RankFeatureDoc} docs for the shard.
-     */
     public final RankFeatureDoc[] rankFeatureDocs;
 
-    public RankFeatureShardResult(RankFeatureDoc[] reRankedDocs) {
-        this.rankFeatureDocs = Objects.requireNonNull(reRankedDocs);
+    public RankFeatureShardResult(RankFeatureDoc[] rankFeatureDocs) {
+        this.rankFeatureDocs = Objects.requireNonNull(rankFeatureDocs);
     }
 
     public RankFeatureShardResult(StreamInput in) throws IOException {
@@ -40,7 +40,7 @@ public class RankFeatureShardResult implements RankShardResult {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersions.V_8_12_0; // TODO: changeme
     }
 
     @Override

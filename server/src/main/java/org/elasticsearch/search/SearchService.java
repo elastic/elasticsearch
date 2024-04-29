@@ -155,6 +155,7 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -730,8 +731,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
-                rankFeatureShardPhase.execute(searchContext, request);
-                searchContext.rankFeatureResult().incRef();
+                rankFeatureShardPhase.prepareForFetch(searchContext, request);
+                int[] docIds = request.getDocIds();
+                if (docIds == null || docIds.length == 0) {
+                    searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
+                    searchContext.rankFeatureResult().incRef();
+                    return searchContext.rankFeatureResult();
+                }
+                fetchPhase.execute(searchContext, docIds);
+                rankFeatureShardPhase.processFetch(searchContext);
                 return searchContext.rankFeatureResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);

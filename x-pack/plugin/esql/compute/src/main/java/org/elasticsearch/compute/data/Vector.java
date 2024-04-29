@@ -63,6 +63,13 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      */
     interface Builder extends Releasable {
         /**
+         * An estimate of the number of bytes the {@link Vector} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
+         */
+        long estimatedBytes();
+
+        /**
          * Builds the block. This method can be called multiple times.
          */
         Vector build();

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -31,6 +32,9 @@ public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHa
     }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";
+
+    public static final String TYPED_KEYS_PARAM = "typed_keys";
+    public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM);
 
     @Override
     public String getName() {
@@ -55,5 +59,10 @@ public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHa
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
             cancelClient.execute(QuerySearchApplicationAction.INSTANCE, request, new RestRefCountedChunkedToXContentListener<>(channel));
         };
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

@@ -9,6 +9,8 @@ START_TIME = 0
 END_TIME = 5*3600
 
 DECAY_TIME = 300
+AVG_INFERENCE_TIME = 0.1
+PHYSICAL_CORES_PER_NODE = 4
 
 
 class EventType(enum.IntEnum):
@@ -24,14 +26,24 @@ def oscallating_2h(time):
   return 10 * (1 - math.cos(2 * math.pi * time / (2*3600)))
 
 def oscallating_5h(time):
-  return 10 * (1 - math.cos(2 * math.pi * time / (5*3600)))
+  return 50 * (1 - math.cos(2 * math.pi * time / (5*3600)))
 
 
 get_request_rate = oscallating_5h
 
 
-def get_inference_time():
-  return random.uniform(0.050, 0.150)
+def get_avg_inference_time(num_allocations):
+  physical_cores = num_allocations // (2 * PHYSICAL_CORES_PER_NODE) * PHYSICAL_CORES_PER_NODE
+  remaining_allocations = num_allocations % (2 * PHYSICAL_CORES_PER_NODE)
+  if remaining_allocations < PHYSICAL_CORES_PER_NODE:
+    physical_cores += remaining_allocations
+  else:
+    physical_cores += PHYSICAL_CORES_PER_NODE
+  return AVG_INFERENCE_TIME * num_allocations / physical_cores
+
+
+def get_inference_time(num_allocations):
+  return random.uniform(0.5, 1.5) * get_avg_inference_time(num_allocations)
 
 
 events = []  # contains tuple of (time, type, allocation_id, inference_time)
@@ -67,6 +79,7 @@ real_inference_times = []
 wait_times = []
 queue_sizes = []
 num_allocations_list = []
+num_ml_nodes = []
 
 while events:
   # handle events
@@ -96,12 +109,13 @@ while events:
     wait_time = time - request_time
     wait_times.append((time, wait_time))
     alloc_id = available_allocations.pop()
-    inference_time = get_inference_time()
-    heapq.heappush(events, (time + get_inference_time(), EventType.INFERENCE_COMPLETED, alloc_id, inference_time))
+    inference_time = get_inference_time(num_allocations)
+    heapq.heappush(events, (time + inference_time, EventType.INFERENCE_COMPLETED, alloc_id, inference_time))
 
   # collect data
   queue_sizes.append((time, len(inference_queue)))
   num_allocations_list.append((time, num_allocations))
+  num_ml_nodes.append((time, math.ceil(num_allocations / (2 * PHYSICAL_CORES_PER_NODE))))
 
   total_weight = DECAY_TIME * (1 - math.exp(-(time - START_TIME) / DECAY_TIME))
   if not total_weight:
@@ -117,7 +131,7 @@ while events:
 
   est_inference_time = sum_inference_time * math.exp(-(time - sum_inference_last_update) / DECAY_TIME) / total_weight / est_inference_count
   est_inference_times.append((time, est_inference_time))
-  real_inference_times.append((time, 0.1))
+  real_inference_times.append((time, get_avg_inference_time(num_allocations)))
 
   # autoscaling
   wanted_allocations = est_request_count * est_inference_time / 0.95
@@ -159,8 +173,9 @@ axs[2].plot(*zip(*avg_wait_time))
 axs[3].set_title('Queue size')
 axs[3].plot(*zip(*queue_sizes))
 
-axs[4].set_title('Num allocations')
+axs[4].set_title('Num allocations / ML nodes')
 axs[4].plot(*zip(*num_allocations_list))
+axs[4].plot(*zip(*num_ml_nodes))
 
 plt.tight_layout()
 plt.show()

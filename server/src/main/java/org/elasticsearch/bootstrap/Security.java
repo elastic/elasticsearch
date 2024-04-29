@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.lang.invoke.MethodType.methodType;
+import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.OPERATOR_DIRECTORY;
@@ -123,7 +124,7 @@ final class Security {
         Map<URL, Policy> pluginPolicies = getPluginAndModulePermissions(environment);
         Policy.setPolicy(
             new ESPolicy(
-                codebases,
+                PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases),
                 createPermissions(environment, pidFile),
                 pluginPolicies,
                 filterBadDefaults,

@@ -51,7 +51,7 @@ final class ESPolicy extends Policy {
 
     @SuppressForbidden(reason = "Need to access and check file permissions directly")
     ESPolicy(
-        Map<String, URL> codebases,
+        Policy template,
         PermissionCollection dynamic,
         Map<URL, Policy> plugins,
         boolean filterBadDefaults,
@@ -59,7 +59,7 @@ final class ESPolicy extends Policy {
         List<FilePermission> forbiddenFilePermissions,
         Map<String, Set<URL>> pluginExclusiveFiles
     ) {
-        this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
+        this.template = template;
         this.dataPathPermission = createPermission(dataPathPermissions);
         this.forbiddenFilePermission = createPermission(forbiddenFilePermissions);
         this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());

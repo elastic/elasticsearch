@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 
 /**
@@ -170,7 +171,7 @@ public class BootstrapForTesting {
                 addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
 
                 final Policy esPolicy = new ESPolicy(
-                    codebases,
+                    PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases),
                     perms,
                     getPluginPermissions(),
                     true,

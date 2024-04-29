@@ -672,7 +672,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         uploadedFileCount.getAndIncrement();
                         uploadedFileBytes.getAndAdd(entry.getValue().fileLength());
                     }
-                    // TODO: remove the following assertion when BCC can contain multiple CCs
                     assert assertBccSizeAndDelayedSettingConsistency(uploadedBcc.size());
                     shardCommitState.markBccUploaded(uploadedBcc);
                     final long end = threadPool.relativeTimeInNanos();
@@ -1299,9 +1298,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             PrimaryTermAndGeneration primaryTermAndGeneration = resolvePrimaryTermForGeneration(generation);
             var commitReferencesInfo = commitReferencesInfos.get(primaryTermAndGeneration);
             assert commitReferencesInfo != null : commitReferencesInfos + " " + generation;
-            // TODO: this assertion won't hold once we have multiple CCs per BCC since its primary term and generation might be >= than the
-            // BCC primary term and generation
-            assert statelessUploadDelayed || commitReferencesInfo.referencesBCC(primaryTermAndGeneration);
             return commitReferencesInfo;
         }
 
@@ -1342,7 +1338,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
-            assert assertBccSizeAndDelayedSettingConsistency(uploadedBcc.size());
+            assert statelessUploadDelayed || (uploadedBcc.size() == 1 || isUpload == false);
             final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
             final long newGeneration = uploadedBcc.last().generation(); // for notifying generation listeners
 

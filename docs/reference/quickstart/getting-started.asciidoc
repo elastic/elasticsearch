@@ -3,7 +3,7 @@
 
 This guide helps you learn how to:
 
-* Run {es} and {kib} (using {ecloud} or in a local Docker development environment),
+* Run {es} and {kib} (using {ecloud} or in a local Docker dev environment),
 * add simple (non-timestamped) dataset to {es},
 * run basic searches.
 

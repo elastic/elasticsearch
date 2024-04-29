@@ -65,6 +65,11 @@ docker network create elastic-net
 
 Start the {es} container with the following command:
 
+ifeval::["{release-state}"=="unreleased"]
+WARNING: Version {version} has not yet been released.
+No Docker image is currently available for {es} {version}.
+endif::[]
+
 [source,sh,subs="attributes"]
 ----
 docker run -p 127.0.0.1:9200:9200 -d --name elasticsearch --network elastic-net \
@@ -94,6 +99,11 @@ curl -u elastic:$ELASTIC_PASSWORD \
 
 Start the {kib} container with the following command:
 
+ifeval::["{release-state}"=="unreleased"]
+WARNING: Version {version} has not yet been released.
+No Docker image is currently available for {es} {version}.
+endif::[]
+
 [source,sh,subs="attributes"]
 ----
 docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
@@ -111,12 +121,51 @@ docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
 The service is started with a trial license. The trial license enables all features of Elasticsearch for a trial period of 30 days. After the trial period expires, the license is downgraded to a basic license, which is free forever. If you prefer to skip the trial and use the basic license, set the value of the `xpack.license.self_generated.type` variable to basic instead. For a detailed feature comparison between the different licenses, refer to our https://www.elastic.co/subscriptions[subscriptions page].
 ====
 
-[WARNING]
-====
-*DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS*
+[discrete]
+[[local-dev-connecting-clients]]
+== Connecting to {es} with language clients
 
-The instructions on this page are for local development only. Do not use these instructions for production deployments, because they are not secure.
-While this approach is convenient for experimenting and learning, you should never run the service in this way in a production environment.
+To connect to the {es} cluster from a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
 
-Refer to our https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Install {es}] to learn about the various options for installing {es} in a production environment, including using Docker.
-====
+You'll use the following connection details:
+
+* **{es} endpoint**: `http://localhost:9200`
+* **Username**: `elastic`
+* **Password**: `$ELASTIC_PASSWORD` (Value you set in the environment variable)
+
+For example, to connect with the Python `elasticsearch` client:
+
+[source,python]
+----
+import os
+from elasticsearch import Elasticsearch
+
+username = 'elastic'
+password = os.getenv('ELASTIC_PASSWORD') # Value you set in the environment variable
+
+client = Elasticsearch(
+    "http://localhost:9200",
+    basic_auth=(username, password)
+)
+
+print(client.info())
+----
+
+Here's an example curl command using basic authentication:
+
+[source,sh,subs="attributes"]
+----
+curl -u elastic:$ELASTIC_PASSWORD \
+  -X PUT \
+  http://localhost:9200/my-new-index \
+  -H 'Content-Type: application/json'
+----
+// NOTCONSOLE
+
+[discrete]
+[[local-dev-next-steps]]
+=== Next steps
+
+This setup is not suitable for production use. For production deployments, we recommend using our managed service on Elastic Cloud. https://cloud.elastic.co/registration[Sign up for a free trial] (no credit card required).
+
+Otherwise, refer to our https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Install {es}] to learn about the various options for installing {es} in a self-managed production environment, including using Docker.

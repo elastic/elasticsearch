@@ -411,7 +411,7 @@ GET index2/_search
           "comment" : "running with scissors"
         },
         "highlight" : {
-          "comment" : [
+          "comment.english" : [
             "<em>running</em> <em>with</em> <em>scissors</em>"
           ]
         }
@@ -424,7 +424,7 @@ GET index2/_search
           "comment" : "run with scissors"
         },
         "highlight" : {
-          "comment" : [
+          "comment.english" : [
             "run <em>with</em> <em>scissors</em>"
           ]
         }

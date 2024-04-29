@@ -24,6 +24,9 @@ import java.util.concurrent.ThreadFactory;
 
 /**
  * A builder for fixed executors.
+ *
+ * Builds an Executor with a static number of threads, as opposed to {@link ScalingExecutorBuilder} that dynamically scales the number of
+ * threads in the pool up and down based on request load.
  */
 public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> {
 

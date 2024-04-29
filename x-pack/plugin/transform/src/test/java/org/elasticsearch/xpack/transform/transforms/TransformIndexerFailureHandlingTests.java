@@ -20,6 +20,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +50,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformExtension;
+import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -109,6 +113,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         MockedTransformIndexer(
             ThreadPool threadPool,
+            ClusterService clusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            TransformExtension transformExtension,
             String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
@@ -124,11 +131,15 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         ) {
             super(
                 threadPool,
+                clusterService,
+                indexNameExpressionResolver,
+                transformExtension,
                 new TransformServices(
                     transformsConfigManager,
                     mock(TransformCheckpointService.class),
                     auditor,
-                    new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
+                    new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformNode.class)
                 ),
                 checkpointProvider,
                 initialState,
@@ -1041,6 +1052,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }).when(transformConfigManager).getTransformConfiguration(any(), any());
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
+            mock(ClusterService.class),
+            mock(IndexNameExpressionResolver.class),
+            mock(TransformExtension.class),
             executorName,
             transformConfigManager,
             mock(CheckpointProvider.class),

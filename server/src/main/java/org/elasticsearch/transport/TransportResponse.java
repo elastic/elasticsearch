@@ -32,6 +32,8 @@ public abstract class TransportResponse extends TransportMessage {
     public static class Empty extends TransportResponse {
         public static final Empty INSTANCE = new Empty();
 
+        private Empty() {/* singleton */}
+
         @Override
         public String toString() {
             return "Empty{}";

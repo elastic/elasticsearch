@@ -25,8 +25,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -125,14 +125,14 @@ public class PivotTests extends ESTestCase {
 
     public void testValidateExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("non_existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -142,7 +142,7 @@ public class PivotTests extends ESTestCase {
 
         Function pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize),
-            new SettingsConfig(),
+            SettingsConfig.EMPTY,
             TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
@@ -150,7 +150,7 @@ public class PivotTests extends ESTestCase {
 
         pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null),
-            new SettingsConfig(),
+            SettingsConfig.EMPTY,
             TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
@@ -164,7 +164,7 @@ public class PivotTests extends ESTestCase {
         // search has failures although they might just be temporary
         SourceConfig source = new SourceConfig("existing_source_index_with_failing_shards");
 
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -177,7 +177,7 @@ public class PivotTests extends ESTestCase {
 
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
-                new SettingsConfig(),
+                SettingsConfig.EMPTY,
                 TransformConfigVersion.CURRENT,
                 Collections.emptySet()
             );
@@ -191,7 +191,7 @@ public class PivotTests extends ESTestCase {
 
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
-                new SettingsConfig(),
+                SettingsConfig.EMPTY,
                 TransformConfigVersion.CURRENT,
                 Collections.emptySet()
             );
@@ -233,7 +233,7 @@ public class PivotTests extends ESTestCase {
         assertThat(groupConfig.validate(null), is(nullValue()));
 
         PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
-        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(pivotConfig, SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
         assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
@@ -268,30 +268,30 @@ public class PivotTests extends ESTestCase {
             }
         };
 
-        Aggregations aggs = null;
+        InternalAggregations aggs = null;
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
 
-        aggs = new Aggregations(List.of());
+        aggs = InternalAggregations.from(List.of());
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
 
-        CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+        InternalComposite compositeAgg = mock(InternalComposite.class);
         when(compositeAgg.getName()).thenReturn("_transform");
         when(compositeAgg.getBuckets()).thenReturn(List.of());
         when(compositeAgg.afterKey()).thenReturn(null);
-        aggs = new Aggregations(List.of(compositeAgg));
+        aggs = InternalAggregations.from(List.of(compositeAgg));
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
 
         when(compositeAgg.getBuckets()).thenReturn(List.of());
         when(compositeAgg.afterKey()).thenReturn(Map.of("key", "value"));
-        aggs = new Aggregations(List.of(compositeAgg));
+        aggs = InternalAggregations.from(List.of(compositeAgg));
         // Empty bucket list is *not* a stop condition for composite agg processing.
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(notNullValue()));
 
-        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-        List<? extends CompositeAggregation.Bucket> buckets = List.of(bucket);
+        InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
+        List<InternalComposite.InternalBucket> buckets = List.of(bucket);
         doReturn(buckets).when(compositeAgg).getBuckets();
         when(compositeAgg.afterKey()).thenReturn(null);
-        aggs = new Aggregations(List.of(compositeAgg));
+        aggs = InternalAggregations.from(List.of(compositeAgg));
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
     }
 
@@ -350,7 +350,7 @@ public class PivotTests extends ESTestCase {
         assertThat(responseHolder.get(), is(empty()));
     }
 
-    private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
+    private static SearchResponse searchResponseFromAggs(InternalAggregations aggs) {
         return new SearchResponse(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
@@ -434,7 +434,7 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             SearchResponse response = mock(SearchResponse.class);
-            when(response.getAggregations()).thenReturn(new Aggregations(List.of()));
+            when(response.getAggregations()).thenReturn(InternalAggregations.from(List.of()));
             listener.onResponse((Response) response);
         }
     }
@@ -452,8 +452,8 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             SearchResponse response = mock(SearchResponse.class);
-            CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
-            when(response.getAggregations()).thenReturn(new Aggregations(List.of(compositeAggregation)));
+            InternalComposite compositeAggregation = mock(InternalComposite.class);
+            when(response.getAggregations()).thenReturn(InternalAggregations.from(List.of(compositeAggregation)));
             when(compositeAggregation.getBuckets()).thenReturn(new ArrayList<>());
             listener.onResponse((Response) response);
         }

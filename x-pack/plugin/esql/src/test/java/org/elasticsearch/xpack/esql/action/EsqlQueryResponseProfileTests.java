@@ -47,12 +47,19 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
     }
 
     private DriverProfile randomDriverProfile() {
-        return new DriverProfile(randomList(10, this::randomOperatorStatus));
+        return new DriverProfile(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomList(10, this::randomOperatorStatus)
+        );
     }
 
     private DriverStatus.OperatorStatus randomOperatorStatus() {
         String name = randomAlphaOfLength(4);
-        Operator.Status status = randomBoolean() ? null : new AbstractPageMappingOperator.Status(between(0, Integer.MAX_VALUE));
+        Operator.Status status = randomBoolean()
+            ? null
+            : new AbstractPageMappingOperator.Status(randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
         return new DriverStatus.OperatorStatus(name, status);
     }
 }

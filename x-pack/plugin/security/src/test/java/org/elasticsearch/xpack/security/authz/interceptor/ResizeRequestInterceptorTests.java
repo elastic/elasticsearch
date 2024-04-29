@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -78,7 +77,6 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         } else {
             queries = null;
         }
-        final String action = randomFrom(ShrinkAction.NAME, ResizeAction.NAME);
         IndicesAccessControl accessControl = new IndicesAccessControl(
             true,
             Collections.singletonMap(
@@ -94,7 +92,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-        RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), action, null);
+        RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), ResizeAction.NAME, null);
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         doAnswer(invocationOnMock -> {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
@@ -126,7 +124,6 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             .user(new User("john", "role"))
             .realmRef(new RealmRef("realm", "type", "node", null))
             .build();
-        final String action = randomFrom(ShrinkAction.NAME, ResizeAction.NAME);
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
         ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
@@ -134,7 +131,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("target", "source"), action, null);
+            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("target", "source"), ResizeAction.NAME, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.deny());
@@ -159,7 +156,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         // swap target and source for success
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("source", "target"), action, null);
+            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("source", "target"), ResizeAction.NAME, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.granted());

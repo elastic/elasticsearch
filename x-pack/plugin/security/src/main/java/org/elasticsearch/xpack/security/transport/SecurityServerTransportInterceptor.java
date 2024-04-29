@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -76,7 +77,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         "internal:admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/file_chunk/get",
-        "indices:internal/admin/ccr/restore/file_chunk/get"
+        "indices:internal/admin/ccr/restore/file_chunk/get",
+        "internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/open_exchange",
+        "internal:data/read/esql/exchange",
+        "cluster:internal:data/read/esql/exchange"
     );
 
     private final AuthenticationService authcService;
@@ -313,7 +318,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         "Settings for remote cluster ["
                             + remoteClusterAlias
                             + "] indicate cross cluster access headers should be sent but target cluster version ["
-                            + connection.getTransportVersion()
+                            + connection.getTransportVersion().toReleaseVersion()
                             + "] does not support receiving them"
                     );
                 }
@@ -385,7 +390,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 )
                             );
                             if (roleDescriptorsIntersection.isEmpty()) {
-                                throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
+                                throw authzService.remoteActionDenied(
+                                    authentication,
+                                    SecurityActionMapper.action(action, request),
+                                    remoteClusterAlias
+                                );
                             }
                             final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                                 remoteClusterCredentials.credentials(),

@@ -23,7 +23,6 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -52,7 +51,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         MetadataCreateIndexService metadataCreateIndexService,
         IndexScopedSettings indexScopedSettings
     ) {
-        super(SYSTEM_INDEX_UPGRADE_TASK_NAME, ThreadPool.Names.GENERIC);
+        super(SYSTEM_INDEX_UPGRADE_TASK_NAME, clusterService.threadPool().generic());
         this.client = client;
         this.clusterService = clusterService;
         this.systemIndices = systemIndices;

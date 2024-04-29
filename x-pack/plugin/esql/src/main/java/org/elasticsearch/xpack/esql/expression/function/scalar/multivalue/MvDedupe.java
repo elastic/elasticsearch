@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -32,7 +32,10 @@ public class MvDedupe extends AbstractMultivalueFunction {
     )
     public MvDedupe(
         Source source,
-        @Param(name = "v", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression field
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }
+        ) Expression field
     ) {
         super(source, field);
     }

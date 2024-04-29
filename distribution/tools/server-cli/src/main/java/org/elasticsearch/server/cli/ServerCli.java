@@ -237,6 +237,11 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
+    // allow subclasses to access the started process
+    protected ServerProcess getServer() {
+        return server;
+    }
+
     // protected to allow tests to override
     protected Command loadTool(String toolname, String libs) {
         return CliToolProvider.load(toolname, libs).create();
@@ -245,7 +250,7 @@ class ServerCli extends EnvironmentAwareCommand {
     // protected to allow tests to override
     protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
         var tempDir = ServerProcessUtils.setupTempDir(processInfo);
-        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir);
+        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
         var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
             .withProcessInfo(processInfo)
             .withServerArgs(args)

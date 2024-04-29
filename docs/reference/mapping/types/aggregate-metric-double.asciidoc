@@ -65,9 +65,9 @@ include::numeric.asciidoc[tag=time_series_metric]
 [%collapsible%open]
 ====
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====
 
 [[aggregate-metric-double-uses]]

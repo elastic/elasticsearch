@@ -19,6 +19,6 @@ public class PostFeatureUpgradeAction extends ActionType<PostFeatureUpgradeRespo
     public static final String NAME = "cluster:admin/migration/post_system_feature";
 
     private PostFeatureUpgradeAction() {
-        super(NAME, PostFeatureUpgradeResponse::new);
+        super(NAME);
     }
 }

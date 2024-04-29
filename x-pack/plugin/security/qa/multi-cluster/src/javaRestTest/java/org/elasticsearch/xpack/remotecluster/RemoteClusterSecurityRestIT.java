@@ -16,6 +16,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -223,7 +224,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             );
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
             try {
                 final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                     .map(SearchHit::getIndex)
@@ -242,7 +243,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 "GET",
                 String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
             );
-            final SearchResponse metricSearchResponse = SearchResponse.fromXContent(
+            final SearchResponse metricSearchResponse = SearchResponseUtils.parseSearchResponse(
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
             try {

@@ -277,7 +277,7 @@ public final class XContentTestUtils {
         // parser.currentName() can be null for root object and unnamed objects in arrays
         if (parser.currentName() != null) {
             // dots in randomized field names need to be escaped, we use that character as the path separator
-            currentPath.addLast(parser.currentName().replaceAll("\\.", "\\\\."));
+            currentPath.addLast(parser.currentName().replace(".", "\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             validPaths.add(String.join(".", currentPath));

@@ -11,7 +11,6 @@ package org.elasticsearch.action;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -55,7 +54,7 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     }
 
     @Override
-    public Executor executor(ThreadPool threadPool) {
+    public Executor executor() {
         return executor;
     }
 

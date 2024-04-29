@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
@@ -44,7 +43,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
-    public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME);
 
     private final CacheService cacheService;
 

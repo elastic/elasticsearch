@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestModifyDataStreamsAction extends BaseRestHandler {
@@ -43,8 +44,8 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
         if (modifyDsRequest.getActions() == null || modifyDsRequest.getActions().isEmpty()) {
             throw new IllegalArgumentException("no data stream actions specified, at least one must be specified");
         }
-        modifyDsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", modifyDsRequest.masterNodeTimeout()));
-        modifyDsRequest.timeout(request.paramAsTime("timeout", modifyDsRequest.timeout()));
+        modifyDsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        modifyDsRequest.ackTimeout(request.paramAsTime("timeout", modifyDsRequest.ackTimeout()));
         return channel -> client.execute(ModifyDataStreamsAction.INSTANCE, modifyDsRequest, new RestToXContentListener<>(channel));
     }
 

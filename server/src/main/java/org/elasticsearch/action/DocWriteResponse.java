@@ -12,13 +12,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -26,7 +24,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -34,7 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -43,14 +39,14 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, ToXContentObject {
 
-    private static final String _SHARDS = "_shards";
-    private static final String _INDEX = "_index";
-    private static final String _ID = "_id";
-    private static final String _VERSION = "_version";
-    private static final String _SEQ_NO = "_seq_no";
-    private static final String _PRIMARY_TERM = "_primary_term";
-    private static final String RESULT = "result";
-    private static final String FORCED_REFRESH = "forced_refresh";
+    public static final String _SHARDS = "_shards";
+    public static final String _INDEX = "_index";
+    public static final String _ID = "_id";
+    public static final String _VERSION = "_version";
+    public static final String _SEQ_NO = "_seq_no";
+    public static final String _PRIMARY_TERM = "_primary_term";
+    public static final String RESULT = "result";
+    public static final String FORCED_REFRESH = "forced_refresh";
 
     /**
      * An enum that represents the results of CRUD operations, primarily used to communicate the type of
@@ -300,54 +296,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         return builder;
-    }
-
-    /**
-     * Parse the output of the {@link #innerToXContent(XContentBuilder, Params)} method.
-     *
-     * This method is intended to be called by subclasses and must be called multiple times to parse all the information concerning
-     * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
-     * if needed and then immediately returns.
-     */
-    protected static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-
-        String currentFieldName = parser.currentName();
-        token = parser.nextToken();
-
-        if (token.isValue()) {
-            if (_INDEX.equals(currentFieldName)) {
-                // index uuid and shard id are unknown and can't be parsed back for now.
-                context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
-            } else if (_ID.equals(currentFieldName)) {
-                context.setId(parser.text());
-            } else if (_VERSION.equals(currentFieldName)) {
-                context.setVersion(parser.longValue());
-            } else if (RESULT.equals(currentFieldName)) {
-                String result = parser.text();
-                for (Result r : Result.values()) {
-                    if (r.getLowercase().equals(result)) {
-                        context.setResult(r);
-                        break;
-                    }
-                }
-            } else if (FORCED_REFRESH.equals(currentFieldName)) {
-                context.setForcedRefresh(parser.booleanValue());
-            } else if (_SEQ_NO.equals(currentFieldName)) {
-                context.setSeqNo(parser.longValue());
-            } else if (_PRIMARY_TERM.equals(currentFieldName)) {
-                context.setPrimaryTerm(parser.longValue());
-            }
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            if (_SHARDS.equals(currentFieldName)) {
-                context.setShardInfo(ShardInfo.fromXContent(parser));
-            } else {
-                parser.skipChildren(); // skip potential inner objects for forward compatibility
-            }
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            parser.skipChildren(); // skip potential inner arrays for forward compatibility
-        }
     }
 
     /**

@@ -24,6 +24,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -77,7 +78,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
         assertThat(newHealthNode, notNullValue());
         logger.info("Previous health node {}, new health node {}.", healthNodeToBeShutDown, newHealthNode);
-        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
+        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null), 30, TimeUnit.SECONDS);
     }
 
     @TestLogging(value = "org.elasticsearch.health.node:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/97213")
@@ -93,7 +94,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         ensureStableCluster(nodeIds.length);
         DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
         assertThat(newHealthNode, notNullValue());
-        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
+        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null), 30, TimeUnit.SECONDS);
     }
 
     /**

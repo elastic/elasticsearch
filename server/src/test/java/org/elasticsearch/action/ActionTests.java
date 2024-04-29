@@ -13,9 +13,9 @@ import org.elasticsearch.test.ESTestCase;
 public class ActionTests extends ESTestCase {
 
     public void testEquals() {
-        final var fakeAction1 = ActionType.localOnly("a");
-        final var fakeAction2 = ActionType.localOnly("a");
-        final var fakeAction3 = ActionType.localOnly("b");
+        final var fakeAction1 = new ActionType<>("a");
+        final var fakeAction2 = new ActionType<>("a");
+        final var fakeAction3 = new ActionType<>("b");
         String s = "Some random other object";
         assertEquals(fakeAction1, fakeAction1);
         assertEquals(fakeAction2, fakeAction2);

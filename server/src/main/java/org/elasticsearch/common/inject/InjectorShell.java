@@ -30,11 +30,9 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.logging.Logger;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.inject.Scopes.SINGLETON;
 
 /**
  * A partially-initialized injector. See {@link InjectorBuilder}, which uses this to build a tree
@@ -69,8 +67,6 @@ class InjectorShell {
          */
         private State state;
 
-        private final Stage stage = Stage.DEVELOPMENT;
-
         void addModules(Iterable<? extends Module> modules) {
             for (Module module : modules) {
                 this.modules.add(module);
@@ -95,10 +91,10 @@ class InjectorShell {
             InjectorImpl injector = new InjectorImpl(state);
 
             // bind Stage and Singleton if this is a top-level injector
-            modules.add(0, new RootModule(stage));
+            modules.add(0, new RootModule());
             new TypeConverterBindingProcessor(errors).prepareBuiltInConverters(injector);
 
-            elements.addAll(Elements.getElements(stage, modules));
+            elements.addAll(Elements.getElements(modules));
             stopwatch.resetAndLog("Module execution");
 
             new MessageProcessor(errors).process(injector, elements);
@@ -106,7 +102,6 @@ class InjectorShell {
             injector.membersInjectorStore = new MembersInjectorStore(injector);
             stopwatch.resetAndLog("TypeListeners creation");
 
-            new ScopeBindingProcessor(errors).process(injector, elements);
             stopwatch.resetAndLog("Scopes creation");
 
             new TypeConverterBindingProcessor(errors).process(injector, elements);
@@ -219,17 +214,11 @@ class InjectorShell {
     }
 
     private static class RootModule implements Module {
-        final Stage stage;
-
-        private RootModule(Stage stage) {
-            this.stage = Objects.requireNonNull(stage, "stage");
-        }
+        private RootModule() {}
 
         @Override
         public void configure(Binder binder) {
-            binder = binder.withSource(SourceProvider.UNKNOWN_SOURCE);
-            binder.bind(Stage.class).toInstance(stage);
-            binder.bindScope(Singleton.class, SINGLETON);
+            binder.withSource(SourceProvider.UNKNOWN_SOURCE);
         }
     }
 }

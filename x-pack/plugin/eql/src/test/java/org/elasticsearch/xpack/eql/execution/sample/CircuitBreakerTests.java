@@ -22,6 +22,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +32,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -192,7 +194,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
     private class ESMockClient extends NoOpClient {
         protected final CircuitBreaker circuitBreaker;
-        private final String pitId = "test_pit_id";
+        private final BytesReference pitId = new BytesArray("test_pit_id");
 
         ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker) {
             super(threadPool);
@@ -221,7 +223,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
-            Aggregations aggs = new Aggregations(List.of(newInternalComposite()));
+            InternalAggregations aggs = InternalAggregations.from(List.of(newInternalComposite()));
             ActionListener.respondAndRelease(
                 listener,
                 (Response) new SearchResponse(

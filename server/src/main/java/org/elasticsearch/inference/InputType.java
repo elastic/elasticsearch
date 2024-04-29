@@ -8,33 +8,24 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
 import java.util.Locale;
 
 /**
  * Defines the type of request, whether the request is to ingest a document or search for a document.
  */
-public enum InputType implements Writeable {
+public enum InputType {
     INGEST,
-    SEARCH;
-
-    public static String NAME = "input_type";
+    SEARCH,
+    UNSPECIFIED,
+    CLASSIFICATION,
+    CLUSTERING;
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static InputType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(InputType.class);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+    public static InputType fromString(String name) {
+        return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 }

@@ -218,9 +218,6 @@ setup:
 
 ---
 "Test start deployment fails while model download in progress":
-  - skip:
-      features: fips_140
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/104414"
   - do:
       ml.put_trained_model:
         model_id: .elser_model_2
@@ -691,7 +688,7 @@ setup:
   - match: { assignment.assignment_state: started }
 
   - do:
-      catch: /Cannot create model \[test_model_deployment\] the id is the same as an current model deployment/
+      catch: /Cannot create model \[test_model_deployment\] the model id is the same as the deployment id of a current model deployment/
       ml.put_trained_model:
         model_id: test_model_deployment
         body: >

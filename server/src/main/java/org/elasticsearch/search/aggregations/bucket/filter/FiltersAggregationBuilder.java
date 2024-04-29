@@ -198,6 +198,13 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return this;
     }
 
+    /**
+     * Get whether to return keyed bucket in array
+     */
+    public boolean keyedBucket() {
+        return keyedBucket;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;

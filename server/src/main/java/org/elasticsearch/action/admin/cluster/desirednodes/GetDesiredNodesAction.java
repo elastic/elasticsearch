@@ -29,7 +29,7 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
     public static final String NAME = "cluster:admin/desired_nodes/get";
 
     GetDesiredNodesAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {

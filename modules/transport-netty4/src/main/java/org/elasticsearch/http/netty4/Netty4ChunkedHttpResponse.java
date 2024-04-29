@@ -12,13 +12,14 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  * A http response that will be transferred via chunked encoding when handled by {@link Netty4HttpPipeliningHandler}.
  */
-public final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Netty4RestResponse {
+public final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Netty4HttpResponse, HttpResponse {
 
     private final int sequence;
 
@@ -37,5 +38,15 @@ public final class Netty4ChunkedHttpResponse extends DefaultHttpResponse impleme
     @Override
     public int getSequence() {
         return sequence;
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        headers().add(name, value);
+    }
+
+    @Override
+    public boolean containsHeader(String name) {
+        return headers().contains(name);
     }
 }

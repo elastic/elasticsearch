@@ -13,6 +13,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.IOUtils;
@@ -118,6 +119,11 @@ public class LdapSessionFactory extends SessionFactory {
         } catch (LDAPException e) {
             listener.onFailure(e);
         }
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        // nothing to reload in DN template mode
     }
 
     /**

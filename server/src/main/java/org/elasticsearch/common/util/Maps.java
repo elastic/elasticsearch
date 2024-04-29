@@ -331,8 +331,7 @@ public class Maps {
 
     /**
      * An immutable implementation of {@link Map.Entry}.
-     * @param key key
-     * @param value value
+     * Unlike {@code Map.entry(...)} this implementation permits null key and value.
      */
     public record ImmutableEntry<KType, VType>(KType key, VType value) implements Map.Entry<KType, VType> {
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,19 +31,12 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
         id = in.readString();
     }
 
-    DeletePipelineRequest() {}
-
     public void setId(String id) {
         this.id = Objects.requireNonNull(id);
     }
 
     public String getId() {
         return id;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

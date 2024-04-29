@@ -234,15 +234,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 end::categorization-analyzer[]
 
@@ -430,16 +430,17 @@ end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
 The data description defines the format of the input data when you send data to
-the job by using the <<ml-post-data,post data>> API. Note that when configure
-a {dfeed}, these properties are automatically set. When data is received via
-the <<ml-post-data,post data>> API, it is not stored in {es}. Only the results
-for {anomaly-detect} are retained.
+the job by using the <<ml-post-data,post data>> API. Note that when using a 
+{dfeed}, only the `time_field` needs to be set, the rest of the properties are 
+automatically set. When data is received via the <<ml-post-data,post data>> API, 
+it is not stored in {es}. Only the results for {anomaly-detect} are retained.
 +
 .Properties of `data_description`
 [%collapsible%open]
 ====
 `format`:::
-  (string) Only `JSON` format is supported at this time.
+  (string) Only `xcontent` format is supported at this time, and this is the 
+  default value.
 
 `time_field`:::
   (string) The name of the field that contains the timestamp.
@@ -447,7 +448,7 @@ for {anomaly-detect} are retained.
 
 `time_format`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-format]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
 

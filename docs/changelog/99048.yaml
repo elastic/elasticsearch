@@ -1,0 +1,6 @@
+pr: 99048
+summary: String sha512() painless function
+area: Infra/Scripting
+type: enhancement
+issues:
+  - 97691

@@ -164,7 +164,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
-            replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(1, 1));
+            replicationResponse.setShardInfo(ReplicationResponse.ShardInfo.allSuccessful(1));
             shardRequests.v2().onResponse(replicationResponse);
         }
         logger.info("total shards: {}, ", response.get().getTotalShards());
@@ -198,7 +198,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                     );
                     failed++;
                 }
-                replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(2, shardsSucceeded, failures));
+                replicationResponse.setShardInfo(ReplicationResponse.ShardInfo.of(2, shardsSucceeded, failures));
                 shardRequests.v2().onResponse(replicationResponse);
             } else {
                 // sometimes fail

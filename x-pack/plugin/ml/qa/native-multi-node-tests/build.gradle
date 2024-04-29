@@ -14,7 +14,9 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('slm'))
   javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))
-  javaRestTestImplementation project(":client:rest-high-level")
+  javaRestTestImplementation project(path: xpackModule('rank-rrf'))
+  javaRestTestImplementation project(path: xpackModule('ql'))
+  javaRestTestImplementation project(path: xpackModule('esql'))
 }
 
 // location for keys and certificates

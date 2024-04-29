@@ -15,6 +15,10 @@ ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2,
 The name of the enrich policy. You need to <<esql-set-up-enrich-policy,create>>
 and <<esql-execute-enrich-policy,execute>> the enrich policy first.
 
+`mode`::
+The mode of the enrich command in cross cluster {esql}.
+See <<ccq-enrich, enrich across clusters>>.
+
 `match_field`::
 The match field. `ENRICH` uses its value to look for records in the enrich
 index. If not specified, the match will be performed on the column with the same

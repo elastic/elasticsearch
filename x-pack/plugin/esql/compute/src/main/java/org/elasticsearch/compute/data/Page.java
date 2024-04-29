@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -223,6 +224,10 @@ public final class Page implements Writeable {
         }
     }
 
+    public long ramBytesUsedByBlocks() {
+        return Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
+    }
+
     /**
      * Release all blocks in this page, decrementing any breakers accounting for these blocks.
      */
@@ -245,6 +250,45 @@ public final class Page implements Writeable {
     public void allowPassingToDifferentDriver() {
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
+        }
+    }
+
+    public Page shallowCopy() {
+        for (Block b : blocks) {
+            b.incRef();
+        }
+        return new Page(blocks);
+    }
+
+    /**
+     * Returns a new page with blocks in the containing {@link Block}s
+     * shifted around or removed. The new {@link Page} will have as
+     * many blocks as the {@code length} of the provided array. Those
+     * blocks will be set to the block at the position of the
+     * <strong>value</strong> of each entry in the parameter.
+     */
+    public Page projectBlocks(int[] blockMapping) {
+        if (blocksReleased) {
+            throw new IllegalStateException("can't read released page");
+        }
+        Block[] mapped = new Block[blockMapping.length];
+        try {
+            for (int b = 0; b < blockMapping.length; b++) {
+                if (blockMapping[b] >= blocks.length) {
+                    throw new IllegalArgumentException(
+                        "Cannot project block with index [" + blockMapping[b] + "] from a page with size [" + blocks.length + "]"
+                    );
+                }
+                mapped[b] = blocks[blockMapping[b]];
+                mapped[b].incRef();
+            }
+            Page result = new Page(false, getPositionCount(), mapped);
+            mapped = null;
+            return result;
+        } finally {
+            if (mapped != null) {
+                Releasables.close(mapped);
+            }
         }
     }
 }

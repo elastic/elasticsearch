@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
 
@@ -24,7 +23,7 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      * performance-critical actions, and even then only if the deserialization and handling work is very cheap, because this executor will
      * perform all the work for responses from remote nodes on the receiving transport worker itself.
      */
-    Executor executor(ThreadPool threadPool);
+    Executor executor();
 
     void handleResponse(T response);
 
@@ -55,7 +54,7 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return executor;
             }
 

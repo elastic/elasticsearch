@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse.AliasActionResult;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 
@@ -18,8 +19,11 @@ import java.util.List;
 public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateRequest<IndicesAliasesClusterStateUpdateRequest> {
     private final List<AliasAction> actions;
 
-    public IndicesAliasesClusterStateUpdateRequest(List<AliasAction> actions) {
+    private final List<IndicesAliasesResponse.AliasActionResult> actionResults;
+
+    public IndicesAliasesClusterStateUpdateRequest(List<AliasAction> actions, List<AliasActionResult> actionResults) {
         this.actions = actions;
+        this.actionResults = actionResults;
     }
 
     /**
@@ -27,5 +31,9 @@ public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateR
      */
     public List<AliasAction> actions() {
         return actions;
+    }
+
+    public List<AliasActionResult> getActionResults() {
+        return actionResults;
     }
 }

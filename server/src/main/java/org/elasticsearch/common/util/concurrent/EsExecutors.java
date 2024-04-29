@@ -33,6 +33,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * A collection of static methods to help create different ES Executor types.
+ */
 public class EsExecutors {
 
     // although the available processors may technically change, for node sizing we use the number available at launch
@@ -126,11 +129,14 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        BlockingQueue<Runnable> queue;
+        final BlockingQueue<Runnable> queue;
+        final EsRejectedExecutionHandler rejectedExecutionHandler;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
+            rejectedExecutionHandler = new RejectOnShutdownOnlyPolicy();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
+            rejectedExecutionHandler = new EsAbortPolicy();
         }
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
@@ -142,7 +148,7 @@ public class EsExecutors {
                 queue,
                 TimedRunnable::new,
                 threadFactory,
-                new EsAbortPolicy(),
+                rejectedExecutionHandler,
                 contextHolder,
                 config
             );
@@ -155,7 +161,7 @@ public class EsExecutors {
                 TimeUnit.MILLISECONDS,
                 queue,
                 threadFactory,
-                new EsAbortPolicy(),
+                rejectedExecutionHandler,
                 contextHolder
             );
         }
@@ -406,6 +412,15 @@ public class EsExecutors {
         }
 
         private void reject(ThreadPoolExecutor executor, Runnable task) {
+            incrementRejections();
+            throw newRejectedException(task, executor, true);
+        }
+    }
+
+    static class RejectOnShutdownOnlyPolicy extends EsRejectedExecutionHandler {
+        @Override
+        public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
+            assert executor.isShutdown() : executor;
             incrementRejections();
             throw newRejectedException(task, executor, true);
         }

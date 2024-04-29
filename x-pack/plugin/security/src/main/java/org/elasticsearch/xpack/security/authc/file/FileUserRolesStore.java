@@ -128,7 +128,7 @@ public class FileUserRolesStore {
             if (line.startsWith("#")) {  // comment
                 continue;
             }
-            int i = line.indexOf(":");
+            int i = line.indexOf(':');
             if (i <= 0 || i == line.length() - 1) {
                 logger.error("invalid entry in users_roles file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 continue;

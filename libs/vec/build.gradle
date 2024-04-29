@@ -1,0 +1,30 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
+
+dependencies {
+  implementation project(':libs:elasticsearch-native')
+  implementation project(':libs:elasticsearch-logging')
+  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+  }
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// hack for now, fix the jarhell check for MRJar
+tasks.named("jarHell").configure { enabled = false }

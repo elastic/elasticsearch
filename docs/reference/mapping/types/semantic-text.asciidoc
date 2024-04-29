@@ -1,0 +1,8 @@
+[role="xpack"]
+[[semantic-text]]
+=== Semantic text field type
+++++
+<titleabbrev>Semantic text</titleabbrev>
+++++
+
+The documentation page for the `semantic_text` field type.

@@ -30,7 +30,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
     public static final String NAME = "cluster:internal/xpack/ml/coordinatedinference";
 
     public CoordinatedInferenceAction() {
-        super(NAME, InferModelAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

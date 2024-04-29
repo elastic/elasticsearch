@@ -26,7 +26,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithMetadata() {
-        assertFieldNames("from test [metadata _index, _id, _version]", ALL_FIELDS);
+        assertFieldNames("from test metadata _index, _id, _version", ALL_FIELDS);
     }
 
     public void testBasicEvalAndDrop() {
@@ -212,11 +212,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | limit 4""", Set.of("hire_date", "hire_date.*", "birth_date", "birth_date.*"));
     }
 
-    public void testAutoBucketMonth() {
+    public void testBucketMonth() {
         assertFieldNames("""
             from employees
             | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-            | eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | sort hire_date
             | keep hire_date, hd""", Set.of("hire_date", "hire_date.*"));
     }
@@ -228,11 +228,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucketMonthInAgg() {
+    public void testBucketMonthInAgg() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | EVAL bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | STATS AVG(salary) BY bucket
             | SORT bucket""", Set.of("salary", "salary.*", "hire_date", "hire_date.*"));
     }
@@ -554,11 +554,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucket() {
+    public void testBucket() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
+            | EVAL bh = bucket(height, 20, 1.41, 2.10)
             | SORT hire_date
             | KEEP hire_date, height, bh""", Set.of("hire_date", "hire_date.*", "height", "height.*"));
     }
@@ -620,43 +620,43 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSelectAll() {
-        assertFieldNames("FROM apps [metadata _id]", ALL_FIELDS);
+        assertFieldNames("FROM apps metadata _id", ALL_FIELDS);
     }
 
     public void testFilterById() {
-        assertFieldNames("FROM apps [metadata _id]| WHERE _id == \"4\"", ALL_FIELDS);
+        assertFieldNames("FROM apps metadata _id| WHERE _id == \"4\"", ALL_FIELDS);
     }
 
     public void testKeepId() {
-        assertFieldNames("FROM apps [metadata _id] | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
+        assertFieldNames("FROM apps metadata _id | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
     }
 
     public void testIdRangeAndSort() {
         assertFieldNames("""
-            FROM apps [metadata _id]
+            FROM apps metadata _id
             | WHERE _id >= "2" AND _id <= "7"
             | SORT _id
             | keep id, name, _id""", Set.of("id", "id.*", "name", "name.*"));
     }
 
     public void testOrderById() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
     }
 
     public void testOrderByIdDesc() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
     }
 
     public void testConcatId() {
-        assertFieldNames("FROM apps [metadata _id] | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
     }
 
     public void testStatsOnId() {
-        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id), d = count_distinct(_id)", INDEX_METADATA_FIELD);
+        assertFieldNames("FROM apps metadata _id | stats c = count(_id), d = count_distinct(_id)", INDEX_METADATA_FIELD);
     }
 
     public void testStatsOnIdByGroup() {
-        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
     }
 
     public void testSimpleProject() {
@@ -709,10 +709,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMetaIndexAliasedInAggs() {
-        assertFieldNames(
-            "from employees [metadata _index] | eval _i = _index | stats max = max(emp_no) by _i",
-            Set.of("emp_no", "emp_no.*")
-        );
+        assertFieldNames("from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i", Set.of("emp_no", "emp_no.*"));
     }
 
     public void testCoalesceFolding() {
@@ -1072,6 +1069,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
     }
 
+    public void testProjectWithMixedQuoting() {
+        assertFieldNames("""
+            from test
+            | drop first_name
+            | keep *`name`
+            """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
+    }
+
     public void testProjectKeepAndDropName() {
         assertFieldNames("""
             from test
@@ -1102,10 +1107,27 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, ALL_FIELDS);
     }
 
+    public void testProjectQuotedPatterWithRest() {
+        assertFieldNames("""
+            from test
+            | eval `*alpha`= first_name
+            | drop `*alpha`
+            | keep *name, *, emp_no
+            """, ALL_FIELDS);
+    }
+
     public void testProjectDropPatternAndKeepOthers() {
         assertFieldNames("""
             from test
             | drop l*
+            | keep first_name, salary
+            """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testProjectDropWithQuotedAndUnquotedPatternAndKeepOthers() {
+        assertFieldNames("""
+            from test
+            | drop `l`*
             | keep first_name, salary
             """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
     }
@@ -1140,6 +1162,24 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             from test
             | stats c = count(*), min = min(emp_no) by languages
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testCountAllWithImplicitNameOtherStatGrouped() {
+        assertFieldNames("""
+            from test
+            | stats count(*), min = min(emp_no) by languages
+            | drop `count(*)`
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testDropWithQuotedAndUnquotedName() {
+        assertFieldNames("""
+            from test
+            | stats count(*), min = min(emp_no) by languages
+            | drop count`(*)`
             | sort languages
             """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }

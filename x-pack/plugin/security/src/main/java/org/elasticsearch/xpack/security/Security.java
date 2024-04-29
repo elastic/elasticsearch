@@ -56,6 +56,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -70,9 +71,11 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -85,6 +88,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
@@ -117,13 +121,16 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
@@ -133,6 +140,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAut
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponseTranslator;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -145,6 +153,7 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
@@ -168,16 +177,19 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -278,10 +290,14 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
+import org.elasticsearch.xpack.security.authz.FileRoleValidator;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
@@ -293,7 +309,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisa
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
+import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -370,6 +386,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -408,7 +425,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
@@ -557,11 +573,23 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
+    private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<CreateApiKeyRequestBuilderFactory> createApiKeyRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<UpdateApiKeyRequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<BulkUpdateApiKeyRequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<RestGrantApiKeyAction.RequestTranslator> grantApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
+    private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
-    private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
     private final SetOnce<Realms> realms = new SetOnce<>();
     private final SetOnce<Client> client = new SetOnce<>();
+    private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
+    private final SetOnce<AuthorizationDenialMessages> authorizationDenialMessages = new SetOnce<>();
+    private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
+    private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
+    private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -633,8 +661,8 @@ public class Security extends Plugin
         return client.get();
     }
 
-    protected Realms getRealms() {
-        return realms.get();
+    protected List<ReloadableSecurityComponent> getReloadableSecurityComponents() {
+        return this.reloadableComponents.get();
     }
 
     @Override
@@ -704,8 +732,6 @@ public class Security extends Plugin
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
-
-        workflowService.set(new WorkflowService());
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
@@ -800,13 +826,7 @@ public class Security extends Plugin
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(
-            settings,
-            environment,
-            resourceWatcherService,
-            getLicenseState(),
-            xContentRegistry
-        );
+
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(
             settings,
             client,
@@ -815,6 +835,39 @@ public class Security extends Plugin
             clusterService
         );
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
+        // Need to set to default if it wasn't set by an extension
+        if (putRoleRequestBuilderFactory.get() == null) {
+            putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+        }
+        if (createApiKeyRequestBuilderFactory.get() == null) {
+            createApiKeyRequestBuilderFactory.set(new CreateApiKeyRequestBuilderFactory.Default());
+        }
+        if (getBuiltinPrivilegesResponseTranslator.get() == null) {
+            getBuiltinPrivilegesResponseTranslator.set(new GetBuiltinPrivilegesResponseTranslator.Default());
+        }
+        if (updateApiKeyRequestTranslator.get() == null) {
+            updateApiKeyRequestTranslator.set(new UpdateApiKeyRequestTranslator.Default());
+        }
+        if (bulkUpdateApiKeyRequestTranslator.get() == null) {
+            bulkUpdateApiKeyRequestTranslator.set(new BulkUpdateApiKeyRequestTranslator.Default());
+        }
+        if (grantApiKeyRequestTranslator.get() == null) {
+            grantApiKeyRequestTranslator.set(new RestGrantApiKeyAction.RequestTranslator.Default());
+        }
+        if (hasPrivilegesRequestBuilderFactory.get() == null) {
+            hasPrivilegesRequestBuilderFactory.trySet(new HasPrivilegesRequestBuilderFactory.Default());
+        }
+        if (reservedRoleNameCheckerFactory.get() == null) {
+            reservedRoleNameCheckerFactory.set(new ReservedRoleNameChecker.Factory.Default());
+        }
+        if (fileRoleValidator.get() == null) {
+            fileRoleValidator.set(new FileRoleValidator.Default());
+        }
+        this.fileRolesStore.set(
+            new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
+        );
+        final ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists);
+        components.add(new PluginComponentBinding<>(ReservedRoleNameChecker.class, reservedRoleNameChecker));
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -866,7 +919,7 @@ public class Security extends Plugin
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,
-            fileRolesStore,
+            fileRolesStore.get(),
             nativeRolesStore,
             customRoleProviders,
             getLicenseState()
@@ -882,8 +935,7 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool),
-            workflowService.get()
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -894,7 +946,7 @@ public class Security extends Plugin
             systemIndices.getProfileIndexManager(),
             clusterService,
             featureService,
-            realms::getDomainConfig
+            realms
         );
         components.add(profileService);
 
@@ -962,17 +1014,21 @@ public class Security extends Plugin
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors.addAll(
                 Arrays.asList(
-                    new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
-                    new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
+                    new SearchRequestInterceptor(threadPool, getLicenseState()),
+                    new ShardSearchRequestInterceptor(threadPool, getLicenseState()),
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
-                    new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState())
+                    new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState()),
+                    new ValidateRequestInterceptor(threadPool, getLicenseState())
                 )
             );
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
+        if (authorizationDenialMessages.get() == null) {
+            authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
+        }
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -987,7 +1043,8 @@ public class Security extends Plugin
             getLicenseState(),
             expressionResolver,
             operatorPrivilegesService.get(),
-            restrictedIndices
+            restrictedIndices,
+            authorizationDenialMessages.get()
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1031,7 +1088,8 @@ public class Security extends Plugin
                 getLicenseState(),
                 threadPool,
                 securityContext.get(),
-                destructiveOperations
+                destructiveOperations,
+                secondaryAuthActions.get() == null ? Set::of : secondaryAuthActions.get()
             )
         );
 
@@ -1043,6 +1101,13 @@ public class Security extends Plugin
         systemIndices.getMainIndexManager().onStateRecovered(state -> reservedRoleMappingAction.get().securityIndexRecovered());
 
         cacheInvalidatorRegistry.validate();
+
+        this.reloadableComponents.set(
+            components.stream()
+                .filter(ReloadableSecurityComponent.class::isInstance)
+                .map(ReloadableSecurityComponent.class::cast)
+                .collect(Collectors.toUnmodifiableList())
+        );
 
         return components;
     }
@@ -1396,7 +1461,8 @@ public class Security extends Plugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return emptyList();
@@ -1413,11 +1479,11 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
-            new RestPutRoleAction(settings, getLicenseState()),
+            new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get()),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
-            new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState(), hasPrivilegesRequestBuilderFactory.get()),
             new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetRoleMappingsAction(settings, getLicenseState()),
             new RestPutRoleMappingAction(settings, getLicenseState()),
@@ -1434,16 +1500,16 @@ public class Security extends Plugin
             new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
             new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
             new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
-            new RestGetBuiltinPrivilegesAction(settings, getLicenseState()),
+            new RestGetBuiltinPrivilegesAction(settings, getLicenseState(), getBuiltinPrivilegesResponseTranslator.get()),
             new RestGetPrivilegesAction(settings, getLicenseState()),
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
-            new RestCreateApiKeyAction(settings, getLicenseState()),
+            new RestCreateApiKeyAction(settings, getLicenseState(), createApiKeyRequestBuilderFactory.get()),
             new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()),
-            new RestUpdateApiKeyAction(settings, getLicenseState()),
-            new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
+            new RestUpdateApiKeyAction(settings, getLicenseState(), updateApiKeyRequestTranslator.get()),
+            new RestBulkUpdateApiKeyAction(settings, getLicenseState(), bulkUpdateApiKeyRequestTranslator.get()),
             new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
-            new RestGrantApiKeyAction(settings, getLicenseState()),
+            new RestGrantApiKeyAction(settings, getLicenseState(), grantApiKeyRequestTranslator.get()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
             new RestQueryApiKeyAction(settings, getLicenseState()),
@@ -1454,7 +1520,7 @@ public class Security extends Plugin
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState()),
-            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestProfileHasPrivilegesAction(settings, getLicenseState()),
             new RestGetProfilesAction(settings, getLicenseState()),
             new RestActivateProfileAction(settings, getLicenseState()),
             new RestUpdateProfileDataAction(settings, getLicenseState()),
@@ -1851,13 +1917,12 @@ public class Security extends Plugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        return handler -> new SecurityRestFilter(
+    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
+        return new SecurityRestFilter(
             enabled,
             threadContext,
             secondayAuthc.get(),
             auditTrailService.get(),
-            handler,
             operatorPrivilegesService.get()
         );
     }
@@ -1900,29 +1965,29 @@ public class Security extends Plugin
     }
 
     @Override
-    public Function<String, Predicate<String>> getFieldFilter() {
+    public Function<String, FieldPredicate> getFieldFilter() {
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
                 IndicesAccessControl indicesAccessControl = threadContext.get()
                     .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 if (indicesAccessControl == null) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
                 assert indicesAccessControl.isGranted();
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
                 if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
                     // check license last, once we know FLS is actually used
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
-                return fieldPermissions::grantsAccessTo;
+                return fieldPermissions.fieldPredicate();
             };
         }
         return MapperPlugin.super.getFieldFilter();
@@ -1946,11 +2011,13 @@ public class Security extends Plugin
                 reloadExceptions.add(ex);
             }
 
-            try {
-                reloadSharedSecretsForJwtRealms(settings);
-            } catch (Exception ex) {
-                reloadExceptions.add(ex);
-            }
+            this.getReloadableSecurityComponents().forEach(component -> {
+                try {
+                    component.reload(settings);
+                } catch (Exception ex) {
+                    reloadExceptions.add(ex);
+                }
+            });
 
             if (false == reloadExceptions.isEmpty()) {
                 final var combinedException = new ElasticsearchException(
@@ -1962,16 +2029,6 @@ public class Security extends Plugin
         } else {
             ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
         }
-    }
-
-    private void reloadSharedSecretsForJwtRealms(Settings settingsWithKeystore) {
-        getRealms().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
-            if (realm instanceof JwtRealm jwtRealm) {
-                jwtRealm.rotateClientSecret(
-                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settingsWithKeystore)
-                );
-            }
-        });
     }
 
     /**
@@ -1992,6 +2049,37 @@ public class Security extends Plugin
             future
         );
         future.actionGet();
+    }
+
+    public Map<String, String> getAuthContextForSlowLog() {
+        if (this.securityContext.get() != null && this.securityContext.get().getAuthentication() != null) {
+            Authentication authentication = this.securityContext.get().getAuthentication();
+            Subject authenticatingSubject = authentication.getAuthenticatingSubject();
+            Subject effetctiveSubject = authentication.getEffectiveSubject();
+            Map<String, String> authContext = new HashMap<>();
+            if (authenticatingSubject.getUser() != null) {
+                authContext.put("user.name", authenticatingSubject.getUser().principal());
+                authContext.put("user.realm", authenticatingSubject.getRealm().getName());
+                if (authenticatingSubject.getUser().fullName() != null) {
+                    authContext.put("user.full_name", authenticatingSubject.getUser().fullName());
+                }
+            }
+            // Only include effective user if different from authenticating user (run-as)
+            if (effetctiveSubject.getUser() != null && effetctiveSubject.equals(authenticatingSubject) == false) {
+                authContext.put("user.effective.name", effetctiveSubject.getUser().principal());
+                authContext.put("user.effective.realm", effetctiveSubject.getRealm().getName());
+                if (effetctiveSubject.getUser().fullName() != null) {
+                    authContext.put("user.effective.full_name", effetctiveSubject.getUser().fullName());
+                }
+            }
+            authContext.put("auth.type", authentication.getAuthenticationType().name());
+            if (authentication.isApiKey()) {
+                authContext.put("apikey.id", authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY).toString());
+                authContext.put("apikey.name", authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY).toString());
+            }
+            return authContext;
+        }
+        return Map.of();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
@@ -2027,18 +2115,30 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+        loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
+        loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
+        loadSingletonExtensionAndSetOnce(loader, reservedRoleNameCheckerFactory, ReservedRoleNameChecker.Factory.class);
+        loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
+        loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
+    }
 
-        // operator registry SPI
-        List<OperatorOnlyRegistry> operatorOnlyRegistries = loader.loadExtensions(OperatorOnlyRegistry.class);
-        if (operatorOnlyRegistries.size() > 1) {
-            throw new IllegalStateException(OperatorOnlyRegistry.class + " may not have multiple implementations");
-        } else if (operatorOnlyRegistries.size() == 1) {
-            OperatorOnlyRegistry operatorOnlyRegistry = operatorOnlyRegistries.get(0);
-            this.operatorOnlyRegistry.set(operatorOnlyRegistry);
-            logger.debug(
-                "Loaded implementation [{}] for interface OperatorOnlyRegistry",
-                operatorOnlyRegistry.getClass().getCanonicalName()
-            );
+    private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {
+        final List<T> loaded = loader.loadExtensions(clazz);
+        if (loaded.size() > 1) {
+            throw new IllegalStateException(clazz + " may not have multiple implementations");
+        } else if (loaded.size() == 1) {
+            final T singleLoaded = loaded.get(0);
+            setOnce.set(singleLoaded);
+            logger.debug("Loaded implementation [{}] for interface [{}]", singleLoaded.getClass().getCanonicalName(), clazz);
+        } else {
+            logger.debug("Will fall back on default implementation for interface [{}]", clazz);
         }
     }
 

@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -44,16 +46,15 @@ public class BinaryFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
-            this(name, false);
-        }
+        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final Parameter<Boolean> hasDocValues;
 
-        public Builder(String name, boolean hasDocValues) {
+        public Builder(String name, boolean isSyntheticSourceEnabledViaIndexMode) {
             super(name);
-            this.hasDocValues.setValue(hasDocValues);
+            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabledViaIndexMode;
+            this.hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, isSyntheticSourceEnabledViaIndexMode);
         }
 
         @Override
@@ -61,11 +62,16 @@ public class BinaryFieldMapper extends FieldMapper {
             return new Parameter<?>[] { meta, stored, hasDocValues };
         }
 
+        public BinaryFieldMapper.Builder docValues(boolean hasDocValues) {
+            this.hasDocValues.setValue(hasDocValues);
+            return this;
+        }
+
         @Override
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
-                name,
-                new BinaryFieldType(context.buildFullName(name), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                name(),
+                new BinaryFieldType(context.buildFullName(name()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 this
@@ -73,10 +79,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.getIndexSettings().getMode().isSyntheticSourceEnabled())
+    );
 
     public static final class BinaryFieldType extends MappedFieldType {
-
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
             super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
         }
@@ -133,6 +140,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     private final boolean stored;
     private final boolean hasDocValues;
+    private final boolean isSyntheticSourceEnabledViaIndexMode;
 
     protected BinaryFieldMapper(
         String simpleName,
@@ -144,6 +152,7 @@ public class BinaryFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
+        this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabledViaIndexMode;
     }
 
     @Override
@@ -183,12 +192,54 @@ public class BinaryFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(simpleName()).init(this);
+        return new BinaryFieldMapper.Builder(simpleName(), isSyntheticSourceEnabledViaIndexMode).init(this);
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+
+        return new BinaryDocValuesSyntheticFieldLoader(name()) {
+            @Override
+            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                var in = new ByteArrayStreamInput();
+                in.reset(value.bytes, value.offset, value.length);
+
+                int count = in.readVInt();
+                switch (count) {
+                    case 0:
+                        return;
+                    case 1:
+                        b.field(simpleName());
+                        break;
+                    default:
+                        b.startArray(simpleName());
+                }
+
+                for (int i = 0; i < count; i++) {
+                    byte[] bytes = in.readByteArray();
+                    b.value(Base64.getEncoder().encodeToString(bytes));
+                }
+
+                if (count > 1) {
+                    b.endArray();
+                }
+            }
+        };
     }
 
     public static final class CustomBinaryDocValuesField extends CustomDocValuesField {

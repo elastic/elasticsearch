@@ -172,7 +172,7 @@ public class DependenciesInfoTask extends ConventionTask {
      */
     protected String createURL(final String group, final String name, final String version) {
         final String baseURL = "https://repo1.maven.org/maven2";
-        return baseURL + "/" + group.replaceAll("\\.", "/") + "/" + name + "/" + version;
+        return baseURL + "/" + group.replace('.', '/') + "/" + name + "/" + version;
     }
 
     /**

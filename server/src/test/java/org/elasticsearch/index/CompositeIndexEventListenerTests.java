@@ -18,7 +18,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.util.concurrent.TimeUnit;
@@ -60,9 +59,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                             listener.onResponse(null);
                         } else {
                             // fails the listener sometimes
-                            shard.getThreadPool()
-                                .executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME))
-                                .execute(ActionRunnable.run(listener, this::runStep));
+                            randomExecutor(shard.getThreadPool()).execute(ActionRunnable.run(listener, this::runStep));
                         }
                     }
 
@@ -129,9 +126,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                             listener.onResponse(null);
                         } else {
                             // fails the listener sometimes
-                            shard.getThreadPool()
-                                .executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME))
-                                .execute(ActionRunnable.run(listener, this::runStep));
+                            randomExecutor(shard.getThreadPool()).execute(ActionRunnable.run(listener, this::runStep));
                         }
                     }
 

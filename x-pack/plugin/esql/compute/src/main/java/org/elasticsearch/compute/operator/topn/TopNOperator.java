@@ -71,11 +71,11 @@ public class TopNOperator implements Operator, Accountable {
          */
         final BreakingBytesRefBuilder values;
 
-        Row(CircuitBreaker breaker, List<SortOrder> sortOrders) {
+        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
             boolean success = false;
             try {
-                keys = new BreakingBytesRefBuilder(breaker, "topn");
-                values = new BreakingBytesRefBuilder(breaker, "topn");
+                keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
+                values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
                 bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
                 success = true;
             } finally {
@@ -273,6 +273,9 @@ public class TopNOperator implements Operator, Accountable {
     private final List<SortOrder> sortOrders;
 
     private Row spare;
+    private int spareValuesPreAllocSize = 0;
+    private int spareKeysPreAllocSize = 0;
+
     private Iterator<Page> output;
 
     public TopNOperator(
@@ -349,12 +352,19 @@ public class TopNOperator implements Operator, Accountable {
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new Row(breaker, sortOrders);
+                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
                 }
                 rowFiller.row(i, spare);
+
+                // When rows are very long, appending the values one by one can lead to lots of allocations.
+                // To avoid this, pre-allocate at least as much size as in the last seen row.
+                // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
+                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
+                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+
                 spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {

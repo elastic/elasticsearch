@@ -12,8 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -78,21 +76,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String candidateNode;
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        final String node1Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node1))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
-        final String node2Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node2))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
+        final String node1Id = getNodeId(node1);
+        final String node2Id = getNodeId(node2);
 
         if (randomBoolean()) {
             shutdownNode = node1Id;
@@ -165,7 +150,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         private final PersistentTasksService persistentTasksService;
 
         protected TaskExecutor(Client client, ClusterService clusterService, ThreadPool threadPool) {
-            super("task_name", ThreadPool.Names.GENERIC);
+            super("task_name", threadPool.generic());
             persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
             clusterService.addListener(this);
         }
@@ -188,7 +173,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private void startTask() {
             logger.info("--> sending start request");
-            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), ActionListener.wrap(r -> {}, e -> {
+            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), null, ActionListener.wrap(r -> {}, e -> {
                 if (e instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create task", e);
                     fail("failed to create task");

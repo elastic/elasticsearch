@@ -11,14 +11,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+
+import java.util.List;
 
 public class TransportListConnectorSyncJobsAction extends HandledTransportAction<
     ListConnectorSyncJobsAction.Request,
@@ -26,12 +28,7 @@ public class TransportListConnectorSyncJobsAction extends HandledTransportAction
     protected final ConnectorSyncJobIndexService connectorSyncJobIndexService;
 
     @Inject
-    public TransportListConnectorSyncJobsAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportListConnectorSyncJobsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             ListConnectorSyncJobsAction.NAME,
             transportService,
@@ -51,12 +48,14 @@ public class TransportListConnectorSyncJobsAction extends HandledTransportAction
         final PageParams pageParams = request.getPageParams();
         final String connectorId = request.getConnectorId();
         final ConnectorSyncStatus syncStatus = request.getConnectorSyncStatus();
+        final List<ConnectorSyncJobType> jobTypeList = request.getConnectorSyncJobTypeList();
 
         connectorSyncJobIndexService.listConnectorSyncJobs(
             pageParams.getFrom(),
             pageParams.getSize(),
             connectorId,
             syncStatus,
+            jobTypeList,
             listener.map(r -> new ListConnectorSyncJobsAction.Response(r.connectorSyncJobs(), r.totalResults()))
         );
     }

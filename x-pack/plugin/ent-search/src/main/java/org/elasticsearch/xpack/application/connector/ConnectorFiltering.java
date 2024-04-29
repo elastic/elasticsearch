@@ -43,45 +43,59 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class ConnectorFiltering implements Writeable, ToXContentObject {
 
-    private final FilteringRules active;
-    private final String domain;
-    private final FilteringRules draft;
+    private FilteringRules active;
+    private final String domain = "DEFAULT"; // Connectors always use DEFAULT domain, users should not modify it via API
+    private FilteringRules draft;
 
     /**
      * Constructs a new ConnectorFiltering instance.
      *
      * @param active The active filtering rules.
-     * @param domain The domain associated with the filtering.
      * @param draft  The draft filtering rules.
      */
-    public ConnectorFiltering(FilteringRules active, String domain, FilteringRules draft) {
+    public ConnectorFiltering(FilteringRules active, FilteringRules draft) {
         this.active = active;
-        this.domain = domain;
         this.draft = draft;
     }
 
     public ConnectorFiltering(StreamInput in) throws IOException {
         this.active = new FilteringRules(in);
-        this.domain = in.readString();
         this.draft = new FilteringRules(in);
     }
 
+    public FilteringRules getActive() {
+        return active;
+    }
+
+    public String getDomain() {
+        return domain;
+    }
+
+    public FilteringRules getDraft() {
+        return draft;
+    }
+
+    public ConnectorFiltering setActive(FilteringRules active) {
+        this.active = active;
+        return this;
+    }
+
+    public ConnectorFiltering setDraft(FilteringRules draft) {
+        this.draft = draft;
+        return this;
+    }
+
     private static final ParseField ACTIVE_FIELD = new ParseField("active");
-    private static final ParseField DOMAIN_FIELD = new ParseField("domain");
     private static final ParseField DRAFT_FIELD = new ParseField("draft");
 
     private static final ConstructingObjectParser<ConnectorFiltering, Void> PARSER = new ConstructingObjectParser<>(
         "connector_filtering",
         true,
-        args -> new ConnectorFiltering.Builder().setActive((FilteringRules) args[0])
-            .setDomain((String) args[1])
-            .setDraft((FilteringRules) args[2])
-            .build()
+        args -> new ConnectorFiltering.Builder().setActive((FilteringRules) args[0]).setDraft((FilteringRules) args[1]).build()
     );
 
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> FilteringRules.fromXContent(p), ACTIVE_FIELD);
-        PARSER.declareString(constructorArg(), DOMAIN_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> FilteringRules.fromXContent(p), DRAFT_FIELD);
     }
 
@@ -90,7 +104,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         builder.startObject();
         {
             builder.field(ACTIVE_FIELD.getPreferredName(), active);
-            builder.field(DOMAIN_FIELD.getPreferredName(), domain);
+            builder.field("domain", domain); // We still want to write the DEFAULT domain to the index
             builder.field(DRAFT_FIELD.getPreferredName(), draft);
         }
         builder.endObject();
@@ -112,7 +126,6 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         active.writeTo(out);
-        out.writeString(domain);
         draft.writeTo(out);
     }
 
@@ -129,19 +142,45 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         return Objects.hash(active, domain, draft);
     }
 
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<List<ConnectorFiltering>, Void> CONNECTOR_FILTERING_PARSER =
+        new ConstructingObjectParser<>(
+            "connector_filtering_parser",
+            true,
+            args -> (List<ConnectorFiltering>) args[0]
+
+        );
+
+    static {
+        CONNECTOR_FILTERING_PARSER.declareObjectArray(
+            constructorArg(),
+            (p, c) -> ConnectorFiltering.fromXContent(p),
+            Connector.FILTERING_FIELD
+        );
+    }
+
+    /**
+     * Deserializes the {@link ConnectorFiltering} property from a {@link Connector} byte representation.
+     *
+     * @param source       Byte representation of the {@link Connector}.
+     * @param xContentType {@link XContentType} of the content (e.g., JSON).
+     * @return             List of {@link ConnectorFiltering} objects.
+     */
+    public static List<ConnectorFiltering> fromXContentBytesConnectorFiltering(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return CONNECTOR_FILTERING_PARSER.parse(parser, null);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector filtering.", e);
+        }
+    }
+
     public static class Builder {
 
         private FilteringRules active;
-        private String domain;
         private FilteringRules draft;
 
         public Builder setActive(FilteringRules active) {
             this.active = active;
-            return this;
-        }
-
-        public Builder setDomain(String domain) {
-            this.domain = domain;
             return this;
         }
 
@@ -151,8 +190,25 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         }
 
         public ConnectorFiltering build() {
-            return new ConnectorFiltering(active, domain, draft);
+            return new ConnectorFiltering(active, draft);
         }
+    }
+
+    public static boolean isDefaultRulePresentInFilteringRules(List<FilteringRule> rules) {
+        FilteringRule defaultRule = getDefaultFilteringRule(null);
+        return rules.stream().anyMatch(rule -> rule.equalsExceptForTimestampsAndOrder(defaultRule));
+    }
+
+    public static FilteringRule getDefaultFilteringRule(Instant timestamp) {
+        return new FilteringRule.Builder().setCreatedAt(timestamp)
+            .setField("_")
+            .setId("DEFAULT")
+            .setOrder(0)
+            .setPolicy(FilteringPolicy.INCLUDE)
+            .setRule(FilteringRuleCondition.REGEX)
+            .setUpdatedAt(timestamp)
+            .setValue(".*")
+            .build();
     }
 
     public static ConnectorFiltering getDefaultConnectorFilteringConfig() {
@@ -166,19 +222,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                     .setAdvancedSnippetValue(Collections.emptyMap())
                     .build()
             )
-                .setRules(
-                    List.of(
-                        new FilteringRule.Builder().setCreatedAt(currentTimestamp)
-                            .setField("_")
-                            .setId("DEFAULT")
-                            .setOrder(0)
-                            .setPolicy(FilteringPolicy.INCLUDE)
-                            .setRule(FilteringRuleCondition.REGEX)
-                            .setUpdatedAt(currentTimestamp)
-                            .setValue(".*")
-                            .build()
-                    )
-                )
+                .setRules(List.of(getDefaultFilteringRule(currentTimestamp)))
                 .setFilteringValidationInfo(
                     new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
                         .setValidationState(FilteringValidationState.VALID)
@@ -186,7 +230,6 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                 )
                 .build()
         )
-            .setDomain("DEFAULT")
             .setDraft(
                 new FilteringRules.Builder().setAdvancedSnippet(
                     new FilteringAdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
@@ -194,19 +237,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                         .setAdvancedSnippetValue(Collections.emptyMap())
                         .build()
                 )
-                    .setRules(
-                        List.of(
-                            new FilteringRule.Builder().setCreatedAt(currentTimestamp)
-                                .setField("_")
-                                .setId("DEFAULT")
-                                .setOrder(0)
-                                .setPolicy(FilteringPolicy.INCLUDE)
-                                .setRule(FilteringRuleCondition.REGEX)
-                                .setUpdatedAt(currentTimestamp)
-                                .setValue(".*")
-                                .build()
-                        )
-                    )
+                    .setRules(List.of(getDefaultFilteringRule(currentTimestamp)))
                     .setFilteringValidationInfo(
                         new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
                             .setValidationState(FilteringValidationState.VALID)

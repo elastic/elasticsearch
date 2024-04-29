@@ -92,13 +92,13 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     protected AbstractJobPersistentTasksExecutor(
         String taskName,
-        String executor,
+        String executorName,
         Settings settings,
         ClusterService clusterService,
         MlMemoryTracker memoryTracker,
         IndexNameExpressionResolver expressionResolver
     ) {
-        super(taskName, executor);
+        super(taskName, clusterService.threadPool().executor(executorName));
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);

@@ -46,7 +46,7 @@ rollover also increments the data stream's generation. See
 
 [TIP]
 ====
-include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=time-series-alias-tip]
+include::{es-ref-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=time-series-alias-tip]
 See <<convert-index-alias-to-data-stream>>.
 ====
 
@@ -104,7 +104,7 @@ streams do not support this parameter.
 If the name of the alias's current write index does not end with `-` and a
 number, such as `my-index-000001` or `my-index-3`, this parameter is required.
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
 [[rollover-index-api-query-params]]
 ==== {api-query-parms-title}
@@ -119,9 +119,9 @@ If `true`, checks whether the current index satisfies the specified
 If `true`, signals that the data stream will be rolled over when the next
 indexing operation occurs. Applies only to data streams. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[rollover-index-api-request-body]]
@@ -131,7 +131,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 (Optional, object of objects) Aliases for the target index. Data streams do not
 support this parameter.
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 [[rollover-conditions]]
 `conditions`::
@@ -152,14 +152,14 @@ instead.
 .Properties of `conditions`
 [%collapsible%open]
 ====
-include::{es-repo-dir}/ilm/actions/ilm-rollover.asciidoc[tag=rollover-conditions]
+include::{es-ref-dir}/ilm/actions/ilm-rollover.asciidoc[tag=rollover-conditions]
 ====
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 +
 Data streams do not support this parameter.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 +
 Data streams do not support this parameter.
 

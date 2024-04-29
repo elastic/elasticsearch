@@ -1,0 +1,5 @@
+pr: 106150
+summary: Use correct system index bulk executor
+area: CRUD
+type: bug
+issues: []

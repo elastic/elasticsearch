@@ -1,0 +1,6 @@
+pr: 106919
+summary: Fix downsample action request serialization
+area: Downsampling
+type: bug
+issues:
+ - 106917

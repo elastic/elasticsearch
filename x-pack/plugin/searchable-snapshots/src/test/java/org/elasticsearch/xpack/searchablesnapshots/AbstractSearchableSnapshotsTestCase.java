@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -72,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
 
@@ -237,18 +237,19 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static SearchableSnapshotRecoveryState createRecoveryState(boolean finalizedDone) {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
                 IndexVersion.current(),
                 new IndexId("some_index", UUIDs.randomBase64UUID(random()))
             )
-        );
+        ).build();
         DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
         SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
 

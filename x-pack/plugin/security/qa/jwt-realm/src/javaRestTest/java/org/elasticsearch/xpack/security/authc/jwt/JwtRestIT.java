@@ -542,15 +542,12 @@ public class JwtRestIT extends ESRestTestCase {
             // secret updated, so authentication succeeds
             getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate();
 
-            // removing setting also works and leads to authentication failure
+            // removing setting should not work since it can
+            // lead to inconsistency in realm's configuration
+            // and eventual authentication failures
             writeSettingToKeystoreThenReload("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", null);
-            assertThat(
-                expectThrows(
-                    ResponseException.class,
-                    () -> getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate()
-                ).getResponse(),
-                hasStatusCode(RestStatus.UNAUTHORIZED)
-            );
+            getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate();
+
         } finally {
             // Restore setting for other tests
             writeSettingToKeystoreThenReload(

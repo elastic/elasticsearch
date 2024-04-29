@@ -23,9 +23,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
 
 /**
  * Reduce a multivalued field to a single valued field containing the average value.
@@ -35,7 +35,7 @@ public class MvAvg extends AbstractMultivalueFunction {
         returnType = "double",
         description = "Converts a multivalued field into a single valued field containing the average of all of the values."
     )
-    public MvAvg(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvAvg(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

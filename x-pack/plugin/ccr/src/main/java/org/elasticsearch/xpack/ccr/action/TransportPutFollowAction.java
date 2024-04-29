@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -111,7 +112,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         }
         String remoteCluster = request.getRemoteCluster();
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(remoteCluster, remoteClientResponseExecutor);
+        client.getRemoteClusterClient(
+            remoteCluster,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
 
         String leaderIndex = request.getLeaderIndex();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
@@ -292,6 +297,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
+        resumeFollowRequest.masterNodeTimeout(request.masterNodeTimeout());
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
@@ -300,7 +306,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     clusterService,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
-                    request.timeout(),
+                    request.ackTimeout(),
                     l.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
                 )
             )
@@ -322,20 +328,14 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         if (localDataStream == null) {
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
-            return new DataStream(
-                localDataStreamName,
-                List.of(backingIndexToFollow),
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                remoteDataStream.isHidden(),
-                true,
-                remoteDataStream.isSystem(),
-                remoteDataStream.isAllowCustomRouting(),
-                remoteDataStream.getIndexMode(),
-                remoteDataStream.getLifecycle(),
-                remoteDataStream.isFailureStore(),
-                remoteDataStream.getFailureIndices()
-            );
+            return remoteDataStream.copy()
+                .setName(localDataStreamName)
+                .setIndices(List.of(backingIndexToFollow))
+                .setReplicated(true)
+                // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                // (and potentially even break things).
+                .setRolloverOnWrite(false)
+                .build();
         } else {
             if (localDataStream.isReplicated() == false) {
                 throw new IllegalArgumentException(
@@ -375,20 +375,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 backingIndices = localDataStream.getIndices();
             }
 
-            return new DataStream(
-                localDataStream.getName(),
-                backingIndices,
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                localDataStream.isHidden(),
-                localDataStream.isReplicated(),
-                localDataStream.isSystem(),
-                localDataStream.isAllowCustomRouting(),
-                localDataStream.getIndexMode(),
-                localDataStream.getLifecycle(),
-                localDataStream.isFailureStore(),
-                localDataStream.getFailureIndices()
-            );
+            return localDataStream.copy()
+                .setIndices(backingIndices)
+                .setGeneration(remoteDataStream.getGeneration())
+                .setMetadata(remoteDataStream.getMetadata())
+                .build();
         }
     }
 

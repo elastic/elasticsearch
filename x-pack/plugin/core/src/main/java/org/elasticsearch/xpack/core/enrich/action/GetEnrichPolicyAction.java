@@ -31,7 +31,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
     public static final String NAME = "cluster:admin/xpack/enrich/get";
 
     private GetEnrichPolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {

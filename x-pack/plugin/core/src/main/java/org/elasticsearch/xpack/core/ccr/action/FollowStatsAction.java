@@ -42,7 +42,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
     public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 
     private FollowStatsAction() {
-        super(NAME, FollowStatsAction.StatsResponses::new);
+        super(NAME);
     }
 
     public static class StatsResponses extends BaseTasksResponse implements ChunkedToXContentObject {

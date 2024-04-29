@@ -27,6 +27,9 @@ PUT my-image-index
       },
       "file-type": {
         "type": "keyword"
+      },
+      "title": {
+        "type": "text"
       }
     }
   }
@@ -39,11 +42,11 @@ PUT my-image-index
 ----
 POST my-image-index/_bulk?refresh=true
 { "index": { "_id": "1" } }
-{ "image-vector": [1, 5, -20], "file-type": "jpg" }
+{ "image-vector": [1, 5, -20], "file-type": "jpg", "title": "mountain lake" }
 { "index": { "_id": "2" } }
-{ "image-vector": [42, 8, -15], "file-type": "png" }
+{ "image-vector": [42, 8, -15], "file-type": "png", "title": "frozen lake"}
 { "index": { "_id": "3" } }
-{ "image-vector": [15, 11, 23], "file-type": "jpg" }
+{ "image-vector": [15, 11, 23], "file-type": "jpg", "title": "mountain lake lodge" }
 ----
 //TEST[continued]
 
@@ -84,17 +87,26 @@ the top `size` results.
 `query_vector`::
 +
 --
-(Required, array of floats) Query vector. Must have the same number of dimensions
-as the vector field you are searching against.
+(Optional, array of floats or string) Query vector. Must have the same number of dimensions
+as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
+Either this or `query_vector_builder` must be provided.
 --
+
+`query_vector_builder`::
++
+--
+(Optional, object) Query vector builder.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
+--
+
 
 `num_candidates`::
 +
 --
-(Required, integer) The number of nearest neighbor candidates to consider per shard.
+(Optional, integer) The number of nearest neighbor candidates to consider per shard.
 Cannot exceed 10,000. {es} collects `num_candidates` results from each shard, then
 merges them to find the top results. Increasing `num_candidates` tends to improve the
-accuracy of the final results.
+accuracy of the final results. Defaults to `Math.min(1.5 * size, 10_000)`.
 --
 
 `filter`::
@@ -176,6 +188,47 @@ POST my-image-index/_search
 ----
 //TEST[continued]
 
+[[knn-query-in-hybrid-search]]
+==== Hybrid search with knn query
+Knn query can be used as a part of hybrid search, where knn query is combined
+with other lexical queries. For example, the query below finds documents with
+`title` matching `mountain lake`, and combines them with the top 10 documents
+that have the closest image vectors to the `query_vector`. The combined documents
+are then scored and the top 3 top scored documents are returned.
+
++
+[source,console]
+----
+POST my-image-index/_search
+{
+  "size" : 3,
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "title": {
+              "query": "mountain lake",
+              "boost": 1
+            }
+          }
+        },
+        {
+          "knn": {
+            "field": "image-vector",
+            "query_vector": [-5, 9, -12],
+            "num_candidates": 10,
+            "boost": 2
+          }
+        }
+      ]
+    }
+  }
+}
+----
+//TEST[continued]
+
+
 [[knn-query-with-nested-query]]
 ==== Knn query inside a nested query
 
@@ -219,4 +272,3 @@ Thus, the final results from aggregations contain
 `num_candidates * number_of_shards` documents. This is different from
 the <<knn-search,top level knn section>> where aggregations are
 calculated on the global top k nearest documents.
-

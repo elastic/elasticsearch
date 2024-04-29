@@ -6,10 +6,15 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+
 module org.elasticsearch.base {
     requires static jsr305;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.core;
     exports org.elasticsearch.jdk;
-    exports org.elasticsearch.core.internal.provider to org.elasticsearch.xcontent;
+    exports org.elasticsearch.core.internal.provider to org.elasticsearch.xcontent, org.elasticsearch.nativeaccess;
+
+    uses ModuleQualifiedExportsService;
 }

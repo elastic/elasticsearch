@@ -61,7 +61,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
     public static final String NAME = "cluster:admin/xpack/enrich/internal_execute";
 
     private InternalExecutePolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ExecuteEnrichPolicyAction.Request {

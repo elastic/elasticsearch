@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.operator;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.common.logging.Loggers;
@@ -32,13 +33,16 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -278,8 +282,13 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
 
         // not an operator
-        when(operatorOnlyRegistry.checkRest(restHandler, restRequest, restChannel)).thenReturn(() -> "violation!");
-        assertFalse(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
+        doThrow(new ElasticsearchSecurityException("violation!")).when(operatorOnlyRegistry).checkRest(restHandler, restRequest);
+        final ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext)
+        );
+        assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(ex, throwableWithMessage("violation!"));
         Mockito.clearInvocations(operatorOnlyRegistry);
 
         // is an operator

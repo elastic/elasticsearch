@@ -160,7 +160,11 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
+                    name,
+                    createDefaultIndexAnalyzers(),
+                    idxSettings.getMode().isSyntheticSourceEnabled()
+                );
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
@@ -222,7 +226,11 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
+                    name,
+                    createDefaultIndexAnalyzers(),
+                    idxSettings.getMode().isSyntheticSourceEnabled()
+                );
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };

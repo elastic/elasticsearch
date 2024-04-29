@@ -18,6 +18,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -44,9 +46,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -83,10 +86,8 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -101,10 +102,8 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
-import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -332,15 +331,15 @@ public class PlanNamedTypesTests extends ESTestCase {
         var orig = new Equals(Source.EMPTY, field("foo", DataTypes.DOUBLE), field("bar", DataTypes.DOUBLE));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
-        out.writeNamed(BinaryComparison.class, orig);
-        var deser = (Equals) planStreamInput(bso).readNamed(BinaryComparison.class);
+        out.writeNamed(EsqlBinaryComparison.class, orig);
+        var deser = (Equals) planStreamInput(bso).readNamed(EsqlBinaryComparison.class);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
     public void testBinComparison() {
         Stream.generate(PlanNamedTypesTests::randomBinaryComparison)
             .limit(100)
-            .forEach(obj -> assertNamedType(BinaryComparison.class, obj));
+            .forEach(obj -> assertNamedType(EsqlBinaryComparison.class, obj));
     }
 
     public void testAggFunctionSimple() throws IOException {
@@ -465,7 +464,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testEsRelation() throws IOException {
-        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomEsSourceOptions(), randomBoolean());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeEsRelation(out, orig);
@@ -476,7 +475,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     public void testEsqlProject() throws IOException {
         var orig = new EsqlProject(
             Source.EMPTY,
-            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean()),
+            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomEsSourceOptions(), randomBoolean()),
             List.of(randomFieldAttribute())
         );
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -487,7 +486,13 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testMvExpand() throws IOException {
-        var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        var esRelation = new EsRelation(
+            Source.EMPTY,
+            randomEsIndex(),
+            List.of(randomFieldAttribute()),
+            randomEsSourceOptions(),
+            randomBoolean()
+        );
         var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
@@ -574,18 +579,17 @@ public class PlanNamedTypesTests extends ESTestCase {
         );
     }
 
-    static BinaryComparison randomBinaryComparison() {
-        int v = randomIntBetween(0, 6);
+    static EsqlBinaryComparison randomBinaryComparison() {
+        int v = randomIntBetween(0, 5);
         var left = field(randomName(), randomDataType());
         var right = field(randomName(), randomDataType());
         return switch (v) {
-            case 0 -> new Equals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 1 -> new NullEquals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 2 -> new NotEquals(Source.EMPTY, left, right, zoneIdOrNull());
-            case 3 -> new GreaterThan(Source.EMPTY, left, right, zoneIdOrNull());
-            case 4 -> new GreaterThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull());
-            case 5 -> new LessThan(Source.EMPTY, left, right, zoneIdOrNull());
-            case 6 -> new LessThanOrEqual(Source.EMPTY, left, right, zoneIdOrNull());
+            case 0 -> new Equals(Source.EMPTY, left, right);
+            case 1 -> new NotEquals(Source.EMPTY, left, right);
+            case 2 -> new GreaterThan(Source.EMPTY, left, right);
+            case 3 -> new GreaterThanOrEqual(Source.EMPTY, left, right);
+            case 4 -> new LessThan(Source.EMPTY, left, right);
+            case 5 -> new LessThanOrEqual(Source.EMPTY, left, right);
             default -> throw new AssertionError(v);
         };
     }
@@ -604,6 +608,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             case 6 -> new MedianAbsoluteDeviation(Source.EMPTY, field);
             case 7 -> new CountDistinct(Source.EMPTY, field, right);
             case 8 -> new Percentile(Source.EMPTY, field, right);
+            case 9 -> new SpatialCentroid(Source.EMPTY, field);
             default -> throw new AssertionError(v);
         };
     }
@@ -624,10 +629,6 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     static NameId nameIdOrNull() {
         return randomBoolean() ? new NameId() : null;
-    }
-
-    static ZoneId zoneIdOrNull() {
-        return randomBoolean() ? DateUtils.UTC : null;
     }
 
     static Nullability randomNullability() {
@@ -681,6 +682,31 @@ public class PlanNamedTypesTests extends ESTestCase {
             );
         }
         return Map.copyOf(map);
+    }
+
+    static EsSourceOptions randomEsSourceOptions() {
+        EsSourceOptions eso = new EsSourceOptions();
+        if (randomBoolean()) {
+            eso.addOption("allow_no_indices", String.valueOf(randomBoolean()));
+        }
+        if (randomBoolean()) {
+            eso.addOption("ignore_unavailable", String.valueOf(randomBoolean()));
+        }
+        if (randomBoolean()) {
+            String idsList = String.join(",", randomList(1, 5, PlanNamedTypesTests::randomName));
+            eso.addOption(
+                "preference",
+                randomFrom(
+                    "_only_local",
+                    "_local",
+                    "_only_nodes:" + idsList,
+                    "_prefer_nodes:" + idsList,
+                    "_shards:" + idsList,
+                    randomName()
+                )
+            );
+        }
+        return eso;
     }
 
     static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();

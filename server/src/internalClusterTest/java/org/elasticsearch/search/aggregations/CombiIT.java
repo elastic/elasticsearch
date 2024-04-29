@@ -66,7 +66,7 @@ public class CombiIT extends ESIntegTestCase {
             prepareSearch("idx").addAggregation(missing("missing_values").field("value"))
                 .addAggregation(terms("values").field("value").collectMode(aggCollectionMode)),
             response -> {
-                Aggregations aggs = response.getAggregations();
+                InternalAggregations aggs = response.getAggregations();
 
                 Missing missing = aggs.get("missing_values");
                 assertNotNull(missing);

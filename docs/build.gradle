@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
-
+import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
@@ -16,6 +16,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {
   include '**/*.asciidoc'
+  include '**/*.mdx'
   // That is where the snippets go, not where they come from!
   exclude 'build/**'
   exclude 'build-idea/**'
@@ -37,7 +38,7 @@ ext.docsFileTree = fileTree(projectDir) {
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
-  expectedUnconvertedCandidates = [
+  getExpectedUnconvertedCandidates().addAll(
           'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
           'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
           'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
@@ -58,7 +59,7 @@ tasks.named("buildRestTests").configure {
           'reference/rest-api/watcher/put-watch.asciidoc',
           'reference/rest-api/watcher/stats.asciidoc',
           'reference/watcher/example-watches/watching-time-series-data.asciidoc'
-  ]
+  )
 }
 
 restResources {
@@ -176,16 +177,8 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
 
-tasks.named("buildRestTests").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listSnippets").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listConsoleCandidates").configure {
-  docs = docsFileTree
+tasks.withType(DocSnippetTask).configureEach {
+    docs = docsFileTree
 }
 
 Closure setupMyIndex = { String name, int count ->
@@ -1787,6 +1780,28 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
             "username": "jacknich",
             "password" : "l0ng-r4nd0m-p@ssw0rd"
           }
+'''
+  setups['sandrakn_user'] = '''
+  - do:
+      security.put_user:
+        username: "sandrakn"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Sandra Knight",
+            "email" : "sandrakn@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sandrakn",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+
 '''
   setups['app0102_privileges'] = '''
   - do:

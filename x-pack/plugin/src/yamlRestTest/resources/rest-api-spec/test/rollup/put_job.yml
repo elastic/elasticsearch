@@ -357,8 +357,8 @@ setup:
 
 ---
 "Test put_job with comma-delimited index pattern":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Comma delimited index pattern introduced in 8.2.0
 
   - do:

@@ -1,0 +1,5 @@
+pr: 107517
+summary: Add GET `_inference` for all inference endpoints
+area: Machine Learning
+type: enhancement
+issues: []

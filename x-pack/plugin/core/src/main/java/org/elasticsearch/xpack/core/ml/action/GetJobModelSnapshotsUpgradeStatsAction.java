@@ -49,7 +49,7 @@ public class GetJobModelSnapshotsUpgradeStatsAction extends ActionType<GetJobMod
     public static String TYPE = "model_snapshot_upgrade";
 
     private GetJobModelSnapshotsUpgradeStatsAction() {
-        super(NAME, GetJobModelSnapshotsUpgradeStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<GetJobModelSnapshotsUpgradeStatsAction.Request> {

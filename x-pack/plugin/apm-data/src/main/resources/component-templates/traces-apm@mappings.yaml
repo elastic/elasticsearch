@@ -51,3 +51,5 @@ template:
         type: scaled_float
         scaling_factor: 1000
         index: false
+      transaction.profiler_stack_trace_ids:
+        type: counted_keyword

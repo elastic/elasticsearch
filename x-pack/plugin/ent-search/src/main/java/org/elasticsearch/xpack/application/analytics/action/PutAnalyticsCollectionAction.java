@@ -25,14 +25,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollectionAction.Response> {
+public class PutAnalyticsCollectionAction {
 
-    public static final PutAnalyticsCollectionAction INSTANCE = new PutAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/xpack/application/analytics/put";
+    public static final ActionType<PutAnalyticsCollectionAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutAnalyticsCollectionAction() {
-        super(NAME, PutAnalyticsCollectionAction.Response::new);
-    }
+    private PutAnalyticsCollectionAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
         private final String name;
@@ -146,21 +144,6 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         @Override
         protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
             builder.field(COLLECTION_NAME_FIELD.getPreferredName(), name);
-        }
-
-        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "put_analytics_collection_response",
-            false,
-            (p) -> {
-                return new Response((boolean) p[0], (String) p[1]);
-            }
-        );
-        static {
-            PARSER.declareString(constructorArg(), COLLECTION_NAME_FIELD);
-        }
-
-        public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {
-            return new Response(AcknowledgedResponse.fromXContent(parser).isAcknowledged(), resourceName);
         }
 
     }

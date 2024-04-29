@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -31,7 +30,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
     public static final String NAME = "cluster:admin/transform/start";
 
     private StartTransformAction() {
-        super(NAME, StartTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -73,14 +72,9 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id, from);
+            return Objects.hash(ackTimeout(), id, from);
         }
 
         @Override
@@ -93,7 +87,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             }
             Request other = (Request) obj;
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return Objects.equals(id, other.id) && Objects.equals(from, other.from) && timeout().equals(other.timeout());
+            return Objects.equals(id, other.id) && Objects.equals(from, other.from) && ackTimeout().equals(other.ackTimeout());
         }
     }
 

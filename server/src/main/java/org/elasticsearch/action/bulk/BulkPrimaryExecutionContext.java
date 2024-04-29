@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 
 import java.util.Arrays;
 import java.util.List;
@@ -62,6 +63,7 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
     private long noopMappingUpdateRetryForMappingVersion;
+    private DocumentSizeObserver documentSizeObserver = DocumentSizeObserver.EMPTY_INSTANCE;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -293,7 +295,7 @@ class BulkPrimaryExecutionContext {
                 }
                 executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
-                executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
+                executionResult.getResponse().setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
             }
             case FAILURE -> {
@@ -366,5 +368,13 @@ class BulkPrimaryExecutionContext {
                 break;
         }
         return true;
+    }
+
+    public void setDocumentSizeObserver(DocumentSizeObserver documentSizeObserver) {
+        this.documentSizeObserver = documentSizeObserver;
+    }
+
+    public DocumentSizeObserver getDocumentSizeObserver() {
+        return documentSizeObserver;
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -30,8 +29,7 @@ public interface ResponseHandler {
      * @param result the response from the server
      * @throws RetryException if the response is invalid
      */
-    void validateResponse(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result)
-        throws RetryException;
+    void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result) throws RetryException;
 
     /**
      * A method for parsing the response from the server.

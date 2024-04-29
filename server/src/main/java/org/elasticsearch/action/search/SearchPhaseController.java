@@ -23,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -45,8 +46,8 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -61,6 +62,8 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -137,10 +140,10 @@ public final class SearchPhaseController {
         if (request.hasKnnSearch() == false) {
             return null;
         }
-
-        List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
-        List<SetOnce<String>> nestedPath = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
+        SearchSourceBuilder source = request.source();
+        List<List<TopDocs>> topDocsLists = new ArrayList<>(source.knnSearch().size());
+        List<SetOnce<String>> nestedPath = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
             nestedPath.add(new SetOnce<>());
         }
@@ -159,9 +162,9 @@ public final class SearchPhaseController {
             }
         }
 
-        List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
+        List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
+            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
@@ -527,18 +530,18 @@ public final class SearchPhaseController {
      * @param bufferedAggs a list of pre-collected aggregations.
      * @param bufferedTopDocs a list of pre-collected top docs.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
-     * @see QuerySearchResult#consumeAggs()
+     * @see QuerySearchResult#getAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        List<InternalAggregations> bufferedAggs,
+        List<DelayableWriteable<InternalAggregations>> bufferedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        RankCoordinatorContext rankCoordinatorContext,
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
         boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
@@ -630,11 +633,20 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-        final SortedTopDocs sortedTopDocs = rankCoordinatorContext == null
-            ? sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions)
-            : rankCoordinatorContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList(), topDocsStats);
-        if (rankCoordinatorContext != null) {
+        final SortedTopDocs sortedTopDocs;
+        if (queryPhaseRankCoordinatorContext == null) {
+            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+        } else {
+            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
+                queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
+                topDocsStats
+            );
+            sortedTopDocs = new SortedTopDocs(rankedDocs, false, null, null, null, 0);
             size = sortedTopDocs.scoreDocs.length;
+            // we need to reset from here as pagination and result trimming has already taken place
+            // within the `QueryPhaseRankCoordinatorContext#rankQueryPhaseResults` and we don't want
+            // to apply it again in the `getHits` method.
+            from = 0;
         }
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
@@ -648,7 +660,7 @@ public final class SearchPhaseController {
             profileBuilder,
             sortedTopDocs,
             sortValueFormats,
-            rankCoordinatorContext,
+            queryPhaseRankCoordinatorContext,
             numReducePhases,
             size,
             from,
@@ -659,11 +671,11 @@ public final class SearchPhaseController {
     private static InternalAggregations reduceAggs(
         AggregationReduceContext.Builder aggReduceContextBuilder,
         boolean performFinalReduce,
-        List<InternalAggregations> toReduce
+        List<DelayableWriteable<InternalAggregations>> toReduce
     ) {
         return toReduce.isEmpty()
             ? null
-            : InternalAggregations.topLevelReduce(
+            : InternalAggregations.topLevelReduceDelayable(
                 toReduce,
                 performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
             );
@@ -706,12 +718,10 @@ public final class SearchPhaseController {
      */
     static int getTopDocsSize(SearchRequest request) {
         if (request.source() == null) {
-            return SearchService.DEFAULT_SIZE;
+            return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
-        return (source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size()) + (source.from() == -1
-            ? SearchService.DEFAULT_FROM
-            : source.from());
+        return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 
     public record ReducedQueryPhase(
@@ -736,7 +746,7 @@ public final class SearchPhaseController {
         // sort value formats used to sort / format the result
         DocValueFormat[] sortValueFormats,
         // the rank context if ranking is used
-        RankCoordinatorContext rankCoordinatorContext,
+        QueryPhaseRankCoordinatorContext rankCoordinatorContext,
         // the number of reduces phases
         int numReducePhases,
         // the size of the top hits to return

@@ -794,6 +794,91 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
     }
 
+    /**
+     * This test confirms the fix for <a href="https://github.com/elastic/elasticsearch/issues/104699">the issue
+     * where a datafeed with aggregations that filter everything for a bucket can go into an infinite loop</a>.
+     * In this test the filter in the aggregation is crazy as it literally filters everything. Real users would
+     * have a filter that only occasionally results in no results from the aggregation while the query alone
+     * returns data. But the code path that's exercised is the same.
+     */
+    public void testLookbackOnlyGivenAggregationsWithHistogramAndBucketFilter() throws Exception {
+        String jobId = "aggs-histogram-filter-job";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job with dodgy filter",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name": "airline"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
+        client().performRequest(createJobRequest);
+
+        String datafeedId = "datafeed-" + jobId;
+        // The "filter_everything" aggregation in here means the output is always empty.
+        String aggregations = """
+            {
+              "buckets": {
+                "histogram": {
+                  "field": "time stamp",
+                  "interval": 3600000
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "filter_everything" : {
+                    "filter": {
+                      "term" : {
+                        "airline": "does not exist"
+                      }
+                    },
+                    "aggregations": {
+                      "airline": {
+                        "terms": {
+                          "field": "airline",
+                          "size": 10
+                        },
+                        "aggregations": {
+                          "responsetime": {
+                            "avg": {
+                              "field": "responsetime"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
+        // The chunking timespan of 1 hour here must be less than the span of the data in order for the problem to be reproduced
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setChunkingTimespan("1h").setAggregations(aggregations).build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest(
+            new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
+        );
+        String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":0"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":0"));
+        assertThat(jobStatsResponseAsString, containsString("\"bucket_count\":0"));
+
+        // The most important thing this test is asserting is that we don't go into an infinite loop!
+    }
+
     public void testLookbackOnlyGivenAggregationsWithDateHistogram() throws Exception {
         String jobId = "aggs-date-histogram-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);

@@ -40,7 +40,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
     public static final String NAME = "cluster:admin/persistent/completion";
 
     private CompletionPersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

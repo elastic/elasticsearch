@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionLi
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -44,6 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
@@ -51,6 +54,8 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStrea
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
+
+    public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -98,6 +103,7 @@ public class MetadataCreateDataStreamService {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(
                         metadataCreateIndexService,
+                        clusterService.getSettings(),
                         currentState,
                         isDslOnlyMode,
                         request,
@@ -124,7 +130,7 @@ public class MetadataCreateDataStreamService {
         ClusterState current,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, current, isDslOnlyMode, request, rerouteListener);
+        return createDataStream(metadataCreateIndexService, clusterService.getSettings(), current, isDslOnlyMode, request, rerouteListener);
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
@@ -184,12 +190,22 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
+        Settings settings,
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, currentState, isDslOnlyMode, request, List.of(), null, rerouteListener);
+        return createDataStream(
+            metadataCreateIndexService,
+            settings,
+            currentState,
+            isDslOnlyMode,
+            request,
+            List.of(),
+            null,
+            rerouteListener
+        );
     }
 
     /**
@@ -204,6 +220,7 @@ public class MetadataCreateDataStreamService {
      */
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
+        Settings settings,
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
@@ -249,6 +266,10 @@ public class MetadataCreateDataStreamService {
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
             : lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        // The initial backing index and the initial failure store index will have the same initial generation.
+        // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
+        // when rolling over in the future.
+        final long initialGeneration = 1;
 
         // If we need to create a failure store, do so first. Do not reroute during the creation since we will do
         // that as part of creating the backing index if required.
@@ -257,20 +278,23 @@ public class MetadataCreateDataStreamService {
             if (isSystem) {
                 throw new IllegalArgumentException("Failure stores are not supported on system data streams");
             }
-            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.getStartTime());
+            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, initialGeneration, request.getStartTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
+                "initialize_data_stream",
+                settings,
                 currentState,
-                request,
+                request.getStartTime(),
                 dataStreamName,
                 template,
-                failureStoreIndexName
+                failureStoreIndexName,
+                null
             );
             failureStoreIndex = currentState.metadata().index(failureStoreIndexName);
         }
 
         if (writeIndex == null) {
-            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, request.getStartTime());
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, initialGeneration, request.getStartTime());
             currentState = createBackingIndex(
                 metadataCreateIndexService,
                 currentState,
@@ -305,7 +329,7 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,
-            1L,
+            initialGeneration,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
             hidden,
             false,
@@ -314,7 +338,9 @@ public class MetadataCreateDataStreamService {
             indexMode,
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
             template.getDataStreamTemplate().hasFailureStore(),
-            failureIndices
+            failureIndices,
+            false,
+            null
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 
@@ -381,33 +407,42 @@ public class MetadataCreateDataStreamService {
         return currentState;
     }
 
-    private static ClusterState createFailureStoreIndex(
+    public static ClusterState createFailureStoreIndex(
         MetadataCreateIndexService metadataCreateIndexService,
+        String cause,
+        Settings settings,
         ClusterState currentState,
-        CreateDataStreamClusterStateUpdateRequest request,
+        long nameResolvedInstant,
         String dataStreamName,
         ComposableIndexTemplate template,
-        String failureStoreIndexName
+        String failureStoreIndexName,
+        @Nullable BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
-        if (DataStream.isFailureStoreEnabled() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return currentState;
         }
 
+        var indexSettings = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(
+            MetadataRolloverService.HIDDEN_INDEX_SETTINGS,
+            settings
+        );
+
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
-            "initialize_data_stream",
+            cause,
             failureStoreIndexName,
             failureStoreIndexName
         ).dataStreamName(dataStreamName)
-            .nameResolvedInstant(request.getStartTime())
+            .nameResolvedInstant(nameResolvedInstant)
             .performReroute(false)
             .setMatchingTemplate(template)
-            .settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
+            .settings(indexSettings);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(
                 currentState,
                 createIndexRequest,
                 false,
+                metadataTransformer,
                 AllocationActionListener.rerouteCompletionIsNotRequired()
             );
         } catch (ResourceAlreadyExistsException e) {
@@ -449,5 +484,4 @@ public class MetadataCreateDataStreamService {
         // Sanity check (this validation logic should already have been executed when merging mappings):
         fieldMapper.validate(mappingLookup);
     }
-
 }

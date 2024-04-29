@@ -56,7 +56,7 @@ public class IndexNameGeneratorTests extends ESTestCase {
             String indexSuffix = generateValidIndexSuffix(() -> UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT));
             assertThat(indexSuffix, notNullValue());
             assertThat(indexSuffix.length(), greaterThanOrEqualTo(1));
-            assertThat(indexSuffix.matches(ILLEGAL_INDEXNAME_CHARS_REGEX), is(false));
+            assertThat(ILLEGAL_INDEXNAME_CHARS_REGEX.matcher(indexSuffix).find(), is(false));
         }
 
         {
@@ -140,7 +140,6 @@ public class IndexNameGeneratorTests extends ESTestCase {
                 validationException.validationErrors(),
                 containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
             );
-            ;
         }
 
         {

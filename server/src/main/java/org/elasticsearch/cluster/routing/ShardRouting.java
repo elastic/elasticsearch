@@ -33,6 +33,8 @@ import java.util.Objects;
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
+ *
+ * Information about a particular shard instance.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 
@@ -395,7 +397,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             role.writeTo(out);
         } else if (role != Role.DEFAULT) {
             throw new IllegalStateException(
-                Strings.format("cannot send role [%s] with transport version [%s]", role, out.getTransportVersion())
+                Strings.format("cannot send role [%s] to node with version [%s]", role, out.getTransportVersion().toReleaseVersion())
             );
         }
     }

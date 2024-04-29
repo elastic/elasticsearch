@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -21,11 +20,6 @@ public class StopILMRequest extends AcknowledgedRequest<StopILMRequest> {
     }
 
     public StopILMRequest() {}
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 
     @Override
     public int hashCode() {

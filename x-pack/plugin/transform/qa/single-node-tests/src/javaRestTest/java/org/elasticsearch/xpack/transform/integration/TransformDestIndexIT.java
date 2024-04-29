@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 public class TransformDestIndexIT extends TransformRestTestCase {
@@ -114,32 +115,26 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertAliases(destIndex2, destAliasAll, destAliasLatest);
     }
 
-    public void testTransformDestIndexCreatedDuringUpdate_NoDeferValidation() throws Exception {
-        testTransformDestIndexCreatedDuringUpdate(false);
+    public void testUnattendedTransformDestIndexCreatedDuringUpdate_NoDeferValidation() throws Exception {
+        testUnattendedTransformDestIndexCreatedDuringUpdate(false);
     }
 
-    public void testTransformDestIndexCreatedDuringUpdate_DeferValidation() throws Exception {
-        testTransformDestIndexCreatedDuringUpdate(true);
+    public void testUnattendedTransformDestIndexCreatedDuringUpdate_DeferValidation() throws Exception {
+        testUnattendedTransformDestIndexCreatedDuringUpdate(true);
     }
 
-    private void testTransformDestIndexCreatedDuringUpdate(boolean deferValidation) throws Exception {
+    private void testUnattendedTransformDestIndexCreatedDuringUpdate(boolean deferValidation) throws Exception {
         String transformId = "test_dest_index_on_update" + (deferValidation ? "-defer" : "");
         String destIndex = transformId + "-dest";
-
-        assertFalse(indexExists(destIndex));
+        String destAliasAll = transformId + ".all";
+        String destAliasLatest = transformId + ".latest";
+        List<DestAlias> destAliases = List.of(new DestAlias(destAliasAll, false), new DestAlias(destAliasLatest, true));
 
         // Create and start the unattended transform
-        createPivotReviewsTransform(
-            transformId,
-            destIndex,
-            null,
-            null,
-            null,
-            new SettingsConfig.Builder().setUnattended(true).build(),
-            null,
-            null,
-            REVIEWS_INDEX_NAME
-        );
+        SettingsConfig settingsConfig = new SettingsConfig.Builder().setUnattended(true).build();
+        createPivotReviewsTransform(transformId, destIndex, null, null, destAliases, settingsConfig, null, null, REVIEWS_INDEX_NAME);
+        assertFalse(indexExists(destIndex));
+
         startTransform(transformId);
 
         // Update the unattended transform. This will trigger destination index creation.
@@ -151,6 +146,66 @@ public class TransformDestIndexIT extends TransformRestTestCase {
 
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
+        // Verify that both aliases are configured on the dest index
+        assertAliases(destIndex, destAliasAll, destAliasLatest);
+    }
+
+    public void testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation() throws Exception {
+        testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex(false);
+    }
+
+    public void testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_DeferValidation() throws Exception {
+        testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex(true);
+    }
+
+    private void testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex(boolean deferValidation) throws Exception {
+        String transformId = "test_dest_index_on_update-empty" + (deferValidation ? "-defer" : "");
+        String sourceIndexIndex = transformId + "-src";
+        String destIndex = transformId + "-dest";
+        String destAliasAll = transformId + ".all";
+        String destAliasLatest = transformId + ".latest";
+        List<DestAlias> destAliases = List.of(new DestAlias(destAliasAll, false), new DestAlias(destAliasLatest, true));
+
+        // We want to use an empty source index to make sure transform will not write to the destination index
+        putReviewsIndex(sourceIndexIndex, "date", false);
+        assertFalse(indexExists(destIndex));
+
+        // Create and start the unattended transform
+        SettingsConfig settingsConfig = new SettingsConfig.Builder().setUnattended(true).build();
+        createPivotReviewsTransform(transformId, destIndex, null, null, destAliases, settingsConfig, null, null, sourceIndexIndex);
+        startTransform(transformId);
+
+        // Verify that the destination index creation got skipped
+        assertFalse(indexExists(destIndex));
+
+        // Update the unattended transform. This will trigger destination index creation.
+        // The update has to change something in the config (here, max_page_search_size). Otherwise it would have been optimized away.
+        updateTransform(transformId, """
+            { "settings": { "max_page_search_size": 123 } }""", deferValidation);
+
+        // Verify that the destination index now exists
+        assertTrue(indexExists(destIndex));
+        // Verify that both aliases are configured on the dest index
+        assertAliases(destIndex, destAliasAll, destAliasLatest);
+    }
+
+    public void testUnattendedTransformDestIndexCreatedByIndexer() throws Exception {
+        String transformId = "test_dest_index_in_indexer";
+        String destIndex = transformId + "-dest";
+        String destAliasAll = transformId + ".all";
+        String destAliasLatest = transformId + ".latest";
+        List<DestAlias> destAliases = List.of(new DestAlias(destAliasAll, false), new DestAlias(destAliasLatest, true));
+
+        // Create and start the unattended transform
+        SettingsConfig settingsConfig = new SettingsConfig.Builder().setUnattended(true).build();
+        createPivotReviewsTransform(transformId, destIndex, null, null, destAliases, settingsConfig, null, null, REVIEWS_INDEX_NAME);
+        startTransform(transformId);
+        waitForTransformCheckpoint(transformId, 1);
+
+        // Verify that the destination index exists
+        assertTrue(indexExists(destIndex));
+        // Verify that both aliases are configured on the dest index
+        assertAliases(destIndex, destAliasAll, destAliasLatest);
     }
 
     public void testTransformDestIndexMappings_DeduceMappings() throws Exception {
@@ -245,20 +300,9 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertTrue(indexExists(destIndex));
         assertThat(
             getIndexMappingAsMap(destIndex),
-            is(
-                equalTo(
-                    Map.of(
-                        "properties",
-                        Map.of(
-                            "avg_rating",
-                            Map.of("type", "double"),
-                            "reviewer",
-                            Map.of("type", "keyword"),
-                            "timestamp",
-                            Map.of("type", "date")
-                        )
-                    )
-                )
+            hasEntry(
+                "properties",
+                Map.of("avg_rating", Map.of("type", "double"), "reviewer", Map.of("type", "keyword"), "timestamp", Map.of("type", "date"))
             )
         );
         Map<String, Object> searchResult = getAsMap(destIndex + "/_search?q=reviewer:user_0");

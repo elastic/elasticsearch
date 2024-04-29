@@ -154,6 +154,15 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
+        // The analysis can perform writeAndOverwrite as a rare action.
+        // Since a read is performed towards the end of overwrite or write (rarely),
+        // it can return either the old (write) or the new (overwrite) content and both
+        // are considered to be correct.
+        // This test disrupts reads and relies on the disrupted content to be different from
+        // correct contents to trigger the expected failure. However, in rare cases,
+        // the disrupted old content could be identical to the new content or vice versa which
+        // leads to CI failures. Therefore, we disable rare actions to improve CI stability.
+        request.rareActionProbability(0.0);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
 
@@ -414,7 +423,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void analyseRepository(RepositoryAnalyzeAction.Request request) {
-        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(5L, TimeUnit.MINUTES);
     }
 
     private static void assertPurpose(OperationPurpose purpose) {
@@ -701,6 +710,17 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
+        }
+
+        @Override
+        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+            assertPurpose(purpose);
+            final var register = registers.get(key);
+            if (register == null) {
+                listener.onResponse(OptionalBytesReference.EMPTY);
+            } else {
+                listener.onResponse(OptionalBytesReference.of(register.get()));
+            }
         }
 
         @Override

@@ -17,8 +17,13 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertEmptyLookup;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertLookup;
+import static org.elasticsearch.compute.data.BasicBlockTests.positions;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -53,6 +58,15 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());
+            if (positionCount > 1) {
+                assertLookup(
+                    vector.asBlock(),
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                );
+            }
+            assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("BooleanBigArrayVector[positions=" + positionCount));
         }
@@ -84,6 +98,15 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());
+            if (positionCount > 1) {
+                assertLookup(
+                    vector.asBlock(),
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                );
+            }
+            assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("IntBigArrayVector[positions=" + positionCount));
         }
@@ -115,6 +138,15 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());
+            if (positionCount > 1) {
+                assertLookup(
+                    vector.asBlock(),
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                );
+            }
+            assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("LongBigArrayVector[positions=" + positionCount));
         }
@@ -146,6 +178,15 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());
+            if (positionCount > 1) {
+                assertLookup(
+                    vector.asBlock(),
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(values[1]), List.of(values[2]), List.of(values[1], values[2]))
+                );
+            }
+            assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, vector.asBlock());
             assertSerialization(block);
             assertThat(vector.toString(), containsString("DoubleBigArrayVector[positions=" + positionCount));
         }

@@ -94,41 +94,20 @@ public class InferenceDefinitionTests extends ESTestCase {
             xContentRegistry()
         );
 
-        Map<String, Object> fields = new HashMap<>() {
-            {
-                put("sepal_length", 5.1);
-                put("sepal_width", 3.5);
-                put("petal_length", 1.4);
-                put("petal_width", 0.2);
-            }
-        };
+        Map<String, Object> fields = Map.of("sepal_length", 5.1, "sepal_width", 3.5, "petal_length", 1.4, "petal_width", 0.2);
 
         assertThat(
             ((ClassificationInferenceResults) definition.infer(fields, ClassificationConfig.EMPTY_PARAMS)).getClassificationLabel(),
             equalTo("Iris-setosa")
         );
 
-        fields = new HashMap<>() {
-            {
-                put("sepal_length", 7.0);
-                put("sepal_width", 3.2);
-                put("petal_length", 4.7);
-                put("petal_width", 1.4);
-            }
-        };
+        fields = Map.of("sepal_length", 7.0, "sepal_width", 3.2, "petal_length", 4.7, "petal_width", 1.4);
         assertThat(
             ((ClassificationInferenceResults) definition.infer(fields, ClassificationConfig.EMPTY_PARAMS)).getClassificationLabel(),
             equalTo("Iris-versicolor")
         );
 
-        fields = new HashMap<>() {
-            {
-                put("sepal_length", 6.5);
-                put("sepal_width", 3.0);
-                put("petal_length", 5.2);
-                put("petal_width", 2.0);
-            }
-        };
+        fields = Map.of("sepal_length", 6.5, "sepal_width", 3.0, "petal_length", 5.2, "petal_width", 2.0);
         assertThat(
             ((ClassificationInferenceResults) definition.infer(fields, ClassificationConfig.EMPTY_PARAMS)).getClassificationLabel(),
             equalTo("Iris-virginica")

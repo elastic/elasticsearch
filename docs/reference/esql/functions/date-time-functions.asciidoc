@@ -8,7 +8,7 @@
 {esql} supports these date-time functions:
 
 // tag::date_list[]
-* <<esql-auto_bucket>>
+* <<esql-date_diff>>
 * <<esql-date_extract>>
 * <<esql-date_format>>
 * <<esql-date_parse>>
@@ -16,9 +16,9 @@
 * <<esql-now>>
 // end::date_list[]
 
-include::auto_bucket.asciidoc[]
-include::date_extract.asciidoc[]
-include::date_format.asciidoc[]
-include::date_parse.asciidoc[]
-include::date_trunc.asciidoc[]
+include::layout/date_diff.asciidoc[]
+include::layout/date_extract.asciidoc[]
+include::layout/date_format.asciidoc[]
+include::layout/date_parse.asciidoc[]
+include::layout/date_trunc.asciidoc[]
 include::now.asciidoc[]

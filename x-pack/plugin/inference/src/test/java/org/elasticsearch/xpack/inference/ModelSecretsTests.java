@@ -85,7 +85,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.INFERENCE_MODEL_SECRETS_ADDED;
+            return TransportVersions.V_8_11_X;
         }
     }
 }

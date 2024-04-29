@@ -1,0 +1,73 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-search-cohere-tab"
+            id="infer-api-search-cohere">
+      Cohere
+    </button>
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-search-hf-tab"
+            id="infer-api-search-hf">
+      HuggingFace
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-openai-tab"
+            id="infer-api-search-openai">
+      OpenAI
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-azure-openai-tab"
+            id="infer-api-search-azure-openai">
+      Azure OpenAI
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-cohere-tab"
+       aria-labelledby="infer-api-search-cohere">
+++++
+
+include::infer-api-search.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-hf-tab"
+       aria-labelledby="infer-api-search-hf"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=hugging-face]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-openai-tab"
+       aria-labelledby="infer-api-search-openai"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=openai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-azure-openai-tab"
+       aria-labelledby="infer-api-search-azure-openai"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=azure-openai]
+
+++++
+  </div>
+</div>
+++++

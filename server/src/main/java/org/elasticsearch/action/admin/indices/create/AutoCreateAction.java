@@ -69,7 +69,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
     public static final String NAME = "indices:admin/auto_create";
 
     private AutoCreateAction() {
-        super(NAME, CreateIndexResponse::new);
+        super(NAME);
     }
 
     public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
@@ -190,7 +190,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             clusterService,
                             indexNames.toArray(String[]::new),
                             ActiveShardCount.DEFAULT,
-                            request.timeout(),
+                            request.ackTimeout(),
                             allocationActionMultiListener.delay(listener)
                                 .map(shardsAcked -> new CreateIndexResponse(true, shardsAcked, indexNames.get(0)))
                         );
@@ -244,7 +244,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     // This expression only evaluates to true when the argument is non-null and false
                     if (isSystemDataStream == false && Boolean.FALSE.equals(template.getAllowAutoCreate())) {
                         throw new IndexNotFoundException(
-                            "composable template " + template.indexPatterns() + " forbids index auto creation"
+                            "composable template " + template.indexPatterns() + " forbids index auto creation",
+                            request.index()
                         );
                     }
 
@@ -252,7 +253,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.index(),
                         dataStreamDescriptor,
                         request.masterNodeTimeout(),
-                        request.timeout(),
+                        request.ackTimeout(),
                         false
                     );
                     assert createRequest.performReroute() == false
@@ -272,6 +273,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     successfulRequests.put(request, indexNames);
                     return clusterState;
                 } else {
+                    if (request.isRequireDataStream()) {
+                        throw new IndexNotFoundException(
+                            "the index creation request requires a data stream, "
+                                + "but no matching index template with data stream template was found for it",
+                            request.index()
+                        );
+                    }
                     final var indexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
                     if (isSystemIndex) {
                         if (indexName.equals(request.index()) == false) {
@@ -340,7 +348,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     indexName,
                     request.index()
-                ).ackTimeout(request.timeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
+                ).ackTimeout(request.ackTimeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -357,7 +365,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     concreteIndexName,
                     request.index()
-                ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
+                ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

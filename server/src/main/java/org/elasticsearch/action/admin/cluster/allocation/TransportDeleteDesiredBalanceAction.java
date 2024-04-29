@@ -35,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeAction<DesiredBalanceRequest, ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/desired_balance/reset");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/desired_balance/reset");
     @Nullable
     private final MasterServiceTaskQueue<ResetDesiredBalanceTask> resetDesiredBalanceTaskQueue;
 

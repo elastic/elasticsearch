@@ -46,7 +46,7 @@ GET /_index_template/template_1
 
 * If the {es} {security-features} are enabled, you must have the
 `manage_index_templates` or `manage` <<privileges-list-cluster,cluster
-privilege>> to use this API.
+privilege>> to use this API, or the `monitor` cluster privilege to retrieve templates.
 
 [[get-template-api-path-params]]
 ==== {api-path-parms-title}

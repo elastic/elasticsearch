@@ -14,6 +14,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.Systemd;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.Scheduler;
@@ -26,6 +28,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     private static final Logger logger = LogManager.getLogger(SystemdPlugin.class);
 
     private final boolean enabled;
+    private final Systemd systemd;
 
     final boolean isEnabled() {
         return enabled;
@@ -44,18 +47,21 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         }
         if (isPackageDistribution == false) {
             logger.debug("disabling sd_notify as the build type [{}] is not a package distribution", buildType);
-            enabled = false;
+            this.enabled = false;
+            this.systemd = null;
             return;
         }
         logger.trace("ES_SD_NOTIFY is set to [{}]", esSDNotify);
         if (esSDNotify == null) {
-            enabled = false;
+            this.enabled = false;
+            this.systemd = null;
             return;
         }
         if (Boolean.TRUE.toString().equals(esSDNotify) == false && Boolean.FALSE.toString().equals(esSDNotify) == false) {
             throw new RuntimeException("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]");
         }
-        enabled = Boolean.TRUE.toString().equals(esSDNotify);
+        this.enabled = Boolean.TRUE.toString().equals(esSDNotify);
+        this.systemd = enabled ? NativeAccess.instance().systemd() : null;
     }
 
     private final SetOnce<Scheduler.Cancellable> extender = new SetOnce<>();
@@ -77,19 +83,25 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
          * Therefore, every fifteen seconds we send systemd a message via sd_notify to extend the timeout by thirty seconds. We will cancel
          * this scheduled task after we successfully notify systemd that we are ready.
          */
-        extender.set(services.threadPool().scheduleWithFixedDelay(() -> {
-            final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
-            if (rc < 0) {
-                logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
-            }
-        }, TimeValue.timeValueSeconds(15), EsExecutors.DIRECT_EXECUTOR_SERVICE));
+        extender.set(
+            services.threadPool()
+                .scheduleWithFixedDelay(
+                    () -> { systemd.notify_extend_timeout(30); },
+                    TimeValue.timeValueSeconds(15),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                )
+        );
         return List.of();
     }
 
-    int sd_notify(@SuppressWarnings("SameParameterValue") final int unset_environment, final String state) {
-        final int rc = Libsystemd.sd_notify(unset_environment, state);
-        logger.trace("sd_notify({}, {}) returned [{}]", unset_environment, state, rc);
-        return rc;
+    void notifyReady() {
+        assert systemd != null;
+        systemd.notify_ready();
+    }
+
+    void notifyStopping() {
+        assert systemd != null;
+        systemd.notify_stopping();
     }
 
     @Override
@@ -98,11 +110,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             assert extender.get() == null;
             return;
         }
-        final int rc = sd_notify(0, "READY=1");
-        if (rc < 0) {
-            // treat failure to notify systemd of readiness as a startup failure
-            throw new RuntimeException("sd_notify returned error [" + rc + "]");
-        }
+        notifyReady();
         assert extender.get() != null;
         final boolean cancelled = extender.get().cancel();
         assert cancelled;
@@ -113,11 +121,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         if (enabled == false) {
             return;
         }
-        final int rc = sd_notify(0, "STOPPING=1");
-        if (rc < 0) {
-            // do not treat failure to notify systemd of stopping as a failure
-            logger.warn("sd_notify returned error [{}]", rc);
-        }
+        notifyStopping();
     }
 
 }

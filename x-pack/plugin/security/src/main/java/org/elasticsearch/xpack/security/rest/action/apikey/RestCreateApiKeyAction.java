@@ -16,6 +16,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
@@ -30,13 +31,16 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
+    private final CreateApiKeyRequestBuilderFactory builderFactory;
+
     /**
-     * @param settings the node's settings
-     * @param licenseState the license state that will be used to determine if
-     * security is licensed
+     * @param settings       the node's settings
+     * @param licenseState   the license state that will be used to determine if
+     *                       security is licensed
      */
-    public RestCreateApiKeyAction(Settings settings, XPackLicenseState licenseState) {
+    public RestCreateApiKeyAction(Settings settings, XPackLicenseState licenseState, CreateApiKeyRequestBuilderFactory builderFactory) {
         super(settings, licenseState);
+        this.builderFactory = builderFactory;
     }
 
     @Override
@@ -51,10 +55,8 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CreateApiKeyRequestBuilder builder = new CreateApiKeyRequestBuilder(client).source(
-            request.requiredContent(),
-            request.getXContentType()
-        );
+        CreateApiKeyRequestBuilder builder = builderFactory.create(client, request.hasParam(RestRequest.PATH_RESTRICTED))
+            .source(request.requiredContent(), request.getXContentType());
         String refresh = request.param("refresh");
         if (refresh != null) {
             builder.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(request.param("refresh")));

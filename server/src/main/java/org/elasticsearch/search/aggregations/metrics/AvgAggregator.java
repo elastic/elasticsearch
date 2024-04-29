@@ -7,28 +7,24 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
 
-class AvgAggregator extends NumericMetricsAggregator.SingleValue {
-
-    final ValuesSource.Numeric valuesSource;
+class AvgAggregator extends NumericMetricsAggregator.SingleDoubleValue {
 
     LongArray counts;
     DoubleArray sums;
@@ -42,9 +38,8 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, context, parent, metadata);
+        super(name, valuesSourceConfig, context, parent, metadata);
         assert valuesSourceConfig.hasValues();
-        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
         final BigArrays bigArrays = context.bigArrays();
         counts = bigArrays.newLongArray(1, true);
@@ -53,42 +48,54 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public ScoreMode scoreMode() {
-        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
-    }
-
-    @Override
-    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+    protected LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, final LeafBucketCollector sub) {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays().grow(counts, bucket + 1);
-                sums = bigArrays().grow(sums, bucket + 1);
-                compensations = bigArrays().grow(compensations, bucket + 1);
-
                 if (values.advanceExact(doc)) {
+                    maybeGrow(bucket);
                     final int valueCount = values.docValueCount();
                     counts.increment(bucket, valueCount);
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-
-                    kahanSummation.reset(sum, compensation);
-
+                    kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
                     for (int i = 0; i < valueCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
+                        kahanSummation.add(values.nextValue());
                     }
-
                     sums.set(bucket, kahanSummation.value());
                     compensations.set(bucket, kahanSummation.delta());
                 }
             }
         };
+    }
+
+    @Override
+    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    maybeGrow(bucket);
+                    counts.increment(bucket, 1L);
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                    kahanSummation.add(values.doubleValue());
+                    sums.set(bucket, kahanSummation.value());
+                    compensations.set(bucket, kahanSummation.delta());
+                }
+            }
+        };
+    }
+
+    private void maybeGrow(long bucket) {
+        if (bucket >= counts.size()) {
+            counts = bigArrays().grow(counts, bucket + 1);
+            sums = bigArrays().grow(sums, bucket + 1);
+            compensations = bigArrays().grow(compensations, bucket + 1);
+        }
     }
 
     @Override

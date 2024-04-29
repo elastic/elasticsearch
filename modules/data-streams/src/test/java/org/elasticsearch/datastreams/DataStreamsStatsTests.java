@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -269,7 +268,9 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Request request = new DataStreamsStatsAction.Request();
         if (includeHidden) {
             request.indicesOptions(
-                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
+                IndicesOptions.builder(request.indicesOptions())
+                    .wildcardOptions(IndicesOptions.WildcardOptions.builder(request.indicesOptions().wildcardOptions()).includeHidden(true))
+                    .build()
             );
         }
         return client().execute(DataStreamsStatsAction.INSTANCE, request).get();

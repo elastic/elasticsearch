@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -93,7 +92,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         EnrollmentToken enrollmentToken = new EnrollmentToken(
             "some-api-key",
             "e8864fa9cb5a8053ea84a48581a6c9bef619f8f6aaa58a632aac3e0a25d43ea9",
-            Version.CURRENT.toString(),
             List.of("localhost:9200")
         );
         return enrollmentToken.getEncoded();

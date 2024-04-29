@@ -25,7 +25,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -58,7 +57,7 @@ public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
     TransportSLMGetExpiredSnapshotsAction.Request,
     TransportSLMGetExpiredSnapshotsAction.Response> {
 
-    public static final ActionType<Response> INSTANCE = ActionType.localOnly("cluster:admin/slm/execute/get_expired_snapshots");
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/slm/execute/get_expired_snapshots");
 
     private static final Logger logger = LogManager.getLogger(TransportSLMGetExpiredSnapshotsAction.class);
 
@@ -194,16 +193,14 @@ public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
                 snapshotsWithMissingDetails
             );
             repository.getSnapshotInfo(
-                new GetSnapshotInfoContext(
-                    snapshotsWithMissingDetails,
-                    false,
-                    () -> false,
-                    (ignored, snapshotInfo) -> snapshotDetailsByPolicy.add(
-                        snapshotInfo.snapshotId(),
-                        RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo)
-                    ),
-                    new ThreadedActionListener<>(executor, listener.map(ignored -> snapshotDetailsByPolicy))
-                )
+                snapshotsWithMissingDetails,
+                false,
+                () -> false,
+                snapshotInfo -> snapshotDetailsByPolicy.add(
+                    snapshotInfo.snapshotId(),
+                    RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo)
+                ),
+                new ThreadedActionListener<>(executor, listener.map(ignored -> snapshotDetailsByPolicy))
             );
         }
     }

@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
@@ -36,9 +34,6 @@ import java.util.function.Predicate;
  * - an operating system (full name, including specific Linux distributions) - some OS might show a certain behavior
  */
 public class PrerequisiteSection {
-
-    private static final Logger logger = LogManager.getLogger(PrerequisiteSection.class);
-
     static class PrerequisiteSectionBuilder {
         String skipVersionRange = null;
         String skipReason = null;
@@ -254,11 +249,6 @@ public class PrerequisiteSection {
                 } else if ("reason".equals(currentFieldName)) {
                     builder.setSkipReason(parser.text());
                 } else if ("features".equals(currentFieldName)) {
-                    // TODO: legacy - remove
-                    logger.warn(
-                        "[\"skip\": \"features\"] is deprecated and will be removed. Replace it with "
-                            + "[\"requires\": \"test_runner_features\"]"
-                    );
                     parseFeatureField(parser.text(), builder);
                 } else if ("os".equals(currentFieldName)) {
                     builder.skipIfOs(parser.text());
@@ -271,11 +261,6 @@ public class PrerequisiteSection {
                     );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                // TODO: legacy - remove
-                logger.warn(
-                    "[\"skip\": \"features\"] is deprecated and will be removed. Replace it with "
-                        + "[\"requires\": \"test_runner_features\"]"
-                );
                 if ("features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         parseFeatureField(parser.text(), builder);

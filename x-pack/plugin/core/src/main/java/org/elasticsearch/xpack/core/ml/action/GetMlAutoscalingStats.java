@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -33,7 +32,7 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/autoscaling/stats/get";
 
     public GetMlAutoscalingStats() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -47,18 +46,13 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "get_ml_autoscaling_resources", parentTaskId, headers);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(timeout);
+            return Objects.hash(ackTimeout());
         }
 
         @Override
@@ -70,7 +64,7 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
                 return false;
             }
             GetMlAutoscalingStats.Request other = (GetMlAutoscalingStats.Request) obj;
-            return Objects.equals(timeout, other.timeout);
+            return Objects.equals(ackTimeout(), other.ackTimeout());
         }
     }
 

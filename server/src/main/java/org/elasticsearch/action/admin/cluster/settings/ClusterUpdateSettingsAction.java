@@ -16,6 +16,6 @@ public class ClusterUpdateSettingsAction extends ActionType<ClusterUpdateSetting
     public static final String NAME = "cluster:admin/settings/update";
 
     private ClusterUpdateSettingsAction() {
-        super(NAME, ClusterUpdateSettingsResponse::new);
+        super(NAME);
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
@@ -25,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncInfo;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
+import org.elasticsearch.xpack.application.connector.ConnectorUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -33,16 +33,14 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class UpdateConnectorLastSyncStatsAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorLastSyncStatsAction {
 
-    public static final UpdateConnectorLastSyncStatsAction INSTANCE = new UpdateConnectorLastSyncStatsAction();
-    public static final String NAME = "cluster:admin/xpack/connector/update_last_sync_stats";
+    public static final String NAME = "indices:data/write/xpack/connector/update_last_sync_stats";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorLastSyncStatsAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
-    }
+    private UpdateConnectorLastSyncStatsAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 
@@ -101,7 +99,10 @@ public class UpdateConnectorLastSyncStatsAction extends ActionType<ConnectorUpda
             PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_ERROR);
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+                (p, c) -> ConnectorUtils.parseNullableInstant(
+                    p,
+                    ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()
+                ),
                 ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );
@@ -114,7 +115,10 @@ public class UpdateConnectorLastSyncStatsAction extends ActionType<ConnectorUpda
             PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+                (p, c) -> ConnectorUtils.parseNullableInstant(
+                    p,
+                    ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()
+                ),
                 ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );
@@ -122,7 +126,7 @@ public class UpdateConnectorLastSyncStatsAction extends ActionType<ConnectorUpda
             PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+                (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
                 ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );
@@ -134,7 +138,7 @@ public class UpdateConnectorLastSyncStatsAction extends ActionType<ConnectorUpda
             );
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+                (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNCED_FIELD.getPreferredName()),
                 ConnectorSyncInfo.LAST_SYNCED_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );

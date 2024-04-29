@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -42,7 +41,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
     public static final String NAME = "cluster:monitor/xpack/enrich/coordinator_stats";
 
     private EnrichCoordinatorStatsAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     // This always executes on all ingest nodes, hence no node ids need to be provided.

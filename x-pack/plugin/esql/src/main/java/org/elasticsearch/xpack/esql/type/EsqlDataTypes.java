@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
@@ -45,10 +46,21 @@ public final class EsqlDataTypes {
 
     public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
-    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, false);
-    public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, false);
-    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
-    public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, false);
+    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, true);
+    public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, true);
+    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
+    public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, true);
+
+    /**
+     * These are numeric fields labeled as metric counters in time-series indices. Although stored
+     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
+     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
+     * parent numeric type.
+     */
+    public static final DataType COUNTER_LONG = new DataType("counter_long", LONG.size(), false, false, LONG.hasDocValues());
+    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", INTEGER.size(), false, false, INTEGER.hasDocValues());
+    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", DOUBLE.size(), false, false, DOUBLE.hasDocValues());
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
@@ -76,7 +88,10 @@ public final class EsqlDataTypes {
         GEO_POINT,
         CARTESIAN_POINT,
         CARTESIAN_SHAPE,
-        GEO_SHAPE
+        GEO_SHAPE,
+        COUNTER_LONG,
+        COUNTER_INTEGER,
+        COUNTER_DOUBLE
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
@@ -91,6 +106,15 @@ public final class EsqlDataTypes {
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
+    private static final Map<String, DataType> NAME_OR_ALIAS_TO_TYPE;
+    static {
+        Map<String, DataType> map = TYPES.stream().collect(toMap(DataType::typeName, Function.identity()));
+        map.put("bool", BOOLEAN);
+        map.put("int", INTEGER);
+        map.put("string", KEYWORD);
+        NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
+    }
+
     private EsqlDataTypes() {}
 
     public static Collection<DataType> types() {
@@ -103,6 +127,11 @@ public final class EsqlDataTypes {
 
     public static DataType fromName(String name) {
         DataType type = ES_TO_TYPE.get(name);
+        return type != null ? type : UNSUPPORTED;
+    }
+
+    public static DataType fromNameOrAlias(String typeName) {
+        DataType type = NAME_OR_ALIAS_TO_TYPE.get(typeName.toLowerCase(Locale.ROOT));
         return type != null ? type : UNSUPPORTED;
     }
 
@@ -175,6 +204,14 @@ public final class EsqlDataTypes {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
+    public static boolean isSpatialGeo(DataType t) {
+        return t == GEO_POINT || t == GEO_SHAPE;
+    }
+
+    public static boolean isSpatialPoint(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
     /**
      * Supported types that can be contained in a block.
      */
@@ -189,7 +226,8 @@ public final class EsqlDataTypes {
             && t != FLOAT
             && t != SCALED_FLOAT
             && t != SOURCE
-            && t != HALF_FLOAT;
+            && t != HALF_FLOAT
+            && isCounterType(t) == false;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -208,5 +246,13 @@ public final class EsqlDataTypes {
             return DOUBLE;
         }
         return type;
+    }
+
+    public static DataType getCounterType(String typeName) {
+        return fromTypeName("counter_" + typeName);
+    }
+
+    public static boolean isCounterType(DataType dt) {
+        return dt == COUNTER_LONG || dt == COUNTER_INTEGER || dt == COUNTER_DOUBLE;
     }
 }

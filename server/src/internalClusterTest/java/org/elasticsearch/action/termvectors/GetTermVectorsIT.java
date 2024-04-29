@@ -984,7 +984,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         List<String> tags = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             tags.add("tag_" + i);
-            builders.add(prepareIndex("test").setId(i + "").setSource("tags", tags));
+            builders.add(prepareIndex("test").setId(i + "").setSource("tags", List.copyOf(tags)));
         }
         indexRandom(true, builders);
 

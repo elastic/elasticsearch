@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -43,9 +41,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
 
-    private static final Logger logger = LogManager.getLogger(TransportListTasksAction.class);
-
-    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists", ListTasksResponse::new);
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists");
 
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
@@ -64,7 +60,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             transportService,
             actionFilters,
             ListTasksRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -132,7 +127,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     }
                     processedTasks.add(task);
                 }
-                logger.trace("Matched {} tasks of all running {}", processedTasks, taskManager.getTasks().values());
             } catch (Exception e) {
                 allMatchedTasksRemovedListener.onFailure(e);
                 return;

@@ -85,7 +85,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -114,6 +113,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
+import static org.elasticsearch.index.IndexServiceTests.closeIndexService;
+import static org.elasticsearch.index.shard.IndexShardTestCase.flushAndCloseShardNoCheck;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -234,14 +235,14 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.getEngineFactory());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testRegisterIndexStore() throws IOException {
@@ -260,13 +261,13 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
 
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testDirectoryWrapper() throws IOException {
@@ -284,7 +285,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -312,7 +313,7 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(((WrappedDirectory) directory).shardRouting, sameInstance(shardRouting));
         assertThat(directory, instanceOf(FilterDirectory.class));
 
-        indexService.close("test done", false);
+        closeIndexService(indexService);
     }
 
     public void testOtherServiceBound() throws IOException {
@@ -332,7 +333,7 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(x.getIndex(), index);
         indexService.getIndexEventListener().beforeIndexRemoved(null, null);
         assertTrue(atomicBoolean.get());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testListener() throws IOException {
@@ -353,7 +354,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexService indexService = newIndexService(module);
         assertSame(booleanSetting, indexService.getIndexSettings().getScopedSettings().get(booleanSetting.getKey()));
 
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testAddIndexOperationListener() throws IOException {
@@ -384,7 +385,7 @@ public class IndexModuleTests extends ESTestCase {
             l.preIndex(shardId, index);
         }
         assertTrue(executed.get());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testAddSearchOperationListener() throws IOException {
@@ -410,7 +411,7 @@ public class IndexModuleTests extends ESTestCase {
             l.onNewReaderContext(mock(ReaderContext.class));
         }
         assertTrue(executed.get());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testAddSimilarity() throws IOException {
@@ -436,7 +437,7 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(similarity, Matchers.instanceOf(TestSimilarity.class));
         assertEquals("my_similarity", similarityService.getSimilarity("my_similarity").name());
         assertEquals("there is a key", ((TestSimilarity) similarity).key);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testFrozen() {
@@ -497,7 +498,7 @@ public class IndexModuleTests extends ESTestCase {
         );
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof CustomQueryCache);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
         assertThat(liveQueryCaches, empty());
     }
 
@@ -510,7 +511,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof IndexQueryCache);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
@@ -524,7 +525,7 @@ public class IndexModuleTests extends ESTestCase {
         module.forceQueryCacheProvider((a, b) -> new CustomQueryCache(null));
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testCustomQueryCacheCleanedUpIfIndexServiceCreationFails() {
@@ -636,7 +637,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         final IndexService indexService = newIndexService(module);
@@ -645,7 +646,7 @@ public class IndexModuleTests extends ESTestCase {
 
         assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
 
-        indexService.close("closing", false);
+        closeIndexService(indexService);
     }
 
     public void testIndexCommitListenerIsBound() throws IOException, ExecutionException, InterruptedException {
@@ -657,7 +658,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -695,10 +696,10 @@ public class IndexModuleTests extends ESTestCase {
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
-            closeables.add(() -> indexService.close("close index service at end of test", false));
+            closeables.add(() -> closeIndexService(indexService));
 
             IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
-            closeables.add(() -> indexShard.close("close shard at end of test", true));
+            closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
 
             final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
@@ -758,7 +759,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
     }
 

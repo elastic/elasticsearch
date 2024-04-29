@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,7 +44,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
                 (DesiredNode.ProcessorsRange) args[2],
                 (ByteSizeValue) args[3],
                 (ByteSizeValue) args[4],
-                (Version) args[5]
+                (String) args[5]
             ),
             // An unknown status is expected during upgrades to versions >= STATUS_TRACKING_SUPPORT_VERSION
             // the desired node status would be populated when a node in the newer version is elected as

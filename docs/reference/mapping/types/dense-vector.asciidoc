@@ -51,7 +51,7 @@ It is not possible to store multiple values in one `dense_vector` field.
 [[index-vectors-knn-search]]
 ==== Index vectors for kNN search
 
-include::{es-repo-dir}/search/search-your-data/knn-search.asciidoc[tag=knn-def]
+include::{es-ref-dir}/search/search-your-data/knn-search.asciidoc[tag=knn-def]
 
 Dense vector fields can be used to rank documents in
 <<query-dsl-script-score-query,`script_score` queries>>. This lets you perform
@@ -65,7 +65,7 @@ data structure to support fast kNN retrieval through the <<search-api-knn, `knn`
 Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similariy of `cosine`.
 You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
-Indexing is enabled by default for dense vector fields.
+Indexing is enabled by default for dense vector fields and indexed as `int8_hnsw`.
 When indexing is enabled, you can define the vector similarity to use in kNN search:
 
 [source,console]
@@ -116,7 +116,8 @@ that sacrifices result accuracy for improved speed.
 
 The `dense_vector` type supports quantization to reduce the memory footprint required when <<approximate-knn, searching>> `float` vectors.
 Currently the only quantization method supported is `int8` and provided vectors `element_type` must be `float`. To use
-a quantized index, you can set your index type to `int8_hnsw`.
+a quantized index, you can set your index type to `int8_hnsw`. When indexing `float` vectors, the current default
+index type is `int8_hnsw`.
 
 When using the `int8_hnsw` index, each of the `float` vectors' dimensions are quantized to 1-byte integers. This can
 reduce the memory footprint by as much as 75% at the cost of some accuracy. However, the disk usage can increase by
@@ -232,27 +233,37 @@ expense of slower indexing speed.
 +
 ^*^ This parameter can only be specified when `index` is `true`.
 +
-+
 .Properties of `index_options`
 [%collapsible%open]
 ====
 `type`:::
 (Required, string)
-The type of kNN algorithm to use. Can be either `hnsw` or `int8_hnsw`.
-
+The type of kNN algorithm to use. Can be either any of:
++
+--
+* `hnsw` - This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] for scalable
+    approximate kNN search. This supports all `element_type` values.
+* `int8_hnsw` - The default index type for float vectors.
+This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] in addition to automatically scalar
+quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint
+by 4x at the cost of some accuracy. See <<dense-vector-quantization, Automatically quantize vectors for kNN search>>.
+* `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
+* `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports
+`element_type` of `float`.
+--
 `m`:::
 (Optional, integer)
 The number of neighbors each node will be connected to in the HNSW graph.
-Defaults to `16`.
+Defaults to `16`. Only applicable to `hnsw` and `int8_hnsw` index types.
 
 `ef_construction`:::
 (Optional, integer)
 The number of candidates to track while assembling the list of nearest
-neighbors for each new node. Defaults to `100`.
+neighbors for each new node. Defaults to `100`. Only applicable to `hnsw` and `int8_hnsw` index types.
 
 `confidence_interval`:::
 (Optional, float)
-Only applicable to `int8_hnsw` index types. The confidence interval to use when quantizing the vectors,
+Only applicable to `int8_hnsw` and `int8_flat` index types. The confidence interval to use when quantizing the vectors,
 can be any value between and including `0.90` and `1.0`. This value restricts the values used when calculating
 the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when
 calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored).

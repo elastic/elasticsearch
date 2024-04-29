@@ -47,6 +47,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -623,7 +624,8 @@ public final class DataStreamTestHelper {
         DataStream dataStream,
         ThreadPool testThreadPool,
         Set<IndexSettingProvider> providers,
-        NamedXContentRegistry registry
+        NamedXContentRegistry registry,
+        TelemetryProvider telemetryProvider
     ) throws Exception {
         DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
             "@timestamp",
@@ -684,7 +686,8 @@ public final class DataStreamTestHelper {
             indexAliasesService,
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT,
-            clusterService
+            clusterService,
+            telemetryProvider
         );
     }
 

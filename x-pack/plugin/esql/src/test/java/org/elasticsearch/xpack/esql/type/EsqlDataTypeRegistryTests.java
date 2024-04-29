@@ -23,8 +23,12 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlDataTypeRegistryTests extends ESTestCase {
+
     public void testCounter() {
-        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataTypes.UNSUPPORTED);
+        resolve("long", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_LONG);
+        resolve("integer", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_INTEGER);
+        resolve("double", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_DOUBLE);
+
     }
 
     public void testGauge() {

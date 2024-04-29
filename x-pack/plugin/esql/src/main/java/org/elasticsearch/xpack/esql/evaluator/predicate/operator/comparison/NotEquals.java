@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -22,7 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.ZoneId;
 import java.util.Map;
 
-public class NotEquals extends EsqlBinaryComparison implements Negatable<BinaryComparison> {
+public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
         Map.entry(DataTypes.BOOLEAN, NotEqualsBoolsEvaluator.Factory::new),
         Map.entry(DataTypes.INTEGER, NotEqualsIntsEvaluator.Factory::new),
@@ -41,11 +39,11 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<BinaryC
     );
 
     public NotEquals(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.NEQ, evaluatorMap);
     }
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
     }
 
     @Evaluator(extraName = "Ints")
@@ -79,7 +77,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<BinaryC
     }
 
     @Override
-    public BinaryComparison reverse() {
+    public EsqlBinaryComparison reverse() {
         return this;
     }
 
@@ -99,7 +97,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<BinaryC
     }
 
     @Override
-    public BinaryComparison negate() {
+    public EsqlBinaryComparison negate() {
         return new Equals(source(), left(), right(), zoneId());
     }
 }

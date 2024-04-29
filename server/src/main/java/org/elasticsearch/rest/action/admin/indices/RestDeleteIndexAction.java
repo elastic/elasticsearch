@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteIndexAction extends BaseRestHandler {
@@ -40,7 +41,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.ackTimeout(request.paramAsTime("timeout", deleteIndexRequest.ackTimeout()));
-        deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
+        deleteIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
         return channel -> client.admin().indices().delete(deleteIndexRequest, new RestToXContentListener<>(channel));
     }

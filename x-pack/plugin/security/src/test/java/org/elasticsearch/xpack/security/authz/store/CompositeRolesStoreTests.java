@@ -1531,7 +1531,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            null,
             "my_uuid"
         );
     }

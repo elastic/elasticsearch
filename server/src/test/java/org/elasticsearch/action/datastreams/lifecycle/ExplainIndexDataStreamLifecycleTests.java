@@ -27,7 +27,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 randomAlphaOfLengthBetween(10, 30),
                 true,
-                false,
+                randomBoolean(),
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 null,
@@ -45,7 +45,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 randomAlphaOfLengthBetween(10, 30),
                 true,
-                false,
+                randomBoolean(),
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 TimeValue.timeValueMillis(now + 100),
@@ -66,7 +66,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 "my-index",
                 false,
-                false,
+                randomBoolean(),
                 null,
                 null,
                 null,
@@ -81,7 +81,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 "my-index",
                 true,
-                false,
+                randomBoolean(),
                 now,
                 now + 80L, // rolled over in the future (clocks are funny that way)
                 TimeValue.timeValueMillis(now + 100L),
@@ -109,7 +109,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 "my-index",
                 false,
-                false,
+                randomBoolean(),
                 null,
                 null,
                 null,
@@ -124,7 +124,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 "my-index",
                 true,
-                false,
+                randomBoolean(),
                 now + 80L, // created in the future (clocks are funny that way)
                 null,
                 null,
@@ -159,7 +159,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 "my-index",
                 false,
-                false,
+                randomBoolean(),
                 null,
                 null,
                 null,
@@ -174,7 +174,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             ExplainIndexDataStreamLifecycle indexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 "my-index",
                 true,
-                false,
+                randomBoolean(),
                 now - 50L,
                 now + 100L, // rolled over in the future
                 TimeValue.timeValueMillis(now),
@@ -207,7 +207,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         return new ExplainIndexDataStreamLifecycle(
             randomAlphaOfLengthBetween(10, 30),
             true,
-            false,
+            randomBoolean(),
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
             TimeValue.timeValueMillis(now),

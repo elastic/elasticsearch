@@ -117,12 +117,13 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
-            lifecycle.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention, false);
+            boolean systemDataStream = randomBoolean();
+            lifecycle.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention, systemDataStream);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention, false))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             // Verify that max_age is marked as automatic, if it's set on auto
@@ -135,7 +136,8 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             } else {
                 assertThat(serialized, containsString("data_retention"));
             }
-            if (lifecycle.isEnabled()) {
+            if (lifecycle.isEnabled()
+                && (systemDataStream == false || (lifecycle.getDataRetention() != null && lifecycle.getDataRetention().value() != null))) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));
@@ -281,7 +283,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
             Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
-                .getEffectiveDataRetentionWithSource(null, false);
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
@@ -317,7 +319,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
 
             Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
-                .getEffectiveDataRetentionWithSource(null, false);
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 

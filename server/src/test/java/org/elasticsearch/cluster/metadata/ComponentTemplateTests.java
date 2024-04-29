@@ -294,9 +294,9 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             template.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention, false))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             // We check that even if there was no retention provided by the user, the global retention applies

@@ -15,6 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -240,17 +242,84 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            // non-system data stream gets effective_retention:
             template.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention, false);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention, false))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
             assertThat(serialized, containsString("effective_retention"));
+        }
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
+            ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            // system data stream gets no data_retention or effective_retention:
+            template.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention, true);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("rollover"));
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+            ).getConditions().keySet()) {
+                assertThat(serialized, containsString(label));
+            }
+            // We check that even if there was no retention provided by the user, the global retention applies
+            assertThat(serialized, not(containsString("data_retention")));
+            assertThat(serialized, not(containsString("effective_retention")));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testXContentSerializationWithRolloverSystemDataStream() throws IOException {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        Map<String, AliasMetadata> aliases = null;
+        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
+        if (randomBoolean()) {
+            settings = randomSettings();
+        }
+        if (randomBoolean()) {
+            mappings = randomMappings(dataStreamTemplate);
+        }
+        if (randomBoolean()) {
+            aliases = randomAliases();
+        }
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(
+            new DataStreamLifecycle.Retention(TimeValue.timeValueDays(randomLongBetween(1, 2000))),
+            null,
+            null
+        );
+        Template template = new Template(settings, mappings, aliases, lifecycle);
+        ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomAlphaOfLength(4)))
+            .template(template)
+            .componentTemplates(List.of())
+            .priority(randomNonNegativeLong())
+            .version(randomNonNegativeLong())
+            .dataStreamTemplate(dataStreamTemplate)
+            .build();
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
+            ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            template.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention, true);
+            String serialized = Strings.toString(builder);
+            // Since this is a system index, the global retention will never be applied:
+            Map<String, Object> resultMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());
+            Map<String, Object> lifecycleMap = (Map<String, Object>) resultMap.get("lifecycle");
+            assertNotNull(lifecycleMap);
+            assertThat(lifecycleMap.get("data_retention"), equalTo(lifecycle.getDataRetention().value().getStringRep()));
+            assertThat(lifecycleMap.get("effective_retention"), equalTo(lifecycle.getDataRetention().value().getStringRep()));
+            assertThat(lifecycleMap.get("retention_determined_by"), equalTo("data_stream_configuration"));
         }
     }
 

@@ -109,9 +109,9 @@ PUT _index_template/sensor-template
 ////
 [source,console]
 ----
-DELETE _index_template/*
+DELETE _index_template/sensor-template
 ----
-// TEST
+// TEST[continued]
 ////
 
 The downsample configuration is included in the above template for a <<tsds,time series data stream (TSDS)>>.

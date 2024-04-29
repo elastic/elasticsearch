@@ -52,7 +52,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        NAME, false, args -> new SemanticQueryBuilder((String) args[0], (String) args[1])
+        NAME,
+        false,
+        args -> new SemanticQueryBuilder((String) args[0], (String) args[1])
     );
 
     static {

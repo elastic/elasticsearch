@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
@@ -166,20 +165,6 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     @Override
     public DataType dataType() {
         return field.dataType();
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, order);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvSort other = (MvSort) obj;
-        return Objects.equals(other.field, field) && Objects.equals(other.order, order);
     }
 
     @Override

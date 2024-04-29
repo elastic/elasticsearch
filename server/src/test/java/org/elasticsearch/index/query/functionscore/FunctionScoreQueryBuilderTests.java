@@ -253,7 +253,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     ZoneOffset.UTC
                 ).toString();
                 scale = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m");
-                offset = randomPositiveTimeValue();
+                offset = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m", "micros", "nanos");
             }
             default -> {
                 origin = randomBoolean() ? randomInt() : randomFloat();
@@ -280,12 +280,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         } else {
             assertThat(query, CoreMatchers.instanceOf(FunctionScoreQuery.class));
         }
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107782")
-    public void testToQuery() throws IOException {
-        super.testToQuery();
     }
 
     public void testIllegalArguments() {

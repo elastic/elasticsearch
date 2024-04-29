@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -83,7 +84,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         return pluginList(FrozenIndices.class, LocalStateCompositeXPackPlugin.class);
     }
 
-    String openReaders(TimeValue keepAlive, String... indices) {
+    BytesReference openReaders(TimeValue keepAlive, String... indices) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
             .keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
@@ -145,7 +146,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         }
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        String pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
+        BytesReference pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
         try {
             for (int from = 0; from < 3; from++) {
                 assertResponse(

@@ -52,6 +52,11 @@ public class TerminalTests extends ESTestCase {
         verify(stdOut, times(2)).flush();
         verifyNoMoreInteractions(stdOut, stdErr);
 
+        out.write("a".getBytes(StandardCharsets.UTF_8));
+        out.flush();
+        verify(stdOut).print(eq((CharSequence) "a"));
+        verify(stdOut, times(3)).flush();
+        
         out.flush();
         verifyNoMoreInteractions(stdOut, stdErr);
     }

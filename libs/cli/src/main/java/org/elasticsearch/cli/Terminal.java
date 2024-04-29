@@ -381,12 +381,12 @@ public abstract class Terminal {
         public void write(int b) {
             if (b == 0) return;
             if (b == '\n') {
-                flushLine(false);
+                flush(true);
                 return;
             }
             if (count == bytes.length) {
                 if (count >= MAX_BUFFER_LENGTH) {
-                    flushLine(false);
+                    flush(false);
                 } else {
                     bytes = Arrays.copyOf(bytes, 2 * bytes.length);
                 }
@@ -394,14 +394,12 @@ public abstract class Terminal {
             bytes[count++] = (byte) b;
         }
 
-        private void flushLine(boolean skipEmpty) {
-            if (count > 0 && bytes[count - 1] == '\r') {
+        private void flush(boolean newline) {
+            if (newline && count > 0 && bytes[count - 1] == '\r') {
                 --count; // drop CR on windows as well
             }
-            if (skipEmpty && count == 0) {
-                return;
-            }
-            println(count > 0 ? new String(bytes, 0, count, charset) : "");
+            String msg = count > 0 ? new String(bytes, 0, count, charset) : "";
+            print(Verbosity.NORMAL, outWriter, msg, newline, true);
             count = 0;
             if (bytes.length > DEFAULT_BUFFER_LENGTH) {
                 bytes = new byte[DEFAULT_BUFFER_LENGTH];
@@ -410,7 +408,9 @@ public abstract class Terminal {
 
         @Override
         public void flush() {
-            flushLine(true);
+            if (count > 0) {
+                flush(false);
+            }
         }
     }
 }

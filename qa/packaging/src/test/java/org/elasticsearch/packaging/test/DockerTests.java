@@ -1012,10 +1012,10 @@ public class DockerTests extends PackagingTestCase {
      * logic sets the correct heap size, based on the container limits.
      */
     public void test150MachineDependentHeap() throws Exception {
-        final List<String> xArgs = machineDependentHeapTest("942m", List.of());
+        final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
+        // This is roughly 0.5 * 1536
+        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
     }
 
     /**

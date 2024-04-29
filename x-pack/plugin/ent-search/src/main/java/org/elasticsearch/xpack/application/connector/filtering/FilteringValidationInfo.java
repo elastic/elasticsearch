@@ -53,6 +53,10 @@ public class FilteringValidationInfo implements Writeable, ToXContentObject {
     private static final ParseField ERRORS_FIELD = new ParseField("errors");
     private static final ParseField STATE_FIELD = new ParseField("state");
 
+    public FilteringValidationState getValidationState() {
+        return validationState;
+    }
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<FilteringValidationInfo, Void> PARSER = new ConstructingObjectParser<>(
         "filtering_validation_info",

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -24,6 +26,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -46,12 +51,55 @@ import java.util.Objects;
 public final class EnrichCache {
 
     private final Cache<CacheKey, List<Map<?, ?>>> cache;
+    private final LongSupplier relativeNanoTimeProvider;
+    private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
+    private final AtomicLong missesTimeInNanos = new AtomicLong(0);
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
+        this(maxSize, System::nanoTime);
+    }
+
+    // non-private for unit testing only
+    EnrichCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
+        this.relativeNanoTimeProvider = relativeNanoTimeProvider;
         this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
     }
 
+    /**
+     * This method notifies the given listener of the value in this cache for the given searchRequest. If there is no value in the cache
+     * for the searchRequest, then the new cache value is computed using searchResponseFetcher.
+     * @param searchRequest The key for the cache request
+     * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
+     * @param listener A listener to be notified of the value in the cache
+     */
+    public void computeIfAbsent(
+        SearchRequest searchRequest,
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchResponseFetcher,
+        ActionListener<List<Map<?, ?>>> listener
+    ) {
+        // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
+        long cacheStart = relativeNanoTimeProvider.getAsLong();
+        List<Map<?, ?>> response = get(searchRequest);
+        long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
+        if (response != null) {
+            hitsTimeInNanos.addAndGet(cacheRequestTime);
+            listener.onResponse(response);
+        } else {
+
+            final long retrieveStart = relativeNanoTimeProvider.getAsLong();
+            searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
+                List<Map<?, ?>> value = toCacheValue(resp);
+                put(searchRequest, value);
+                List<Map<?, ?>> copy = deepCopy(value, false);
+                long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
+                missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
+                listener.onResponse(copy);
+            }, listener::onFailure));
+        }
+    }
+
+    // non-private for unit testing only
     List<Map<?, ?>> get(SearchRequest searchRequest) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
@@ -64,6 +112,7 @@ public final class EnrichCache {
         }
     }
 
+    // non-private for unit testing only
     void put(SearchRequest searchRequest, List<Map<?, ?>> response) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
@@ -82,7 +131,9 @@ public final class EnrichCache {
             cache.count(),
             cacheStats.getHits(),
             cacheStats.getMisses(),
-            cacheStats.getEvictions()
+            cacheStats.getEvictions(),
+            TimeValue.nsecToMSec(hitsTimeInNanos.get()),
+            TimeValue.nsecToMSec(missesTimeInNanos.get())
         );
     }
 

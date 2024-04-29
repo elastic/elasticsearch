@@ -47,6 +47,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -153,7 +154,7 @@ public final class DataStreamTestHelper {
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setFailureStore(failureStores.isEmpty() == false)
+            .setFailureStoreEnabled(failureStores.isEmpty() == false)
             .setFailureIndices(failureStores)
             .build();
     }
@@ -460,7 +461,11 @@ public final class DataStreamTestHelper {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
                 .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.isFailureStoreEnabled() && storeFailures)
+                    new ComposableIndexTemplate.DataStreamTemplate(
+                        false,
+                        false,
+                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
+                    )
                 )
                 .build()
         );
@@ -476,7 +481,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -619,7 +624,8 @@ public final class DataStreamTestHelper {
         DataStream dataStream,
         ThreadPool testThreadPool,
         Set<IndexSettingProvider> providers,
-        NamedXContentRegistry registry
+        NamedXContentRegistry registry,
+        TelemetryProvider telemetryProvider
     ) throws Exception {
         DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
             "@timestamp",
@@ -680,7 +686,8 @@ public final class DataStreamTestHelper {
             indexAliasesService,
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT,
-            clusterService
+            clusterService,
+            telemetryProvider
         );
     }
 

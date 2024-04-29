@@ -39,7 +39,7 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
             request.paramAsBoolean("accept_data_loss", false)
         );
 
-        importRequest.timeout(request.paramAsTime("timeout", importRequest.timeout()));
+        importRequest.ackTimeout(request.paramAsTime("timeout", importRequest.ackTimeout()));
         importRequest.masterNodeTimeout(request.paramAsTime("master_timeout", importRequest.masterNodeTimeout()));
 
         return channel -> client.execute(

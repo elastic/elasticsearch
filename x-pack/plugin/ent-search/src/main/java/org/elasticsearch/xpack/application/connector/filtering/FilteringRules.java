@@ -71,6 +71,7 @@ public class FilteringRules implements Writeable, ToXContentObject {
 
     public static final ParseField ADVANCED_SNIPPET_FIELD = new ParseField("advanced_snippet");
     public static final ParseField RULES_FIELD = new ParseField("rules");
+
     public static final ParseField VALIDATION_FIELD = new ParseField("validation");
 
     @SuppressWarnings("unchecked")

@@ -265,6 +265,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
     // TODO: in a follow up add support for ordinal based time series grouping operator
     // (and then remove this test)
     // (ordinal based can only group by one field and never includes timestamp)
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107568")
     public void testRandomRateOrdinalBased() {
         int numPods = between(1, 10);
         List<Pod> pods = new ArrayList<>();
@@ -322,7 +323,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         HashAggregationOperator finalHash = new HashAggregationOperator(
             List.of(new RateLongAggregatorFunctionSupplier(List.of(1, 2, 3), unitInMillis).groupingAggregatorFactory(AggregatorMode.FINAL)),
             () -> BlockHash.build(
-                List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
+                List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
                 ctx.blockFactory(),
                 randomIntBetween(1, 1000),
                 randomBoolean()
@@ -338,7 +339,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
                     new RateLongAggregatorFunctionSupplier(List.of(5, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
                 ),
                 () -> BlockHash.build(
-                    List.of(new HashAggregationOperator.GroupSpec(4, ElementType.BYTES_REF)),
+                    List.of(new BlockHash.GroupSpec(4, ElementType.BYTES_REF)),
                     ctx.blockFactory(),
                     randomIntBetween(1, 1000),
                     randomBoolean()

@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -57,6 +57,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
     private static final Logger LOGGER = LogManager.getLogger(GetDataStreamsTransportAction.class);
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
+    private final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver;
 
     @Inject
     public GetDataStreamsTransportAction(
@@ -65,7 +66,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
     ) {
         super(
             GetDataStreamAction.NAME,
@@ -79,6 +81,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
+        this.dataStreamGlobalRetentionResolver = dataStreamGlobalRetentionResolver;
         clusterSettings = clusterService.getClusterSettings();
     }
 
@@ -89,7 +92,9 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
-        listener.onResponse(innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings));
+        listener.onResponse(
+            innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, dataStreamGlobalRetentionResolver)
+        );
     }
 
     static GetDataStreamAction.Response innerOperation(
@@ -97,7 +102,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         GetDataStreamAction.Request request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
     ) {
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
@@ -139,7 +145,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
             Metadata metadata = state.getMetadata();
             collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
-            if (DataStream.isFailureStoreEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
                 collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
             }
 
@@ -202,7 +208,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         return new GetDataStreamAction.Response(
             dataStreamInfos,
             request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-            DataStreamGlobalRetention.getFromClusterState(state)
+            dataStreamGlobalRetentionResolver.resolve(state)
         );
     }
 

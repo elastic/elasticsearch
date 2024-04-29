@@ -1,7 +1,7 @@
 ---
 "Test cat aliases output with a hidden index with a hidden alias":
   - requires:
-      cluster_features: ["cat_aliases_hidden"]
+      cluster_features: ["gte_v7.7.0"]
       reason: "hidden indices and aliases were added in 7.7.0"
 
   - do:
@@ -58,7 +58,7 @@
 ---
 "Test cat aliases output with a hidden index with a visible alias":
   - requires:
-      cluster_features: ["cat_aliases_hidden"]
+      cluster_features: ["gte_v7.7.0"]
       reason: "hidden indices and aliases were added in 7.7.0"
 
   - do:
@@ -105,7 +105,7 @@
 ---
 "Test cat aliases output with a visible index with a hidden alias":
   - requires:
-      cluster_features: ["cat_aliases_hidden"]
+      cluster_features: ["gte_v7.7.0"]
       reason: "hidden indices and aliases were added in 7.7.0"
 
   - do:

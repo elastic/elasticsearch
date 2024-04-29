@@ -97,6 +97,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
+
     private final Settings settings;
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -257,8 +259,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                             + "] or higher to support remote indices privileges"
                     )
                 );
@@ -482,9 +484,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
-            // we pass true as allow2xFormat parameter because we do not want to reject permissions if the field permissions
-            // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON, false);
+            // we do not want to reject permissions if the field permissions are given in 2.x syntax, hence why we allow2xFormat
+            RoleDescriptor roleDescriptor = ROLE_DESCRIPTOR_PARSER.parse(name, sourceBytes, XContentType.JSON);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())

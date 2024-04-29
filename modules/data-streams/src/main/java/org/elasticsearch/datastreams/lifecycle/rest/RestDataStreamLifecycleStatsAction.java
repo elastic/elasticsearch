@@ -35,11 +35,8 @@ public class RestDataStreamLifecycleStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String masterNodeTimeout = restRequest.param("master_timeout");
         GetDataStreamLifecycleStatsAction.Request request = new GetDataStreamLifecycleStatsAction.Request();
-        if (masterNodeTimeout != null) {
-            request.masterNodeTimeout(masterNodeTimeout);
-        }
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(
             GetDataStreamLifecycleStatsAction.INSTANCE,
             request,

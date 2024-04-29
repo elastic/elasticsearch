@@ -33,7 +33,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
         GetStatusAction.Request request = new GetStatusAction.Request();
         request.waitForResourcesCreated(true);
         // shorter than the default timeout to avoid excessively long execution
-        request.timeout(TimeValue.timeValueSeconds(15));
+        request.ackTimeout(TimeValue.timeValueSeconds(15));
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.REQUEST_TIMEOUT, response.status());
@@ -56,7 +56,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
         updateProfilingTemplatesEnabled(true);
         GetStatusAction.Request request = new GetStatusAction.Request();
         // higher timeout since we have more shards than usual
-        request.timeout(TimeValue.timeValueSeconds(120));
+        request.ackTimeout(TimeValue.timeValueSeconds(120));
         request.waitForResourcesCreated(true);
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();

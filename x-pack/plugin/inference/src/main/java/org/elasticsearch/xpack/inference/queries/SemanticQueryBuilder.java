@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -27,6 +26,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,13 +41,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
+    private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
+
+    private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME, false, args -> new SemanticQueryBuilder((String) args[0], (String) args[1])
+    );
+
+    static {
+        PARSER.declareString(constructorArg(), FIELD_FIELD);
+        PARSER.declareString(constructorArg(), QUERY_FIELD);
+        declareStandardFields(PARSER);
+    }
 
     private final String fieldName;
     private final String query;
@@ -57,7 +69,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     public SemanticQueryBuilder(String fieldName, String query) {
         if (fieldName == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
+            throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
         if (query == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + QUERY_FIELD.getPreferredName() + " value");
@@ -111,13 +123,16 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return TransportVersions.SEMANTIC_QUERY;
     }
 
+    public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.startObject(fieldName);
+        builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         builder.field(QUERY_FIELD.getPreferredName(), query);
         boostAndQueryNameToXContent(builder);
-        builder.endObject();
         builder.endObject();
     }
 
@@ -275,57 +290,5 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, query, inferenceResults, inferenceResultsSupplier != null ? inferenceResultsSupplier.get() : null);
-    }
-
-    public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        String fieldName = null;
-        String query = null;
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        String queryName = null;
-
-        String currentFieldName = null;
-        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
-                fieldName = currentFieldName;
-                for (token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            query = parser.text();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            boost = parser.floatValue();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            queryName = parser.text();
-                        } else {
-                            throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
-                            );
-                        }
-                    } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
-                        );
-                    }
-                }
-            }
-        }
-
-        if (fieldName == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] no field name specified");
-        }
-        if (query == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] no query specified");
-        }
-
-        SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder(fieldName, query);
-        queryBuilder.queryName(queryName);
-        queryBuilder.boost(boost);
-        return queryBuilder;
     }
 }

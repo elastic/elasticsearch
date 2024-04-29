@@ -82,8 +82,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -112,8 +112,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -142,10 +142,10 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
-                boost: 100.0
-                _name: i-like-naming-my-queries
+              field: "inference_field"
+              query: "inference test"
+              boost: 100.0
+              _name: i-like-naming-my-queries
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -180,8 +180,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
@@ -205,8 +205,8 @@ setup:
         body:
           query:
             semantic:
-              non_inference_field:
-                query: "inference test"
+              field: "non_inference_field"
+              query: "inference test"
 
   - match: { error.type: "search_phase_execution_exception" }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
@@ -229,8 +229,8 @@ setup:
         body:
           query:
             semantic:
-              missing_field:
-                query: "inference test"
+              field: "missing_field"
+              query: "inference test"
 
   - match: { hits.total.value: 0 }
 
@@ -243,8 +243,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { error.type: "index_not_found_exception" }
   - match: { error.reason: "no such index [missing-index]" }
@@ -256,8 +256,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { hits.total.value: 0 }
 
@@ -272,8 +272,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
@@ -286,8 +286,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
@@ -307,8 +307,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
@@ -327,8 +327,8 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { hits.total.value: 0 }
 
@@ -341,7 +341,7 @@ setup:
         body:
           query:
             semantic:
-              inference_field:
-                query: "inference test"
+              field: "inference_field"
+              query: "inference test"
 
   - match: { hits.total.value: 0 }

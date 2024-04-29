@@ -87,7 +87,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;

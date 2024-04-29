@@ -88,4 +88,11 @@ public class HashLookupOperatorTests extends OperatorTestCase {
     protected String expectedToStringOfSimple() {
         return "HashLookup[keys=[foo], hash=PackedValuesBlockHash{groups=[0:LONG], entries=4, size=544b}, mapping=[0]]";
     }
+
+    @Override
+    // when you remove this AwaitsFix, also make this method in the superclass final again
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108045")
+    public void testSimpleToString() {
+        super.testSimpleToString();
+    }
 }

@@ -44,8 +44,12 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
             .setIds(ids)
             .setExternalIds(externalIds)
             .build();
-        prevalidationRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         prevalidationRequest.timeout(request.paramAsTime("timeout", prevalidationRequest.timeout()));
+        if (request.hasParam("master_timeout")) {
+            prevalidationRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        } else {
+            prevalidationRequest.masterNodeTimeout(prevalidationRequest.timeout());
+        }
         return channel -> client.execute(
             PrevalidateNodeRemovalAction.INSTANCE,
             prevalidationRequest,

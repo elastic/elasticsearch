@@ -22,9 +22,3 @@ dependencies {
     internalClusterTestImplementation(testArtifact(project(":modules:stateless"), "internalClusterTest"))
     javaRestTestImplementation(project(":modules:serverless-no-wait-for-active-shards"))
 }
-
-tasks {
-    javaRestTest {
-        usesDefaultDistribution()
-    }
-}

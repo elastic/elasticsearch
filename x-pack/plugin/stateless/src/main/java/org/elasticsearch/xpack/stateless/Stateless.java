@@ -84,8 +84,6 @@ import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRec
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
-import co.elastic.elasticsearch.stateless.xpack.DummyESQLInfoTransportAction;
-import co.elastic.elasticsearch.stateless.xpack.DummyEsqlUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -299,8 +297,6 @@ public class Stateless extends Plugin
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
-            new ActionHandler<>(XPackInfoFeatureAction.ESQL, DummyESQLInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.ESQL, DummyEsqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, DummyILMInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, DummyILMUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.MONITORING, DummyMonitoringInfoTransportAction.class),

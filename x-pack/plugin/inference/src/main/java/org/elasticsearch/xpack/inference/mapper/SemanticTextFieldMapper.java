@@ -141,6 +141,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
+            if (copyTo.copyToFields().isEmpty() == false) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [copy_to]");
+            }
+            if (multiFieldsBuilder.hasMultiFields()) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support multi-fields");
+            }
             final String fullName = context.buildFullName(name());
             var childContext = context.createChildContext(name(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);

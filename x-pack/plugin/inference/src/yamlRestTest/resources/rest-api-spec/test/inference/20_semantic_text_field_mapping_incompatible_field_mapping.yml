@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.12.99"
-      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+      version: " - 8.14.99"
+      reason: semantic_text introduced in 8.15.0
 
   - do:
       indices.create:
@@ -162,4 +162,62 @@ setup:
               chunks:
                 - text: "these are not the droids you're looking for"
                   embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+
+---
+"Fails for missing dense vector inference results in chunks":
+
+  - do:
+      catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: dense-inference-id
+              model_settings:
+                task_type: text_embedding
+                dimensions: 4
+                similarity: cosine
+              chunks:
+                - text: "these are not the droids you're looking for"
+
+---
+"Fails for missing sparse vector inference results in chunks":
+
+  - do:
+      catch: /failed to parse field \[sparse_field\] of type \[semantic_text\]/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          sparse_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                - text: "these are not the droids you're looking for"
+
+---
+"Fails for missing text in chunks":
+
+  - do:
+      catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: dense-inference-id
+              model_settings:
+                task_type: text_embedding
+                dimensions: 4
+                similarity: cosine
+              chunks:
+                - embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
 

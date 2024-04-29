@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -171,7 +173,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+", response.pointInTimeId());
+                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -184,15 +186,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+", response.pointInTimeId());
+                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id++", response.pointInTimeId());
+                assertEquals(new BytesArray("the_pit_id++"), response.pointInTimeId());
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+++", response.pointInTimeId());
+                assertEquals(new BytesArray("the_pit_id+++"), response.pointInTimeId());
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -201,15 +203,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
             assertEquals(0L, client.getPitContextCounter());
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+", response.pointInTimeId());
+                assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id++", response.pointInTimeId());
+                assertEquals(new BytesArray("the_pit_id++"), response.pointInTimeId());
             });
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                assertEquals("the_pit_id+++", response.pointInTimeId());
+                assertEquals(new BytesArray("the_pit_id+++"), response.pointInTimeId());
             });
 
             assertEquals(1L, client.getPitContextCounter());
@@ -357,7 +359,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
                 if (pitEnabled) {
-                    assertEquals("the_pit_id+", response.pointInTimeId());
+                    assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
                 } else {
                     assertNull(response.pointInTimeId());
                 }
@@ -370,7 +372,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 if (pitEnabled) {
                     assertNull(response.pointInTimeId());
                 } else {
-                    assertEquals("the_pit_id+", response.pointInTimeId());
+                    assertEquals(new BytesArray("the_pit_id+"), response.pointInTimeId());
                 }
             });
         }
@@ -446,7 +448,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, true);
             ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("deleted-index").source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id_on_deleted_index"))
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("the_pit_id_on_deleted_index")))
             );
             Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
             this.<SearchResponse>assertAsync(listener -> indexer.doSearch(namedSearchRequest, listener), response -> {
@@ -460,7 +462,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, true);
             ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("essential-deleted-index").source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id_essential-deleted-index"))
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("the_pit_id_essential-deleted-index")))
             );
             Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
             indexer.doSearch(namedSearchRequest, ActionListener.wrap(r -> fail("expected a failure, got response"), e -> {
@@ -541,7 +543,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             if (request instanceof OpenPointInTimeRequest) {
                 if (pitSupported) {
                     pitContextCounter.incrementAndGet();
-                    OpenPointInTimeResponse response = new OpenPointInTimeResponse("the_pit_id");
+                    OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("the_pit_id"));
                     listener.onResponse((Response) response);
                 } else {
                     listener.onFailure(new ActionNotFoundTransportException("_pit"));
@@ -556,13 +558,13 @@ public class ClientTransformIndexerTests extends ESTestCase {
             } else if (request instanceof SearchRequest searchRequest) {
                 // if pit is used and deleted-index is given throw index not found
                 if (searchRequest.pointInTimeBuilder() != null
-                    && searchRequest.pointInTimeBuilder().getEncodedId().equals("the_pit_id_on_deleted_index")) {
+                    && searchRequest.pointInTimeBuilder().getEncodedId().equals(new BytesArray("the_pit_id_on_deleted_index"))) {
                     listener.onFailure(new IndexNotFoundException("deleted-index"));
                     return;
                 }
 
                 if ((searchRequest.pointInTimeBuilder() != null
-                    && searchRequest.pointInTimeBuilder().getEncodedId().equals("the_pit_id_essential-deleted-index"))
+                    && searchRequest.pointInTimeBuilder().getEncodedId().equals(new BytesArray("the_pit_id_essential-deleted-index")))
                     || (searchRequest.indices().length > 0 && searchRequest.indices()[0].equals("essential-deleted-index"))) {
                     listener.onFailure(new IndexNotFoundException("essential-deleted-index"));
                     return;
@@ -570,7 +572,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
                 // throw search context missing for the 4th run
                 if (searchRequest.pointInTimeBuilder() != null
-                    && "the_pit_id+++".equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
+                    && new BytesArray("the_pit_id+++").equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
                     listener.onFailure(new SearchContextMissingException(new ShardSearchContextId("sc_missing", 42)));
                 } else {
                     ActionListener.respondAndRelease(
@@ -596,7 +598,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             ShardSearchFailure.EMPTY_ARRAY,
                             SearchResponse.Clusters.EMPTY,
                             // copy the pit from the request
-                            searchRequest.pointInTimeBuilder() != null ? searchRequest.pointInTimeBuilder().getEncodedId() + "+" : null
+                            searchRequest.pointInTimeBuilder() != null
+                                ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
+                                : null
                         )
                     );
 

@@ -36,9 +36,4 @@ public abstract class NodesOperationRequestBuilder<
         return (RequestBuilder) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
-    }
 }

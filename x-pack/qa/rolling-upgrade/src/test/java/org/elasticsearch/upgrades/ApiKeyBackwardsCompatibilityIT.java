@@ -167,8 +167,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     assertThat(
                         e.getMessage(),
                         containsString(
-                            "all nodes must have transport version ["
-                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                            "all nodes must have version ["
+                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                                 + "] or higher to support remote indices privileges for API keys"
                         )
                     );
@@ -179,8 +179,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     assertThat(
                         e.getMessage(),
                         containsString(
-                            "all nodes must have transport version ["
-                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                            "all nodes must have version ["
+                                + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                                 + "] or higher to support remote indices privileges for API keys"
                         )
                     );

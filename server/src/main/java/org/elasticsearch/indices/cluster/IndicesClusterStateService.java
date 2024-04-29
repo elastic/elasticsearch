@@ -130,6 +130,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final TimeValue shardLockRetryTimeout;
 
     private final Executor shardCloseExecutor;
+    private final Executor directShardCloseExecutor = r -> {
+        try {
+            assert ClusterApplierService.assertIsApplyingClusterState();
+            ClusterApplierService.clearIsApplyingClusterState();
+            r.run();
+        } finally {
+            ClusterApplierService.setIsApplyingClusterState();
+        }
+    };
 
     @Inject
     public IndicesClusterStateService(
@@ -524,7 +533,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         index,
                         FAILURE,
                         "removing index (mapping update failed)",
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        directShardCloseExecutor,
                         ActionListener.noop()
                     );
                 }
@@ -579,7 +588,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         index,
                         FAILURE,
                         "removing index (" + reason + ")",
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        directShardCloseExecutor,
                         ActionListener.noop()
                     );
 
@@ -927,12 +936,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
                 if (shard != null && shard.routingEntry().isSameAllocation(shardRouting)) {
                     // ES-8334 passthru, do any callers need this to be async?
-                    indexService.removeShard(
-                        shardRouting.shardId().id(),
-                        message,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        ActionListener.noop()
-                    );
+                    indexService.removeShard(shardRouting.shardId().id(), message, directShardCloseExecutor, ActionListener.noop());
                 }
             }
         } catch (ShardNotFoundException e) {

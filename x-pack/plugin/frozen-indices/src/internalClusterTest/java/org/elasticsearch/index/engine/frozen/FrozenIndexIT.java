@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
@@ -364,7 +365,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
-        final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest).actionGet().getPointInTimeId();
+        final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
+            .actionGet()
+            .getPointInTimeId();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), searchResponse -> {
                 assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
@@ -411,7 +414,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
 
-        final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest).actionGet().getPointInTimeId();
+        final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
+            .actionGet()
+            .getPointInTimeId();
         try {
             indicesAdmin().prepareDelete("index-1").get();
             // Return partial results if allow partial search result is allowed
@@ -446,7 +451,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
                 IndicesOptions.strictExpandOpenAndForbidClosed()
             ).keepAlive(TimeValue.timeValueMinutes(2));
-            final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
+            final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
                 .actionGet()
                 .getPointInTimeId();
             try {
@@ -463,7 +468,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
                 TimeValue.timeValueMinutes(2)
             );
-            final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
+            final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
                 .actionGet()
                 .getPointInTimeId();
             try {

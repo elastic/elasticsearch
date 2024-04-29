@@ -152,7 +152,7 @@ public class EvalMapperTests extends ESTestCase {
 
     // Test serialization of expressions, since we have convenient access to some expressions.
     public void testExpressionSerialization() {
-        SerializationTestUtils.assertSerialization(expression);
+        SerializationTestUtils.assertSerialization(expression, TEST_CONFIG);
     }
 
     private static FieldAttribute field(String name, DataType type) {

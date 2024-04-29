@@ -120,7 +120,7 @@ teardown:
 ---
 profile fetch:
   - skip:
-      version: ' - 8.13.99'
+      version: ' - 8.14.99'
       reason: fetch fields and stored_fields using ValueFetcher
 
   - do:

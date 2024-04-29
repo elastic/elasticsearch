@@ -174,7 +174,12 @@ public class GetDataStreamLifecycleAction {
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
                 if (lifecycle != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    lifecycle.toXContent(
+                        builder,
+                        org.elasticsearch.cluster.metadata.DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                        rolloverConfiguration,
+                        globalRetention
+                    );
                 }
                 builder.endObject();
                 return builder;

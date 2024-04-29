@@ -457,6 +457,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 for (var engine : indexEngines) {
                     if (randomBoolean()) {
                         engine.refresh("local");
+                        logger.info("Engine has been refreshed");
                     }
                 }
             }
@@ -467,6 +468,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 safeSleep(randomLongBetween(0, 100));
                 if (randomBoolean()) {
                     indicesAdmin().prepareRefresh(indexName).execute();
+                    logger.info("Index has been refreshed");
                 }
             }
             logger.info("Flusher thread has finished");
@@ -526,6 +528,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 readersBusy.countDown();
                 logger.info("Reader thread has finished");
             }
+            logger.info("Reader thread has finished");
         };
         threads.add(new Thread(flusher));
         threads.add(new Thread(localRefresher));

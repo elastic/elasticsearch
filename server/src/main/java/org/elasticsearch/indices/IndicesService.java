@@ -938,7 +938,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexService.close(
                 extraInfo,
                 reason == IndexRemovalReason.DELETED,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                shardCloseExecutor,
                 ActionListener.runBefore(l, () -> {
                     logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
                     final IndexSettings indexSettings = indexService.getIndexSettings();

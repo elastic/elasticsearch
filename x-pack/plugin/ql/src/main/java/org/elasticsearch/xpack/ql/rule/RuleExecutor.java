@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.rule;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 
@@ -133,7 +134,11 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
     }
 
     protected final TreeType execute(TreeType plan) {
-        return executeWithInfo(plan).after;
+        try {
+            return executeWithInfo(plan).after;
+        } catch (StackOverflowError e) {
+            throw new ParsingException("Statement is too large, causing stack overflow during execution planning: [{}]", plan.sourceText());
+        }
     }
 
     protected final ExecutionInfo executeWithInfo(TreeType plan) {

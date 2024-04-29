@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -4021,6 +4022,25 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             error.getMessage(),
             containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
         );
+    }
+
+    public void testNoStackOverflow() {
+        String query = randomBoolean() ? "row a = 1" : "row a = 1 | eval b = a";
+        for (int i = 0; i < 1900; i++) {
+            query += "::long::int";
+        }
+        for (int i = 0; i < 50; i++) {
+            for (int j = 0; j < randomInt(20); j++) {
+                query += "::long::int";
+            }
+
+            try {
+                physicalPlan(query);
+            } catch (ParsingException | org.elasticsearch.xpack.esql.parser.ParsingException e) {
+                // this is expected, all other exceptions are not, in particular no StackOverflowError should happen
+                assertThat(e.getMessage(), containsString("causing stack overflow"));
+            }
+        }
     }
 
     @SuppressWarnings("SameParameterValue")

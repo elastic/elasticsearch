@@ -133,6 +133,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
     }
 
     public void testForceExcludeDeletedDocs() {
+        configureMinMondeVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_11_2, Version.CURRENT));
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
@@ -158,6 +159,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
     }
 
     public void testNoForceExcludeDeletedDocs() {
+        configureMinMondeVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_11_2, Version.CURRENT));
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("myterms");

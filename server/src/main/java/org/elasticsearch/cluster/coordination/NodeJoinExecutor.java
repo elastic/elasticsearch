@@ -341,7 +341,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     private static void blockForbiddenVersions(TransportVersion joiningTransportVersion) {
         if (FORBIDDEN_VERSIONS.contains(joiningTransportVersion)) {
             throw new IllegalStateException(
-                "A node with transport version " + joiningTransportVersion + " is forbidden from joining this cluster"
+                "A node with transport version " + joiningTransportVersion.toReleaseVersion() + " is forbidden from joining this cluster"
             );
         }
     }
@@ -427,9 +427,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         if (joiningCompatibilityVersions.transportVersion().before(minClusterTransportVersion)) {
             throw new IllegalStateException(
                 "node with transport version ["
-                    + joiningCompatibilityVersions.transportVersion()
+                    + joiningCompatibilityVersions.transportVersion().toReleaseVersion()
                     + "] may not join a cluster with minimum transport version ["
-                    + minClusterTransportVersion
+                    + minClusterTransportVersion.toReleaseVersion()
                     + "]"
             );
         }

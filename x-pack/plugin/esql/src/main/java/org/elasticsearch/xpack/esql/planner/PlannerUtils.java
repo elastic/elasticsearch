@@ -251,13 +251,16 @@ public class PlannerUtils {
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
-        if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME || dataType == DataTypes.UNSIGNED_LONG) {
+        if (dataType == DataTypes.LONG
+            || dataType == DataTypes.DATETIME
+            || dataType == DataTypes.UNSIGNED_LONG
+            || dataType == EsqlDataTypes.COUNTER_LONG) {
             return ElementType.LONG;
         }
-        if (dataType == DataTypes.INTEGER) {
+        if (dataType == DataTypes.INTEGER || dataType == EsqlDataTypes.COUNTER_INTEGER) {
             return ElementType.INT;
         }
-        if (dataType == DataTypes.DOUBLE) {
+        if (dataType == DataTypes.DOUBLE || dataType == EsqlDataTypes.COUNTER_DOUBLE) {
             return ElementType.DOUBLE;
         }
         // unsupported fields are passed through as a BytesRef

@@ -100,7 +100,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -2186,13 +2185,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 indexService,
                 service
             );
-        }
-        {
-            // collapse and rescore
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-            searchRequest.source().collapse(new CollapseBuilder("field"));
-            searchRequest.source().addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
-            assertCreateContextValidation(searchRequest, "cannot use `collapse` in conjunction with `rescore`", indexService, service);
         }
         {
             // stored fields disabled with _source requested

@@ -366,9 +366,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     validationException
                 );
             }
-            if (source.collapse() != null && source.rescores() != null && source.rescores().isEmpty() == false) {
-                validationException = addValidationError("cannot use `collapse` in conjunction with `rescore`", validationException);
-            }
             if (source.storedFields() != null) {
                 if (source.storedFields().fetchFields() == false) {
                     if (source.fetchSource() != null && source.fetchSource().fetchSource()) {

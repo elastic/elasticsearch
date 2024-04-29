@@ -93,7 +93,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             @Example(
                 description = """
                     `BUCKET` can work in two modes: one in which the size of the bucket is computed
-                    based on a buckets count recommendation (four parameters) and a range and
+                    based on a buckets count recommendation (four parameters) and a range, and
                     another in which the bucket size is provided directly (two parameters).
 
                     Using a target number of buckets, a start of a range, and an end of a range,
@@ -127,8 +127,8 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             @Example(description = """
                 If the desired bucket size is known in advance, simply provide it as the second
                 argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
-                NOTE: When providing the bucket size as the second parameter, its type must be
-                of a time duration or date period type."""),
+                NOTE: When providing the bucket size as the second parameter, it must be a time
+                duration or date period."""),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
                 file = "bucket",
@@ -138,10 +138,10 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                     You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."""
             ),
             @Example(description = """
-                If the desired bucket size is known in advance, simply provide it as the second
-                argument, leaving the range out:""", file = "bucket", tag = "docsBucketNumericWithSpan", explanation = """
-                NOTE: When providing the bucket size as the second parameter, its type must be
-                of a floating type."""),
+                The range can be omitted if the desired bucket size is known in advance. Simply
+                provide it as the second argument:""", file = "bucket", tag = "docsBucketNumericWithSpan", explanation = """
+                NOTE: When providing the bucket size as the second parameter, it must be
+                of a floating point type."""),
             @Example(
                 description = "Create hourly buckets for the last 24 hours, and calculate the number of events per hour:",
                 file = "bucket",
@@ -151,6 +151,15 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 description = "Create monthly buckets for the year 1985, and calculate the average salary by hiring month",
                 file = "bucket",
                 tag = "bucket_in_agg"
+            ),
+            @Example(
+                description = """
+                    `BUCKET` may be used in both the aggregating and grouping part of the
+                    <<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
+                    part the function is referenced by an alias defined in the
+                    grouping part, or that it is invoked with the exact same expression:""",
+                file = "bucket",
+                tag = "reuseGroupingFunctionWithExpression"
             ) }
     )
     public Bucket(

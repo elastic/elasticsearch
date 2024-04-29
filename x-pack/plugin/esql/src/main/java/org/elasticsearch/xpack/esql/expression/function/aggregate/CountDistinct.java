@@ -90,7 +90,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             dt -> resolved && dt != DataTypes.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "any exact type except unsigned_long"
+            "any exact type except unsigned_long or counter types"
         );
         if (resolution.unresolved() || precision == null) {
             return resolution;

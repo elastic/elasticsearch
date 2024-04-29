@@ -188,6 +188,11 @@ $endif$
     }
 
 $if(BytesRef)$
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
+    }
+
     private $Type$Block buildFromBytesArray() {
         assert estimatedBytes == 0 || firstValueIndexes != null;
         final $Type$Block theBlock;
@@ -294,12 +299,6 @@ $if(BytesRef)$
     @Override
     public void extraClose() {
         Releasables.closeExpectNoException(values);
-    }
-$elseif(int)$
-
-    @Override
-    public long estimatedBytes() {
-        return estimatedBytes;
     }
 $endif$
 }

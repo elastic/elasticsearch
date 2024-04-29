@@ -98,7 +98,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_FIELDS_METADATA;
+        return TransportVersions.SEMANTIC_QUERY;
     }
 
     @Override

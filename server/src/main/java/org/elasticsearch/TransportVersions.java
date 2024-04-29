@@ -175,6 +175,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS = def(8_634_00_0);
     public static final TransportVersion ILM_SHRINK_ENABLE_WRITE = def(8_635_00_0);
     public static final TransportVersion GEOIP_CACHE_STATS = def(8_636_00_0);
+    public static final TransportVersion SEMANTIC_QUERY = def(8_637_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

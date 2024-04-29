@@ -2710,8 +2710,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                "all nodes must have version ["
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] or higher to support creating cross cluster API keys"
             )
         );
@@ -2856,8 +2856,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e1.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + WORKFLOWS_RESTRICTION_VERSION
+                "all nodes must have version ["
+                    + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
                     + "] or higher to support restrictions for API keys"
             )
         );
@@ -2874,8 +2874,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e2.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + WORKFLOWS_RESTRICTION_VERSION
+                "all nodes must have version ["
+                    + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
                     + "] or higher to support restrictions for API keys"
             )
         );

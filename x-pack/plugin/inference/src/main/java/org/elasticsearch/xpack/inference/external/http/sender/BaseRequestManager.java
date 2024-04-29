@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
 
@@ -17,11 +18,13 @@ abstract class BaseRequestManager implements RequestManager {
     private final ThreadPool threadPool;
     private final String inferenceEntityId;
     private final Object rateLimitGroup;
+    private final RateLimitSettings rateLimitSettings;
 
-    BaseRequestManager(ThreadPool threadPool, String inferenceEntityId, Object rateLimitGroup) {
+    BaseRequestManager(ThreadPool threadPool, String inferenceEntityId, Object rateLimitGroup, RateLimitSettings rateLimitSettings) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.rateLimitGroup = Objects.requireNonNull(rateLimitGroup);
+        this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
     }
 
     protected void execute(Runnable runnable) {
@@ -36,5 +39,10 @@ abstract class BaseRequestManager implements RequestManager {
     @Override
     public Object rateLimitGrouping() {
         return rateLimitGroup;
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
     }
 }

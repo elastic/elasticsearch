@@ -40,7 +40,7 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new HuggingFaceServiceSettings(createUri(url), null, null, tokenLimit),
+            new HuggingFaceServiceSettings(createUri(url), null, null, tokenLimit, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -50,7 +50,7 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new HuggingFaceServiceSettings(createUri(url), null, dimensions, tokenLimit),
+            new HuggingFaceServiceSettings(createUri(url), null, dimensions, tokenLimit, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -66,7 +66,7 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new HuggingFaceServiceSettings(createUri(url), similarityMeasure, dimensions, tokenLimit),
+            new HuggingFaceServiceSettings(createUri(url), similarityMeasure, dimensions, tokenLimit, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

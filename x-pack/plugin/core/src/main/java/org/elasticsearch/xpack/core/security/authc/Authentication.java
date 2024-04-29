@@ -226,9 +226,9 @@ public final class Authentication implements ToXContentObject {
         if (isCrossClusterAccess() && olderVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                    + olderVersion
+                    + olderVersion.toReleaseVersion()
                     + "]"
             );
         }
@@ -576,9 +576,9 @@ public final class Authentication implements ToXContentObject {
         if (isCrossClusterAccess && out.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to send to ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         }
@@ -1368,9 +1368,9 @@ public final class Authentication implements ToXContentObject {
                 () -> "Cross cluster access authentication has authentication field in metadata ["
                     + authenticationFromMetadata
                     + "] that may require a rewrite from version ["
-                    + effectiveSubjectVersion
+                    + effectiveSubjectVersion.toReleaseVersion()
                     + "] to ["
-                    + olderVersion
+                    + olderVersion.toReleaseVersion()
                     + "]"
             );
             final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);

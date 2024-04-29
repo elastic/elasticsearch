@@ -58,7 +58,8 @@ public class CohereEmbeddingsModel extends CohereModel {
         super(
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            secretSettings
+            secretSettings,
+            serviceSettings.getCommonSettings()
         );
     }
 

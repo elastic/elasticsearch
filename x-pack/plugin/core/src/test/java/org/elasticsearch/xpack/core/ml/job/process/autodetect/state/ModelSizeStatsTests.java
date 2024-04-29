@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -94,10 +93,10 @@ public class ModelSizeStatsTests extends AbstractXContentSerializingTestCase<Mod
             stats.setTotalPartitionFieldCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            stats.setLogTime(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+            stats.setLogTime(new Date(randomTimeValue().millis()));
         }
         if (randomBoolean()) {
-            stats.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+            stats.setTimestamp(new Date(randomTimeValue().millis()));
         }
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));

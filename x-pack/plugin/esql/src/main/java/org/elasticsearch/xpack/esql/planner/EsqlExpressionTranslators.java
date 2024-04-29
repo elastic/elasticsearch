@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotE
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -133,7 +132,6 @@ public final class EsqlExpressionTranslators {
      *  <ul>
      *      <li>{@link Equals}</li>
      *      <li>{@link NotEquals}</li>
-     *      <li>{@link NullEquals}</li>
      *      <li>{@link GreaterThanOrEqual}</li>
      *      <li>{@link GreaterThan}</li>
      *      <li>{@link LessThanOrEqual}</li>
@@ -221,7 +219,7 @@ public final class EsqlExpressionTranslators {
             if (bc instanceof LessThanOrEqual) {
                 return new RangeQuery(source, name, null, false, value, true, format, zoneId);
             }
-            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
+            if (bc instanceof Equals || bc instanceof NotEquals) {
                 name = pushableAttributeName(attribute);
 
                 Query query;
@@ -273,7 +271,7 @@ public final class EsqlExpressionTranslators {
                 matchAllOrNone = (num.doubleValue() > 0) == false;
             } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
                 matchAllOrNone = (num.doubleValue() > 0);
-            } else if (bc instanceof Equals || bc instanceof NullEquals) {
+            } else if (bc instanceof Equals) {
                 matchAllOrNone = false;
             } else if (bc instanceof NotEquals) {
                 matchAllOrNone = true;

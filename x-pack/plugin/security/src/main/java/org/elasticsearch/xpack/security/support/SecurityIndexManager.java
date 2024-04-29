@@ -331,10 +331,9 @@ public class SecurityIndexManager implements ClusterStateListener {
         final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(
             getMinSecurityIndexMappingVersion(clusterState)
         );
-        if (descriptor == null) {
-            return false;
-        }
-        return descriptor.getMappingsVersion().version() <= loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), clusterState);
+
+        return descriptor == null
+            || descriptor.getMappingsVersion().version() <= loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), clusterState);
     }
 
     private static int loadIndexMappingVersion(String aliasName, ClusterState clusterState) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,13 +62,21 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     }
 
     public PointInTimeBuilder(StreamInput in) throws IOException {
-        encodedId = in.readBytesReference();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.COMPACT_PIT_ID)) {
+            encodedId = in.readBytesReference();
+        } else {
+            encodedId = new BytesArray(Base64.getUrlDecoder().decode(in.readString()));
+        }
         keepAlive = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBytesReference(encodedId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.COMPACT_PIT_ID)) {
+            out.writeBytesReference(encodedId);
+        } else {
+            out.writeString(Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(encodedId)));
+        }
         out.writeOptionalTimeValue(keepAlive);
     }
 

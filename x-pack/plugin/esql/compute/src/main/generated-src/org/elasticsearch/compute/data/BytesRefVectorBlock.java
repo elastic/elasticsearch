@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -48,6 +50,12 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public BytesRefBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        // TODO optimizations
+        return new BytesRefLookup(this, positions, targetBlockSize);
     }
 
     @Override

@@ -188,13 +188,17 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             exception.getMessage()
         );
 
-        long minusSize = -size;
-        // Make sure a value of < Long.MIN_VALUE bytes throws an exception
-        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(minusSize, unit));
-        assertEquals(
-            "Values less than " + Long.MIN_VALUE + " bytes are not supported: " + minusSize + unit.getSuffix(),
-            exception.getMessage()
-        );
+        // Make sure for units other than BYTES a size of -1 throws an exception
+        ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
+        long size2 = -1L;
+        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size2, unit2));
+        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+
+        // Make sure for any unit a size < -1 throws an exception
+        ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
+        long size3 = -1L * randomNonNegativeLong() - 1L;
+        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size3, unit3));
+        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
     }
 
     public void testConversionHashCode() {
@@ -267,9 +271,15 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         }
     }
 
-    public void testParseMinusValue() {
+    public void testParseInvalidValue() {
         String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
-        assertThat(ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting").toString(), is("-6" + unitSuffix.trim()));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting")
+        );
+        assertEquals("failed to parse setting [test_setting] with value [-6" + unitSuffix + "] as a size in bytes", exception.getMessage());
+        assertNotNull(exception.getCause());
+        assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
     }
 
     public void testParseDefaultValue() {
@@ -367,9 +377,6 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
         assertThat(ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.ONE), is(ByteSizeValue.ONE));
         assertThat(ByteSizeValue.add(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(2L)));
-        assertThat(ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE), is(ByteSizeValue.ZERO));
-        assertThat(ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.MINUS_ONE));
-        assertThat(ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.ofBytes(-2L)));
         assertThat(ByteSizeValue.add(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(101L)));
         assertThat(ByteSizeValue.add(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(102L)));
         assertThat(
@@ -402,24 +409,24 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             () -> ByteSizeValue.add(ByteSizeValue.ofBytes(Long.MAX_VALUE), ByteSizeValue.ONE)
         );
         assertThat(e.getMessage(), containsString("long overflow"));
-        e = expectThrows(
-            ArithmeticException.class,
-            () -> ByteSizeValue.add(ByteSizeValue.ofBytes(Long.MIN_VALUE), ByteSizeValue.MINUS_ONE)
-        );
-        assertThat(e.getMessage(), containsString("long overflow"));
+
+        String exceptionMessage = "one of the arguments has -1 bytes";
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
     }
 
     public void testSubtraction() {
         assertThat(ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
         assertThat(ByteSizeValue.subtract(ByteSizeValue.ONE, ByteSizeValue.ZERO), is(ByteSizeValue.ONE));
         assertThat(ByteSizeValue.subtract(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ZERO));
-        assertThat(ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(-2L)));
-        assertThat(ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.ONE));
-        assertThat(ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ONE), is(ByteSizeValue.MINUS_ONE));
-        assertThat(ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.ZERO));
         assertThat(ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(99L)));
         assertThat(ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(98L)));
-        assertThat(ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(102L)), is(ByteSizeValue.ofBytes(-2L)));
         assertThat(
             ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.KB), new ByteSizeValue(4, ByteSizeUnit.KB)),
             is(ByteSizeValue.ofBytes(4096L))
@@ -444,6 +451,25 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.GB)),
             is(ByteSizeValue.ofBytes(9007194959773696L))
         );
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(102L))
+        );
+        assertThat(e.getMessage(), containsString("Values less than -1 bytes are not supported: -2b"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString("subtraction result has -1 bytes"));
+
+        String exceptionMessage = "one of the arguments has -1 bytes";
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
     }
 
     public void testMinimum() {
@@ -489,10 +515,15 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(equalityResult, is(new ByteSizeValue(1, ByteSizeUnit.GB)));
         assertThat(equalityResult.getUnit(), is(ByteSizeUnit.GB));
 
-        assertThat(ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE), is(ByteSizeValue.MINUS_ONE));
-        assertThat(ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.MINUS_ONE));
-        assertThat(ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.MINUS_ONE));
-        assertThat(ByteSizeValue.min(ByteSizeValue.ofBytes(-2L), ByteSizeValue.MINUS_ONE), is(ByteSizeValue.ofBytes(-2L)));
+        String exceptionMessage = "one of the arguments has -1 bytes";
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
     }
 
     @Override

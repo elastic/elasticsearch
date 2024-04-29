@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -45,7 +46,7 @@ public class RestClusterHealthActionTests extends ESTestCase {
 
         params.put("index", index);
         params.put("local", String.valueOf(local));
-        params.put("master_timeout", masterTimeout.getStringRep());
+        params.put(REST_MASTER_TIMEOUT_PARAM, masterTimeout.getStringRep());
         params.put("timeout", timeout.getStringRep());
         params.put("wait_for_status", waitForStatus.name());
         if (waitForNoRelocatingShards || randomBoolean()) {

@@ -890,9 +890,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             snapshotRestoreException.getMessage(),
             containsString(
                 "the snapshot was created with Elasticsearch version ["
-                    + oldVersion
+                    + oldVersion.toReleaseVersion()
                     + "] which is below the current versions minimum index compatibility version ["
-                    + IndexVersions.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "]"
             )
         );

@@ -1,0 +1,6 @@
+pr: 107998
+summary: "ES|QL: catch `StackOverflowError` during execution planning"
+area: ES|QL
+type: bug
+issues:
+ - 107752

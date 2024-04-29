@@ -261,7 +261,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );

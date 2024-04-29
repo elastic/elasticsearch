@@ -157,6 +157,10 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             return indexTemplates;
         }
 
+        public RolloverConfiguration getRolloverConfiguration() {
+            return rolloverConfiguration;
+        }
+
         public DataStreamGlobalRetention getGlobalRetention() {
             return globalRetention;
         }

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
@@ -37,7 +38,7 @@ public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
         String lifecycleId = request.param("name");
         DeleteSnapshotLifecycleAction.Request req = new DeleteSnapshotLifecycleAction.Request(lifecycleId);
         req.ackTimeout(request.paramAsTime("timeout", req.ackTimeout()));
-        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
+        req.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.execute(DeleteSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }

@@ -11,7 +11,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,24 +22,24 @@ import static org.elasticsearch.search.rank.RankDoc.NO_RANK;
 /**
  * Executes queries and generates results on the shard for RRF.
  */
-public class RRFRankShardContext extends RankShardContext {
+public class RRFQueryPhaseRankShardContext extends QueryPhaseRankShardContext {
 
-    protected final int rankConstant;
+    private final int rankConstant;
 
-    public RRFRankShardContext(List<Query> queries, int from, int windowSize, int rankConstant) {
-        super(queries, from, windowSize);
+    public RRFQueryPhaseRankShardContext(List<Query> queries, int rankWindowSize, int rankConstant) {
+        super(queries, rankWindowSize);
         this.rankConstant = rankConstant;
     }
 
     @Override
-    public RRFRankShardResult combine(List<TopDocs> rankResults) {
+    public RRFRankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query
         // if a doc isn't part of a result set its position will be NO_RANK [0] and
         // its score is [0f]
         int queries = rankResults.size();
-        Map<Integer, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(windowSize);
+        Map<Integer, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
         int index = 0;
         for (TopDocs rrfRankResult : rankResults) {
             int rank = 1;
@@ -90,8 +90,9 @@ public class RRFRankShardContext extends RankShardContext {
             }
             return rrf1.doc < rrf2.doc ? -1 : 1;
         });
-        // trim the results to window size
-        RRFRankDoc[] topResults = new RRFRankDoc[Math.min(windowSize + from, sortedResults.length)];
+        // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
+        // pagination and all else will happen on the coordinator when combining the shard responses
+        RRFRankDoc[] topResults = new RRFRankDoc[Math.min(rankWindowSize, sortedResults.length)];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;

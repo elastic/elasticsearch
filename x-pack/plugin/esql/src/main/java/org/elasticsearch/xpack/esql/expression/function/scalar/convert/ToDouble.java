@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -42,7 +43,10 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(TEXT, ToDoubleFromStringEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToDoubleFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new) // CastIntToDoubleEvaluator would be a candidate, but not MV'd
+        Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new), // CastIntToDoubleEvaluator would be a candidate, but not MV'd
+        Map.entry(EsqlDataTypes.COUNTER_DOUBLE, (field, source) -> field),
+        Map.entry(EsqlDataTypes.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -65,7 +69,18 @@ public class ToDouble extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            type = {
+                "boolean",
+                "date",
+                "keyword",
+                "text",
+                "double",
+                "long",
+                "unsigned_long",
+                "integer",
+                "counter_double",
+                "counter_integer",
+                "counter_long" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

@@ -212,7 +212,7 @@ public class ExplainDataStreamLifecycleAction {
                 return builder;
             }), Iterators.map(indices.iterator(), explainIndexDataLifecycle -> (builder, params) -> {
                 builder.field(explainIndexDataLifecycle.getIndex());
-                explainIndexDataLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+                explainIndexDataLifecycle.toXContent(builder, outerParams, rolloverConfiguration, globalRetention);
                 return builder;
             }), Iterators.single((builder, params) -> {
                 builder.endObject();

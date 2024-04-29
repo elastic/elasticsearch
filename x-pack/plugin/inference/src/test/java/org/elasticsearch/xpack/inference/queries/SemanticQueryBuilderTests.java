@@ -164,7 +164,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
 
         ESToParentBlockJoinQuery nestedQuery = (ESToParentBlockJoinQuery) query;
-        assertThat(nestedQuery.getScoreMode(), equalTo(ScoreMode.Total));
+        assertThat(nestedQuery.getScoreMode(), equalTo(ScoreMode.Max));
 
         switch (inferenceResultType) {
             case NONE -> assertThat(nestedQuery.getChildQuery(), instanceOf(MatchNoDocsQuery.class));

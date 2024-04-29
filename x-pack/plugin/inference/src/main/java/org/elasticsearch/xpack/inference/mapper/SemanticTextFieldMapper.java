@@ -359,7 +359,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
             }
 
-            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Total).boost(boost).queryName(queryName);
+            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);
         }
     }
 

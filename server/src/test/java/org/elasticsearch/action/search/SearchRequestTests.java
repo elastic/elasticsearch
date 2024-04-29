@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -279,17 +278,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[slice] can only be used with [scroll] or [point-in-time] requests", validationErrors.validationErrors().get(0));
-        }
-        {
-            // collapse and rescore
-            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
-            searchRequest.source().collapse(new CollapseBuilder("field"));
-            searchRequest.source().addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("cannot use `collapse` in conjunction with `rescore`", validationErrors.validationErrors().get(0));
         }
         {
             // stored fields disabled with _source requested

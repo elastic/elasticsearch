@@ -4024,8 +4024,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    public void testNoStackOverflow() {
+    public void testOnStackOverflow() {
         String query = randomBoolean() ? "row a = 1" : "row a = 1 | eval b = a";
+        // the SO failures start to happen at this level of depth, but it's not completely deterministic
+        // It seems to be JVM dependent
         for (int i = 0; i < 1900; i++) {
             query += "::long::int";
         }

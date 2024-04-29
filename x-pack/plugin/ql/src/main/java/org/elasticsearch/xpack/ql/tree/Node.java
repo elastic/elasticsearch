@@ -66,21 +66,26 @@ public abstract class Node<T extends Node<T>> {
 
     @SuppressWarnings("unchecked")
     public void forEachDown(Consumer<? super T> action) {
-        action.accept((T) this);
-        children().forEach(c -> c.forEachDown(action));
+        try {
+            action.accept((T) this);
+            children().forEach(c -> c.forEachDown(action));
+        } catch (StackOverflowError e) {
+            throw new ParsingException(
+                e,
+                this.source(),
+                "Statement is too large, causing stack overflow during execution planning: [{}]",
+                this.sourceText()
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")
     public <E extends T> void forEachDown(Class<E> typeToken, Consumer<? super E> action) {
-        try {
-            forEachDown(t -> {
-                if (typeToken.isInstance(t)) {
-                    action.accept((E) t);
-                }
-            });
-        } catch (StackOverflowError e) {
-            throw new ParsingException("Statement is too large, causing stack overflow during execution planning: [{}]", this.sourceText());
-        }
+        forEachDown(t -> {
+            if (typeToken.isInstance(t)) {
+                action.accept((E) t);
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -89,7 +94,12 @@ public abstract class Node<T extends Node<T>> {
             children().forEach(c -> c.forEachUp(action));
             action.accept((T) this);
         } catch (StackOverflowError e) {
-            throw new ParsingException("Statement is too large, causing stack overflow during execution planning: [{}]", this.sourceText());
+            throw new ParsingException(
+                e,
+                this.source(),
+                "Statement is too large, causing stack overflow during execution planning: [{}]",
+                this.sourceText()
+            );
         }
     }
 

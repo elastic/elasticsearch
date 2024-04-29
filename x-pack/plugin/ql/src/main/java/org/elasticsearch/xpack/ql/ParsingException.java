@@ -31,7 +31,7 @@ public class ParsingException extends QlClientException {
         this.charPositionInLine = source.source().getColumnNumber();
     }
 
-    public ParsingException(Exception cause, Source source, String message, Object... args) {
+    public ParsingException(Throwable cause, Source source, String message, Object... args) {
         super(cause, message, args);
         this.line = source.source().getLineNumber();
         this.charPositionInLine = source.source().getColumnNumber();

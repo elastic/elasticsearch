@@ -137,7 +137,12 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         try {
             return executeWithInfo(plan).after;
         } catch (StackOverflowError e) {
-            throw new ParsingException("Statement is too large, causing stack overflow during execution planning: [{}]", plan.sourceText());
+            throw new ParsingException(
+                e,
+                plan.source(),
+                "Statement is too large, causing stack overflow during execution planning: [{}]",
+                plan.sourceText()
+            );
         }
     }
 

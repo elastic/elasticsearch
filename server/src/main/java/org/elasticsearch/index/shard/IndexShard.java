@@ -1727,21 +1727,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 checkAndCallWaitForEngineOrClosedShardListeners();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
-                closeExecutor.execute(ActionRunnable.run(closeListener, () -> {
-                    try {
-                        if (engine != null && flushEngine) {
-                            engine.flushAndClose();
+                closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
+                    @Override
+                    public void run() throws Exception {
+                        try {
+                            if (engine != null && flushEngine) {
+                                engine.flushAndClose();
+                            }
+                        } finally {
+                            // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                            // Also closing refreshListeners to prevent us from accumulating any more listeners
+                            IOUtils.close(
+                                engine,
+                                globalCheckpointListeners,
+                                refreshListeners,
+                                pendingReplicationActions,
+                                indexShardOperationPermits
+                            );
                         }
-                    } finally {
-                        // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                        // Also closing refreshListeners to prevent us from accumulating any more listeners
-                        IOUtils.close(
-                            engine,
-                            globalCheckpointListeners,
-                            refreshListeners,
-                            pendingReplicationActions,
-                            indexShardOperationPermits
-                        );
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "IndexShard#close[" + shardId + "]";
                     }
                 }));
             }

@@ -17,6 +17,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -335,18 +336,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(index);
             final IndexSettings indexSettings;
+            final SubscribableListener<Void> indexServiceClosedListener;
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
                 // ES-8334 complete
-                indicesService.removeIndex(
-                    index,
-                    DELETED,
-                    "index no longer part of the metadata",
-                    shardCloseExecutor,
-                    ActionListener.noop()
+                indexServiceClosedListener = SubscribableListener.newForked(
+                    l -> indicesService.removeIndex(index, DELETED, "index no longer part of the metadata", shardCloseExecutor, l)
                 );
             } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
+                indexServiceClosedListener = SubscribableListener.newSucceeded(null);
                 final IndexMetadata metadata = previousState.metadata().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
                 indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metadata, state);
@@ -360,6 +359,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // previous cluster state is not initialized/recovered.
                 assert state.metadata().indexGraveyard().containsIndex(index)
                     || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+                indexServiceClosedListener = SubscribableListener.newSucceeded(null);
                 final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());
                 if (metadata != null) {
                     indexSettings = new IndexSettings(metadata, settings);
@@ -368,7 +368,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 }
             }
             if (indexSettings != null) {
-                threadPool.generic().execute(new AbstractRunnable() {
+                indexServiceClosedListener.andThenAccept(ignored -> threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(() -> "[" + index + "] failed to complete pending deletion for index", e);
@@ -389,7 +389,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             logger.warn("[{}] failed to lock all shards for index - interrupted", index);
                         }
                     }
-                });
+
+                    @Override
+                    public String toString() {
+                        return "processPendingDeletes[" + index + "]";
+                    }
+                }));
             }
         }
     }

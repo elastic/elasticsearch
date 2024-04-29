@@ -160,7 +160,9 @@ introduced by the former feature and eventually fixed by the latter one. For ins
           known_issues:
             - cluster_feature: feature_y
               fixed_by:        feature_y_fix
-          reason: Intermittently skipped with buggy feature_y until fixed by feature_y_fix
+            - cluster_feature: feature_z
+              fixed_by:        feature_z_fix
+          reason: Skipped for buggy feature_y until fixed by feature_y_fix and feature_z until fixed by feature_z_fix
 
      - do:
        ... test definitions ...

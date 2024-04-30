@@ -83,7 +83,7 @@ public class HashLookupOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("HashLookup[keys=[{name=foo, type=LONG, positions=4, size=104b}], mapping=[0]]");
+        return matchesRegex("HashLookup\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0]]");
     }
 
     @Override

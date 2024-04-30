@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -17,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLogAppender;
@@ -133,24 +130,19 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
     }
 
     public void testAutoFollowCoordinatorLogsSkippingAutoFollowCoordinationWithNonCompliantLicense() throws Exception {
-        final Logger logger = LogManager.getLogger(AutoFollowCoordinator.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        appender.addExpectation(
-            new MockLogAppender.ExceptionSeenEventExpectation(
-                getTestName(),
-                logger.getName(),
-                Level.WARN,
-                "skipping auto-follower coordination",
-                ElasticsearchSecurityException.class,
-                "current license is non-compliant for [ccr]"
-            )
-        );
 
-        try {
-            // Need to add mock log appender before submitting CS update, otherwise we miss the expected log:
-            // (Auto followers for new remote clusters are bootstrapped when a new cluster state is published)
-            Loggers.addAppender(logger, appender);
+        try (var ignored = appender.capturing(AutoFollowCoordinator.class)) {
+            appender.addExpectation(
+                new MockLogAppender.ExceptionSeenEventExpectation(
+                    getTestName(),
+                    logger.getName(),
+                    Level.WARN,
+                    "skipping auto-follower coordination",
+                    ElasticsearchSecurityException.class,
+                    "current license is non-compliant for [ccr]"
+                )
+            );
             // Update the cluster state so that we have auto follow patterns and verify that we log a warning
             // in case of incompatible license:
             CountDownLatch latch = new CountDownLatch(1);
@@ -203,9 +195,6 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
             });
             latch.await();
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
     }
 

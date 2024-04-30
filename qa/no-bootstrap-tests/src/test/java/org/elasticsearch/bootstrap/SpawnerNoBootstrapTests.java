@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
@@ -93,20 +92,6 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         public void assertMatched() {
             assertTrue("Expected to see message [" + expectedMessage + "] on logger [" + expectedLogger + "]", saw);
         }
-    }
-
-    private MockLogAppender addMockLogger(String loggerName) throws Exception {
-        MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        final Logger testLogger = LogManager.getLogger(loggerName);
-        Loggers.addAppender(testLogger, appender);
-        Loggers.setLevel(testLogger, Level.TRACE);
-        return appender;
-    }
-
-    private void removeMockLogger(String loggerName, MockLogAppender appender) {
-        Loggers.removeAppender(LogManager.getLogger(loggerName), appender);
-        appender.stop();
     }
 
     /**
@@ -218,15 +203,20 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         String stdoutLoggerName = "test_plugin-controller-stdout";
         String stderrLoggerName = "test_plugin-controller-stderr";
-        MockLogAppender stdoutAppender = addMockLogger(stdoutLoggerName);
-        MockLogAppender stderrAppender = addMockLogger(stderrLoggerName);
+        MockLogAppender stdoutAppender = new MockLogAppender();
+        MockLogAppender stderrAppender = new MockLogAppender();
+        Loggers.setLevel(LogManager.getLogger(stdoutLoggerName), Level.TRACE);
+        Loggers.setLevel(LogManager.getLogger(stderrLoggerName), Level.TRACE);
         CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
         if (expectSpawn) {
             stdoutAppender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
             stderrAppender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
         }
 
-        try {
+        try (
+            var stdoutRelease = stdoutAppender.capturing(stderrLoggerName);
+            var stderrRelease = stderrAppender.capturing(stderrLoggerName)
+        ) {
             Spawner spawner = new Spawner();
             spawner.spawnNativeControllers(environment);
 
@@ -246,9 +236,6 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             }
             stdoutAppender.assertAllExpectationsMatched();
             stderrAppender.assertAllExpectationsMatched();
-        } finally {
-            removeMockLogger(stdoutLoggerName, stdoutAppender);
-            removeMockLogger(stderrLoggerName, stderrAppender);
         }
     }
 

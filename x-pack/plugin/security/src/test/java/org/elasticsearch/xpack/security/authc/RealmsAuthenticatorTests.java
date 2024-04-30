@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -208,10 +205,8 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(request.authenticationFailed(authenticationToken)).thenReturn(e);
 
-        final Logger unlicensedRealmsLogger = LogManager.getLogger(RealmsAuthenticator.class);
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
+        try (var ignored = mockAppender.capturing(RealmsAuthenticator.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "unlicensed realms",
@@ -224,9 +219,6 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
-        } finally {
-            Loggers.removeAppender(unlicensedRealmsLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

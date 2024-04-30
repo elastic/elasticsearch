@@ -68,15 +68,12 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     // package private non-final for testing
     static Map<TransportVersion, Set<String>> allowedRemoteClusterPermissions = Map.of(
         TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS,
-        Set.of("monitor_enrich")
+        Set.of(ClusterPrivilegeResolver.MONITOR_ENRICH.name())
     );
-    static {
-        assert ClusterPrivilegeResolver.names().containsAll(getSupportRemoteClusterPermissions());
-    }
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
-    public static Set<String> getSupportRemoteClusterPermissions() {
+    public static Set<String> getSupportedRemoteClusterPermissions() {
         return allowedRemoteClusterPermissions.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     }
 
@@ -148,10 +145,10 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         Set<String> invalid = getUnsupportedPrivileges();
         if (invalid.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Invalid remote_cluster permissions found. Please remove the remove the following: "
+                "Invalid remote_cluster permissions found. Please remove the following: "
                     + invalid
                     + " Only "
-                    + getSupportRemoteClusterPermissions()
+                    + getSupportedRemoteClusterPermissions()
                     + " are allowed"
             );
         }
@@ -166,7 +163,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
             for (String namedPrivilege : group.clusterPrivileges()) {
                 String toCheck = namedPrivilege.toLowerCase(Locale.ROOT);
-                if (getSupportRemoteClusterPermissions().contains(toCheck) == false) {
+                if (getSupportedRemoteClusterPermissions().contains(toCheck) == false) {
                     invalid.add(namedPrivilege);
                 }
             }

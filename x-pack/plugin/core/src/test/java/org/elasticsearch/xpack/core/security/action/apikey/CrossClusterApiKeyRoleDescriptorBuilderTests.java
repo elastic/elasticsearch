@@ -159,7 +159,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
     public void testAPIKeyAllowsAllRemoteClusterPrivilegesForCCS() throws IOException {
         // if users can add remote cluster permissions to a role, then the APIKey should also allow that for that permission
         // the inverse however, is not guaranteed. cross_cluster_search exists largely for internal use and is not exposed to the users role
-        assertTrue(Set.of(CCS_CLUSTER_PRIVILEGE_NAMES).containsAll(RemoteClusterPermissions.getSupportRemoteClusterPermissions()));
+        assertTrue(Set.of(CCS_CLUSTER_PRIVILEGE_NAMES).containsAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()));
     }
 
     private static void assertRoleDescriptor(

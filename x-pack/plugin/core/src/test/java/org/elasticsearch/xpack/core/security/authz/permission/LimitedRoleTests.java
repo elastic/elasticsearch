@@ -115,14 +115,14 @@ public class LimitedRoleTests extends ESTestCase {
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
                     new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new String[] { remoteClusterAlias }
                     )
                 )
                     // this group should be ignored (wrong alias)
                     .addGroup(
                         new RemoteClusterPermissionGroup(
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                             new String[] { randomAlphaOfLength(3) }
                         )
                     )
@@ -160,14 +160,14 @@ public class LimitedRoleTests extends ESTestCase {
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
                     new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         altAliases.toArray(new String[0])
                     )
                 )
                     // this group should be ignored (wrong alias)
                     .addGroup(
                         new RemoteClusterPermissionGroup(
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                             new String[] { randomAlphaOfLength(4) }
                         )
                     )
@@ -180,7 +180,7 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(basePrivilege.name())
@@ -199,7 +199,7 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(limitedPrivilege.name())
@@ -253,7 +253,7 @@ public class LimitedRoleTests extends ESTestCase {
         if (includeRemotePermission) {
             RemoteClusterPermissions remoteCluster = new RemoteClusterPermissions().addGroup(
                 new RemoteClusterPermissionGroup(
-                    RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                     new String[] { remoteClusterAlias }
                 )
             );

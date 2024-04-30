@@ -88,7 +88,7 @@ public class PutRoleRequestTests extends ESTestCase {
         request.name(randomAlphaOfLengthBetween(4, 9));
         RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
         Set<String> validUnsupportedNames = new HashSet<>(ClusterPrivilegeResolver.names());
-        validUnsupportedNames.removeAll(RemoteClusterPermissions.getSupportRemoteClusterPermissions());
+        validUnsupportedNames.removeAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions());
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             if (randomBoolean()) {
                 // unknown cluster privilege
@@ -102,8 +102,8 @@ public class PutRoleRequestTests extends ESTestCase {
                 );
             }
         }
-        request.addRemoteCluster(remoteClusterPermissions);
-        assertValidationError("Invalid remote_cluster permissions found. Please remove the remove the following: [", request);
+        request.putRemoteCluster(remoteClusterPermissions);
+        assertValidationError("Invalid remote_cluster permissions found. Please remove the following: [", request);
         assertValidationError("Only [monitor_enrich] are allowed", request);
     }
 
@@ -131,7 +131,7 @@ public class PutRoleRequestTests extends ESTestCase {
                 new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "valid" })
             ).addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "" }))
         );
-        assertThat(iae.getMessage(), containsString("remote_cluster clusters aliases must not valid non-empty, non-null values"));
+        assertThat(iae.getMessage(), containsString("remote_cluster clusters aliases must contain valid non-empty, non-null values"));
     }
 
     public void testValidationSuccessWithCorrectRemoteIndexPrivilegeClusters() {
@@ -167,7 +167,7 @@ public class PutRoleRequestTests extends ESTestCase {
                 new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, aliases.toArray(new String[0]))
             );
         }
-        request.addRemoteCluster(remoteClusterPermissions);
+        request.putRemoteCluster(remoteClusterPermissions);
         assertSuccessfulValidation(request);
     }
 

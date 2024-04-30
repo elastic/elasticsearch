@@ -1338,7 +1338,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public static RemoteClusterPermissions randomRemoteClusterPermissions(int maxGroups) {
         final RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
-        final String[] supportedPermissions = RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]);
+        final String[] supportedPermissions = RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]);
         for (int i = 0; i < maxGroups; i++) {
             remoteClusterPermissions.addGroup(
                 new RemoteClusterPermissionGroup(

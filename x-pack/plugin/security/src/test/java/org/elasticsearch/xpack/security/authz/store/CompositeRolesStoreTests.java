@@ -1085,7 +1085,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertValidRemoteClusterPermissions(role.remoteCluster(), new String[] { "remote-*" });
         assertThat(
             role.remoteCluster().privilegeNames("remote-foobar", TransportVersion.current()),
-            equalTo(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]))
+            equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
         );
     }
 
@@ -3108,7 +3108,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private RemoteClusterPermissions getValidRemoteClusterPermissions(String[] aliases) {
         return new RemoteClusterPermissions().addGroup(
-            new RemoteClusterPermissionGroup(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]), aliases)
+            new RemoteClusterPermissionGroup(
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                aliases
+            )
         );
     }
 
@@ -3158,7 +3161,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             assertFalse(permissions.hasPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
             assertThat(
                 permissions.privilegeNames(alias, TransportVersion.current()),
-                arrayContaining(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]))
+                arrayContaining(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
             );
         }
     }
@@ -3168,7 +3171,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             assertThat(group.remoteClusterAliases(), arrayContaining(aliases));
             assertThat(
                 group.clusterPrivileges(),
-                arrayContaining(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]))
+                arrayContaining(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
             );
         }
     }

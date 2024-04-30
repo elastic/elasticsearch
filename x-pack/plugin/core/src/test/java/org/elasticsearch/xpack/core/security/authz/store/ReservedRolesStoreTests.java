@@ -2704,7 +2704,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
         assertThat(
             superuserRole.remoteCluster().privilegeNames("*", TransportVersion.current()),
-            equalTo(RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]))
+            equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
         );
     }
 

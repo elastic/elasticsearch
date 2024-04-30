@@ -1307,13 +1307,13 @@ public class RBACEngineTests extends ESTestCase {
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
                     new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new String[] { "remote-1" }
                     )
                 )
                     .addGroup(
                         new RemoteClusterPermissionGroup(
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                             new String[] { "remote-2", "remote-3" }
                         )
                     )
@@ -1376,7 +1376,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(remoteIndex2.indices().getQueries(), containsInAnyOrder(query));
 
         RemoteClusterPermissions remoteClusterPermissions = response.getRemoteClusterPermissions();
-        String[] allRemoteClusterPermissions = RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]);
+        String[] allRemoteClusterPermissions = RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]);
         assert allRemoteClusterPermissions.length == 1
             : "if more remote cluster permissions are added this test needs to be updated to ensure the correct remotes receive the "
                 + "correct permissions. ";
@@ -1393,7 +1393,7 @@ public class RBACEngineTests extends ESTestCase {
                 .count()
         );
 
-        for (String permission : RemoteClusterPermissions.getSupportRemoteClusterPermissions()) {
+        for (String permission : RemoteClusterPermissions.getSupportedRemoteClusterPermissions()) {
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1", TransportVersion.current())), hasItem(permission));
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-2", TransportVersion.current())), hasItem(permission));
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-3", TransportVersion.current())), hasItem(permission));
@@ -1735,7 +1735,7 @@ public class RBACEngineTests extends ESTestCase {
                     new RoleDescriptorsIntersection(
                         new RoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                             new IndicesPrivileges[] {
                                 IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
                                 IndicesPrivileges.builder()

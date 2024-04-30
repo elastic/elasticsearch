@@ -90,7 +90,7 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidClusterAlias);
-        assertEquals("remote_cluster clusters aliases must not valid non-empty, non-null values", e.getMessage());
+        assertEquals("remote_cluster clusters aliases must contain valid non-empty, non-null values", e.getMessage());
 
         final ThrowingRunnable invalidPermission = randomFrom(
             () -> new RemoteClusterPermissionGroup(new String[] { null }, new String[] { "bar" }),
@@ -100,7 +100,7 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
         );
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, invalidPermission);
-        assertEquals("remote_cluster privileges must not valid non-empty, non-null values", e2.getMessage());
+        assertEquals("remote_cluster privileges must contain valid non-empty, non-null values", e2.getMessage());
     }
 
     @Override

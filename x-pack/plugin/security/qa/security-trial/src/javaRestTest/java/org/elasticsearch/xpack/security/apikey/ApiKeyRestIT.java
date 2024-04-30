@@ -2174,7 +2174,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 RoleDescriptor.RemoteIndicesPrivileges.builder(remoteIndicesClusterAliases).indices("*").privileges("read").build() },
             new RemoteClusterPermissions().addGroup(
                 new RemoteClusterPermissionGroup(
-                    RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                     remoteIndicesClusterAliases
                 )
             ),

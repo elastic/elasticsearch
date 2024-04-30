@@ -183,7 +183,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                 final RemoteClusterPermissions remoteCluster = new RemoteClusterPermissions();
                 remoteCluster.addGroup(
                     new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         generateRandomStringArray(3, 5, false, false)
                     )
                 );
@@ -243,7 +243,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         if (allowRemoteClusters) {
             remoteCluster.addGroup(
                 new RemoteClusterPermissionGroup(
-                    RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                     generateRandomStringArray(3, 5, false, false)
                 )
             );

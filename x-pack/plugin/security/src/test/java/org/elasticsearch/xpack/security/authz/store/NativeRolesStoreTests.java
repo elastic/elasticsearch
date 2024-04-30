@@ -406,7 +406,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() };
             RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions().addGroup(
                 new RemoteClusterPermissionGroup(
-                    RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                     new String[] { "remote" }
                 )
             );

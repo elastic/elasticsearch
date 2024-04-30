@@ -54,10 +54,10 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
             throw new IllegalArgumentException("remote cluster groups must not be null or empty");
         }
         if (Arrays.stream(clusterPrivileges).anyMatch(s -> Strings.hasText(s) == false)) {
-            throw new IllegalArgumentException("remote_cluster privileges must not valid non-empty, non-null values");
+            throw new IllegalArgumentException("remote_cluster privileges must contain valid non-empty, non-null values");
         }
         if (Arrays.stream(remoteClusterAliases).anyMatch(s -> Strings.hasText(s) == false)) {
-            throw new IllegalArgumentException("remote_cluster clusters aliases must not valid non-empty, non-null values");
+            throw new IllegalArgumentException("remote_cluster clusters aliases must contain valid non-empty, non-null values");
         }
 
         this.clusterPrivileges = clusterPrivileges;

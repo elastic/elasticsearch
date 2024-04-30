@@ -183,14 +183,14 @@ public class SimpleRoleTests extends ESTestCase {
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
                     new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new String[] { "remote-cluster-a" }
                     )
                 )
                     // this group should be ignored (wrong alias)
                     .addGroup(
                         new RemoteClusterPermissionGroup(
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                             new String[] { randomAlphaOfLength(3) }
                         )
                     )
@@ -209,7 +209,7 @@ public class SimpleRoleTests extends ESTestCase {
                 new RoleDescriptorsIntersection(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(IndexPrivilege.READ.name())

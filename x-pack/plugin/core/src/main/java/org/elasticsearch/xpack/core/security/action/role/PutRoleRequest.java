@@ -87,7 +87,7 @@ public class PutRoleRequest extends ActionRequest {
         return restrictRequest;
     }
 
-    public void addRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {
+    public void putRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {
         this.remoteClusterPermissions = remoteClusterPermissions;
     }
 

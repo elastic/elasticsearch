@@ -280,7 +280,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             || hasRemoteClusterPermissions()
             || hasWorkflowsRestriction()
             || (hasClusterPrivileges()
-                && RemoteClusterPermissions.getSupportRemoteClusterPermissions().containsAll(Arrays.asList(clusterPrivileges)) == false);
+                && RemoteClusterPermissions.getSupportedRemoteClusterPermissions().containsAll(Arrays.asList(clusterPrivileges)) == false);
     }
 
     public String[] getRunAs() {
@@ -766,11 +766,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
                     if (privileges.length != 1
-                        || RemoteClusterPermissions.getSupportRemoteClusterPermissions()
+                        || RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
                             .contains(privileges[0].trim().toLowerCase(Locale.ROOT)) == false) {
                         throw new ElasticsearchParseException(
                             "failed to parse remote_cluster for role [{}]. "
-                                + RemoteClusterPermissions.getSupportRemoteClusterPermissions()
+                                + RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
                                 + " is the only value allowed for [{}] within [remote_cluster]",
                             roleName,
                             currentFieldName

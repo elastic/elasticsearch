@@ -152,13 +152,13 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         if (hasRemoteClusterPermissions) {
             remoteClusterPermissions.addGroup(
                 new RemoteClusterPermissionGroup(
-                    RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                     new String[] { "remote-1" }
                 )
             )
                 .addGroup(
                     new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                         new String[] { "remote-2", "remote-3" }
                     )
                 );

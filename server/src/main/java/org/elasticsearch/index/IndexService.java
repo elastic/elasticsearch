@@ -621,8 +621,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (indexShard != null) {
                     // only flush if we are closed (closed index or shutdown) and if we are not deleted
                     final boolean flushEngine = deleted.get() == false && closed.get();
-                    // if the store is still open, want to keep it open while closing the shard
-                    final var hasStoreRef = store != null && store.tryIncRef();
+                    // if the store is still open, want to keep it open until afterIndexShardClosed
+                    assert store == null || store.hasReferences() : "store exists but already closed";
+                    final var hasStoreRef = store != null && store.tryIncRef(); // being cautious
                     ActionListener.run(new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {

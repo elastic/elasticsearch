@@ -27,6 +27,7 @@ public class CloseUtils {
      * any exception that might be passed to its listener.
      */
     public static void executeDirectly(CheckedConsumer<ActionListener<Void>, IOException> action) throws IOException {
+        // it's possible to do this with a PlainActionFuture too but extracting the exact Exception is a bit of a pain
         final var closeExceptionRef = new AtomicReference<Exception>();
         ActionListener.run(ActionListener.assertOnce(new ActionListener<>() {
             @Override

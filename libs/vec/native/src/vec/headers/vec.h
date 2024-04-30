@@ -6,7 +6,15 @@
  * Side Public License, v 1.
  */
 
+#ifdef _MSC_VER
+#define EXPORT extern "C" __declspec(dllexport)
+#elif defined(__GNUC__) && !defined(__clang__)
 #define EXPORT __attribute__((externally_visible,visibility("default")))
+#elif __clang__
+#define EXPORT __attribute__((visibility("default")))
+#endif
+
+EXPORT int vec_caps();
 
 EXPORT int dot8s_stride();
 

@@ -195,7 +195,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
      * Implementation-wise this rule goes bottom-up, keeping an alias up to date to the current plan
      * and then looks for replacing the target.
      */
-    public static class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
+    static class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {

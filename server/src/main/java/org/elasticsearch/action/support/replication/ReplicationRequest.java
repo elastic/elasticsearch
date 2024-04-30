@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -35,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest implements IndicesRequest {
 
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     /**
      * Target shard the request should execute on. In case of index and delete requests,

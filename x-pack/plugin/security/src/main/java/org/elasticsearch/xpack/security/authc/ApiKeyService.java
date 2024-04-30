@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
@@ -438,7 +437,6 @@ public class ApiKeyService {
         final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length();
-        final Version version = clusterService.state().nodes().getMinNodeVersion();
 
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
             try (
@@ -451,7 +449,7 @@ public class ApiKeyService {
                     expiration,
                     request.getRoleDescriptors(),
                     request.getType(),
-                    version,
+                    ApiKey.CURRENT_API_KEY_VERSION,
                     request.getMetadata()
                 )
             ) {
@@ -737,7 +735,7 @@ public class ApiKeyService {
         Instant expiration,
         List<RoleDescriptor> keyRoleDescriptors,
         ApiKey.Type type,
-        Version version,
+        ApiKey.Version version,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -752,7 +750,7 @@ public class ApiKeyService {
         addRoleDescriptors(builder, keyRoleDescriptors);
         addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
-        builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
+        builder.field("name", name).field("version", version.version()).field("metadata_flattened", metadata);
         addCreator(builder, authentication);
 
         return builder.endObject();
@@ -767,7 +765,7 @@ public class ApiKeyService {
     static XContentBuilder maybeBuildUpdatedDocument(
         final String apiKeyId,
         final ApiKeyDoc currentApiKeyDoc,
-        final Version targetDocVersion,
+        final ApiKey.Version targetDocVersion,
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors,
@@ -804,7 +802,7 @@ public class ApiKeyService {
 
         addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
-        builder.field("name", currentApiKeyDoc.name).field("version", targetDocVersion.id);
+        builder.field("name", currentApiKeyDoc.name).field("version", targetDocVersion.version());
 
         assert currentApiKeyDoc.metadataFlattened == null
             || MetadataUtils.containsReservedMetadata(
@@ -832,12 +830,12 @@ public class ApiKeyService {
     private static boolean isNoop(
         final String apiKeyId,
         final ApiKeyDoc apiKeyDoc,
-        final Version targetDocVersion,
+        final ApiKey.Version targetDocVersion,
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
-        if (apiKeyDoc.version != targetDocVersion.id) {
+        if (apiKeyDoc.version != targetDocVersion.version()) {
             return false;
         }
 
@@ -1493,8 +1491,8 @@ public class ApiKeyService {
                 currentVersionedDoc.primaryTerm()
             );
         }
-        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
-        final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
+        final var targetDocVersion = ApiKey.CURRENT_API_KEY_VERSION;
+        final var currentDocVersion = new ApiKey.Version(currentVersionedDoc.doc().version);
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (logger.isDebugEnabled() && currentDocVersion.before(targetDocVersion)) {
             logger.debug(

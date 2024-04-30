@@ -71,6 +71,7 @@ import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
@@ -190,8 +191,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         }
 
         @Override
-        protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm) {
-            return new ShardCommitState(shardId, primaryTerm) {
+        protected ShardCommitState createShardCommitState(
+            ShardId shardId,
+            long primaryTerm,
+            BooleanSupplier inititalizingNoSearchSupplier
+        ) {
+            return new ShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier) {
                 @Override
                 protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
                     if (super.shouldUploadVirtualBcc(virtualBcc)) {

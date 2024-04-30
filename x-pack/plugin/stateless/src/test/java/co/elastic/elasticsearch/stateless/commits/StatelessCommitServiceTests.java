@@ -165,7 +165,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testCloseIdempotentlyChangesStateAndCompletesListeners() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), false)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
 
@@ -206,7 +206,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testCommitUpload() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), randomBoolean())) {
+
+            randomlyUseInitializingEmpty(testHarness);
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(randomIntBetween(3, 8));
             List<String> commitFiles = commitRefs.stream()
@@ -215,6 +217,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .toList();
             List<String> compoundCommitFiles = commitRefs.stream().map(ref -> blobNameFromGeneration(ref.getGeneration())).toList();
 
+            Set<PrimaryTermAndGeneration> consumerCalls = Collections.newSetFromMap(new ConcurrentHashMap<>());
+            testHarness.commitService.addConsumerForNewUploadedBcc(
+                testHarness.shardId,
+                uploadedBccInfo -> consumerCalls.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
+            );
             for (StatelessCommitRef commitRef : commitRefs) {
                 testHarness.commitService.onCommitCreation(commitRef);
             }
@@ -244,6 +251,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 uploadedFiles,
                 hasItems(compoundCommitFiles.toArray(String[]::new))
             );
+
+            Set<PrimaryTermAndGeneration> expectedConsumerCalls = commitRefs.stream()
+                .map(c -> new PrimaryTermAndGeneration(primaryTerm, c.getGeneration()))
+                .collect(Collectors.toSet());
+
+            assertThat(consumerCalls, equalTo(expectedConsumerCalls));
         }
     }
 
@@ -265,7 +278,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 }
             }
 
-        }, fileCapture(uploadedBlobs))) {
+        }, fileCapture(uploadedBlobs), randomBoolean())) {
+
+            randomlyUseInitializingEmpty(testHarness);
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(randomIntBetween(2, 4));
             List<String> commitFiles = commitRefs.stream()
@@ -321,7 +336,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 assertTrue(uploadedBlobs.contains(firstCommitFile.get()));
             }
             compoundCommitFileCapture.accept(compoundCommitFile, runnable);
-        })) {
+        }, false)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -391,7 +406,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             safeAwait(blockUploads);
             runnable.run();
             uploadedBlobs.add(file);
-        })) {
+        }, false)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -482,7 +497,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
             }
             compoundCommitFileCapture.accept(compoundCommitFile, runnable);
-        })) {
+        }, false)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -549,7 +564,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testMapIsPrunedOnIndexDelete() throws Exception {
-        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run())) {
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), false)) {
             List<StatelessCommitRef> refs = testHarness.generateIndexCommits(2, true);
             StatelessCommitRef firstCommit = refs.get(0);
             StatelessCommitRef secondCommit = refs.get(1);
@@ -616,7 +631,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testRecoveredCommitIsNotUploadedAgain() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), false)) {
 
             StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
 
@@ -659,7 +674,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
             testHarness.commitService.markRecoveredBcc(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
 
             testHarness.commitService.onCommitCreation(commitRef);
@@ -672,7 +687,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testWaitForGenerationFailsForClosedShard() throws IOException {
-        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run())) {
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), false)) {
             ShardId unregisteredShardId = new ShardId("index", "uuid", 0);
             expectThrows(
                 AlreadyClosedException.class,
@@ -1200,7 +1215,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
             testHarness.commitService.markRecoveredBcc(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
@@ -1316,7 +1331,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 primaryTerm
             );
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
             testHarness.commitService.markRecoveredBcc(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
 
             StatelessCommitRef recoveryCommit = mergedCommit;
@@ -1862,8 +1877,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     createAllNodesResolveBCCReferencesLocallySupplier()
                 ) {
                     @Override
-                    protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm) {
-                        return new ShardCommitState(shardId, primaryTerm) {
+                    protected ShardCommitState createShardCommitState(
+                        ShardId shardId,
+                        long primaryTerm,
+                        BooleanSupplier inititalizingNoSearchSupplier
+                    ) {
+                        return new ShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier) {
                             @Override
                             protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
                                 return false; // NO regular upload
@@ -2415,7 +2434,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     private FakeStatelessNode createNode(
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> commitFileConsumer,
-        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileConsumer
+        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileConsumer,
+        boolean delayed
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
@@ -2474,6 +2494,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
                 return new WrappedBlobContainer(innerContainer);
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                Settings settings = super.nodeSettings();
+                if (delayed) {
+                    return Settings.builder().put(STATELESS_UPLOAD_DELAYED.getKey(), true).put(super.nodeSettings()).build();
+                }
+                return settings;
+            }
         };
     }
 
@@ -2523,5 +2552,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
         PrimaryTermAndGeneration commit
     ) {
         return commitService.getCommitBCCResolverForShard(shardId).resolveReferencedBCCsForCommit(commit.generation());
+    }
+
+    private void randomlyUseInitializingEmpty(FakeStatelessNode testHarness) {
+        if (randomBoolean()) {
+            testHarness.commitService.closeShard(testHarness.shardId);
+            testHarness.commitService.unregister(testHarness.shardId);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> true);
+        }
     }
 }

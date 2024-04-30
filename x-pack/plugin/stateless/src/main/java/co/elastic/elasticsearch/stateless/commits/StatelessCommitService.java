@@ -62,7 +62,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
@@ -419,17 +418,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             success = true;
 
-            if (statelessUploadDelayed && isEmptyCommit(reference) == false) {
-                final var request = new NewCommitNotificationRequest(
-                    shardRoutingFinder.apply(shardId),
-                    virtualBcc.lastCompoundCommit(),
-                    virtualBcc.getPrimaryTermAndGeneration().generation(),
-                    commitState.getMaxUploadedBccTermAndGen()
-                );
-                // Another thread may freeze, upload the current VBCC and update latestUploadedBcc concurrently.
-                // In that case, we skip the notification since it will be handled by the other thread.
-                if (request.isUploaded() == false) {
-                    commitState.sendNewCommitNotification(request);
+            if (statelessUploadDelayed) {
+                if (commitState.isInitializingNoSearch()) {
+                    // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
+                    // however, except for peer recovery, we can safely assume no search shards.
+                    commitState.notifyCommitSuccessListeners(generation);
+                } else {
+                    final var request = new NewCommitNotificationRequest(
+                        shardRoutingFinder.apply(shardId),
+                        virtualBcc.lastCompoundCommit(),
+                        virtualBcc.getPrimaryTermAndGeneration().generation(),
+                        commitState.getMaxUploadedBccTermAndGen()
+                    );
+                    // Another thread may freeze, upload the current VBCC and update latestUploadedBcc concurrently.
+                    // In that case, we skip the notification since it will be handled by the other thread.
+                    if (request.isUploaded() == false) {
+                        commitState.sendNewCommitNotification(request);
+                    }
                 }
             }
 
@@ -448,26 +453,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(reference);
             }
         }
-    }
-
-    /**
-     * Detect if this is the initial empty commit, which will always be uploaded subsequently.
-     * TODO: remove this once we can wait for cluster state version to appear instead.
-     */
-    private static boolean isEmptyCommit(StatelessCommitRef reference) {
-        SequenceNumbers.CommitInfo commitInfo = null;
-        try {
-            commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(reference.getIndexCommit().getUserData().entrySet());
-        } catch (IOException e) {
-            assert false : e;
-            return false;
-        }
-        if (commitInfo.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
-            assert reference.getCommitFiles().size() == 1 : "expect only _segments_N file " + reference.getCommitFiles();
-            return true;
-        }
-
-        return false;
     }
 
     private void createAndRunCommitUpload(
@@ -696,13 +681,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    public void register(ShardId shardId, long primaryTerm) {
-        ShardCommitState existing = shardsCommitsStates.put(shardId, createShardCommitState(shardId, primaryTerm));
+    public void register(ShardId shardId, long primaryTerm, BooleanSupplier inititalizingNoSearchSupplier) {
+        ShardCommitState existing = shardsCommitsStates.put(
+            shardId,
+            createShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier)
+        );
         assert existing == null : shardId + " already registered";
     }
 
-    protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm) {
-        return new ShardCommitState(shardId, primaryTerm);
+    protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm, BooleanSupplier inititalizingNoSearchSupplier) {
+        return new ShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier);
     }
 
     public void closeShard(ShardId shardId) {
@@ -818,6 +806,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private final ShardId shardId;
         private final long allocationPrimaryTerm;
+        private final BooleanSupplier inititalizingNoSearchSupplier;
 
         // The following three fields represent the state of a batched compound commit can have in its lifecycle.
         // 1. currentVirtualBcc - A BCC starts its lifecycle from here. It is used to append new CCs. The field itself begins from null,
@@ -864,13 +853,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final Map<PrimaryTermAndGeneration, CommitReferencesInfo> commitReferencesInfos = new ConcurrentHashMap<>();
 
         // Visible for testing
-        ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
+        ShardCommitState(ShardId shardId, long allocationPrimaryTerm, BooleanSupplier inititalizingNoSearchSupplier) {
             this.shardId = shardId;
             this.allocationPrimaryTerm = allocationPrimaryTerm;
+            this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
         }
 
         private boolean isClosed() {
             return state == State.CLOSED;
+        }
+
+        /**
+         * Check if the shard is still in an initializing state according to the last applied state on the shard that cannot have search
+         * shards
+         */
+        private boolean isInitializingNoSearch() {
+            return inititalizingNoSearchSupplier.getAsBoolean();
         }
 
         private void markBccRecovered(BatchedCompoundCommit recoveredBcc, Set<BlobFile> nonRecoveredBlobs) {
@@ -1505,10 +1503,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                 // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload notification
-                var consumer = commitNotificationSuccessListeners.get(shardId);
-                if (consumer != null) {
-                    consumer.accept(request.getCompoundCommit().generation());
-                }
+                notifyCommitSuccessListeners(request.getCompoundCommit().generation());
             },
                 e -> logNotificationException(
                     request.getCompoundCommit().generation(),
@@ -1519,11 +1514,38 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ));
         }
 
+        private void notifyCommitSuccessListeners(long compoundCommitGeneration) {
+            var consumer = commitNotificationSuccessListeners.get(shardId);
+            if (consumer != null) {
+                consumer.accept(compoundCommitGeneration);
+            }
+        }
+
         /**
          * Broadcasts notification of a new uploaded BCC to all the search nodes hosting a replica shard for the given shard commit.
          */
         private void sendNewUploadedCommitNotification(BlobReference blobReference, BatchedCompoundCommit uploadedBcc) {
             assert uploadedBcc != null;
+
+            var notificationCommitGeneration = uploadedBcc.last().generation();
+            var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
+            if (isInitializingNoSearch()) {
+                // assume no search shards to avoid problems when ClusterService.state is not available yet.
+
+                // is noop, but do this for completeness anyway.
+                trackOutstandingUnpromotableShardCommitRef(Set.of(), blobReference);
+                lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+
+                onNewUploadedCommitNotificationResponse(
+                    Set.of(),
+                    uploadedBcc.primaryTermAndGeneration().generation(),
+                    notificationCommitGeneration,
+                    notificationCommitBCCDependencies,
+                    Set.of()
+                );
+
+                return;
+            }
 
             var shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
             Set<String> nodesWithAssignedSearchShards = shardRoutingTable.unpromotableShards()
@@ -1541,8 +1563,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 uploadedBcc.primaryTermAndGeneration()
             );
             assert request.isUploaded();
-            var notificationCommitGeneration = uploadedBcc.last().generation();
-            var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewUploadedCommitNotificationResponse(
                     nodesWithAssignedSearchShards,
@@ -1551,12 +1571,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     notificationCommitBCCDependencies,
                     response.getPrimaryTermAndGenerationsInUse()
                 );
-                if (statelessUploadDelayed == false) {
-                    var consumer = commitNotificationSuccessListeners.get(shardId);
-                    if (consumer != null) {
-                        consumer.accept(notificationCommitGeneration);
-                    }
-                }
             },
                 e -> logNotificationException(
                     notificationCommitGeneration,
@@ -1837,6 +1851,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // starts responding.
                     blobReference.removeSearchNodes(searchNodes, bccNotificationGeneration, notificationCommitBCCDependencies);
                 }
+            }
+
+            if (statelessUploadDelayed == false) {
+                notifyCommitSuccessListeners(commitNotificationGeneration);
             }
         }
 

@@ -230,7 +230,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void close() {
-            // no-op
+            // no-op: the HyperLogLogPlusPlus object is closed as part of the aggregator itself.
         }
     }
 

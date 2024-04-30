@@ -25,7 +25,7 @@ def compute_Q(var_t: float, var_a: float) -> np.ndarray:
     return np.array([[var_t, 0.0], [0.0, var_a]])
 
 
-def compute_F(a: float) -> np.ndarray:
+def compute_F(da: float) -> np.ndarray:
     # Assume that the average inference duration dynmaics are:
     #
     #  x_k = x_{k-1} + c * a_{k-1}
@@ -33,7 +33,7 @@ def compute_F(a: float) -> np.ndarray:
     # Here, c is the constant of proportionality between the allocation count and the
     # inference time. It is used to account for the ratio physical and virtual cores
     # the node is using for inference.
-    return np.array([[1.0, a], [0.0, 1.0]])
+    return np.array([[1.0, da], [0.0, 1.0]])
 
 
 def compute_x_k_km1(F: np.ndarray, x_km1_km1: np.ndarray) -> np.ndarray:
@@ -65,39 +65,32 @@ def compute_P_k_k(K_k: np.ndarray, P_k_km1: np.ndarray) -> np.ndarray:
 class DurationEstimator:
     def __init__(
         self,
-        var_t: float = 1e-10,
-        var_a: float = 1e-12,
-        adjust_interval: float = 100.0,
+        var_t: float = 1e-6,
+        var_a: float = 1e-6,
     ):
         self.noise_var_t = var_t
         self.noise_var_a = var_a
         self.x_k = x_0
         self.P_k = P_0
-        self.values_since_last_change = 0
-        self.last_allocations = 0
-        self.adjust_interval = adjust_interval
+        self.last_allocations = 1.0
 
     def add(self, duration: float, allocations: float) -> None:
-        scale = 1 + (1e4 - 1) * math.exp(
-            -self.values_since_last_change / self.adjust_interval
-        )
+        F_k = compute_F(allocations - self.last_allocations)
         if allocations != self.last_allocations:
             self.last_allocations = allocations
-            self.values_since_last_change = 0
-        else:
-            self.values_since_last_change += 1
-        F_k = compute_F(allocations)
         x_k_km1 = compute_x_k_km1(F_k, self.x_k)
         P_k_km1 = compute_P_k_km1(
-            F_k, self.P_k, compute_Q(self.noise_var_t, scale * self.noise_var_a)
+            F_k, self.P_k, compute_Q(self.noise_var_t, self.noise_var_a)
         )
         K_k = compute_K_k(P_k_km1)
         self.x_k = compute_x_k_k(x_k_km1, K_k, duration)
         self.P_k = compute_P_k_k(K_k, P_k_km1)
 
     def estimate(self, allocations: int | None = None) -> float:
-        return self.x_k[0] + self.x_k[1] * (
-            allocations if allocations is not None else self.last_allocations
+        # We purposely only extrapolate when we scale up so we don't over estimate the
+        # throughput when scaling down (from vurtual core region) and oscillate.
+        return self.x_k[0] + self.x_k[1] * max(
+            allocations - self.last_allocations if allocations is not None else 0.0, 0.0
         )
 
 
@@ -133,6 +126,8 @@ ALLOCATION_SCHEDULE = np.concatenate(
         4 * np.ones(5000),
         7 * np.ones(2000),
         8 * np.ones(3000),
+        6 * np.ones(4000),
+        5 * np.ones(7000),
         3 * np.ones(7000),
         2 * np.ones(2000),
         5 * np.ones(3000),
@@ -143,7 +138,7 @@ ALLOCATION_SCHEDULE = np.concatenate(
 
 
 def estimate_average_inference_duration(
-    var_t: float = 1e-10, var_a: float = 1e-12, adjust_interval: float = 100.0
+    var_t: float = 1e-6, var_a: float = 1e-6
 ) -> tuple[list[float], list[float], list[float]]:
     """
     return: ("inference duration", "true average inference duration", "estimated average inference duration")
@@ -151,7 +146,7 @@ def estimate_average_inference_duration(
     rr = []
     zz = []
     zze = []
-    estimator = DurationEstimator(var_t, var_a, adjust_interval)
+    estimator = DurationEstimator(var_t, var_a)
     for a in ALLOCATION_SCHEDULE:
         z = get_inference_time(a)
         estimator.add(z, a)

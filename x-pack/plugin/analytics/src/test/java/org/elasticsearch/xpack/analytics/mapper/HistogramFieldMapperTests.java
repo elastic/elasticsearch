@@ -87,7 +87,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             e.getCause().getMessage(),
-            containsString("doesn't not support indexing multiple values for the same field in the same document")
+            containsString("doesn't support indexing multiple values for the same field in the same document")
         );
     }
 

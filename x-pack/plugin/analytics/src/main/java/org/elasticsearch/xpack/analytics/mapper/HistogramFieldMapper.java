@@ -410,7 +410,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         + name()
                         + "] of type ["
                         + typeName()
-                        + "] doesn't not support indexing multiple values for the same field in the same document"
+                        + "] doesn't support indexing multiple values for the same field in the same document"
                 );
             }
             context.doc().addWithKey(fieldType().name(), field);

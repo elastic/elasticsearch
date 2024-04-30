@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -198,11 +199,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     private void processNodeShutdowns(ClusterState clusterState) {
-        final var nodeShutdowns = clusterState.metadata().nodeShutdowns().getAllNodeIds();
-        if (nodeShutdowns.equals(processedNodeShutdowns) == false) {
+        final var nodes = clusterState.nodes();
+        final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
+        // If we remove a shutdown marker from a node, but it is still in the cluster, we'd need a reset.
+        boolean reset = processedNodeShutdowns.stream()
+            .anyMatch(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
+        // Clean up processed shutdowns that are removed from the cluster metadata
+        processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
+
+        for (var shutdown : nodeShutdowns.getAll().entrySet()) {
+            if (shutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+                reset |= processedNodeShutdowns.add(shutdown.getKey());
+            }
+        }
+        if (reset) {
             resetDesiredBalance();
-            processedNodeShutdowns.clear();
-            processedNodeShutdowns.addAll(nodeShutdowns);
         }
     }
 

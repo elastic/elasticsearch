@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.health.Diagnosis;
@@ -74,6 +76,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -191,80 +194,107 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * for a system data stream is respected instead.
          */
         Iterable<DataStreamLifecycleService> dataStreamLifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
-        AtomicLong now = new AtomicLong(System.currentTimeMillis());
+        Clock clock = Clock.systemUTC();
+        AtomicLong now = new AtomicLong(clock.millis());
         dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(now::get));
+        try {
+            // Putting in place a global retention that we expect will be ignored by the system data stream:
+            final int globalRetentionSeconds = 10;
+            client().execute(
+                PutDataStreamGlobalRetentionAction.INSTANCE,
+                new PutDataStreamGlobalRetentionAction.Request(
+                    TimeValue.timeValueSeconds(globalRetentionSeconds),
+                    TimeValue.timeValueSeconds(globalRetentionSeconds)
+                )
+            ).actionGet();
+            try {
 
-        // Putting in place a global retention that we expect will be ignored by the system data stream:
-        final int globalRetentionSeconds = 10;
-        PutDataStreamGlobalRetentionAction.Request putGlobalRetentionRequest = new PutDataStreamGlobalRetentionAction.Request(
-            TimeValue.timeValueSeconds(globalRetentionSeconds),
-            TimeValue.timeValueSeconds(globalRetentionSeconds)
-        );
-        client().execute(PutDataStreamGlobalRetentionAction.INSTANCE, putGlobalRetentionRequest);
-
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME);
-        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-        indexDocs(SYSTEM_DATA_STREAM_NAME, 1);
-        /*
-         * First we advance the time to well beyond the global retention (10s) but well under the configured retention (100d). We expect
-         * to see that rollover has occurred but that the old index has not been deleted since the global retention is ignored.
-         */
-        now.addAndGet(TimeValue.timeValueSeconds(3 * globalRetentionSeconds).millis());
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(SYSTEM_DATA_STREAM_NAME));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(2)); // global retention is ignored
-            // we expect the data stream to have two backing indices since the effective retention is 100 days
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
-        });
-
-        // Now we advance the time to well beyond the configured retention. We expect that the older index will have been deleted.
-        now.addAndGet(TimeValue.timeValueDays(3 * TestPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS).millis());
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(SYSTEM_DATA_STREAM_NAME));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(1)); // global retention is ignored
-            // we expect the data stream to have only one backing index, the write one, with generation 2
-            // as generation 1 would've been deleted by the data stream lifecycle given the configuration
-            String writeIndex = backingIndices.get(0).getName();
-            assertThat(writeIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
-            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                builder.humanReadable(true);
-                ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
-                getDataStreamResponse.getDataStreams()
-                    .get(0)
-                    .toXContent(
-                        builder,
-                        withEffectiveRetention,
-                        getDataStreamResponse.getRolloverConfiguration(),
-                        getDataStreamResponse.getGlobalRetention()
+                CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME);
+                client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
+                indexDocs(SYSTEM_DATA_STREAM_NAME, 1);
+                /*
+                 * First we advance the time to well beyond the global retention (10s) but well under the configured retention (100d).
+                 * We expect to see that rollover has occurred but that the old index has not been deleted since the global retention is
+                 * ignored.
+                 */
+                now.addAndGet(TimeValue.timeValueSeconds(3 * globalRetentionSeconds).millis());
+                assertBusy(() -> {
+                    GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                        new String[] { SYSTEM_DATA_STREAM_NAME }
                     );
-                String serialized = Strings.toString(builder);
-                Map<String, Object> resultMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());
-                assertNotNull(resultMap);
-                Map<String, Object> lifecycleMap = (Map<String, Object>) resultMap.get("lifecycle");
-                assertNotNull(lifecycleMap);
-                assertThat(
-                    lifecycleMap.get("data_retention"),
-                    equalTo(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS).getStringRep())
-                );
-                assertThat(
-                    lifecycleMap.get("effective_retention"),
-                    equalTo(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS).getStringRep())
-                );
-                assertThat(lifecycleMap.get("retention_determined_by"), equalTo("data_stream_configuration"));
-                assertThat(lifecycleMap.get("enabled"), equalTo(true));
+                    GetDataStreamAction.Response getDataStreamResponse = client().execute(
+                        GetDataStreamAction.INSTANCE,
+                        getDataStreamRequest
+                    ).actionGet();
+                    assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                    assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(SYSTEM_DATA_STREAM_NAME));
+                    List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+                    assertThat(backingIndices.size(), equalTo(2)); // global retention is ignored
+                    // we expect the data stream to have two backing indices since the effective retention is 100 days
+                    String writeIndex = backingIndices.get(1).getName();
+                    assertThat(writeIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
+                });
+
+                // Now we advance the time to well beyond the configured retention. We expect that the older index will have been deleted.
+                now.addAndGet(TimeValue.timeValueDays(3 * TestPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS).millis());
+                assertBusy(() -> {
+                    GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                        new String[] { SYSTEM_DATA_STREAM_NAME }
+                    );
+                    GetDataStreamAction.Response getDataStreamResponse = client().execute(
+                        GetDataStreamAction.INSTANCE,
+                        getDataStreamRequest
+                    ).actionGet();
+                    assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                    assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(SYSTEM_DATA_STREAM_NAME));
+                    List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+                    assertThat(backingIndices.size(), equalTo(1)); // global retention is ignored
+                    // we expect the data stream to have only one backing index, the write one, with generation 2
+                    // as generation 1 would've been deleted by the data stream lifecycle given the configuration
+                    String writeIndex = backingIndices.get(0).getName();
+                    assertThat(writeIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
+                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                        builder.humanReadable(true);
+                        ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(
+                            DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS
+                        );
+                        getDataStreamResponse.getDataStreams()
+                            .get(0)
+                            .toXContent(
+                                builder,
+                                withEffectiveRetention,
+                                getDataStreamResponse.getRolloverConfiguration(),
+                                getDataStreamResponse.getGlobalRetention()
+                            );
+                        String serialized = Strings.toString(builder);
+                        Map<String, Object> resultMap = XContentHelper.convertToMap(
+                            XContentType.JSON.xContent(),
+                            serialized,
+                            randomBoolean()
+                        );
+                        assertNotNull(resultMap);
+                        Map<String, Object> lifecycleMap = (Map<String, Object>) resultMap.get("lifecycle");
+                        assertNotNull(lifecycleMap);
+                        assertThat(
+                            lifecycleMap.get("data_retention"),
+                            equalTo(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS).getStringRep())
+                        );
+                        assertThat(
+                            lifecycleMap.get("effective_retention"),
+                            equalTo(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS).getStringRep())
+                        );
+                        assertThat(lifecycleMap.get("retention_determined_by"), equalTo("data_stream_configuration"));
+                        assertThat(lifecycleMap.get("enabled"), equalTo(true));
+                    }
+                });
+
+                client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME)).actionGet();
+            } finally {
+                client().execute(DeleteDataStreamGlobalRetentionAction.INSTANCE, new DeleteDataStreamGlobalRetentionAction.Request());
             }
-        });
+        } finally {
+            dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(clock::millis));
+        }
     }
 
     public void testOriginationDate() throws Exception {

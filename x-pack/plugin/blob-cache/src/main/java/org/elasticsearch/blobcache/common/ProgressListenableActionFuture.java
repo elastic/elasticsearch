@@ -78,6 +78,9 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert false : end + " < " + progressValue;
             throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
         }
+        if (progressValue == end) {
+            return; // reached the end of the range, listeners will be completed by {@link #onResponse(Long)}
+        }
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {

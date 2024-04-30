@@ -406,7 +406,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return getRegion(position - (position % regionSize == 0 ? 1 : 0));
     }
 
-    private ByteRange mapSubRangeToRegion(ByteRange range, int region) {
+    protected ByteRange mapSubRangeToRegion(ByteRange range, int region) {
         final long regionStart = getRegionStart(region);
         final long regionEnd = getRegionEnd(region);
         if (range.start() >= regionEnd || range.end() <= regionStart) {
@@ -579,7 +579,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      *
      * @param cacheKey      the key to fetch data for
      * @param region        the region of the blob
-     * @param range         the range in the region to fetch
+     * @param range         the range of the blob to fetch
      * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
      * @param writer        a writer that handles writing of newly downloaded data to the shared cache
      * @param fetchExecutor an executor to use for reading from the blob store

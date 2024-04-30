@@ -28,7 +28,7 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
 
     public void testCreateOrUpdateRoleWithDescription() throws Exception {
         final String roleName = "role_with_description";
-        final String initialRoleDescription = randomAlphaOfLengthBetween(5, 20);
+        final String initialRoleDescription = randomAlphaOfLengthBetween(0, 10);
         {
             Request createRoleRequest = new Request(HttpPut.METHOD_NAME, "/_security/role/" + roleName);
             createRoleRequest.setJsonEntity(Strings.format("""
@@ -58,7 +58,7 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
             );
         }
         {
-            final String newRoleDescription = randomValueOtherThan(initialRoleDescription, () -> randomAlphaOfLengthBetween(5, 20));
+            final String newRoleDescription = randomValueOtherThan(initialRoleDescription, () -> randomAlphaOfLengthBetween(0, 10));
             Request updateRoleRequest = new Request(HttpPost.METHOD_NAME, "/_security/role/" + roleName);
             updateRoleRequest.setJsonEntity(Strings.format("""
                 {
@@ -96,11 +96,14 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
               "description": "%s",
               "cluster": ["all"],
               "indices": [{"names": ["*"], "privileges": ["all"]}]
-            }""", randomAlphaOfLength(Validation.Roles.MAX_DESCRIPTION_LENGTH + randomInt(10))));
+            }""", randomAlphaOfLength(Validation.Roles.MAX_DESCRIPTION_LENGTH + randomIntBetween(1, 5))));
 
         ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(createRoleRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("Role description must be less than 2048 characters."));
+        assertThat(
+            e.getMessage(),
+            containsString("Role description must be less than " + Validation.Roles.MAX_DESCRIPTION_LENGTH + " characters.")
+        );
     }
 
     public void testUpdateRoleWithInvalidDescriptionFails() throws IOException {
@@ -119,11 +122,14 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
               "description": "%s",
               "cluster": ["all"],
               "indices": [{"names": ["index-*"], "privileges": ["all"]}]
-            }""", randomAlphaOfLength(Validation.Roles.MAX_DESCRIPTION_LENGTH + randomInt(10))));
+            }""", randomAlphaOfLength(Validation.Roles.MAX_DESCRIPTION_LENGTH + randomIntBetween(1, 5))));
 
         ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateRoleRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("Role description must be less than 2048 characters."));
+        assertThat(
+            e.getMessage(),
+            containsString("Role description must be less than " + Validation.Roles.MAX_DESCRIPTION_LENGTH + " characters.")
+        );
     }
 
     private void fetchRoleAndAssertEqualsExpected(final String roleName, final RoleDescriptor expectedRoleDescriptor) throws IOException {

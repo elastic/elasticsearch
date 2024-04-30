@@ -150,7 +150,14 @@ public class BootstrapForTesting {
                 Permissions fastPathPermissions = new Permissions();
                 addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
 
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, fastPathPermissions);
+                final Policy esPolicy = new ESPolicy(
+                    codebases,
+                    perms,
+                    getPluginPermissions(),
+                    true,
+                    fastPathPermissions,
+                    Collections.emptyList()
+                );
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {

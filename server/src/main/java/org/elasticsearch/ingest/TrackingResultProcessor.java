@@ -83,20 +83,19 @@ public final class TrackingResultProcessor implements Processor {
                         pipelineProcessor.getType(),
                         pipelineProcessor.getTag(),
                         pipelineProcessor.getDescription(),
-                        pipelineProcessor.isIgnoreMissingPipeline()  ? ingestDocument : null,
+                        pipelineProcessor.isIgnoreMissingPipeline() ? ingestDocument : null,
                         e,
                         conditionalWithResult
                     )
                 );
 
-                 if (pipelineProcessor.isIgnoreMissingPipeline()) {
-                     handler.accept(ingestDocument, null);
-                     return;
-                 } else {
-                     throw e;
-                 }
+                if (pipelineProcessor.isIgnoreMissingPipeline()) {
+                    handler.accept(ingestDocument, null);
+                    return;
+                } else {
+                    throw e;
+                }
             }
-
             if (performCycleCheck) {
                 ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                     // special handling for pipeline cycle errors

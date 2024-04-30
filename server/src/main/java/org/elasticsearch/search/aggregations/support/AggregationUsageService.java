@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.LongCounter;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,9 +23,15 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
 
     public static class Builder {
         private final Map<String, Map<String, LongAdder>> aggs;
+        private final LongCounter aggregationsUsageCounter;
 
         public Builder() {
+            this(null);
+        }
+
+        public Builder(LongCounter aggregationsUsageCounter) {
             aggs = new HashMap<>();
+            this.aggregationsUsageCounter = aggregationsUsageCounter;
         }
 
         public void registerAggregationUsage(String aggregationName) {
@@ -45,9 +52,15 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
         }
     }
 
+    // Attribute names for the metric
+    private final String AGGREGATION_NAME_KEY = "aggregation_name";
+    private final String VALUES_SOURCE_KEY = "values_source";
+    private final LongCounter aggregationsUsageCounter;
+
     private AggregationUsageService(Builder builder) {
         this.aggs = builder.aggs;
         info = new AggregationInfo(aggs);
+        this.aggregationsUsageCounter = builder.aggregationsUsageCounter;
     }
 
     public void incAggregationUsage(String aggregationName, String valuesSourceType) {
@@ -61,6 +74,10 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
             assert adder != null : "Unknown subtype [" + aggregationName + "][" + valuesSourceType + "]";
         }
         assert valuesSourceMap != null : "Unknown aggregation [" + aggregationName + "][" + valuesSourceType + "]";
+        // Also not registered during tests
+        if (aggregationsUsageCounter != null) {
+            aggregationsUsageCounter.incrementBy(1, Map.of(AGGREGATION_NAME_KEY, aggregationName, VALUES_SOURCE_KEY, valuesSourceType));
+        }
     }
 
     public Map<String, Object> getUsageStats() {

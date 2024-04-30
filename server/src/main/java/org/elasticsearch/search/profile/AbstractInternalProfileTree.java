@@ -18,24 +18,16 @@ import java.util.List;
 
 public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
 
-    protected ArrayList<PB> breakdowns;
+    private final ArrayList<PB> breakdowns = new ArrayList<>(10);
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
-    protected ArrayList<ArrayList<Integer>> tree;
+    private final ArrayList<ArrayList<Integer>> tree = new ArrayList<>(10);
     /** A list of the original queries, keyed by index position */
-    protected ArrayList<E> elements;
+    private final ArrayList<E> elements = new ArrayList<>(10);
     /** A list of top-level "roots".  Each root can have its own tree of profiles */
-    protected ArrayList<Integer> roots;
+    private final ArrayList<Integer> roots = new ArrayList<>(10);
     /** A temporary stack used to record where we are in the dependency tree. */
-    protected Deque<Integer> stack;
+    private final Deque<Integer> stack = new ArrayDeque<>(10);
     private int currentToken = 0;
-
-    public AbstractInternalProfileTree() {
-        breakdowns = new ArrayList<>(10);
-        stack = new ArrayDeque<>(10);
-        tree = new ArrayList<>(10);
-        elements = new ArrayList<>(10);
-        roots = new ArrayList<>(10);
-    }
 
     /**
      * Returns a {@link QueryProfileBreakdown} for a scoring query.  Scoring queries (e.g. those

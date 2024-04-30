@@ -94,13 +94,12 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneCountOperator\\[shardId=0, maxPageSize=\\d+]");
+        return matchesRegex("LuceneCountOperator\\[maxPageSize = \\d+, remainingDocs=100]");
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("""
-            LuceneCountOperator\\[dataPartitioning = SHARD, maxPageSize = \\d+, limit = 100, sorts = \\[\\{"s":\\{"order":"asc"}}]]""");
+        return matchesRegex("LuceneCountOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), limit = 100]");
     }
 
     // TODO tests for the other data partitioning configurations

@@ -111,13 +111,14 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneTopNSourceOperator\\[shardId=0, maxPageSize=\\d+]");
+        return matchesRegex("LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]");
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("LuceneTopNSourceOperator\\[dataPartitioning = SHARD, maxPageSize = \\d+, limit = 100, sorts = " + """
-            \\[\\{"s":\\{"order":"asc"}}]]""");
+        return matchesRegex(
+            "LuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]"
+        );
     }
 
     // TODO tests for the other data partitioning configurations

@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
 
@@ -24,7 +26,45 @@ public class HashLookupOperatorTests extends OperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
+        int count = input.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(count));
+        int keysIdx = 0;
+        int ordsIdx = 0;
+        LongBlock keys = null;
+        int keysOffset = 0;
+        IntBlock ords = null;
+        int ordsOffset = 0;
+        int p = 0;
+        while (p < count) {
+            if (keys == null) {
+                keys = input.get(keysIdx++).getBlock(0);
+            }
+            if (ords == null) {
+                ords = results.get(ordsIdx++).getBlock(1);
+            }
+            int valueCount = keys.getValueCount(p - keysOffset);
+            assertThat(ords.getValueCount(p - ordsOffset), equalTo(valueCount));
+            int keysStart = keys.getFirstValueIndex(p - keysOffset);
+            int ordsStart = ords.getFirstValueIndex(p - ordsOffset);
+            for (int k = keysStart, l = ordsStart; k < keysStart + valueCount; k++, l++) {
+                assertThat(ords.getInt(l), equalTo(switch ((int) keys.getLong(k)) {
+                    case 1 -> 0;
+                    case 7 -> 1;
+                    case 14 -> 2;
+                    case 20 -> 3;
+                    default -> null;
+                }));
+            }
+            p++;
+            if (p - keysOffset == keys.getPositionCount()) {
+                keysOffset += keys.getPositionCount();
+                keys = null;
+            }
+            if (p - ordsOffset == ords.getPositionCount()) {
+                ordsOffset += ords.getPositionCount();
+                ords = null;
+            }
+        }
     }
 
     @Override
@@ -33,7 +73,7 @@ public class HashLookupOperatorTests extends OperatorTestCase {
             new HashLookupOperator.Key[] {
                 new HashLookupOperator.Key(
                     "foo",
-                    TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 7, 14, 20 }, 3).asBlock()
+                    TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock()
                 ) },
             new int[] { 0 }
         );
@@ -41,11 +81,18 @@ public class HashLookupOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "HashLookup[keys=[{name=foo, type=LONG, positions=3, size=96b}], mapping=[0]]";
+        return "HashLookup[keys=[{name=foo, type=LONG, positions=4, size=104b}], mapping=[0]]";
     }
 
     @Override
     protected String expectedToStringOfSimple() {
-        return "HashLookup[keys=[foo], hash=PackedValuesBlockHash{groups=[0:LONG], entries=3, size=536b}, mapping=[0]]";
+        return "HashLookup[keys=[foo], hash=PackedValuesBlockHash{groups=[0:LONG], entries=4, size=544b}, mapping=[0]]";
+    }
+
+    @Override
+    // when you remove this AwaitsFix, also make this method in the superclass final again
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108045")
+    public void testSimpleToString() {
+        super.testSimpleToString();
     }
 }

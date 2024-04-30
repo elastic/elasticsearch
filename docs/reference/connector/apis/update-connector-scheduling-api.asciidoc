@@ -4,7 +4,7 @@
 <titleabbrev>Update connector scheduling</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the `scheduling` configuration of a connector.
 

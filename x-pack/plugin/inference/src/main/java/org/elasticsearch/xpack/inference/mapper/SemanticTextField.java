@@ -8,26 +8,35 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
+import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -270,5 +279,72 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TASK_TYPE_FIELD));
         MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
+    }
+
+    /**
+     * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link Chunk}.
+     */
+    public static List<Chunk> toSemanticTextFieldChunks(
+        String field,
+        String inferenceId,
+        List<ChunkedInferenceServiceResults> results,
+        XContentType contentType
+    ) {
+        List<Chunk> chunks = new ArrayList<>();
+        for (var result : results) {
+            if (result instanceof ChunkedSparseEmbeddingResults textExpansionResults) {
+                for (var chunk : textExpansionResults.getChunkedResults()) {
+                    chunks.add(new Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.weightedTokens())));
+                }
+            } else if (result instanceof ChunkedTextEmbeddingResults textEmbeddingResults) {
+                for (var chunk : textEmbeddingResults.getChunks()) {
+                    chunks.add(new Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.embedding())));
+                }
+            } else {
+                throw new ElasticsearchStatusException(
+                    "Invalid inference results format for field [{}] with inference id [{}], got {}",
+                    RestStatus.BAD_REQUEST,
+                    field,
+                    inferenceId,
+                    result.getWriteableName()
+                );
+            }
+        }
+        return chunks;
+    }
+
+    /**
+     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
+     */
+    private static BytesReference toBytesReference(XContent xContent, double[] value) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startArray();
+            for (double v : value) {
+                b.value(v);
+            }
+            b.endArray();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
+    }
+
+    /**
+     * Serialises the {@link TextExpansionResults.WeightedToken} list, according to the provided {@link XContent},
+     * into a {@link BytesReference}.
+     */
+    private static BytesReference toBytesReference(XContent xContent, List<TextExpansionResults.WeightedToken> tokens) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startObject();
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
+            }
+            b.endObject();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
     }
 }

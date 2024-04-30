@@ -743,7 +743,8 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            loadSlowLogFieldProvider()
+            loadSlowLogFieldProvider(),
+            mapperMetrics
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -770,8 +771,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idFieldMappers.apply(idxSettings.getMode()),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
-            snapshotCommitSuppliers,
-            mapperMetrics
+            snapshotCommitSuppliers
         );
     }
 
@@ -821,10 +821,11 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            loadSlowLogFieldProvider()
+            loadSlowLogFieldProvider(),
+            mapperMetrics
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, mapperMetrics);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
     }
 
     /**

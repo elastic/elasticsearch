@@ -178,6 +178,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final MapperMetrics mapperMetrics;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -196,7 +197,8 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider
+        final SlowLogFieldProvider slowLogFieldProvider,
+        final MapperMetrics mapperMetrics
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -207,6 +209,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -476,8 +479,7 @@ public final class IndexModule {
         IdFieldMapper idFieldMapper,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        MapperMetrics mapperMetrics
+        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -636,8 +638,7 @@ public final class IndexModule {
         ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
-        ScriptService scriptService,
-        MapperMetrics mapperMetrics
+        ScriptService scriptService
     ) throws IOException {
         return new MapperService(
             clusterService,

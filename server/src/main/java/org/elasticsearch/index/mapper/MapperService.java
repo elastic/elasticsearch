@@ -167,7 +167,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
-        MapperMetrics metrics
+        MapperMetrics mapperMetrics
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -179,7 +179,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             searchExecutionContextSupplier,
             idFieldMapper,
             scriptCompiler,
-            metrics
+            mapperMetrics
         );
     }
 
@@ -210,8 +210,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldMapper,
-            mapperMetrics
+            idFieldMapper
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
@@ -553,7 +552,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated, mapperMetrics);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -787,15 +786,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry;
     }
 
-    public SourceLoader getSourceLoader(MappingLookup mappingLookup, boolean forceSyntheticSource) {
-        if (forceSyntheticSource) {
-            return getSyntheticSourceLoader(mappingLookup);
-        }
-
-        return mappingLookup.newSourceLoader();
-    }
-
-    public SourceLoader getSyntheticSourceLoader(MappingLookup mappingLookup) {
-        return new SourceLoader.Synthetic(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics());
+    public MapperMetrics getMapperMetrics() {
+        return mapperMetrics;
     }
 }

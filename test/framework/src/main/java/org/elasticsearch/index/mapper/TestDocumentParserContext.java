@@ -63,8 +63,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
                 MapperTestCase.createIndexSettings(IndexVersion.current(), settings),
-                null,
-                MapperMetrics.NOOP
+                null
             ),
             source,
             mappingLookup.getMapping().getRoot(),

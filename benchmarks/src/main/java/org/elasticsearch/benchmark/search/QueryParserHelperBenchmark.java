@@ -155,7 +155,8 @@ public class QueryParserHelperBenchmark {
             null,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
         );
     }
 

@@ -38,7 +38,6 @@ public class MappingParserContext {
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
     private final long mappingObjectDepthLimit;
-    private final MapperMetrics mapperMetrics;
     private long mappingObjectDepth = 0;
 
     public MappingParserContext(
@@ -51,8 +50,7 @@ public class MappingParserContext {
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper,
-        MapperMetrics mapperMetrics
+        IdFieldMapper idFieldMapper
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -65,7 +63,6 @@ public class MappingParserContext {
         this.indexSettings = indexSettings;
         this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
-        this.mapperMetrics = mapperMetrics;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -135,10 +132,6 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
-    public MapperMetrics getMapperMetrics() {
-        return mapperMetrics;
-    }
-
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
         if (mappingObjectDepth > mappingObjectDepthLimit) {
@@ -166,8 +159,7 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper,
-                in.mapperMetrics
+                in.idFieldMapper
             );
         }
 
@@ -196,8 +188,7 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper,
-                in.mapperMetrics
+                in.idFieldMapper
             );
             this.dateFormatter = dateFormatter;
         }

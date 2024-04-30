@@ -95,7 +95,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -106,8 +105,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.index.mapper.SourceFieldMetrics;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -181,8 +178,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -371,21 +366,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {}
         });
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getSyntheticSourceLoader(any())).thenReturn(
-            new SourceLoader.Synthetic(mappingLookup.getMapping(), SourceFieldMetrics.NOOP)
-        );
-        when(mapperService.getSourceLoader(any(), eq(false))).thenReturn(mappingLookup.newSourceLoader());
-        when(mapperService.getSourceLoader(any(), eq(true))).thenReturn(
-            new SourceLoader.Synthetic(mappingLookup.getMapping(), SourceFieldMetrics.NOOP)
-        );
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,
             indexSettings,
             bitsetFilterCache,
             fieldDataBuilder,
-            mapperService,
+            null,
             mappingLookup,
             null,
             getMockScriptService(),
@@ -398,7 +385,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             null,
             () -> true,
             valuesSourceRegistry,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         ) {
             @Override
             public Iterable<MappedFieldType> dimensionFields() {
@@ -1294,8 +1282,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null,
-                MapperMetrics.NOOP
+                null
             );
         }
 

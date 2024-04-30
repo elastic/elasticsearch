@@ -159,6 +159,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final MapperMetrics mapperMetrics;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -266,6 +267,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
+        this.mapperMetrics = mapperMetrics;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
             this.refreshTask = new AsyncRefreshTask(this);
@@ -544,7 +546,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,
-                indexCommitListener
+                indexCommitListener,
+                mapperMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -688,7 +691,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             allowExpensiveQueries,
             valuesSourceRegistry,
             runtimeMappings,
-            requestSize
+            requestSize,
+            mapperMetrics
         );
     }
 

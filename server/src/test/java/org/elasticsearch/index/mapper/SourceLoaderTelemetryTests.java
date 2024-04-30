@@ -8,14 +8,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class SourceLoaderTelemetryTests extends MapperServiceTestCase {
     private final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
@@ -33,11 +36,22 @@ public class SourceLoaderTelemetryTests extends MapperServiceTestCase {
 
     public void testSyntheticSourceTelemetry() throws IOException {
         var mapping = syntheticSourceMapping(b -> { b.startObject("kwd").field("type", "keyword").endObject(); });
+        var mapper = createDocumentMapper(mapping);
 
-        var mapperService = createMapperService(mapping);
-
-        assertThat(syntheticSource(mapperService, b -> b.field("kwd", "foo")), equalTo("""
-            {"kwd":"foo"}"""));
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.parse(source(b -> b.field("kwd", "foo"))).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SourceProvider provider = SourceProvider.fromSyntheticSource(
+                    mapper.mapping(),
+                    createTestMapperMetrics().sourceFieldMetrics()
+                );
+                Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
+                assertEquals(synthetic.source().get("kwd"), "foo");
+            }
+        }
 
         var measurements = telemetryPlugin.getLongHistogramMeasurement(SourceFieldMetrics.SYNTHETIC_SOURCE_LOAD_LATENCY);
         assertEquals(1, measurements.size());

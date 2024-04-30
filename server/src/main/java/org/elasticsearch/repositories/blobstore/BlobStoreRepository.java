@@ -182,6 +182,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_TRANSLOG_THREAD_NAME = "stateless_translog";
     public static final String STATELESS_SHARD_WRITE_THREAD_NAME = "stateless_shard_write";
     public static final String STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME = "stateless_cluster_state";
+    public static final String STATELESS_SHARD_PREWARMING_THREAD_NAME = "stateless_prewarm";
 
     public static final String SNAPSHOT_PREFIX = "snap-";
 
@@ -2003,7 +2004,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             STATELESS_SHARD_READ_THREAD_NAME,
             STATELESS_TRANSLOG_THREAD_NAME,
             STATELESS_SHARD_WRITE_THREAD_NAME,
-            STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME
+            STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME,
+            STATELESS_SHARD_PREWARMING_THREAD_NAME
         );
     }
 
@@ -2344,7 +2346,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             toCache = repositoryData.withoutShardGenerations();
             assert repositoryData.indexMetaDataGenerations().equals(IndexMetaDataGenerations.EMPTY)
                 : "repository data should not contain index generations at version ["
-                    + version
+                    + version.toReleaseVersion()
                     + "] but saw ["
                     + repositoryData.indexMetaDataGenerations()
                     + "]";

@@ -188,6 +188,11 @@ $endif$
     }
 
 $if(BytesRef)$
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
+    }
+
     private $Type$Block buildFromBytesArray() {
         assert estimatedBytes == 0 || firstValueIndexes != null;
         final $Type$Block theBlock;

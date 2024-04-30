@@ -544,11 +544,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
-                dataStream.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                dataStream.toXContent(
+                    builder,
+                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    rolloverConfiguration,
+                    globalRetention
+                );
             }
             builder.endArray();
             builder.endObject();

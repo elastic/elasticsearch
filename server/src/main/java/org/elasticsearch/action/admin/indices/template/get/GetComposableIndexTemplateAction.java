@@ -190,14 +190,19 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(INDEX_TEMPLATES.getPreferredName());
             for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue().toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                indexTemplate.getValue()
+                    .toXContent(
+                        builder,
+                        DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                        rolloverConfiguration,
+                        globalRetention
+                    );
                 builder.endObject();
             }
             builder.endArray();

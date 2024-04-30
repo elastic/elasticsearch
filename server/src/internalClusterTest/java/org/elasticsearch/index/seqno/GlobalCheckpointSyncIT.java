@@ -211,11 +211,11 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
     public void testPersistGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         Settings.Builder indexSettings = Settings.builder()
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"))
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, TimeUnit.MILLISECONDS))
             .put("index.number_of_replicas", randomIntBetween(0, 1));
         if (randomBoolean()) {
             indexSettings.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"));
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, TimeUnit.MILLISECONDS));
         }
         prepareCreate("test", indexSettings).get();
         if (randomBoolean()) {

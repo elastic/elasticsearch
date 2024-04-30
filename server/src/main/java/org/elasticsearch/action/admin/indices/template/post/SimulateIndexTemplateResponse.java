@@ -70,6 +70,10 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         this.globalRetention = globalRetention;
     }
 
+    public RolloverConfiguration getRolloverConfiguration() {
+        return rolloverConfiguration;
+    }
+
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
         super(in);
         resolvedTemplate = in.readOptionalWriteable(Template::new);
@@ -114,11 +118,15 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+            this.resolvedTemplate.toXContent(
+                builder,
+                DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                rolloverConfiguration,
+                globalRetention
+            );
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

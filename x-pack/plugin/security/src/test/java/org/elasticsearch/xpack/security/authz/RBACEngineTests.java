@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -314,7 +314,7 @@ public class RBACEngineTests extends ESTestCase {
             DeleteUserAction.NAME,
             TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             GetLicenseAction.NAME
         );
         final Authentication authentication = AuthenticationTestHelper.builder().build();

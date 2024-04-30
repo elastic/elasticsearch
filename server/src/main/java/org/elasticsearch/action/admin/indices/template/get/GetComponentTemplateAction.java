@@ -191,14 +191,19 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(COMPONENT_TEMPLATES.getPreferredName());
             for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
-                componentTemplate.getValue().toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                componentTemplate.getValue()
+                    .toXContent(
+                        builder,
+                        DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                        rolloverConfiguration,
+                        globalRetention
+                    );
                 builder.endObject();
             }
             builder.endArray();

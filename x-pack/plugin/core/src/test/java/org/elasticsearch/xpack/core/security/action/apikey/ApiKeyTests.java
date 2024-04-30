@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
@@ -155,7 +156,7 @@ public class ApiKeyTests extends ESTestCase {
     }
 
     public static TimeValue randomFutureExpirationTime() {
-        return TimeValue.parseTimeValue(randomTimeValue(10, 20, "d", "h", "s", "m"), "expiration");
+        return randomTimeValue(10, 20, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS);
     }
 
     public static ApiKey randomApiKeyInstance() {

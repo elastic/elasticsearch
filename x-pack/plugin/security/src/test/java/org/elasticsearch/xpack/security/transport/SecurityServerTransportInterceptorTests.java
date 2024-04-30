@@ -736,7 +736,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<RoleDescriptorsIntersection>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authzService)
-            .getRoleDescriptorsIntersectionForRemoteCluster(any(), TransportVersion.current(), any(), listenerCaptor.capture());
+            .getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), any(), listenerCaptor.capture());
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -920,12 +920,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, null);
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
-        verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(
-            any(),
-            TransportVersion.current(),
-            any(),
-            anyActionListener()
-        );
+        verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), any(), anyActionListener());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
@@ -1034,10 +1029,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final var listener = (ActionListener<RoleDescriptorsIntersection>) invocation.getArgument(2);
+            final var listener = (ActionListener<RoleDescriptorsIntersection>) invocation.getArgument(3);
             listener.onResponse(RoleDescriptorsIntersection.EMPTY);
             return null;
-        }).when(authzService).getRoleDescriptorsIntersectionForRemoteCluster(any(), TransportVersion.current(), any(), anyActionListener());
+        }).when(authzService).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), any(), anyActionListener());
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,

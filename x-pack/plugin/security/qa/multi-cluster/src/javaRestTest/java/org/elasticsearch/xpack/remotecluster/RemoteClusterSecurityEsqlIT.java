@@ -499,12 +499,18 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         configureRemoteCluster();
         populateData();
 
+        final boolean skipUnavailable = randomBoolean();
+
         // avoids getting 404 errors
         updateClusterSettings(
             randomBoolean()
-                ? Settings.builder().put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0)).build()
+                ? Settings.builder()
+                    .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .put("cluster.remote.invalid_remote.skip_unavailable", Boolean.toString(skipUnavailable))
+                    .build()
                 : Settings.builder()
                     .put("cluster.remote.invalid_remote.mode", "proxy")
+                    .put("cluster.remote.invalid_remote.skip_unavailable", Boolean.toString(skipUnavailable))
                     .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                     .build()
         );
@@ -520,8 +526,14 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             var q2 = "FROM invalid_remote:employees |  SORT emp_id DESC | LIMIT 10";
             performRequestWithRemoteSearchUser(esqlRequest(q2));
         });
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-        assertThat(error.getMessage(), containsString("unable to find apikey"));
+
+        if (skipUnavailable == false) {
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(error.getMessage(), containsString("unable to find apikey"));
+        } else {
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            assertThat(error.getMessage(), containsString("Unable to connect to [invalid_remote]"));
+        }
     }
 
     @SuppressWarnings("unchecked")

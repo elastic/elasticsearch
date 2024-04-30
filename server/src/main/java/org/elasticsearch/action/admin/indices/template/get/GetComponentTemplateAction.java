@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -196,7 +197,13 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
-                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration, globalRetention);
+                componentTemplate.getValue()
+                    .toXContent(
+                        builder,
+                        DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                        rolloverConfiguration,
+                        globalRetention
+                    );
                 builder.endObject();
             }
             builder.endArray();

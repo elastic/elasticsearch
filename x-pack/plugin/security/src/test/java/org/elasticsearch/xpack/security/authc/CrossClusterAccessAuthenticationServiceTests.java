@@ -108,8 +108,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         assertThat(
             actual.getCause().getCause().getMessage(),
             equalTo(
-                "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                "all nodes must have version ["
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] or higher to support cross cluster requests through the dedicated remote cluster port"
             )
         );

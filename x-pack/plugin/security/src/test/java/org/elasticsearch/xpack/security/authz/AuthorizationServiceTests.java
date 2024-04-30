@@ -94,6 +94,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -942,7 +944,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testUserWithNoRolesCanClosePointInTime() {
-        final ClosePointInTimeRequest closePointInTimeRequest = new ClosePointInTimeRequest(randomAlphaOfLength(8));
+        final ClosePointInTimeRequest closePointInTimeRequest = new ClosePointInTimeRequest(new BytesArray(randomAlphaOfLength(8)));
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -3644,7 +3646,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    private static String createEncodedPIT(Index index) {
+    private static BytesReference createEncodedPIT(Index index) {
         DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
         TestSearchPhaseResult testSearchPhaseResult1 = new TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
         testSearchPhaseResult1.setSearchShardTarget(

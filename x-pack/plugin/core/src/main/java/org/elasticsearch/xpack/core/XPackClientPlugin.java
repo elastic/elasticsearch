@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -156,6 +157,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
             ),
             // security : role-mappings
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
             new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),

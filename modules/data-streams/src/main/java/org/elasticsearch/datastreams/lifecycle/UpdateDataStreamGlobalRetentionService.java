@@ -87,12 +87,9 @@ public class UpdateDataStreamGlobalRetentionService {
         List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams,
         final ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
     ) {
-        final var ackTimeout = request.masterNodeTimeout().millis() < 0 ? TimeValue.MAX_VALUE : request.masterNodeTimeout();
-        // NB a negative master node timeout means never to time out, but a negative ack timeout means to time out immediately.
-        // TODO when https://github.com/elastic/elasticsearch/issues/107044 is fixed, we can just use request.masterNodeTimeout() directly
         taskQueue.submitTask(
             "remove-data-stream-global-retention",
-            new UpsertGlobalDataStreamMetadataTask(null, affectedDataStreams, listener, ackTimeout),
+            new UpsertGlobalDataStreamMetadataTask(null, affectedDataStreams, listener, request.masterNodeTimeout()),
             request.masterNodeTimeout()
         );
     }

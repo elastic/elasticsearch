@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -68,6 +70,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -524,6 +527,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         }
 
         Index index = metadata.index(securityIndexName).getIndex();
+
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
             true,
@@ -548,6 +552,13 @@ public class NativeRolesStoreTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
             .metadata(metadata)
             .routingTable(routingTable)
+            .putCompatibilityVersions(
+                "test",
+                new CompatibilityVersions(
+                    TransportVersion.current(),
+                    Map.of(".security-7", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                )
+            )
             .build();
 
         return clusterState;

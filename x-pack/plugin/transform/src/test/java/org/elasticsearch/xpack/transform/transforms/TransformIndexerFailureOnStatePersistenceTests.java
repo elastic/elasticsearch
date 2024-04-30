@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -275,7 +276,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                     }
@@ -287,7 +288,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(2));
                     }
@@ -299,7 +300,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.FAILED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(3));
                     }
@@ -361,7 +362,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                     }
@@ -386,7 +387,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                     }
@@ -398,7 +399,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(2));
                     }
@@ -410,7 +411,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.FAILED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(3));
                     }
@@ -526,7 +527,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     listener
                 ),
                 e -> {
-                    assertThat(e, isA(VersionConflictEngineException.class));
+                    assertThat(ExceptionsHelper.unwrapCause(e), isA(VersionConflictEngineException.class));
                     assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                     assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                 }

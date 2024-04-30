@@ -364,7 +364,7 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                    if (indexSettings().getMode().isSyntheticSourceEnabled() || mappingLookup.isSourceSynthetic()) {
+                    if (isSourceSynthetic()) {
                         try {
                             int parentOffset = parent() instanceof RootObjectMapper ? 0 : parent().fullPath().length() + 1;
                             addIgnoredField(
@@ -637,6 +637,13 @@ public abstract class DocumentParserContext {
         return dimensions;
     }
 
+    /**
+     * Indicates if the index is configured to use synthetic source.
+     */
+    public boolean isSourceSynthetic() {
+        return indexSettings().getMode().isSyntheticSourceEnabled() || mappingLookup.isSourceSynthetic();
+    }
+
     public abstract ContentPath path();
 
     /**
@@ -652,14 +659,7 @@ public abstract class DocumentParserContext {
         if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
             containsDimensions = passThroughObjectMapper.containsDimensions();
         }
-        return new MapperBuilderContext(
-            p,
-            mappingLookup().isSourceSynthetic(),
-            false,
-            containsDimensions,
-            dynamic,
-            MergeReason.MAPPING_UPDATE
-        );
+        return new MapperBuilderContext(p, isSourceSynthetic(), false, containsDimensions, dynamic, MergeReason.MAPPING_UPDATE);
     }
 
     public abstract XContentParser parser();

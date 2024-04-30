@@ -396,6 +396,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#statsOption}.
+   * @param ctx the parse tree
+   */
+  void enterStatsOption(EsqlBaseParser.StatsOptionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#statsOption}.
+   * @param ctx the parse tree
+   */
+  void exitStatsOption(EsqlBaseParser.StatsOptionContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree
    */

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetrics;
 import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
@@ -42,6 +44,8 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
+import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -1037,6 +1041,42 @@ public class StatementParserTests extends ESTestCase {
 
     public void testInlineConvertUnsupportedType() {
         expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
+    }
+
+    public void testMetrics() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertThat(
+            statement("METRICS foo-index"),
+            equalTo(
+                new UnresolvedMetrics(
+                    EMPTY,
+                    new TableIdentifier(EMPTY, null, "foo-index"),
+                    List.of(),
+                    new EsSourceOptions(),
+                    null,
+                    List.of(),
+                    List.of()
+                )
+            )
+        );
+        LogicalPlan metrics = statement("METRICS foo-index STATS load=avg(cpu) BY ts");
+        assertThat(
+            metrics,
+            equalTo(
+                new UnresolvedMetrics(
+                    EMPTY,
+                    new TableIdentifier(EMPTY, null, "foo-index"),
+                    List.of(),
+                    new EsSourceOptions(),
+                    null,
+                    List.of(attribute("ts")),
+                    List.of(
+                        new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                        attribute("ts")
+                    )
+                )
+            )
+        );
     }
 
     private LogicalPlan statement(String e) {

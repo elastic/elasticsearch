@@ -240,6 +240,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#statsOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitStatsOption(EsqlBaseParser.StatsOptionContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree
    * @return the visitor result

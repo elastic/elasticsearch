@@ -23,6 +23,7 @@ sourceCommand
     : explainCommand
     | fromCommand
     | rowCommand
+    | metricsCommand
     | showCommand
     | metaCommand
     ;
@@ -131,6 +132,14 @@ metadataOption
 
 deprecated_metadata
     : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
+
+metricsCommand
+    : METRICS fromIdentifier (COMMA fromIdentifier)* metadataOption? fromOptions? statsOption?
+    ;
+
+statsOption
+    : STATS aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand

@@ -6,6 +6,7 @@ ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
 EVAL : 'eval'                 -> pushMode(EXPRESSION_MODE);
 EXPLAIN : 'explain'           -> pushMode(EXPLAIN_MODE);
 FROM : 'from'                 -> pushMode(FROM_MODE);
+METRICS : 'metrics'           -> pushMode(FROM_MODE);
 GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
@@ -183,6 +184,7 @@ EXPR_WS
 //
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
+FROM_STATS: 'stats' -> type(STATS), popMode, pushMode(EXPRESSION_MODE);
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);

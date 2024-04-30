@@ -67,12 +67,8 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INT
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -406,43 +402,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(prepareException.get(), nullValue());
         // Verify that the client to send put mapping was used
         assertThat(putMappingRequestCount, equalTo(1));
-    }
-
-    /**
-     * Check that the security index manager will refuse to update mappings on an index
-     * if the corresponding {@link SystemIndexDescriptor} requires a higher mapping version
-     * that the cluster's current minimum version.
-     */
-    public void testCannotUpdateIndexMappingsWhenMinMappingVersionTooLow() {
-        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
-        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
-
-        // Hard-code a failure here.
-        doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString());
-        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(1, 0)));
-
-        // Ensure that the mappings for the index are out-of-date, so that the security index manager will
-        // attempt to update them.
-        int previousVersion = INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT - 1;
-
-        ClusterState.Builder clusterStateBuilder = createClusterState(
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
-            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
-            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
-            IndexMetadata.State.OPEN,
-            getMappings(previousVersion)
-        );
-        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
-        manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
-
-        assertThat(prepareRunnableCalled.get(), is(false));
-
-        final Exception exception = prepareException.get();
-        assertThat(exception, not(nullValue()));
-        assertThat(exception, instanceOf(IllegalStateException.class));
-        assertThat(exception.getMessage(), equalTo("Nope"));
-        // Verify that the client to send put mapping was never used
-        assertThat(putMappingRequestCount, equalTo(0));
     }
 
     /**

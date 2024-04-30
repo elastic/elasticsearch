@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
@@ -205,7 +206,7 @@ public class SearchSliceIT extends ESIntegTestCase {
             // Open point-in-time reader
             OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueSeconds(10));
             OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
-            String pointInTimeId = response.getPointInTimeId();
+            BytesReference pointInTimeId = response.getPointInTimeId();
 
             // Test sort on document IDs
             assertSearchSlicesWithPointInTime(field, ShardDocSortField.NAME, pointInTimeId, max, numDocs);
@@ -217,7 +218,13 @@ public class SearchSliceIT extends ESIntegTestCase {
         }
     }
 
-    private void assertSearchSlicesWithPointInTime(String sliceField, String sortField, String pointInTimeId, int numSlice, int numDocs) {
+    private void assertSearchSlicesWithPointInTime(
+        String sliceField,
+        String sortField,
+        BytesReference pointInTimeId,
+        int numSlice,
+        int numDocs
+    ) {
         int totalResults = 0;
         List<String> keys = new ArrayList<>();
         for (int id = 0; id < numSlice; id++) {

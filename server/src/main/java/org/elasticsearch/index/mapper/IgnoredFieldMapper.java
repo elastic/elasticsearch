@@ -9,10 +9,21 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.KeywordDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.util.Collections;
 
@@ -30,20 +41,31 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType();
+    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper(FIELD_TYPE);
 
-    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper();
+    public static final LegacyIgnoredFieldType LEGACY_FIELD_TYPE = new LegacyIgnoredFieldType();
+    private static final IgnoredFieldMapper LEGACY_INSTANCE = new IgnoredFieldMapper(LEGACY_FIELD_TYPE);
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
+    public static final TypeParser PARSER = new FixedTypeParser(c -> getInstance(c.indexVersionCreated()));
 
-    public static final class IgnoredFieldType extends StringFieldType {
+    private static MetadataFieldMapper getInstance(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD) ? INSTANCE : LEGACY_INSTANCE;
+    }
 
-        private IgnoredFieldType() {
+    public static final class LegacyIgnoredFieldType extends StringFieldType {
+
+        private LegacyIgnoredFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
 
         @Override
@@ -54,21 +76,53 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             // field is bounded by the number of fields in the mappings.
             return new TermRangeQuery(name(), null, null, true, true);
         }
+    }
+
+    public static final class IgnoredFieldType extends StringFieldType {
+
+        private IgnoredFieldType() {
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        }
+
+        public Query existsQuery(SearchExecutionContext context) {
+            return new FieldExistsQuery(name());
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
         }
     }
 
-    private IgnoredFieldMapper() {
-        super(FIELD_TYPE);
+    private IgnoredFieldMapper(StringFieldType fieldType) {
+        super(fieldType);
     }
 
     @Override
     public void postParse(DocumentParserContext context) {
-        for (String field : context.getIgnoredFields()) {
-            context.doc().add(new StringField(NAME, field, Field.Store.YES));
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            for (String ignoredField : context.getIgnoredFields()) {
+                context.doc().add(new SortedSetDocValuesField(NAME, new BytesRef(ignoredField)));
+                context.doc().add(new StringField(NAME, ignoredField, Field.Store.NO));
+            }
+        } else {
+            for (String ignoredField : context.getIgnoredFields()) {
+                context.doc().add(new StringField(NAME, ignoredField, Field.Store.YES));
+            }
         }
     }
 

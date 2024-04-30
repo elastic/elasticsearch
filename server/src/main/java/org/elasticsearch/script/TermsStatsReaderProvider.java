@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -65,8 +66,14 @@ public class TermsStatsReaderProvider {
                 TermStates termContext = searchLookup.getTermStates(term);
                 termStates.put(term, termContext);
 
+                TermState state = termContext.get(leafReaderContext);
+
+                if (state == null || termContext.docFreq() == 0) {
+                    continue;
+                }
+
                 TermsEnum termsEnum = leafReaderContext.reader().terms(term.field()).iterator();
-                termsEnum.seekExact(term.bytes(), termContext.get(leafReaderContext));
+                termsEnum.seekExact(term.bytes(), state);
                 postingsEnums.put(term, termsEnum.postings(null, PostingsEnum.ALL));
             }
         }

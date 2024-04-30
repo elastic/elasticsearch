@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.results;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,7 +17,6 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -170,7 +167,6 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             floats.add(randomFloat());
         }
         var boxed = new EmbeddingFloatBoxed(floats);
-
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             boxed.writeTo(output);

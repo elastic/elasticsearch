@@ -124,7 +124,7 @@ public final class DocumentParser {
 
             if (context.root().isEnabled() == false) {
                 // entire type is disabled
-                if (context.isSourceSynthetic()) {
+                if (context.mappingLookup().isSourceSynthetic()) {
                     context.addIgnoredField(
                         new IgnoredSourceFieldMapper.NameValue(
                             MapperService.SINGLE_MAPPING_NAME,
@@ -259,7 +259,7 @@ public final class DocumentParser {
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
             // entire type is disabled
-            if (context.isSourceSynthetic()) {
+            if (context.mappingLookup().isSourceSynthetic()) {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),

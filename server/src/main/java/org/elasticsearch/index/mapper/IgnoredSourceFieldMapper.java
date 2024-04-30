@@ -93,7 +93,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         // Ignored values are only expected in synthetic mode.
-        assert context.getIgnoredFieldValues().isEmpty() || context.isSourceSynthetic();
+        assert context.getIgnoredFieldValues().isEmpty() || context.mappingLookup().isSourceSynthetic();
         for (NameValue nameValue : context.getIgnoredFieldValues()) {
             context.doc().add(new StoredField(NAME, encode(nameValue)));
         }

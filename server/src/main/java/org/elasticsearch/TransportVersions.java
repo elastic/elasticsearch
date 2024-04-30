@@ -132,7 +132,7 @@ public class TransportVersions {
     public static final TransportVersion ML_DIMENSIONS_SET_BY_USER_ADDED = def(8_592_00_0);
     public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
-    public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
+    public static final TransportVersion V_8_13_0 = def(8_595_00_0);
     // 8.14.0+
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
     public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);
@@ -182,6 +182,10 @@ public class TransportVersions {
     public static final TransportVersion TOP_LEVEL_KNN_SUPPORT_QUERY_NAME = def(8_641_00_0);
     public static final TransportVersion INDEX_SEGMENTS_VECTOR_FORMATS = def(8_642_00_0);
     public static final TransportVersion ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION = def(8_643_00_0);
+    public static final TransportVersion ESQL_MV_ORDERING_SORTED_ASCENDING = def(8_644_00_0);
+    public static final TransportVersion ESQL_PAGE_MAPPING_TO_ITERATOR = def(8_645_00_0);
+    public static final TransportVersion BINARY_PIT_ID = def(8_646_00_0);
+    public static final TransportVersion SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE = def(8_647_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -246,7 +250,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_12_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_13_0;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

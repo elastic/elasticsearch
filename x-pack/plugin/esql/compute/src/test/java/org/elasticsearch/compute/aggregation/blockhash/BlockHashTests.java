@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -1111,11 +1112,7 @@ public class BlockHashTests extends ESTestCase {
      * more than one block of group ids this will fail.
      */
     private void hash(Consumer<OrdsAndKeys> callback, Block.Builder... values) {
-        Block[] blocks = new Block[values.length];
-        for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = values[i].build();
-        }
-        hash(callback, blocks);
+        hash(callback, Block.Builder.buildAll(values));
     }
 
     /**
@@ -1124,39 +1121,44 @@ public class BlockHashTests extends ESTestCase {
      */
     private void hash(Consumer<OrdsAndKeys> callback, Block... values) {
         boolean[] called = new boolean[] { false };
-        hash(ordsAndKeys -> {
-            if (called[0]) {
-                throw new IllegalStateException("hash produced more than one block");
-            }
-            called[0] = true;
-            callback.accept(ordsAndKeys);
-        }, 16 * 1024, values);
+        try (BlockHash hash = buildBlockHash(16 * 1024, values)) {
+            hash(true, hash, ordsAndKeys -> {
+                if (called[0]) {
+                    throw new IllegalStateException("hash produced more than one block");
+                }
+                called[0] = true;
+                callback.accept(ordsAndKeys);
+                if (hash instanceof LongLongBlockHash == false && hash instanceof BytesRefLongBlockHash == false) {
+                    try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
+                        assertThat(lookup.hasNext(), equalTo(true));
+                        try (IntBlock ords = lookup.next()) {
+                            assertThat(ords, equalTo(ordsAndKeys.ords));
+                        }
+                    }
+                }
+            }, values);
+        } finally {
+            Releasables.close(values);
+        }
     }
 
     private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block.Builder... values) {
-        Block[] blocks = new Block[values.length];
-        for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = values[i].build();
+        Block[] blocks = Block.Builder.buildAll(values);
+        try (BlockHash hash = buildBlockHash(emitBatchSize, blocks)) {
+            hash(true, hash, callback, blocks);
+        } finally {
+            Releasables.closeExpectNoException(blocks);
         }
-        hash(callback, emitBatchSize, blocks);
     }
 
-    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) {
-        try {
-            List<BlockHash.GroupSpec> specs = new ArrayList<>(values.length);
-            for (int c = 0; c < values.length; c++) {
-                specs.add(new BlockHash.GroupSpec(c, values[c].elementType()));
-            }
-            try (
-                BlockHash blockHash = forcePackedHash
-                    ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
-                    : BlockHash.build(specs, blockFactory, emitBatchSize, true)
-            ) {
-                hash(true, blockHash, callback, values);
-            }
-        } finally {
-            Releasables.closeExpectNoException(values);
+    private BlockHash buildBlockHash(int emitBatchSize, Block... values) {
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(values.length);
+        for (int c = 0; c < values.length; c++) {
+            specs.add(new BlockHash.GroupSpec(c, values[c].elementType()));
         }
+        return forcePackedHash
+            ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+            : BlockHash.build(specs, blockFactory, emitBatchSize, true);
     }
 
     static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {
@@ -1200,6 +1202,18 @@ public class BlockHashTests extends ESTestCase {
                 add(positionOffset, groupIds.asBlock());
             }
         });
+        if (blockHash instanceof LongLongBlockHash == false && blockHash instanceof BytesRefLongBlockHash == false) {
+            Block[] keys = blockHash.getKeys();
+            try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keys), ByteSizeValue.ofKb(between(1, 100)))) {
+                while (lookup.hasNext()) {
+                    try (IntBlock ords = lookup.next()) {
+                        assertThat(ords.nullValuesCount(), equalTo(0));
+                    }
+                }
+            } finally {
+                Releasables.closeExpectNoException(keys);
+            }
+        }
     }
 
     private void assertOrds(IntBlock ordsBlock, Integer... expectedOrds) {

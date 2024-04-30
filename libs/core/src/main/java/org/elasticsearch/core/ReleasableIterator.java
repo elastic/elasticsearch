@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.core;
+
+import java.util.Iterator;
+import java.util.Objects;
+
+/**
+ * An {@link Iterator} with state that must be {@link #close() released}.
+ */
+public interface ReleasableIterator<T> extends Releasable, Iterator<T> {
+    /**
+     * Returns a single element iterator over the supplied value.
+     */
+    static <T extends Releasable> ReleasableIterator<T> single(T element) {
+        return new ReleasableIterator<>() {
+            private T value = Objects.requireNonNull(element);
+
+            @Override
+            public boolean hasNext() {
+                return value != null;
+            }
+
+            @Override
+            public T next() {
+                final T res = value;
+                value = null;
+                return res;
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(value);
+            }
+
+            @Override
+            public String toString() {
+                return "ReleasableIterator[" + value + "]";
+            }
+
+        };
+    }
+}

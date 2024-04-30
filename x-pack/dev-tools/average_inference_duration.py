@@ -135,8 +135,12 @@ class DurationEstimator:
         self.x_k = compute_x_k_k(x_k_km1, K_k, duration)
         self.P_k = compute_P_k_k(K_k, P_k_km1)
 
-    def estimate(self) -> float:
-        return self.x_k[0] + self.x_k[1] * self.last_allocations
+    def estimate(self, allocations: int | None = None) -> float:
+        return (
+            self.x_k[0] + self.x_k[1] * allocations
+            if allocations is not None
+            else self.last_allocations
+        )
 
 
 def estimate_average_inference_duration(

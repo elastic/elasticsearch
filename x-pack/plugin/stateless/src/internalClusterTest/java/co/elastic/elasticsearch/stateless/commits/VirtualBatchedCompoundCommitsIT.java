@@ -34,7 +34,7 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.internal.Client;
@@ -58,6 +58,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 
@@ -578,43 +579,23 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
 
         TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
-        CountDownLatch actionSent = new CountDownLatch(1);
-        CountDownLatch relocationCompleted = new CountDownLatch(1);
-        final var transportService = MockTransportService.getInstance(searchNode);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                actionSent.countDown();
-                safeAwait(relocationCompleted);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
 
         final var index = resolveIndex(indexName);
+        final var indexShard = findIndexShard(index, 0);
+        long primaryTerm = indexShard.getOperationPrimaryTerm();
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
-            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
+            new PrimaryTermAndGeneration(randomValueOtherThan(primaryTerm, ESTestCase::randomNonNegativeLong), randomNonNegativeLong()),
             client(searchNode),
             TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         int length = randomIntBetween(5, 20);
-        CountDownLatch exceptionThrown = new CountDownLatch(1);
-        new Thread(() -> {
-            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
-                assert false : "exception expected";
-            } catch (Exception e) {
-                assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
-                assertThat(e.getCause().getMessage(), containsStringIgnoringCase("primary term mismatch"));
-                exceptionThrown.countDown();
-            }
-        }).start();
-
-        safeAwait(actionSent);
-        final var indexShard = findIndexShard(index, 0);
-        long primaryTerm = indexShard.getOperationPrimaryTerm();
-        indexShard.failShard("test simulated", new Exception("test simulated"));
-        assertBusy(() -> assertThat(findIndexShard(index, 0).getOperationPrimaryTerm(), greaterThan(primaryTerm)));
-        relocationCompleted.countDown();
-        safeAwait(exceptionThrown);
+        try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+            assert false : "exception expected";
+        } catch (Exception e) {
+            assertThat(e.getCause(), instanceOf(ResourceNotFoundException.class));
+            assertThat(e.getCause().getMessage(), containsStringIgnoringCase("primary term mismatch"));
+        }
     }
 
     // TODO - Once multi-CC VBCCs work completely, simplify testing: remove forcing the search node to consider a last uploaded.

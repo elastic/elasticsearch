@@ -43,7 +43,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
@@ -132,15 +134,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final TimeValue shardLockRetryTimeout;
 
     private final Executor shardCloseExecutor;
-    private final Executor directShardCloseExecutor = r -> {
-        try {
-            assert ClusterApplierService.assertIsApplyingClusterState();
-            ClusterApplierService.clearIsApplyingClusterState();
-            r.run();
-        } finally {
-            ClusterApplierService.setIsApplyingClusterState();
-        }
-    };
 
     @Inject
     public IndicesClusterStateService(
@@ -204,9 +197,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.client = client;
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
-
-        // ES-8334 TBD generic is probably wrong for this, we don't want massive parallelism. Maybe MANAGEMENT? Or something throttled?
-        this.shardCloseExecutor = threadPool.generic();
+        this.shardCloseExecutor = new ShardCloseExecutor(settings, threadPool.generic());
     }
 
     @Override
@@ -237,6 +228,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
+
+    private ActionListener<Void> getShardsClosedListener() {
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+        if (currentClusterStateShardsClosedListeners == null) {
+            assert false : "not currently applying cluster state";
+            return ActionListener.noop();
+        } else {
+            return currentClusterStateShardsClosedListeners.acquire();
+        }
+    }
 
     /**
      * @param action Action to run when all the shards removed by earlier-applied cluster states have fully closed. May run on the calling
@@ -288,7 +289,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     NO_LONGER_ASSIGNED,
                     "cleaning index (disabled block persistence)",
                     shardCloseExecutor,
-                    currentClusterStateShardsClosedListeners.acquire()
+                    getShardsClosedListener()
                 );
             }
             return;
@@ -430,7 +431,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         return "processPendingDeletes[" + index + "]";
                     }
                 }));
-                indexServiceClosedListener.addListener(currentClusterStateShardsClosedListeners.acquire());
+                indexServiceClosedListener.addListener(getShardsClosedListener());
             }
         }
     }
@@ -473,13 +474,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 // ES-8334 complete
-                indicesService.removeIndex(
-                    index,
-                    reason,
-                    "removing index (" + reason + ")",
-                    shardCloseExecutor,
-                    currentClusterStateShardsClosedListeners.acquire()
-                );
+                indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
@@ -495,7 +490,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardId.id(),
                             "removing shard (not allocated)",
                             shardCloseExecutor,
-                            currentClusterStateShardsClosedListeners.acquire()
+                            getShardsClosedListener()
                         );
                     } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
                         logger.debug(
@@ -509,7 +504,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardId.id(),
                             "removing shard (stale copy)",
                             shardCloseExecutor,
-                            currentClusterStateShardsClosedListeners.acquire()
+                            getShardsClosedListener()
                         );
                     } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
                         // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
@@ -522,7 +517,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardId.id(),
                             "removing shard (stale copy)",
                             shardCloseExecutor,
-                            currentClusterStateShardsClosedListeners.acquire()
+                            getShardsClosedListener()
                         );
                     } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
                         assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
@@ -534,7 +529,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardId.id(),
                             "removing shard (stale copy)",
                             shardCloseExecutor,
-                            currentClusterStateShardsClosedListeners.acquire()
+                            getShardsClosedListener()
                         );
                     }
                 }
@@ -600,8 +595,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         index,
                         FAILURE,
                         "removing index (mapping update failed)",
-                        directShardCloseExecutor,
-                        ActionListener.noop()
+                        shardCloseExecutor,
+                        getShardsClosedListener()
                     );
                 }
                 for (ShardRouting shardRouting : entry.getValue()) {
@@ -655,8 +650,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         index,
                         FAILURE,
                         "removing index (" + reason + ")",
-                        directShardCloseExecutor,
-                        ActionListener.noop()
+                        shardCloseExecutor,
+                        getShardsClosedListener()
                     );
 
                     // fail shards that would be created or updated by createOrUpdateShards
@@ -710,8 +705,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                     @Override
                     public void onFailure(Exception e) {
-                        // ES-8334 complete, closing a partially-opened shard should be fast, no merges to cancel
-                        failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
+                        failAndRemoveShard(
+                            shardRouting,
+                            true,
+                            "failed to create shard",
+                            e,
+                            state,
+                            shardCloseExecutor,
+                            ActionListener.noop()
+                        );
                     }
                 }, () -> {
                     assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
@@ -721,8 +723,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception e) {
             assert pendingShardCreations.get(shardId) == null
                 || pendingShardCreations.get(shardId).clusterStateUUID().equals(state.stateUUID()) == false;
-            // ES-8334 complete, closing a partially-opened shard should be fast, no merges to cancel
-            failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
+            failAndRemoveShard(shardRouting, true, "failed to create shard", e, state, shardCloseExecutor, getShardsClosedListener());
         }
     }
 
@@ -879,8 +880,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexShardRoutingTable
             );
         } catch (Exception e) {
-            // ES-8334 TBD: shard might have merges to cancel, but this is on a failure path so shouldn't happen anyway?
-            failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
+            failAndRemoveShard(
+                shardRouting,
+                true,
+                "failed updating shard routing entry",
+                e,
+                clusterState,
+                shardCloseExecutor,
+                getShardsClosedListener()
+            );
             return;
         }
 
@@ -986,8 +994,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     // package-private for testing
     synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
-        // ES-8334 complete, closing a partially-recovered shard should be fast, no merges to cancel
-        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
+        failAndRemoveShard(
+            shardRouting,
+            sendShardFailure,
+            "failed recovery",
+            failure,
+            clusterService.state(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ActionListener.noop()
+        );
     }
 
     private void failAndRemoveShard(
@@ -995,15 +1010,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         boolean sendShardFailure,
         String message,
         @Nullable Exception failure,
-        ClusterState state
+        ClusterState state,
+        Executor shardCloseExecutor,
+        ActionListener<Void> shardCloseListener
     ) {
-        try {
+        try (var listeners = new RefCountingListener(shardCloseListener)) {
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
             if (indexService != null) {
                 Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
                 if (shard != null && shard.routingEntry().isSameAllocation(shardRouting)) {
-                    // ES-8334 passthru, do any callers need this to be async?
-                    indexService.removeShard(shardRouting.shardId().id(), message, directShardCloseExecutor, ActionListener.noop());
+                    indexService.removeShard(shardRouting.shardId().id(), message, shardCloseExecutor, listeners.acquire());
                 }
             }
         } catch (ShardNotFoundException e) {
@@ -1050,13 +1066,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardRouting shardRouting = shardFailure.routing();
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
-                    // ES-8334 TBD, the engine already failed at this point, is it ok to hold the mutex while it's closing?
                     failAndRemoveShard(
                         shardRouting,
                         true,
                         "shard failure, reason [" + shardFailure.reason() + "]",
                         shardFailure.cause(),
-                        clusterService.state()
+                        clusterService.state(),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* NB holding mutex while closing shard, ES-8334 TODO revisit this? */,
+                        ActionListener.noop()
                     );
                 }
             });
@@ -1285,6 +1302,46 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * restarts.
              */
             SHUTDOWN,
+        }
+    }
+
+    private static class ShardCloseExecutor implements Executor {
+
+        private final ThrottledTaskRunner throttledTaskRunner;
+
+        ShardCloseExecutor(Settings settings, Executor delegate) {
+            // Closing shards may involve IO so we don't want to do too many at once. We also currently have no backpressure mechanism so
+            // could build up an unbounded queue of shards to close. We think it's unlikely in practice to see this: we won't see very many
+            // of these tasks in nodes which are running normally, there's not that many shards moving off such nodes, and on a
+            // shutting-down node we won't be starting up any new shards so the number of these tasks is bounded by the number of shards to
+            // close. The bad case would be a normally-running node with very high churn in shards, starting up new shards so fast that it
+            // can't close the old ones down fast enough. Maybe we could block or throttle new shards starting while old shards are still
+            // shutting down, given that starting new shards is already async. Since this seems unlikely in practice, we opt for the simple
+            // approach here.
+            final var maxThreads = Math.max(EsExecutors.NODE_PROCESSORS_SETTING.get(settings).roundUp(), 10);
+            throttledTaskRunner = new ThrottledTaskRunner(IndicesClusterStateService.class.getCanonicalName(), maxThreads, delegate);
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            throttledTaskRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        command.run();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e; // GENERIC pool doesn't reject anything
+                }
+
+                @Override
+                public String toString() {
+                    return command.toString();
+                }
+            });
         }
     }
 }

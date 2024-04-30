@@ -1149,13 +1149,33 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     @FunctionalInterface
     public interface RangeAvailableHandler {
-        // caller that wants to read from x should instead do a positional read from x + relativePos
-        // caller should also only read up to length, further bytes will be offered by another call to this method
+        /**
+         * Callback method used to read data from the cache. The target is typically captured by the callback implementation.
+         *
+         * A caller should only read up to length, further bytes will be offered by another call to this method
+         *
+         * @param channel is the cache region to read from
+         * @param channelPos a position in the channel (cache file) to read from
+         * @param relativePos a position in the target buffer to store bytes and pass to the caller
+         * @param length of the blob that can be read (must not be exceeded)
+         * @return number of bytes read
+         * @throws IOException on failure
+         */
         int onRangeAvailable(SharedBytes.IO channel, int channelPos, int relativePos, int length) throws IOException;
     }
 
     @FunctionalInterface
     public interface RangeMissingHandler {
+        /**
+         * Callback method used to fetch data (usually from a remote storage) and write it in the cache.
+         *
+         * @param channel is the cache region to write to
+         * @param channelPos a position in the channel (cache file) to write to
+         * @param relativePos the relative position in the remote storage to read from
+         * @param length of data to fetch
+         * @param progressUpdater consumer to invoke with the number of copied bytes as they are written in cache.
+         *                        This is used to notify waiting readers that data become available in cache.
+         */
         void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
             throws IOException;
     }

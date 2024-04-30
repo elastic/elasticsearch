@@ -24,11 +24,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -353,6 +355,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    /**
+     * Adds a retention param to signal that this serialisation should include the effective retention metadata
+     */
+    public static ToXContent.Params maybeAddEffectiveRetentionParams(ToXContent.Params params) {
+        boolean shouldAddEffectiveRetention = Objects.equals(params.param(RestRequest.PATH_RESTRICTED), "serverless");
+        return new DelegatingMapParams(
+            Map.of(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, Boolean.toString(shouldAddEffectiveRetention)),
+            params
+        );
     }
 
     public static Builder newBuilder(DataStreamLifecycle lifecycle) {

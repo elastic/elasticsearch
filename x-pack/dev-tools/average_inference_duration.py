@@ -59,7 +59,7 @@ def compute_x_k_k(x_k_km1: np.ndarray, K_k: np.ndarray, z: float) -> np.ndarray:
 
 def compute_P_k_k(K_k: np.ndarray, P_k_km1: np.ndarray) -> np.ndarray:
     # Compute the error covariance after the k'th measurement update.
-    return P_k_km1 - np.outer(K_k, H) @ P_k_km1
+    return P_k_km1 - np.outer(K_k, H @ P_k_km1)
 
 
 # System...
@@ -136,10 +136,8 @@ class DurationEstimator:
         self.P_k = compute_P_k_k(K_k, P_k_km1)
 
     def estimate(self, allocations: int | None = None) -> float:
-        return (
-            self.x_k[0] + self.x_k[1] * allocations
-            if allocations is not None
-            else self.last_allocations
+        return self.x_k[0] + self.x_k[1] * (
+            allocations if allocations is not None else self.last_allocations
         )
 
 

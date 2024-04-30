@@ -91,8 +91,9 @@ class StatelessIndexEventListener implements IndexEventListener {
             final BlobContainer existingBlobContainer;
             if (indexShard.recoveryState().getRecoverySource() == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
                 logger.info(
-                    "{} bootstrapping [{}] shard on primary term [{}] with empty commit ({})",
+                    "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with empty commit ({})",
                     shardId,
+                    shardId.getIndex().getUUID(),
                     indexShard.routingEntry().role(),
                     indexShard.getOperationPrimaryTerm(),
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE
@@ -100,8 +101,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                 existingBlobContainer = null;
             } else if (indexShard.recoveryState().getRecoverySource() instanceof RecoverySource.SnapshotRecoverySource) {
                 logger.info(
-                    "{} bootstrapping [{}] shard restore on primary term [{}] with snapshot recovery source ({})",
+                    "{} with UUID [{}] bootstrapping [{}] shard restore on primary term [{}] with snapshot recovery source ({})",
                     shardId,
+                    shardId.getIndex().getUUID(),
                     indexShard.routingEntry().role(),
                     indexShard.getOperationPrimaryTerm(),
                     indexShard.recoveryState().getRecoverySource()
@@ -126,8 +128,9 @@ class StatelessIndexEventListener implements IndexEventListener {
     private static void logBootstrapping(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
         if (latestCommit != null) {
             logger.info(
-                "{} bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
+                "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
                 indexShard.shardId(),
+                indexShard.shardId().getIndex().getUUID(),
                 indexShard.routingEntry().role(),
                 indexShard.getOperationPrimaryTerm(),
                 latestCommit.last().toShortDescription(),
@@ -135,8 +138,9 @@ class StatelessIndexEventListener implements IndexEventListener {
             );
         } else {
             logger.info(
-                "{} bootstrapping [{}] shard on primary term [{}] with empty commit from object store ({})",
+                "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with empty commit from object store ({})",
                 indexShard.shardId(),
+                indexShard.shardId().getIndex().getUUID(),
                 indexShard.routingEntry().role(),
                 indexShard.getOperationPrimaryTerm(),
                 indexShard.recoveryState().getRecoverySource()
@@ -152,8 +156,9 @@ class StatelessIndexEventListener implements IndexEventListener {
         assert indexShard.routingEntry().isPromotableToPrimary() == false;
         assert latestCommit != null;
         logger.info(
-            "{} bootstrapping [{}] shard on primary term [{}] with {} and latest uploaded {} from indexing shard ({})",
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} and latest uploaded {} from indexing shard ({})",
             indexShard.shardId(),
+            indexShard.shardId().getIndex().getUUID(),
             indexShard.routingEntry().role(),
             indexShard.getOperationPrimaryTerm(),
             latestCommit.toShortDescription(),

@@ -107,26 +107,26 @@ EXPORT int32_t dot8s(int8_t* a, int8_t* b, size_t dims) {
         acc2 = _mm256_add_epi32(_mm256_madd_epi16(va2w, vb2w), acc2);
     }
 
-	// reduce (accumulate all)
-	return hsum_i32_8(_mm256_add_epi32(acc1, acc2));
+    // reduce (accumulate all)
+    return hsum_i32_8(_mm256_add_epi32(acc1, acc2));
 }
 
 EXPORT int32_t sqr8s(int8_t *a, int8_t *b, size_t dims) {
     // Init accumulator(s) with 0
-	__m256i acc1 = _mm256_setzero_si256();
+    __m256i acc1 = _mm256_setzero_si256();
 
-	for(int i = 0; i < dims; i += SQR8S_STRIDE_BYTES_LEN) {
+    for(int i = 0; i < dims; i += SQR8S_STRIDE_BYTES_LEN) {
         // Load 16 packed 8-bit integers
-		__m128i va = _mm_lddqu_si128(a + i);
-		__m128i vb = _mm_lddqu_si128(b + i);
+        __m128i va = _mm_lddqu_si128(a + i);
+        __m128i vb = _mm_lddqu_si128(b + i);
 
         const __m256i dist = _mm256_sub_epi16(_mm256_cvtepi8_epi16(va), _mm256_cvtepi8_epi16(vb));
 
         const __m256i sqr_add = _mm256_madd_epi16(dist, dist);
-    	acc1 = _mm256_add_epi32(sqr_add, acc1);
+        acc1 = _mm256_add_epi32(sqr_add, acc1);
     }
 
     // reduce (accumulate all)
-	return hsum_i32_8(acc1);
+    return hsum_i32_8(acc1);
 }
 

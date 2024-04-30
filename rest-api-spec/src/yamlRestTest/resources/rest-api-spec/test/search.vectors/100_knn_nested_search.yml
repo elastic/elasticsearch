@@ -268,7 +268,7 @@ setup:
   - requires:
       cluster_features: "gte_v8.13.0"
       reason: 'inner_hits on nested kNN search added in 8.13'
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:

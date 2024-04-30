@@ -4,7 +4,7 @@ setup:
   - requires:
       cluster_features: "gte_v8.11.0"
       reason: "sparse_vector field type reintroduced in 8.11"
-      features: headers
+      test_runner_features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

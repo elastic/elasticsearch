@@ -283,7 +283,7 @@ setup:
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: "_ignored metadata field aggregation support added in 8.15"
-      features: close_to
+      test_runner_features: close_to
   - do:
       search:
         body:

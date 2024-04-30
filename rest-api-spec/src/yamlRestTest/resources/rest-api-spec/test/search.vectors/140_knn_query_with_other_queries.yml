@@ -3,7 +3,7 @@ setup:
   - requires:
       cluster_features: "gte_v8.12.0"
       reason: 'knn as query added in 8.12'
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:

@@ -84,7 +84,7 @@
 
 ---
 "Simulate template matches overlapping legacy and composable templates":
-  - skip:
+  - requires:
       cluster_features: "gte_v7.9.0"
       reason: "only available in 7.9+"
       test_runner_features: ["allowed_warnings", "default_shards"]

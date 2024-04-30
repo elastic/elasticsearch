@@ -6,18 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch;
 
 import java.security.BasicPermission;
 
 /**
- * A permission plugins can grant themselves to give themselves exclusive access to a file.
+ * A permission granted to ensure exclusive access to a file.
  * <p>
- * By granting this permission, all plugins that do not have the same permission on the same file
+ * By granting this permission, all code that does not have the same permission on the same file
  * will be denied all read/write access to that file.
  */
-public class PluginExclusiveFileAccessPermission extends BasicPermission {
-    public PluginExclusiveFileAccessPermission(String path) {
+public class ExclusiveFileAccessPermission extends BasicPermission {
+    public ExclusiveFileAccessPermission(String path) {
         super(path, "");
     }
 }

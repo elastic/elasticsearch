@@ -47,7 +47,7 @@ final class ESPolicy extends Policy {
     final PermissionCollection forbiddenFilePermission;
     final Map<URL, Policy> plugins;
     final PermissionCollection allExclusiveFiles;
-    final Map<FilePermission, Set<URL>> pluginExclusiveFiles;
+    final Map<FilePermission, Set<URL>> exclusiveFiles;
 
     @SuppressForbidden(reason = "Need to access and check file permissions directly")
     ESPolicy(
@@ -57,7 +57,7 @@ final class ESPolicy extends Policy {
         boolean filterBadDefaults,
         List<FilePermission> dataPathPermissions,
         List<FilePermission> forbiddenFilePermissions,
-        Map<String, Set<URL>> pluginExclusiveFiles
+        Map<String, Set<URL>> exclusiveFiles
     ) {
         this.template = template;
         this.dataPathPermission = createPermission(dataPathPermissions);
@@ -71,10 +71,10 @@ final class ESPolicy extends Policy {
         this.dynamic = dynamic;
         this.plugins = plugins;
 
-        this.pluginExclusiveFiles = pluginExclusiveFiles.entrySet()
+        this.exclusiveFiles = exclusiveFiles.entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(e -> new FilePermission(e.getKey(), ALL_FILE_MASK), e -> Set.copyOf(e.getValue())));
-        this.allExclusiveFiles = createPermission(this.pluginExclusiveFiles.keySet());
+        this.allExclusiveFiles = createPermission(this.exclusiveFiles.keySet());
     }
 
     private static PermissionCollection createPermission(Collection<FilePermission> permissions) {
@@ -118,11 +118,23 @@ final class ESPolicy extends Policy {
         }
 
         // completely deny access to specific files that are forbidden
+        // it is impossible for anything to override this by granting themselves a permission
         if (forbiddenFilePermission.implies(permission)) {
             return false;
         }
 
         URL location = codeSource.getLocation();
+        if (allExclusiveFiles.implies(permission)) {
+            /*
+             * Check if location can access this exclusive file
+             * The permission this is generated from, ExclusiveFileAccessPermission, doesn't have a mask,
+             * it just grants all access (and so disallows all access from others)
+             * It's helpful to use the infrastructure around FilePermission here to do the directory structure check with implies
+             * so we use ALL_FILE_MASK mask to check if we can do something with this file, whatever the actual operation we're requesting
+             */
+            return canAccessExclusiveFile(location, new FilePermission(permission.getName(), ALL_FILE_MASK));
+        }
+
         if (location != null) {
             // run scripts with limited permissions
             if (BootstrapInfo.UNTRUSTED_CODEBASE.equals(location.getFile())) {
@@ -142,17 +154,6 @@ final class ESPolicy extends Policy {
             return true;
         }
 
-        if (allExclusiveFiles.implies(permission)) {
-            /*
-             * Check if location can access this plugin-exclusive file
-             * The plugin permission this is generated from, PluginExclusiveFileAccessPermission, doesn't have a mask,
-             * it just grants all access (and so disallows all access from others)
-             * It's helpful to use the infrastructure around FilePermission here to do the directory structure check with implies
-             * so we use ALL_FILE_MASK mask to check if we can do something with this file, whatever the actual operation we're requesting
-             */
-            return canAccessExclusiveFile(location, new FilePermission(permission.getName(), ALL_FILE_MASK));
-        }
-
         // Special handling for broken Hadoop code: "let me execute or my classes will not load"
         // yeah right, REMOVE THIS when hadoop is fixed
         if (permission instanceof FilePermission && "<<ALL FILES>>".equals(permission.getName())) {
@@ -169,8 +170,8 @@ final class ESPolicy extends Policy {
             return false;
         }
 
-        // check the plugin source
-        Set<URL> accessibleSources = pluginExclusiveFiles.get(permission);
+        // check the source
+        Set<URL> accessibleSources = exclusiveFiles.get(permission);
         if (accessibleSources != null) {
             // simple case - single-file referenced directly
             return accessibleSources.contains(location);
@@ -178,7 +179,7 @@ final class ESPolicy extends Policy {
             // there's a directory reference in there somewhere
             // do a manual search :(
             // there may be several permissions that potentially match
-            return pluginExclusiveFiles.entrySet()
+            return exclusiveFiles.entrySet()
                 .stream()
                 .filter(e -> e.getKey().implies(permission))
                 .anyMatch(e -> e.getValue().contains(location));

@@ -9,13 +9,13 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExclusiveFileAccessPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.PluginExclusiveFileAccessPermission;
 import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
@@ -36,6 +36,7 @@ import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,16 +122,17 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
+        Policy mainPolicy = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases);
         Map<URL, Policy> pluginPolicies = getPluginAndModulePermissions(environment);
         Policy.setPolicy(
             new ESPolicy(
-                PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases),
+                mainPolicy,
                 createPermissions(environment, pidFile),
                 pluginPolicies,
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment),
                 createForbiddenFilePermissions(environment),
-                createPluginExclusiveFiles(environment, pluginPolicies)
+                createExclusiveFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
             )
         );
 
@@ -205,14 +207,25 @@ final class Security {
         return toFilePermissions(policy);
     }
 
-    private static Map<String, Set<URL>> createPluginExclusiveFiles(Environment environment, Map<URL, Policy> pluginPolicies)
-        throws IOException {
+    private static Map<String, Set<URL>> createExclusiveFiles(
+        Environment environment,
+        Policy template,
+        Collection<URL> mainCodebases,
+        Map<URL, Policy> pluginPolicies
+    ) throws IOException {
         Map<String, Set<URL>> exclusiveFiles = new HashMap<>();
 
+        for (URL url : mainCodebases) {
+            PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
+                .stream()
+                .filter(p -> p instanceof ExclusiveFileAccessPermission)
+                .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(url));
+        }
+
         for (var pp : pluginPolicies.entrySet()) {
-            var permissions = PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile());
-            permissions.stream()
-                .filter(p -> p instanceof PluginExclusiveFileAccessPermission)
+            PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())
+                .stream()
+                .filter(p -> p instanceof ExclusiveFileAccessPermission)
                 .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(pp.getKey()));
         }
 

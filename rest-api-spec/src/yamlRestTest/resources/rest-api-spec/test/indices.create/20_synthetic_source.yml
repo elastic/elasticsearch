@@ -294,3 +294,50 @@ disabled subobject:
   - match: { hits.hits.0._source.name: aaaa }
   - match: { hits.hits.0._source.path.some_int: 1000 }
   - match: { hits.hits.0._source.path.to.some_text: AAAA }
+
+
+---
+mixed disabled and enabled objects:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      foo:
+                        enabled: false
+                      bar:
+                        enabled: true
+                      baz:
+                        enabled: false
+                      bad:
+                        enabled: true
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path": { "to": { "foo": { "value": "foo" }, "bar": { "value": "bar" }, "baz": { "value": 1000 }, "bad": { "value": false } } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.foo.value: foo }
+  - match: { hits.hits.0._source.path.to.bar.value: bar }
+  - match: { hits.hits.0._source.path.to.baz.value: 1000 }
+  - match: { hits.hits.0._source.path.to.bad.value: false }

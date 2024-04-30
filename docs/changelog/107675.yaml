@@ -1,7 +1,7 @@
 pr: 107675
 summary: Interpret `?timeout=-1` as infinite ack timeout
 area: Cluster Coordination
-type: "breaking, enhancement"
+type: breaking
 issues: []
 breaking:
   title: Interpret `?timeout=-1` as infinite ack timeout

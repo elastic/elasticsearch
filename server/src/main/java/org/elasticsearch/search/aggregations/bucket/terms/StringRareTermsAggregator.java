@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -64,38 +66,55 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
+        final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
 
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {
-                if (false == values.advanceExact(docId)) {
-                    return;
+                if (values.advanceExact(docId)) {
+                    previous.clear();
+                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // need to take care of dups
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        BytesRef bytes = values.nextValue();
+                        if (i > 0 && previous.get().equals(bytes)) {
+                            continue;
+                        }
+                        collectValue(bytes, docId, owningBucketOrd, sub);
+                        previous.copyBytes(bytes);
+                    }
                 }
-                int valuesCount = values.docValueCount();
-                previous.clear();
 
-                // SortedBinaryDocValues don't guarantee uniqueness so we
-                // need to take care of dups
-                for (int i = 0; i < valuesCount; ++i) {
-                    BytesRef bytes = values.nextValue();
-                    if (filter != null && false == filter.accept(bytes)) {
-                        continue;
-                    }
-                    if (i > 0 && previous.get().equals(bytes)) {
-                        continue;
-                    }
-                    previous.copyBytes(bytes);
-                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = -1 - bucketOrdinal;
-                        collectExistingBucket(sub, docId, bucketOrdinal);
-                    } else {
-                        collectBucket(sub, docId, bucketOrdinal);
-                    }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(BinaryDocValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int docId, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(docId)) {
+                    collectValue(values.binaryValue(), docId, owningBucketOrd, sub);
                 }
             }
         };
+    }
+
+    private void collectValue(BytesRef val, int doc, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
+        if (filter == null || filter.accept(val)) {
+            long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+            if (bucketOrdinal < 0) { // already seen
+                bucketOrdinal = -1 - bucketOrdinal;
+                collectExistingBucket(sub, doc, bucketOrdinal);
+            } else {
+                collectBucket(sub, doc, bucketOrdinal);
+            }
+        }
     }
 
     @Override

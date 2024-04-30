@@ -406,7 +406,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return getRegion(position - (position % regionSize == 0 ? 1 : 0));
     }
 
-    private ByteRange mapSubRangeToRegion(ByteRange range, int region) {
+    protected ByteRange mapSubRangeToRegion(ByteRange range, int region) {
         final long regionStart = getRegionStart(region);
         final long regionEnd = getRegionEnd(region);
         if (range.start() >= regionEnd || range.end() <= regionStart) {
@@ -566,6 +566,73 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Fetch and write in cache a range within a blob region if there is at least a free page in the cache to do so.
+     * <p>
+     * This method returns as soon as the download tasks are instantiated, but the tasks themselves
+     * are run on the bulk executor.
+     * <p>
+     * If an exception is thrown from the writer then the cache entry being downloaded is freed
+     * and unlinked
+     *
+     * @param cacheKey      the key to fetch data for
+     * @param region        the region of the blob
+     * @param range         the range of the blob to fetch
+     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
+     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
+     *                      the range to write is already available in cache, if the range is pending fetching via another thread or if
+     *                      there is not enough free pages to fetch the range.
+     */
+    public void maybeFetchRange(
+        final KeyType cacheKey,
+        final int region,
+        final ByteRange range,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final ActionListener<Boolean> listener
+    ) {
+        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+            // no free page available and no old enough unused region to be evicted
+            logger.info("No free regions, skipping loading region [{}]", region);
+            listener.onResponse(false);
+            return;
+        }
+        try {
+            var regionRange = mapSubRangeToRegion(range, region);
+            if (regionRange.isEmpty()) {
+                listener.onResponse(false);
+                return;
+            }
+            final CacheFileRegion entry = get(cacheKey, blobLength, region);
+            entry.populate(
+                regionRange,
+                writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
+                fetchExecutor,
+                listener
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, int writeOffset) {
+        if (writeOffset == 0) {
+            // no need to allocate a new capturing lambda if the offset isn't adjusted
+            return writer;
+        }
+        return (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
+            channel,
+            channelPos,
+            relativePos - writeOffset,
+            len,
+            progressUpdater
+        );
     }
 
     // used by tests

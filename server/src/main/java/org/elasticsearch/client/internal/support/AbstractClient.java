@@ -64,48 +64,48 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
@@ -690,12 +690,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<ClusterRerouteResponse> reroute(final ClusterRerouteRequest request) {
-            return execute(ClusterRerouteAction.INSTANCE, request);
+            return execute(TransportClusterRerouteAction.TYPE, request);
         }
 
         @Override
         public void reroute(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
-            execute(ClusterRerouteAction.INSTANCE, request, listener);
+            execute(TransportClusterRerouteAction.TYPE, request, listener);
         }
 
         @Override
@@ -758,7 +758,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
-            execute(ClusterStatsAction.INSTANCE, request, listener);
+            execute(TransportClusterStatsAction.TYPE, request, listener);
         }
 
         @Override
@@ -818,7 +818,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void searchShards(final ClusterSearchShardsRequest request, final ActionListener<ClusterSearchShardsResponse> listener) {
-            execute(ClusterSearchShardsAction.INSTANCE, request, listener);
+            execute(TransportClusterSearchShardsAction.TYPE, request, listener);
         }
 
         @Override
@@ -838,12 +838,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<CreateSnapshotResponse> createSnapshot(CreateSnapshotRequest request) {
-            return execute(CreateSnapshotAction.INSTANCE, request);
+            return execute(TransportCreateSnapshotAction.TYPE, request);
         }
 
         @Override
         public void createSnapshot(CreateSnapshotRequest request, ActionListener<CreateSnapshotResponse> listener) {
-            execute(CreateSnapshotAction.INSTANCE, request, listener);
+            execute(TransportCreateSnapshotAction.TYPE, request, listener);
         }
 
         @Override
@@ -863,7 +863,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void getSnapshots(GetSnapshotsRequest request, ActionListener<GetSnapshotsResponse> listener) {
-            execute(GetSnapshotsAction.INSTANCE, request, listener);
+            execute(TransportGetSnapshotsAction.TYPE, request, listener);
         }
 
         @Override
@@ -923,12 +923,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<RestoreSnapshotResponse> restoreSnapshot(RestoreSnapshotRequest request) {
-            return execute(RestoreSnapshotAction.INSTANCE, request);
+            return execute(TransportRestoreSnapshotAction.TYPE, request);
         }
 
         @Override
         public void restoreSnapshot(RestoreSnapshotRequest request, ActionListener<RestoreSnapshotResponse> listener) {
-            execute(RestoreSnapshotAction.INSTANCE, request, listener);
+            execute(TransportRestoreSnapshotAction.TYPE, request, listener);
         }
 
         @Override
@@ -938,7 +938,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void snapshotsStatus(SnapshotsStatusRequest request, ActionListener<SnapshotsStatusResponse> listener) {
-            execute(SnapshotsStatusAction.INSTANCE, request, listener);
+            execute(TransportSnapshotsStatusAction.TYPE, request, listener);
         }
 
         @Override

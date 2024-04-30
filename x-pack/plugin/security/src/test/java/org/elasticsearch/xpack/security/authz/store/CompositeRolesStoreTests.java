@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -721,8 +721,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            effectiveRoleDescriptors::set,
-            new WorkflowService()
+            effectiveRoleDescriptors::set
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -1532,7 +1531,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            null,
             "my_uuid"
         );
     }
@@ -2207,7 +2205,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             callback.onResponse(Collections.emptyList());
             return null;
         }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
-        final WorkflowService workflowService = new WorkflowService();
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2221,8 +2218,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
-            rds -> {},
-            workflowService
+            rds -> {}
         );
 
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
@@ -2321,7 +2317,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             callback.onResponse(Collections.emptyList());
             return null;
         }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
-        final WorkflowService workflowService = new WorkflowService();
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2335,8 +2330,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
-            rds -> {},
-            workflowService
+            rds -> {}
         );
 
         final String apiKeyId = randomAlphaOfLength(20);
@@ -2719,7 +2713,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (String action : Arrays.asList(
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(
@@ -2733,7 +2727,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (String action : Arrays.asList(
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(
@@ -2929,8 +2923,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             serviceAccountService,
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            roleConsumer,
-            workflowService
+            roleConsumer
         ) {
             @Override
             public void invalidateAll() {

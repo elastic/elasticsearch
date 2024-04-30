@@ -42,7 +42,6 @@ import static java.lang.String.format;
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
-    private final RerouteService rerouteService;
     private final FeatureService featureService;
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
@@ -69,7 +68,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             UpdateDesiredNodesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.rerouteService = rerouteService;
         this.featureService = featureService;
         this.taskQueue = clusterService.createTaskQueue(
             "update-desired-nodes",

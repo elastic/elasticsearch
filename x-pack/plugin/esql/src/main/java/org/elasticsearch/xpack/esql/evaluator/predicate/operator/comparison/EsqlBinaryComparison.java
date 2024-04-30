@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.function.Function;
@@ -32,14 +36,66 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
+    private final BinaryComparisonOperation functionType;
+
+    @FunctionalInterface
+    public interface BinaryOperatorConstructor {
+        EsqlBinaryComparison apply(Source source, Expression lhs, Expression rhs);
+    }
+
+    public enum BinaryComparisonOperation implements Writeable {
+
+        EQ(0, "==", BinaryComparisonProcessor.BinaryComparisonOperation.EQ, Equals::new),
+        // id 1 reserved for NullEquals
+        NEQ(2, "!=", BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, NotEquals::new),
+        GT(3, ">", BinaryComparisonProcessor.BinaryComparisonOperation.GT, GreaterThan::new),
+        GTE(4, ">=", BinaryComparisonProcessor.BinaryComparisonOperation.GTE, GreaterThanOrEqual::new),
+        LT(5, "<", BinaryComparisonProcessor.BinaryComparisonOperation.LT, LessThan::new),
+        LTE(6, "<=", BinaryComparisonProcessor.BinaryComparisonOperation.LTE, LessThanOrEqual::new);
+
+        private final int id;
+        private final String symbol;
+        // Temporary mapping to the old enum, to satisfy the superclass constructor signature.
+        private final BinaryComparisonProcessor.BinaryComparisonOperation shim;
+        private final BinaryOperatorConstructor constructor;
+
+        BinaryComparisonOperation(
+            int id,
+            String symbol,
+            BinaryComparisonProcessor.BinaryComparisonOperation shim,
+            BinaryOperatorConstructor constructor
+        ) {
+            this.id = id;
+            this.symbol = symbol;
+            this.shim = shim;
+            this.constructor = constructor;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(id);
+        }
+
+        public static BinaryComparisonOperation readFromStream(StreamInput in) throws IOException {
+            int id = in.readVInt();
+            for (BinaryComparisonOperation op : values()) {
+                if (op.id == id) {
+                    return op;
+                }
+            }
+            throw new IOException("No BinaryComparisonOperation found for id [" + id + "]");
+        }
+
+        public EsqlBinaryComparison buildNewInstance(Source source, Expression lhs, Expression rhs) {
+            return constructor.apply(source, lhs, rhs);
+        }
+    }
+
     protected EsqlBinaryComparison(
         Source source,
         Expression left,
         Expression right,
-        /* TODO: BinaryComparisonOperator is an enum with a bunch of functionality we don't really want. We should extract an interface and
-                 create a symbol only version like we did for BinaryArithmeticOperation. Ideally, they could be the same class.
-         */
-        BinaryComparisonProcessor.BinaryComparisonOperation operation,
+        BinaryComparisonOperation operation,
         Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         this(source, left, right, operation, null, evaluatorMap);
@@ -49,13 +105,18 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Source source,
         Expression left,
         Expression right,
-        BinaryComparisonProcessor.BinaryComparisonOperation operation,
+        BinaryComparisonOperation operation,
         // TODO: We are definitely not doing the right thing with this zoneId
         ZoneId zoneId,
         Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
-        super(source, left, right, operation, zoneId);
+        super(source, left, right, operation.shim, zoneId);
         this.evaluatorMap = evaluatorMap;
+        this.functionType = operation;
+    }
+
+    public BinaryComparisonOperation getFunctionType() {
+        return functionType;
     }
 
     @Override
@@ -103,7 +164,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             evaluatorMap::containsKey,
             sourceText(),
             paramOrdinal,
-            evaluatorMap.keySet().stream().map(DataType::typeName).toArray(String[]::new)
+            evaluatorMap.keySet().stream().map(DataType::typeName).sorted().toArray(String[]::new)
         );
     }
 

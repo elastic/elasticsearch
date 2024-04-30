@@ -10,8 +10,9 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.Rounding.DateTimeUnit;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+import java.util.concurrent.TimeUnit;
 
 public class RoundingWireTests extends AbstractWireSerializingTestCase<Rounding> {
     @Override
@@ -21,8 +22,9 @@ public class RoundingWireTests extends AbstractWireSerializingTestCase<Rounding>
             builder = Rounding.builder(randomFrom(DateTimeUnit.values()));
         } else {
             // The time value's millisecond component must be > 0 so we're limited in the suffixes we can use.
-            final var tv = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
-            builder = Rounding.builder(TimeValue.parseTimeValue(tv, "test"));
+            builder = Rounding.builder(
+                randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
+            );
         }
         if (randomBoolean()) {
             builder.timeZone(randomZone());

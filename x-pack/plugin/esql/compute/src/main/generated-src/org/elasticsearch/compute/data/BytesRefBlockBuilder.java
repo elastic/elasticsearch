@@ -140,6 +140,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         return this;
     }
 
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
+    }
+
     private BytesRefBlock buildFromBytesArray() {
         assert estimatedBytes == 0 || firstValueIndexes != null;
         final BytesRefBlock theBlock;

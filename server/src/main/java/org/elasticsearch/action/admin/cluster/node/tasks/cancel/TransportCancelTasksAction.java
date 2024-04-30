@@ -47,7 +47,6 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             transportService,
             actionFilters,
             CancelTasksRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             // Cancellation is usually lightweight, and runs on the transport thread if the task didn't even start yet, but some
             // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?

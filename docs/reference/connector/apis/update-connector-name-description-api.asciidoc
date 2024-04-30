@@ -4,7 +4,7 @@
 <titleabbrev>Update connector name and description</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 
 Updates the `name` and `description` fields of a connector.

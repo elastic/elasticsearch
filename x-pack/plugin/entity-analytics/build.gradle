@@ -1,0 +1,18 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-entity-analytics'
+  description 'Elasticsearch Expanded Pack Plugin - Entity Analytics'
+  classname 'org.elasticsearch.xpack.entityanalytics.EntityRiskPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-entity-analytics'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies(project)

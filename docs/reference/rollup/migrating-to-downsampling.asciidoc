@@ -1,6 +1,6 @@
 [role="xpack"]
 [[rollup-migrating-to-downsampling]]
-=== {rollup-cap} Migrating to downsampling
+=== Migrating from {rollup-cap} to downsampling
 ++++
 <titleabbrev>Migrating to downsampling</titleabbrev>
 ++++

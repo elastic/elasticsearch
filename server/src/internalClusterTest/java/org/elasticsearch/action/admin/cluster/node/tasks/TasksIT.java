@@ -562,6 +562,21 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testGetTaskWaitForCompletionWithoutStoringResult() throws Exception {
+        // Need to make sure the .tasks index gets created, so let's add a fake task first
+        var latch = new CountDownLatch(1);
+        internalCluster().getInstance(TaskResultsService.class).storeResult(new TaskResult(true, fakeTask()), new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        safeAwait(latch);
+
         waitForCompletionTestCase(false, id -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).execute(), response -> {
             assertTrue(response.getTask().isCompleted());
             // We didn't store the result so it won't come back when we wait
@@ -844,40 +859,21 @@ public class TasksIT extends ESIntegTestCase {
         // Save a fake task that looks like it is from a node that isn't part of the cluster
         CyclicBarrier b = new CyclicBarrier(2);
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
-        resultsService.storeResult(
-            new TaskResult(
-                new TaskInfo(
-                    new TaskId("fake", 1),
-                    "test",
-                    "fake",
-                    "test",
-                    "",
-                    null,
-                    0,
-                    0,
-                    false,
-                    false,
-                    TaskId.EMPTY_TASK_ID,
-                    Collections.emptyMap()
-                ),
-                new RuntimeException("test")
-            ),
-            new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void response) {
-                    try {
-                        b.await();
-                    } catch (InterruptedException | BrokenBarrierException e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new RuntimeException(e);
+        resultsService.storeResult(new TaskResult(fakeTask(), new RuntimeException("test")), new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void response) {
+                try {
+                    b.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    onFailure(e);
                 }
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
         b.await();
 
         // Now we can find it!
@@ -987,5 +983,22 @@ public class TasksIT extends ESIntegTestCase {
         assertEquals(taskId, info.taskId());
         assertNull(info.status()); // The test task doesn't have any status
         return response;
+    }
+
+    private static TaskInfo fakeTask() {
+        return new TaskInfo(
+            new TaskId("fake", 1),
+            "test",
+            "fake",
+            "test",
+            "",
+            null,
+            0,
+            0,
+            false,
+            false,
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap()
+        );
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -59,6 +60,8 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -508,7 +511,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 new FieldDataContext(getFullyQualifiedIndex().getName(), searchLookup, this::sourcePath, fielddataOperation)
             ),
             sourceProvider,
-            fieldLookupProvider
+            fieldLookupProvider,
+            (term) -> {
+                try {
+                    TermStates termStates =  TermStates.build(searcher, term, true);
+                    return  termStates;
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
         );
     }
 

@@ -32,5 +32,6 @@ static_import {
     double cosineSimilarity(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$CosineSimilarity
     double dotProduct(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$DotProduct
     java.util.DoubleSummaryStatistics documentFrequencyStatistics(org.elasticsearch.script.ScoreScript, String, String) bound_to org.elasticsearch.script.TermStatsScriptUtils$DocumentFrequencyStatistics
+    java.util.DoubleSummaryStatistics termFrequencyStatistics(org.elasticsearch.script.ScoreScript, String, String) bound_to org.elasticsearch.script.TermStatsScriptUtils$TermFrequencyStatistics
 }
 

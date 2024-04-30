@@ -12,6 +12,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.Source;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -41,4 +42,6 @@ public interface DocReader {
 
     /** Helper for source access */
     Supplier<Source> source();
+
+    TermsStatsReader termsStatsReader(String fieldName, String query) throws IOException;
 }

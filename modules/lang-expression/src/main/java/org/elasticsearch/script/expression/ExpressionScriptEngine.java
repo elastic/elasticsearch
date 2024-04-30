@@ -352,7 +352,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
     private static FilterScript.LeafFactory newFilterScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         ScoreScript.LeafFactory searchLeafFactory = newScoreScript(expr, lookup, vars);
         return docReader -> {
-            ScoreScript script = searchLeafFactory.newInstance(docReader, null);
+            ScoreScript script = searchLeafFactory.newInstance(docReader);
             return new FilterScript(vars, lookup, docReader) {
                 @Override
                 public boolean execute() {

@@ -172,7 +172,7 @@ public class TermVectorsFilter {
                 continue;
             }
 
-            Terms terms = fields.terms(fieldName);
+                Terms terms = fields.terms(fieldName);
             Terms topLevelTerms = topLevelFields.terms(fieldName);
 
             // if no terms found, take the retrieved term vector fields for stats

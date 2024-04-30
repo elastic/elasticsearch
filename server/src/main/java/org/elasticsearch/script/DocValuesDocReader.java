@@ -17,6 +17,7 @@ import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -33,11 +34,13 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
 
     /** A leaf lookup for the bound segment this proxy will operate on. */
     protected LeafSearchLookup leafSearchLookup;
+    protected final TermsStatsReaderProvider termsStatsReaderProvider;
 
     public DocValuesDocReader(SearchLookup searchLookup, LeafReaderContext leafContext) {
         this.searchLookup = searchLookup;
         this.leafReaderContext = leafContext;
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(leafReaderContext);
+        this.termsStatsReaderProvider = new TermsStatsReaderProvider(searchLookup, leafContext);
     }
 
     @Override
@@ -79,5 +82,9 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     @Override
     public Supplier<Source> source() {
         return leafSearchLookup.source();
+    }
+
+    public TermsStatsReader termsStatsReader(String fieldName, String query) throws IOException {
+        return termsStatsReaderProvider.termStatsReader(fieldName, query);
     }
 }

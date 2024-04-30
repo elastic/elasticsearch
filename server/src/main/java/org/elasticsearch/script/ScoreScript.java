@@ -189,6 +189,10 @@ public abstract class ScoreScript extends DocBasedScript {
         this.indexName = indexName;
     }
 
+    public void _termsStatsReader(String fieldName, String query, String analyzer) throws IOException {
+        docReader.termsStatsReader(fieldName, query);
+    }
+
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {
 

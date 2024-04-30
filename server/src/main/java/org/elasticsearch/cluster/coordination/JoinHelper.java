@@ -195,7 +195,7 @@ public class JoinHelper {
     }
 
     /**
-     * Tracks information about a join response failure. The failure itself can be logged later via either {@link FailedJoinAttempt@logNow}
+     * Tracks information about a join response failure. The failure itself can be logged later via either {@link FailedJoinAttempt#logNow}
      * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
      *
      * Package-private for testing.

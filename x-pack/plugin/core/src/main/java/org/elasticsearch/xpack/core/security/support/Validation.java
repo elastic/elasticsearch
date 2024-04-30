@@ -205,7 +205,7 @@ public final class Validation {
 
     public static final class Roles {
 
-        public static final int MAX_DESCRIPTION_LENGTH = 2048;
+        public static final int MAX_DESCRIPTION_LENGTH = 1000;
 
         public static Error validateRoleName(String roleName, boolean allowReserved) {
             return validateRoleName(roleName, allowReserved, MAX_NAME_LENGTH);

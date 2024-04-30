@@ -37,6 +37,7 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -237,7 +238,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> shutdown one of the nodes");
         internalCluster().stopRandomDataNode();
         assertThat(
-            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForNodes("<2").get().isTimedOut(),
+            clusterAdmin().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(TimeValue.timeValueMinutes(1))
+                .setWaitForNodes("<2")
+                .get()
+                .isTimedOut(),
             equalTo(false)
         );
 
@@ -415,7 +421,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         });
 
         assertThat(
-            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForNodes("2").get().isTimedOut(),
+            clusterAdmin().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(TimeValue.timeValueMinutes(1))
+                .setWaitForNodes("2")
+                .get()
+                .isTimedOut(),
             equalTo(false)
         );
 
@@ -644,7 +655,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(indicesAdmin().prepareDelete(sourceIdx).get());
         assertAcked(indicesAdmin().prepareDelete(shrunkIdx).get());
         internalCluster().stopRandomDataNode();
-        clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("1");
+        clusterAdmin().prepareHealth().setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("1");
 
         logger.info("--> start a new data node");
         final Settings dataSettings = Settings.builder()
@@ -652,7 +663,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()) // to get a new node id
             .build();
         internalCluster().startDataOnlyNode(dataSettings);
-        clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("2");
+        clusterAdmin().prepareHealth().setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("2");
 
         logger.info("--> restore the shrunk index and ensure all shards are allocated");
         RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(repo, snapshot)

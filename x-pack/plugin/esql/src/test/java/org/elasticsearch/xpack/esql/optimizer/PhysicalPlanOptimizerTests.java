@@ -4124,11 +4124,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         physicalPlan(mainQuery.toString());
 
-        var cast = "::long::int".repeat(MAX_EXPRESSION_DEPTH / 2 - 2);
+        var cast = "::long::int".repeat(MAX_EXPRESSION_DEPTH / 2 - 2) + "::long";
 
         physicalPlan(mainQuery + cast);
 
-        var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::long::int"));
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::int"));
         assertThat(
             e.getMessage(),
             containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")

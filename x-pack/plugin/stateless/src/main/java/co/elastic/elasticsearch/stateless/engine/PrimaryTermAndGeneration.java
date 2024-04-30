@@ -66,4 +66,8 @@ public record PrimaryTermAndGeneration(long primaryTerm, long generation) implem
     public boolean onOrBefore(PrimaryTermAndGeneration other) {
         return compareTo(other) <= 0;
     }
+
+    public static PrimaryTermAndGeneration max(PrimaryTermAndGeneration a, PrimaryTermAndGeneration b) {
+        return a.onOrAfter(b) ? a : b;
+    }
 }

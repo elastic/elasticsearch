@@ -1185,6 +1185,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
                 final boolean frozen = expectedVirtualBcc.freeze();
                 assert frozen : "freeze must be successful since it is invoked exclusively";
+
+                // Create the blobReference which updates blobLocations, init search nodes commit usage tracking.
+                // We do this prior to adding to pending upload generations since we rely on this for search commit registration.
+                blobReference = createBlobReference(expectedVirtualBcc);
+
                 final var previous = pendingUploadBccGenerations.put(
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
                     expectedVirtualBcc
@@ -1199,8 +1204,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         expectedVirtualBcc.getPrimaryTermAndGeneration().generation()
                     )
                 );
-                // Create the blobReference which updates blobLocations, init search nodes commit usage tracking
-                blobReference = createBlobReference(expectedVirtualBcc);
             }
             createAndRunCommitUpload(this, expectedVirtualBcc, blobReference);
         }
@@ -1886,44 +1889,62 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // registration and run it after the indexing shard is finished initializing.
             // TODO We should force a flush at the end of the indexing shard recovery so that latestUploadedBcc will be non null after
             // shard is initialized (ES-8327)
+
+            // Consider minimum pending generation also available to search, since we are in the process of uploading it and search
+            // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
+            // means it is not yet considered uploaded here.
+            Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
+                .stream()
+                .min(Comparator.comparing(VirtualBatchedCompoundCommit::getPrimaryTermAndGeneration));
             var latestUploaded = this.latestUploadedBcc;
             if (latestUploaded == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
             }
-            var latestUploadedCommit = latestUploaded.last();
-            if (compoundCommitGeneration.after(latestUploadedCommit.primaryTermAndGeneration())) {
+            // onOrAfter (really just "on", see next if block) means the shard *is* uploaded, since the search shard saw it
+            AbstractBatchedCompoundCommit availableBcc = latestUploading.map(o -> (AbstractBatchedCompoundCommit) o)
+                .filter(bcc -> compoundCommitGeneration.onOrAfter(bcc.lastCompoundCommit().primaryTermAndGeneration()))
+                .orElse(latestUploaded);
+            var availableCommit = availableBcc.lastCompoundCommit();
+            if (compoundCommitGeneration.after(availableCommit.primaryTermAndGeneration())) {
                 throw new RecoveryCommitTooNewException(
                     shardId,
                     "Compound commit "
                         + compoundCommitGeneration
-                        + " used for registration is newer than the latest uploaded compound commit "
-                        + latestUploadedCommit.toShortDescription()
+                        + " used for registration is newer than the uploaded compound commit "
+                        + availableCommit.toShortDescription()
                         + " in batch "
-                        + latestUploaded.primaryTermAndGeneration()
+                        + availableBcc.primaryTermAndGeneration()
+                        + " from "
+                        + (latestUploading.isEmpty() ? "latest" : "pending")
+                        + " uploaded commit"
                 );
             }
 
             // search shard is on a node that does not register with a BCC generation (so it does not support recovering from a VBCC
             // and should use the last uploaded BCC) or feature is not enabled
             if (batchedCompoundGeneration == null || statelessUploadDelayed == false) {
-                return registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId));
+                return registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId), availableBcc);
             }
 
-            return registerVirtualBccForUnpromotableRecovery(Set.of(nodeId));
+            return registerVirtualBccForUnpromotableRecovery(Set.of(nodeId), availableBcc);
         }
 
         /**
          * Register the virtual batched compound commit as the commit to use for the unpromotable shard recovery.
-         *
+         * <p>
          * If a VBCC exists at the time this method is called, then the latest appended commit of that VBCC is retrieved to compute a list
          * of referenced BCCs to retain during the recovery. The method then tries to register the {@code nodeId} for every referenced BCC
          * (using {@link #registerUnpromoteableCommitRefs(Set, BlobReference)}). If that works a registration response is returned with the
          * latest uploaded BCC term/generation and a compound commit to use from the VBCC. Otherwise the method simply retries.
          *
-         * @param nodeIds a set containing the search shard's node id
+         * @param nodeIds      a set containing the search shard's node id
+         * @param availableBcc a commit that is uploaded/available, but not necessarily yet in latestUploadedBcc
          * @return a registration response
          */
-        private RegisterCommitResponse registerVirtualBccForUnpromotableRecovery(Set<String> nodeIds) {
+        private RegisterCommitResponse registerVirtualBccForUnpromotableRecovery(
+            Set<String> nodeIds,
+            AbstractBatchedCompoundCommit availableBcc
+        ) {
             while (true) {
                 var virtual = getCurrentOrPendingUploadVirtualBcc();
                 if (virtual == null || isClosed()) {
@@ -1941,23 +1962,31 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     .filter(primaryTermAndGeneration -> primaryTermAndGeneration.before(virtualPrimaryTermAndGeneration))
                     .collect(Collectors.toSet());
                 if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
-                    return new RegisterCommitResponse(latestUploadedBcc.primaryTermAndGeneration(), virtualCompoundCommit);
+                    return new RegisterCommitResponse(
+                        PrimaryTermAndGeneration.max(latestUploadedBcc.primaryTermAndGeneration(), availableBcc.primaryTermAndGeneration()),
+                        virtualCompoundCommit
+                    );
                 }
             }
             // fall back to the last uploaded BCC if VBCC do not exist yet
-            return registerLastUploadedBccForUnpromotableRecovery(nodeIds);
+            return registerLastUploadedBccForUnpromotableRecovery(nodeIds, availableBcc);
         }
 
         /**
          * Register the last uploaded batched compound commit as the commit to use for the unpromotable shard recovery.
          *
-         * @param nodeIds a set containing the search shard's node id
+         * @param nodeIds      a set containing the search shard's node id
+         * @param availableBcc a commit that is uploaded/available, but not necessarily yet in latestUploadedBcc
          * @return a registration response
          */
-        private RegisterCommitResponse registerLastUploadedBccForUnpromotableRecovery(Set<String> nodeIds) {
-            BatchedCompoundCommit latest;
+        private RegisterCommitResponse registerLastUploadedBccForUnpromotableRecovery(
+            Set<String> nodeIds,
+            AbstractBatchedCompoundCommit availableBcc
+        ) {
+            assert availableBcc != null;
+            AbstractBatchedCompoundCommit latest = availableBcc;
             long previousGenerationUploaded = -1L;
-            while ((latest = this.latestUploadedBcc) != null) {
+            do {
                 if (isClosed()) {
                     break;
                 }
@@ -1965,11 +1994,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert latest.primaryTermAndGeneration().generation() > previousGenerationUploaded;
                 assert latest.primaryTermAndGeneration().primaryTerm() == allocationPrimaryTerm;
 
-                var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(latest.last());
+                var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(
+                    latest.lastCompoundCommit()
+                );
                 if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
-                    return new RegisterCommitResponse(latest.primaryTermAndGeneration(), latest.last());
+                    return new RegisterCommitResponse(latest.primaryTermAndGeneration(), latest.lastCompoundCommit());
                 }
-            }
+                previousGenerationUploaded = latest.primaryTermAndGeneration().generation();
+            } while ((latest = this.latestUploadedBcc) != null);
+
             throw new NoShardAvailableActionException(shardId, "Indexing shard is closed");
         }
 
@@ -1984,6 +2017,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     assert blobReference.isExternalReadersClosed() == false;
                     registered++;
                 } else {
+                    logger.info(
+                        "unable to lock down {} out of {} for blob {}",
+                        primaryTermAndGeneration,
+                        primaryTermAndGenerations,
+                        blobReference
+                    );
                     break;
                 }
             }

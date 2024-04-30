@@ -36,7 +36,9 @@ import java.util.stream.IntStream;
 /**
  * Represents a collection of compound commits stored together within the same blob.
  */
-public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGeneration, List<StatelessCompoundCommit> compoundCommits) {
+public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGeneration, List<StatelessCompoundCommit> compoundCommits)
+    implements
+        AbstractBatchedCompoundCommit {
 
     public BatchedCompoundCommit {
         if (primaryTermAndGeneration == null) {
@@ -73,6 +75,11 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
 
     public StatelessCompoundCommit last() {
         return compoundCommits.get(compoundCommits.size() - 1);
+    }
+
+    @Override
+    public StatelessCompoundCommit lastCompoundCommit() {
+        return last();
     }
 
     public Set<String> getAllInternalFiles() {

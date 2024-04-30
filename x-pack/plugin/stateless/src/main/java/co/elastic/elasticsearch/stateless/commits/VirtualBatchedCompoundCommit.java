@@ -87,7 +87,7 @@ import static java.util.stream.Collectors.groupingBy;
  *  </p>
  *
  * */
-public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements Closeable {
+public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements Closeable, AbstractBatchedCompoundCommit {
     private static final Logger logger = LogManager.getLogger(VirtualBatchedCompoundCommit.class);
 
     private final ShardId shardId;
@@ -352,6 +352,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
         return primaryTermAndGeneration;
+    }
+
+    @Override
+    public PrimaryTermAndGeneration primaryTermAndGeneration() {
+        return getPrimaryTermAndGeneration();
     }
 
     public long getTotalSizeInBytes() {

@@ -35,7 +35,7 @@ public class CompositeRoleMapperTests extends ESTestCase {
         CachingRealm realm = mock(CachingRealm.class);
         compositeRoleMapper.clearRealmCacheOnChange(realm);
         verify(userRoleMapper1, times(1)).clearRealmCacheOnChange(eq(realm));
-        verify(userRoleMapper1, times(1)).clearRealmCacheOnChange(eq(realm));
+        verify(userRoleMapper2, times(1)).clearRealmCacheOnChange(eq(realm));
     }
 
     public void testRolesResolveIsCumulative() throws Exception {

@@ -15,21 +15,52 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappingTests.randomRoleMapping;
 import static org.hamcrest.Matchers.is;
 
-public class RoleMappingMetadataTests extends ESTestCase {
+public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<RoleMappingMetadata> {
 
-    public void testSerialization() throws IOException {
+    @Override
+    protected RoleMappingMetadata createTestInstance() {
+        return new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
+    }
+
+    @Override
+    protected RoleMappingMetadata mutateInstance(RoleMappingMetadata instance) throws IOException {
+        Set<ExpressionRoleMapping> mutatedRoleMappings = new HashSet<>(instance.getRoleMappings());
+        boolean mutated = false;
+        if (mutatedRoleMappings.isEmpty() == false && randomBoolean()) {
+            mutated = true;
+            mutatedRoleMappings.remove(randomFrom(mutatedRoleMappings));
+        }
+        if (randomBoolean() || mutated == false) {
+            mutatedRoleMappings.add(randomRoleMapping(true));
+        }
+        return new RoleMappingMetadata(mutatedRoleMappings);
+    }
+
+    @Override
+    protected Writeable.Reader<RoleMappingMetadata> instanceReader() {
+        return RoleMappingMetadata::new;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+    }
+
+    public void testSerializationBWC() throws IOException {
         RoleMappingMetadata original = new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
         TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_2_0, null);
         BytesStreamOutput output = new BytesStreamOutput();

@@ -20,9 +20,9 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -759,7 +759,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         ).local(true).preference(preference).routing(routing);
                         transportService.sendRequest(
                             connection,
-                            ClusterSearchShardsAction.NAME,
+                            TransportClusterSearchShardsAction.TYPE.name(),
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(

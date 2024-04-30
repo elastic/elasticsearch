@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -33,11 +34,23 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
  * Splits a string on some delimiter into a multivalued string field.
  */
 public class Split extends BinaryScalarFunction implements EvaluatorMapper {
-    @FunctionInfo(returnType = "keyword", description = "Split a single valued string into multiple strings.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Split a single valued string into multiple strings.",
+        examples = @Example(file = "string", tag = "split")
+    )
     public Split(
         Source source,
-        @Param(name = "string", type = { "keyword", "text" }) Expression str,
-        @Param(name = "delim", type = { "keyword", "text" }) Expression delim
+        @Param(
+            name = "string",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression str,
+        @Param(
+            name = "delim",
+            type = { "keyword", "text" },
+            description = "Delimiter. Only single byte delimiters are currently supported."
+        ) Expression delim
     ) {
         super(source, str, delim);
     }

@@ -31,7 +31,6 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
         return "127-0-0-1";
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107416")
     public void testStackOverflow() {
         // This tests that we rethrow StackOverflowErrors as ElasticsearchExceptions so that we don't take down the node
         String badRegex = "( (?=(?:[^'\"]|'[^']*'|\"[^\"]*\")*$))";
@@ -45,7 +44,7 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
             "targetField"
         );
         StringBuilder badSourceBuilder = new StringBuilder("key1=x key2=");
-        badSourceBuilder.append("x".repeat(3000));
+        badSourceBuilder.append("x".repeat(10000));
         Map<String, Object> source = Map.of("field", badSourceBuilder.toString());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));

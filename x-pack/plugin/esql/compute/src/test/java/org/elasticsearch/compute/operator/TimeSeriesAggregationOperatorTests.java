@@ -323,7 +323,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         HashAggregationOperator finalHash = new HashAggregationOperator(
             List.of(new RateLongAggregatorFunctionSupplier(List.of(1, 2, 3), unitInMillis).groupingAggregatorFactory(AggregatorMode.FINAL)),
             () -> BlockHash.build(
-                List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
+                List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
                 ctx.blockFactory(),
                 randomIntBetween(1, 1000),
                 randomBoolean()
@@ -339,7 +339,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
                     new RateLongAggregatorFunctionSupplier(List.of(5, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
                 ),
                 () -> BlockHash.build(
-                    List.of(new HashAggregationOperator.GroupSpec(4, ElementType.BYTES_REF)),
+                    List.of(new BlockHash.GroupSpec(4, ElementType.BYTES_REF)),
                     ctx.blockFactory(),
                     randomIntBetween(1, 1000),
                     randomBoolean()

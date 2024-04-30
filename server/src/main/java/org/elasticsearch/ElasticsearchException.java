@@ -1931,6 +1931,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             PersistentTaskNodeNotAssignedException::new,
             180,
             TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+        ),
+        RESOURCE_ALREADY_UPLOADED_EXCEPTION(
+            ResourceAlreadyUploadedException.class,
+            ResourceAlreadyUploadedException::new,
+            181,
+            TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

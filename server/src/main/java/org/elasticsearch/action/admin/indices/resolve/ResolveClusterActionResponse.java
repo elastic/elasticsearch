@@ -47,9 +47,9 @@ public class ResolveClusterActionResponse extends ActionResponse implements ToXC
         if (out.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
             throw new UnsupportedOperationException(
                 "ResolveClusterAction requires at least Transport Version "
-                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED.toReleaseVersion()
                     + " but was "
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
             );
         }
         out.writeMap(infoMap, StreamOutput::writeWriteable);

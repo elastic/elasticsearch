@@ -379,6 +379,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )
+                        .add(
+                            client.prepareSearch(SECURITY_MAIN_ALIAS)
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .filter(existsQuery("remote_cluster"))
+                                )
+                                .setTrackTotalHits(true)
+                                .setSize(0)
+                        )
                         .request(),
                     new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
@@ -404,6 +414,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 usageStats.put("remote_indices", 0);
                             } else {
                                 usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value);
+                            }
+                            if (responses[4].isFailure()) {
+                                usageStats.put("remote_cluster", 0);
+                            } else {
+                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value);
                             }
                             delegate.onResponse(usageStats);
                         }

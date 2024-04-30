@@ -280,4 +280,60 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertThat(syntheticSource, Matchers.containsString("\"path\":{\"int_value\":" + intValue));
         assertThat(syntheticSource, Matchers.containsString("\"to\":{\"name\":\"" + name + "\"}}}"));
     }
+
+    public void testMixedDisabledEnabledObjects() throws IOException {
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        String foo = randomAlphaOfLength(20);
+        String bar = randomAlphaOfLength(20);
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                    b.startObject("to").field("type", "object");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("foo").field("type", "object").field("enabled", false).endObject();
+                            b.startObject("bar").field("type", "object");
+                            {
+                                b.startObject("properties");
+                                {
+                                    b.startObject("name").field("type", "keyword").endObject();
+                                }
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startObject("to");
+                {
+                    b.startObject("foo").field("name", foo).endObject();
+                    b.startObject("bar").field("name", bar).endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
+        assertThat(syntheticSource, Matchers.containsString("\"path\":{\"int_value\":" + intValue));
+        assertThat(syntheticSource, Matchers.containsString("\"foo\":{\"name\":\"" + foo + "\"}"));
+        assertThat(syntheticSource, Matchers.containsString("\"bar\":{\"name\":\"" + bar + "\"}"));
+    }
 }

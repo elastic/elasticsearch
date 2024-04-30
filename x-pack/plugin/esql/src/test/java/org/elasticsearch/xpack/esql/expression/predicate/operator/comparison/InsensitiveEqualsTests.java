@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
+package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;

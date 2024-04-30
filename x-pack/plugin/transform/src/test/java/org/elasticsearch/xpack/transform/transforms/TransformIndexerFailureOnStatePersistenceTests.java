@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigException;
+import org.elasticsearch.xpack.transform.persistence.TransformStatePersistenceException;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
@@ -134,7 +134,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         ) {
             if (failAt.contains(persistenceCallCount++)) {
                 listener.onFailure(
-                    new TransformConfigException(
+                    new TransformStatePersistenceException(
                         "FailingToPutStoredDocTransformConfigManager.putOrUpdateTransformStoredDoc is intentionally throwing an exception",
                         exception
                     )
@@ -161,7 +161,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             if (seqNo != -1) {
                 if (seqNoPrimaryTermAndIndex.getSeqNo() != seqNo || seqNoPrimaryTermAndIndex.getPrimaryTerm() != primaryTerm) {
                     listener.onFailure(
-                        new TransformConfigException(
+                        new TransformStatePersistenceException(
                             "SeqNoCheckingTransformConfigManager.putOrUpdateTransformStoredDoc is intentionally throwing an exception",
                             new VersionConflictEngineException(new ShardId("index", "indexUUID", 42), "some_id", 45L, 44L, 43L, 42L)
                         )

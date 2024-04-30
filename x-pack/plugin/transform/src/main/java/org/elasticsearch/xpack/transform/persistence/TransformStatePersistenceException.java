@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ElasticsearchWrapperException;
 
-public class TransformConfigException extends RuntimeException implements ElasticsearchWrapperException {
-    public TransformConfigException(String message, Throwable cause) {
+public class TransformStatePersistenceException extends RuntimeException implements ElasticsearchWrapperException {
+    public TransformStatePersistenceException(String message, Throwable cause) {
         super(message, cause);
     }
 }

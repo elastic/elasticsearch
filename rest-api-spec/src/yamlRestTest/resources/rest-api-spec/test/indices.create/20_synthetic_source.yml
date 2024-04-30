@@ -323,7 +323,6 @@ mixed disabled and enabled objects:
                       bad:
                         enabled: true
 
-
   - do:
       bulk:
         index: test

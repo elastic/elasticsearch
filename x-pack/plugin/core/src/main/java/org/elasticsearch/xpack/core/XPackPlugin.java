@@ -138,8 +138,7 @@ public class XPackPlugin extends XPackClientPlugin
         RepositoryPlugin,
         EnginePlugin,
         ClusterPlugin,
-        MapperPlugin,
-        SearchPlugin {
+        MapperPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";

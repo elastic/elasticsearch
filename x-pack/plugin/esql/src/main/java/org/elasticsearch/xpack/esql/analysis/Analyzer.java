@@ -377,9 +377,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (a.expressionsResolved() == false && Resolvables.resolved(groupings)) {
+            if (a.expressionsResolved() == false) {
                 AttributeMap<Expression> resolved = new AttributeMap<>();
-                for (Expression e : groupings) {
+                for (Expression e : groupings.stream().filter(Expression::resolved).toList()) {
                     Attribute attr = Expressions.attribute(e);
                     if (attr != null) {
                         resolved.put(attr, attr);

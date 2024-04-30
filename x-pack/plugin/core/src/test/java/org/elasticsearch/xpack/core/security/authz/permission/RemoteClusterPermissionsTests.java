@@ -8,17 +8,20 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -112,15 +115,14 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
                         privileges[j] = privileges[j].toLowerCase(Locale.ROOT);
                     }
                     Arrays.sort(privileges);
+                    // the two array are always equal since the all the random values are allowed
                     assertArrayEquals(privileges, found);
                 }
             }
         } finally {
             RemoteClusterPermissions.allowedRemoteClusterPermissions = original;
         }
-    }
 
-    public void testPrivilegeNamesPerVersion() {
         // create random groups with random privileges for random clusters
         List<RemoteClusterPermissionGroup> randomGroups = generateRandomGroups(true);
         // replace a random value with one that is allowed
@@ -138,19 +140,40 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
                 }
                 Arrays.sort(privileges);
 
+                // the results are conditional. the first group has a value that is allowed for the current version
                 if (i == 0 && privileges.length == 1) {
                     // special case where there was only 1 random value and it was replaced with a value that is allowed
                     assertArrayEquals(privileges, found);
                 } else {
                     // none of the random privileges are not allowed for the current version
                     assertFalse(Arrays.equals(privileges, found));
-                }
-                if (i == 0) {
-                    // ensure that for the current version we only find "monitor_enrich"
-                    assertThat(Set.of(found), equalTo(Set.of("monitor_enrich")));
+                    if (i == 0) {
+                        // ensure that for the current version we only find "monitor_enrich"
+                        assertThat(Set.of(found), equalTo(Set.of("monitor_enrich")));
+                    } else {
+                        // all other groups should not have any privileges
+                        assertTrue(found.length == 0);
+                    }
                 }
             }
         }
+    }
+
+    public void testMonitorEnrichPerVersion() {
+        // test monitor_enrich before, after and on monitor enrich version
+        String[] privileges = randomBoolean() ? new String[] { "monitor_enrich" } : new String[] { "monitor_enrich", "foo", "bar" };
+        String[] before = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
+            .privilegeNames("*", TransportVersionUtils.getPreviousVersion(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS));
+        // empty set since monitor_enrich is not allowed in the before version
+        assertThat(Set.of(before), equalTo(Collections.emptySet()));
+        String[] on = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
+            .privilegeNames("*", TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS);
+        // only monitor_enrich since the other values are not allowed
+        assertThat(Set.of(on), equalTo(Set.of("monitor_enrich")));
+        String[] after = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
+            .privilegeNames("*", TransportVersion.current());
+        // only monitor_enrich since the other values are not allowed
+        assertThat(Set.of(after), equalTo(Set.of("monitor_enrich")));
     }
 
     public void testValidate() {

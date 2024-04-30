@@ -111,7 +111,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         // find all the privileges that are allowed for the remote cluster version
         Set<String> allowedPermissionsPerVersion = allowedRemoteClusterPermissions.entrySet()
             .stream()
-            .filter((entry) -> entry.getKey().onOrAfter(remoteClusterVersion))
+            .filter((entry) -> entry.getKey().onOrBefore(remoteClusterVersion))
             .map(Map.Entry::getValue)
             .flatMap(Set::stream)
             .map(s -> s.toLowerCase(Locale.ROOT))

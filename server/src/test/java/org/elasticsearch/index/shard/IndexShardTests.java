@@ -194,7 +194,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -4001,7 +4000,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107462")
     public void testFlushTimeExcludingWaiting() throws Exception {
         IndexShard shard = newStartedShard();
         for (int i = 0; i < randomIntBetween(4, 10); i++) {
@@ -4027,9 +4025,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 greaterThan(0L)
             );
             assertThat(
-                "Flush time excluding waiting should less than flush time with waiting",
+                "Flush time excluding waiting should be less or equal than the flush time with waiting",
                 flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
-                lessThan(flushStats.getTotalTime().millis())
+                lessThanOrEqualTo(flushStats.getTotalTime().millis())
             );
         } finally {
             closeShards(shard);

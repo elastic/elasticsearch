@@ -112,6 +112,13 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     }
 
     /**
+     * Temporary method to build a {@link PackedValuesBlockHash}.
+     */
+    public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
+        return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+
+    /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
     private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {

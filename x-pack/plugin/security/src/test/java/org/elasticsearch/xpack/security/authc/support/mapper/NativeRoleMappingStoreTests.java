@@ -415,7 +415,6 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            null,
             "my_uuid"
         );
     }

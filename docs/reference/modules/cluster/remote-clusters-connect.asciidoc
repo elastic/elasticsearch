@@ -37,7 +37,7 @@ clusters on individual nodes in the local cluster, define static settings in
 `elasticsearch.yml` for each node.
 
 The following request adds a remote cluster with an alias of `cluster_one`. This
-_cluster alias_ is a unique identifier that represents the connection to the 
+_cluster alias_ is a unique identifier that represents the connection to the
 remote cluster and is used to distinguish between local and remote indices.
 
 [source,console,subs=attributes+]
@@ -60,7 +60,7 @@ PUT /_cluster/settings
 // TEST[setup:host]
 // TEST[s/127.0.0.1:\{remote-interface-default-port\}/\${transport_host}/]
 <1> The cluster alias of this remote cluster is `cluster_one`.
-<2> Specifies the hostname and {remote-interface} port of a seed node in the 
+<2> Specifies the hostname and {remote-interface} port of a seed node in the
 remote cluster.
 
 You can use the <<cluster-remote-info,remote cluster info API>> to verify that
@@ -86,7 +86,7 @@ cluster with the cluster alias `cluster_one`:
     "num_nodes_connected" : 1,  <1>
     "max_connections_per_cluster" : 3,
     "initial_connect_timeout" : "30s",
-    "skip_unavailable" : false, <2>
+    "skip_unavailable" : true, <2>
 ifeval::["{trust-mechanism}"=="api-key"]
     "cluster_credentials": "::es_redacted::", <3>
 endif::[]
@@ -103,7 +103,7 @@ connected to.
 <2> Indicates whether to skip the remote cluster if searched through {ccs} but
 no nodes are available.
 ifeval::["{trust-mechanism}"=="api-key"]
-<3> If present, indicates the remote cluster has connected using API key 
+<3> If present, indicates the remote cluster has connected using API key
 authentication.
 endif::[]
 
@@ -187,7 +187,7 @@ PUT _cluster/settings
 
 You can delete a remote cluster from the cluster settings by passing `null`
 values for each remote cluster setting. The following request removes
-`cluster_two` from the cluster settings, leaving `cluster_one` and 
+`cluster_two` from the cluster settings, leaving `cluster_one` and
 `cluster_three` intact:
 
 [source,console]
@@ -212,15 +212,15 @@ PUT _cluster/settings
 
 ===== Statically configure remote clusters
 If you specify settings in `elasticsearch.yml`, only the nodes with
-those settings can connect to the remote cluster and serve remote cluster 
+those settings can connect to the remote cluster and serve remote cluster
 requests.
 
-NOTE: Remote cluster settings that are specified using the 
+NOTE: Remote cluster settings that are specified using the
 <<cluster-update-settings,cluster update settings API>> take precedence over
 settings that you specify in `elasticsearch.yml` for individual nodes.
 
-In the following example, `cluster_one`, `cluster_two`, and `cluster_three` are 
-arbitrary cluster aliases representing the connection to each cluster. These 
+In the following example, `cluster_one`, `cluster_two`, and `cluster_three` are
+arbitrary cluster aliases representing the connection to each cluster. These
 names are subsequently used to distinguish between local and remote indices.
 
 [source,yaml,subs=attributes+]

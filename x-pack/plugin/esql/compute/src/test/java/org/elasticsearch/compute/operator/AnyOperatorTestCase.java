@@ -68,7 +68,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
-    public final void testSimpleToString() {
+    public void testSimpleToString() {
         try (Operator operator = simple().get(driverContext())) {
             assertThat(operator.toString(), expectedToStringOfSimple());
         }

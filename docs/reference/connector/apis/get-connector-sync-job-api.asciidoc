@@ -4,7 +4,7 @@
 <titleabbrev>Get connector sync job</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Retrieves the details about a connector sync job.
 

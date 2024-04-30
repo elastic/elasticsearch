@@ -733,7 +733,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
                 rankFeatureShardPhase.prepareForFetch(searchContext, request);
                 int[] docIds = request.getDocIds();
-                if (docIds == null || docIds.length == 0) {
+                if ((docIds == null || docIds.length == 0) || searchContext.fetchFieldsContext() == null) {
                     searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
                     searchContext.rankFeatureResult().incRef();
                     return searchContext.rankFeatureResult();

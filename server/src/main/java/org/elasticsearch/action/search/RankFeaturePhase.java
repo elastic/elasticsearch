@@ -32,12 +32,13 @@ import java.util.List;
  * and finally passes all this information to the appropriate {@code RankFeatureRankCoordinatorContext} which is responsible for reranking
  * the results. If no rank query is specified, it proceeds directly to the next phase (FetchSearchPhase) by first reducing the results.
  */
-public final class RankFeaturePhase extends SearchPhase {
+public class RankFeaturePhase extends SearchPhase {
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
     private final SearchPhaseContext context;
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
-    private final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
+    // test-access
+    final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
     private final Client client;
 
     private final AggregatedDfs aggregatedDfs;
@@ -117,6 +118,7 @@ public final class RankFeaturePhase extends SearchPhase {
     }
 
     private RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source) {
+        assert source != null : "source cannot be null";
         return source.rankBuilder() == null
             ? null
             : context.getRequest()
@@ -176,13 +178,13 @@ public final class RankFeaturePhase extends SearchPhase {
         rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(
             rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
             (scoreDocs) -> {
-                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhase(reducedQueryPhase, scoreDocs);
+                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(reducedQueryPhase, scoreDocs);
                 moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
             }
         );
     }
 
-    private SearchPhaseController.ReducedQueryPhase newReducedQueryPhase(
+    private SearchPhaseController.ReducedQueryPhase newReducedQueryPhaseResults(
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         ScoreDoc[] scoreDocs
     ) {
@@ -205,10 +207,7 @@ public final class RankFeaturePhase extends SearchPhase {
         );
     }
 
-    private void moveToNextPhase(
-        SearchPhaseResults<SearchPhaseResult> phaseResults,
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
-    ) {
+    void moveToNextPhase(SearchPhaseResults<SearchPhaseResult> phaseResults, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
         context.executeNextPhase(this, new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase));
     }
 }

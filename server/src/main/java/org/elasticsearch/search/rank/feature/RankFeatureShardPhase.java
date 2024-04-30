@@ -53,6 +53,7 @@ public final class RankFeatureShardPhase {
             if (docIds == null || docIds.length == 0) {
                 return;
             }
+            assert rankFeaturePhaseRankShardContext.getField() != null : "field must not be null";
             searchContext.fetchFieldsContext(
                 new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(rankFeaturePhaseRankShardContext.getField(), null)))
             );

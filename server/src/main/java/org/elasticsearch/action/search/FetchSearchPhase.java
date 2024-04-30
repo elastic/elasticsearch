@@ -164,6 +164,7 @@ final class FetchSearchPhase extends SearchPhase {
     ) {
         final SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
         final int shardIndex = queryResult.getShardIndex();
+        // todo: changeme
         final ShardSearchContextId contextId = queryResult.queryResult().getContextId();
         context.getSearchTransport()
             .sendExecuteFetch(

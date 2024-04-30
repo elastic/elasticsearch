@@ -108,7 +108,6 @@ include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg]
 |===
 include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg-result]
 |===
-
 `BUCKET` may be used in both the aggregating and grouping part of the
 <<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
 part the function is referenced by an alias defined in the
@@ -121,3 +120,4 @@ include::{esql-specs}/bucket.csv-spec[tag=reuseGroupingFunctionWithExpression]
 |===
 include::{esql-specs}/bucket.csv-spec[tag=reuseGroupingFunctionWithExpression-result]
 |===
+

@@ -304,7 +304,8 @@ public final class DocVector extends AbstractVector implements Vector {
             () -> blockFactory().adjustBreaker(-BASE_RAM_BYTES_USED - (shardSegmentDocMapForwards == null ? 0 : sizeOfSegmentDocMap())),
             shards,
             segments,
-            docs
+            docs,
+            scores
         );
     }
 }

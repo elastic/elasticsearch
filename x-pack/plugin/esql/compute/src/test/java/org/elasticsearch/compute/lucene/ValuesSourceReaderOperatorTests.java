@@ -478,7 +478,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED);
     }
 
-    private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
+    public static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
         return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, shardIdx -> {
             if (shardIdx != 0) {
                 fail("unexpected shardIdx [" + shardIdx + "]");

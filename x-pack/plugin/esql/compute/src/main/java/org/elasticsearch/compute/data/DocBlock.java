@@ -155,7 +155,9 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 shards.appendInt(docVector.shards().getInt(i));
                 segments.appendInt(docVector.segments().getInt(i));
                 docs.appendInt(docVector.docs().getInt(i));
-                scores.appendDouble(docVector.scores().getDouble(i));
+                if (docVector.scores() != null) {
+                    scores.appendDouble(docVector.scores().getDouble(i));
+                }
             }
             return this;
         }

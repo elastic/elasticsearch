@@ -358,12 +358,16 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             LeafReaderContext ctx = ctx(shard, segment);
             fieldsMoved(ctx, shard);
             read(firstDoc);
-            scoreBuilder.appendDouble(scores.getDouble(p));
+            if(scores != null) {
+                scoreBuilder.appendDouble(scores.getDouble(p));
+            }
             for (int i = 1; i < forwards.length; i++) {
                 p = forwards[i];
                 shard = shards.getInt(p);
                 segment = segments.getInt(p);
-                scoreBuilder.appendDouble(scores.getDouble(p));
+                if(scores != null) {
+                    scoreBuilder.appendDouble(scores.getDouble(p));
+                }
                 boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
                 if (changedSegment) {
                     ctx = ctx(shard, segment);
@@ -377,7 +381,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     target[f] = orig.filter(backwards);
                 }
             }
-            if (scoreBuilderIndex != -1) {
+            if (scores != null && scoreBuilderIndex != -1) {
                 target[scoreBuilderIndex] = scores.asBlock();
             }
         }

@@ -62,6 +62,45 @@ def compute_P_k_k(K_k: np.ndarray, P_k_km1: np.ndarray) -> np.ndarray:
     return P_k_km1 - np.outer(K_k, H @ P_k_km1)
 
 
+class DurationEstimator:
+    def __init__(
+        self,
+        var_t: float = 1e-10,
+        var_a: float = 1e-12,
+        adjust_interval: float = 100.0,
+    ):
+        self.noise_var_t = var_t
+        self.noise_var_a = var_a
+        self.x_k = x_0
+        self.P_k = P_0
+        self.values_since_last_change = 0
+        self.last_allocations = 0
+        self.adjust_interval = adjust_interval
+
+    def add(self, duration: float, allocations: float) -> None:
+        scale = 1 + (1e4 - 1) * math.exp(
+            -self.values_since_last_change / self.adjust_interval
+        )
+        if allocations != self.last_allocations:
+            self.last_allocations = allocations
+            self.values_since_last_change = 0
+        else:
+            self.values_since_last_change += 1
+        F_k = compute_F(allocations)
+        x_k_km1 = compute_x_k_km1(F_k, self.x_k)
+        P_k_km1 = compute_P_k_km1(
+            F_k, self.P_k, compute_Q(self.noise_var_t, scale * self.noise_var_a)
+        )
+        K_k = compute_K_k(P_k_km1)
+        self.x_k = compute_x_k_k(x_k_km1, K_k, duration)
+        self.P_k = compute_P_k_k(K_k, P_k_km1)
+
+    def estimate(self, allocations: int | None = None) -> float:
+        return self.x_k[0] + self.x_k[1] * (
+            allocations if allocations is not None else self.last_allocations
+        )
+
+
 # System...
 
 AVG_INFERENCE_TIME = 0.1
@@ -101,44 +140,6 @@ ALLOCATION_SCHEDULE = np.concatenate(
         7 * np.ones(9000),
     ]
 )
-
-
-class DurationEstimator:
-    def __init__(
-        self,
-        var_t: float = 1e-10,
-        var_a: float = 1e-12,
-        adjust_interval: float = 100.0,
-    ):
-        self.noise_var_t = var_t
-        self.noise_var_a = var_a
-        self.x_k = x_0
-        self.P_k = P_0
-        self.values_since_last_change = 0
-        self.last_allocations = 0
-        self.adjust_interval = adjust_interval
-
-    def add(self, duration: float, allocations: float) -> None:
-        scale = 1 + (1e4 - 1) * math.exp(
-            -self.values_since_last_change / self.adjust_interval
-        )
-        if allocations != self.last_allocations:
-            self.last_allocations = allocations
-            self.values_since_last_change = 0
-        self.values_since_last_change += 1
-        F_k = compute_F(allocations)
-        x_k_km1 = compute_x_k_km1(F_k, self.x_k)
-        P_k_km1 = compute_P_k_km1(
-            F_k, self.P_k, compute_Q(self.noise_var_t, scale * self.noise_var_a)
-        )
-        K_k = compute_K_k(P_k_km1)
-        self.x_k = compute_x_k_k(x_k_km1, K_k, duration)
-        self.P_k = compute_P_k_k(K_k, P_k_km1)
-
-    def estimate(self, allocations: int | None = None) -> float:
-        return self.x_k[0] + self.x_k[1] * (
-            allocations if allocations is not None else self.last_allocations
-        )
 
 
 def estimate_average_inference_duration(

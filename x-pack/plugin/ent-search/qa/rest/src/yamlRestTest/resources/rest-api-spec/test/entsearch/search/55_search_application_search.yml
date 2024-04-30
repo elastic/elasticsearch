@@ -112,6 +112,34 @@ setup:
               lang: "mustache"
 
   - do:
+      search_application.put:
+        name: test-search-application-with-aggs
+        body:
+          indices: [ "test-search-index1", "test-search-index2" ]
+          analytics_collection_name: "test-analytics"
+          template:
+            script:
+              source:
+                query:
+                  term:
+                    "{{field_name}}": "{{field_value}}"
+                aggs:
+                  my_agg:
+                    value_count:
+                      field: "field1.keyword"
+              params:
+                field_name: field1
+                field_value: value1
+            dictionary:
+              additionalProperties: false
+              required: [ "field_name" ]
+              properties:
+                field_name:
+                  type: string
+                field_value:
+                  type: string
+
+  - do:
       index:
         index: test-search-index1
         id: doc1
@@ -149,6 +177,11 @@ teardown:
   - do:
       search_application.delete:
         name: test-search-application-with-list-invalid
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-search-application-with-aggs
         ignore: 404
 
   - do:
@@ -318,3 +351,54 @@ teardown:
               - name: field3
                 boost: 3
 
+---
+"Search Application search with typed keys includes type prefix in aggregation names":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search_application.search:
+        name: test-search-application-with-aggs
+        typed_keys: true
+        body:
+          params:
+            field_name: field2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc1" }
+  - match: { aggregations.value_count#my_agg.value: 1 }
+
+---
+"Search Application search with typed keys set to false returns aggregations without type prefix":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search_application.search:
+        name: test-search-application-with-aggs
+        body:
+          params:
+            field_name: field2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc1" }
+  - match: { aggregations.my_agg.value: 1 }
+
+---
+"Search Application search without typed keys returns aggregations without type prefix":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search_application.search:
+        name: test-search-application-with-aggs
+        body:
+          params:
+            field_name: field2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc1" }
+  - match: { aggregations.my_agg.value: 1 }

@@ -76,6 +76,7 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -137,7 +138,8 @@ public class XPackPlugin extends XPackClientPlugin
         RepositoryPlugin,
         EnginePlugin,
         ClusterPlugin,
-        MapperPlugin {
+        MapperPlugin,
+        SearchPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
@@ -417,12 +419,7 @@ public class XPackPlugin extends XPackClientPlugin
                 deprecationLogger.warn(
                     DeprecationCategory.OTHER,
                     "config_file_path",
-                    "Config file ["
-                        + name
-                        + "] is in a deprecated location. Move from "
-                        + legacyConfig.toString()
-                        + " to "
-                        + config.toString()
+                    "Config file [" + name + "] is in a deprecated location. Move from " + legacyConfig + " to " + config
                 );
                 return legacyConfig;
             }

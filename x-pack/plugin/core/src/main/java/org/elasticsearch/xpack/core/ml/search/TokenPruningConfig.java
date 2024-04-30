@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.search.vectors;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.search.vectors.SparseVectorQueryBuilder.PRUNING_CONFIG_FIELD;
+import static org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder.PRUNING_CONFIG_FIELD;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");

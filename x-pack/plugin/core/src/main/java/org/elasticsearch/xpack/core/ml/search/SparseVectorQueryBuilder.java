@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.search.vectors;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -23,6 +23,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -41,33 +43,47 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public static final String NAME = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
+    public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
+    public static final ParseField TEXT_FIELD = new ParseField("text");
     public static final ParseField PRUNE_FIELD = new ParseField("prune");
     public static final ParseField PRUNING_CONFIG_FIELD = new ParseField("pruning_config");
 
     private static final boolean DEFAULT_PRUNE = false;
     private final String fieldName;
     private final List<WeightedToken> tokens;
+    private final String inferenceId;
+    private final String text;
     private final Boolean shouldPruneTokens;
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
-    public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> tokens) {
-        this(fieldName, tokens, DEFAULT_PRUNE, null);
+    public SparseVectorQueryBuilder(String fieldName, String inferenceId, String text) {
+        this(fieldName, null, inferenceId, text, DEFAULT_PRUNE, null);
+    }
+
+    public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> queryVector) {
+        this(fieldName, queryVector, null, null, DEFAULT_PRUNE, null);
     }
 
     public SparseVectorQueryBuilder(
         String fieldName,
-        List<WeightedToken> tokens,
+        @Nullable List<WeightedToken> tokens,
+        @Nullable String inferenceId,
+        @Nullable String text,
         @Nullable Boolean shouldPruneTokens,
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
-        this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
-        if (tokens.isEmpty()) {
-            throw new IllegalArgumentException("[" + NAME + "] requires at least one token");
-        }
+        this.tokens = tokens;
+        this.inferenceId = inferenceId;
+        this.text = text;
         this.tokenPruningConfig = tokenPruningConfig;
+
+        if (tokens == null ^ inferenceId == null == false) {
+            throw new IllegalArgumentException("[" + NAME + "] requires one of tokens or inference_id");
+        }
+        // TODO additional validation
     }
 
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
@@ -75,6 +91,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.fieldName = in.readString();
         this.shouldPruneTokens = in.readOptionalBoolean();
         this.tokens = in.readOptionalCollectionAsList(WeightedToken::new);
+        this.inferenceId = in.readOptionalString();
+        this.text = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
@@ -92,6 +110,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         out.writeString(fieldName);
         out.writeOptionalBoolean(shouldPruneTokens);
         out.writeOptionalCollection(tokens);
+        out.writeOptionalString(inferenceId);
+        out.writeOptionalString(text);
         out.writeOptionalWriteable(tokenPruningConfig);
     }
 
@@ -99,11 +119,16 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
-        builder.startObject(QUERY_VECTOR_FIELD.getPreferredName());
-        for (var token : tokens) {
-            token.toXContent(builder, params);
+        if (tokens != null) {
+            builder.startObject(QUERY_VECTOR_FIELD.getPreferredName());
+            for (var token : tokens) {
+                token.toXContent(builder, params);
+            }
+            builder.endObject();
+        } else {
+            builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+            builder.field(TEXT_FIELD.getPreferredName(), text);
         }
-        builder.endObject();
         builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
         if (tokenPruningConfig != null) {
             builder.field(PRUNING_CONFIG_FIELD.getPreferredName(), tokenPruningConfig);
@@ -175,6 +200,73 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return (this.tokenPruningConfig == null)
             ? queryBuilderWithAllTokens(tokens, ft, context)
             : queryBuilderWithPrunedTokens(tokens, ft, context);
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+
+        if (tokens != null) {
+            // Weighted tokens
+            return this;
+        } else {
+            // Inference
+            throw new UnsupportedOperationException("Inference is not supported yet");
+            // if (weightedTokensSupplier != null) {
+            // if (weightedTokensSupplier.get() == null) {
+            // return this;
+            // }
+            // return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
+            // }
+            //
+            // CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
+            // modelId,
+            // List.of(modelText),
+            // TextExpansionConfigUpdate.EMPTY_UPDATE,
+            // false,
+            // InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            // );
+            // inferRequest.setHighPriority(true);
+            // inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+            //
+            // SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
+            // queryRewriteContext.registerAsyncAction(
+            // (client, listener) -> executeAsyncWithOrigin(
+            // client,
+            // ML_ORIGIN,
+            // CoordinatedInferenceAction.INSTANCE,
+            // inferRequest,
+            // ActionListener.wrap(inferenceResponse -> {
+            //
+            // if (inferenceResponse.getInferenceResults().isEmpty()) {
+            // listener.onFailure(new IllegalStateException("inference response contain no results"));
+            // return;
+            // }
+            //
+            // if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
+            // textExpansionResultsSupplier.set(textExpansionResults);
+            // listener.onResponse(null);
+            // } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+            // listener.onFailure(new IllegalStateException(warning.getWarning()));
+            // } else {
+            // listener.onFailure(
+            // new IllegalStateException(
+            // "expected a result of type ["
+            // + TextExpansionResults.NAME
+            // + "] received ["
+            // + inferenceResponse.getInferenceResults().get(0).getWriteableName()
+            // + "]. Is ["
+            // + modelId
+            // + "] a compatible model?"
+            // )
+            // );
+            // }
+            // }, listener::onFailure)
+            // )
+            // );
+            //
+            // return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+
+        }
     }
 
     private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
@@ -249,13 +341,17 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             .stream()
             .map(e -> new WeightedToken(e.getKey(), e.getValue().floatValue()))
             .toList();
-        Boolean shouldPruneTokens = (Boolean) a[2];
-        TokenPruningConfig tokenPruningConfig = (TokenPruningConfig) a[3];
-        return new SparseVectorQueryBuilder(fieldName, weightedTokens, shouldPruneTokens, tokenPruningConfig);
+        String inferenceId = (String) a[2];
+        String text = (String) a[3];
+        Boolean shouldPruneTokens = (Boolean) a[4];
+        TokenPruningConfig tokenPruningConfig = (TokenPruningConfig) a[5];
+        return new SparseVectorQueryBuilder(fieldName, weightedTokens, inferenceId, text, shouldPruneTokens, tokenPruningConfig);
     });
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), QUERY_VECTOR_FIELD);
+        PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
+        PARSER.declareString(optionalConstructorArg(), TEXT_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), PRUNE_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> TokenPruningConfig.fromXContent(p), PRUNING_CONFIG_FIELD);
         declareStandardFields(PARSER);

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.vectors;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;

@@ -517,6 +517,30 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testAggsResolutionWithUnresolvedGroupings() {
+        // TODO: more tests, think of edge cases, parameterize.
+        assertThat(
+            error("FROM tests | STATS count_distinct(emp_no) by BUCKET(languages, 10)"),
+            equalTo(
+                "1:46: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS count_distinct(foobar) by BUCKET(languages, 10)"),
+            equalTo(
+                "1:46: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]\nline 1:35: Unknown column [foobar]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS count_distinct(BUCKET(languages, 10)) by BUCKET(languages, 10)"),
+            equalTo(
+                "1:61: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

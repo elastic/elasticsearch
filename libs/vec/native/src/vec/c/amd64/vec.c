@@ -29,32 +29,9 @@
 #include <x86intrin.h>
 #endif
 
-/*
-  Latest micro-benchmark results:
-
-  024-04-25T10:58:49+02:00
-  Running ./dot8
-  Run on (12 X 4500 MHz CPU s)
-  CPU Caches:
-    L1 Data 32 KiB (x6)
-    L1 Instruction 32 KiB (x6)
-    L2 Unified 256 KiB (x6)
-    L3 Unified 12288 KiB (x1)
-  Load Average: 0.85, 1.13, 1.30
-  ---------------------------------------------------------
-  Benchmark               Time             CPU   Iterations
-  ---------------------------------------------------------
-  BM_dot8_scalar        539 ns          538 ns      1000000
-  BM_dot8_vec          20.0 ns         20.0 ns     37549169
-  BM_dot8_vec2         19.7 ns         19.7 ns     37993986
-  BM_sqr8_scalar        560 ns          560 ns      1236317
-  BM_sqr8_vec          36.0 ns         36.0 ns     17278676
-  BM_sqr8_vec2         36.3 ns         36.3 ns     17363379
-*/
-
-
-// input:  functionNumber = leaf(eax). Subleaf is always 0
-// output: output[0] = eax, output[1] = ebx, output[2] = ecx, output[3] = edx
+// Multi-platform CPUID "intrinsic"; it takes as input a "functionNumber" (or "leaf", the eax registry). "Subleaf"
+// is always 0. Output is stored in the passed output parameter: output[0] = eax, output[1] = ebx, output[2] = ecx,
+// output[3] = edx
 static inline void cpuid(int output[4], int functionNumber) {
 #if defined(__GNUC__) || defined(__clang__)
     // use inline assembly, Gnu/AT&T syntax
@@ -72,7 +49,7 @@ static inline void cpuid(int output[4], int functionNumber) {
 #endif
 }
 
-// horizontally add 8 int32_t
+// Utility function to horizontally add 8 32-bit integers
 static inline int hsum_i32_8(const __m256i a) {
     const __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
     const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);

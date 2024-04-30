@@ -23,19 +23,26 @@ import java.util.Arrays;
 import java.util.List;
 
 public class HashLookupOperator extends AbstractPageMappingToIteratorOperator {
+    public record Key(String name, Block block) {
+        @Override
+        public String toString() {
+            return "{name="
+                + name
+                + ", type="
+                + block.elementType()
+                + ", positions="
+                + block.getPositionCount()
+                + ", size="
+                + ByteSizeValue.ofBytes(block.ramBytesUsed())
+                + "}";
+        }
+    }
+
     /**
      * Factory for {@link HashLookupOperator}. It's received {@link Block}s
      * are never closed, so we need to build them from a non-tracking factory.
      */
-    public static class Factory implements Operator.OperatorFactory {
-        private final Block[] keys;
-        private final int[] blockMapping;
-
-        public Factory(Block[] keys, int[] blockMapping) {
-            this.keys = keys;
-            this.blockMapping = blockMapping;
-        }
-
+    public record Factory(Key[] keys, int[] blockMapping) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashLookupOperator(driverContext.blockFactory(), keys, blockMapping);
@@ -43,30 +50,23 @@ public class HashLookupOperator extends AbstractPageMappingToIteratorOperator {
 
         @Override
         public String describe() {
-            StringBuilder b = new StringBuilder();
-            b.append("HashLookup[keys=[");
-            for (int k = 0; k < keys.length; k++) {
-                Block key = keys[k];
-                if (k != 0) {
-                    b.append(", ");
-                }
-                b.append("{type=").append(key.elementType());
-                b.append(", positions=").append(key.getPositionCount());
-                b.append(", size=").append(ByteSizeValue.ofBytes(key.ramBytesUsed())).append("}");
-            }
-            b.append("], mapping=").append(Arrays.toString(blockMapping)).append("]");
-            return b.toString();
+            return "HashLookup[keys=" + Arrays.toString(keys) + ", mapping=" + Arrays.toString(blockMapping) + "]";
         }
     }
 
+    private final List<String> keys;
     private final BlockHash hash;
     private final int[] blockMapping;
 
-    public HashLookupOperator(BlockFactory blockFactory, Block[] keys, int[] blockMapping) {
+    public HashLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
         this.blockMapping = blockMapping;
+        this.keys = new ArrayList<>(keys.length);
+        Block[] blocks = new Block[keys.length];
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keys.length);
         for (int k = 0; k < keys.length; k++) {
-            groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
+            this.keys.add(keys[k].name);
+            blocks[k] = keys[k].block;
+            groups.add(new BlockHash.GroupSpec(k, keys[k].block.elementType()));
         }
         /*
          * Force PackedValuesBlockHash because it assigned ordinals in order
@@ -83,7 +83,7 @@ public class HashLookupOperator extends AbstractPageMappingToIteratorOperator {
         boolean success = false;
         try {
             final int[] lastOrd = new int[] { -1 };
-            hash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
+            hash.add(new Page(blocks), new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     // TODO support multiple rows with the same keys
@@ -128,7 +128,7 @@ public class HashLookupOperator extends AbstractPageMappingToIteratorOperator {
 
     @Override
     public String toString() {
-        return "HashLookup[hash=" + hash + ", mapping=" + Arrays.toString(blockMapping) + "]";
+        return "HashLookup[keys=" + keys + ", hash=" + hash + ", mapping=" + Arrays.toString(blockMapping) + "]";
     }
 
     @Override

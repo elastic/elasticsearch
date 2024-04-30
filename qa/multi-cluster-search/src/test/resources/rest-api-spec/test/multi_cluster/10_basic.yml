@@ -249,7 +249,7 @@
           persistent:
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {persistent: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 
   - do:
       search:

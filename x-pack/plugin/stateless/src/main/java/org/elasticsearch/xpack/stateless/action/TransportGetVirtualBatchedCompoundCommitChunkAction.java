@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -273,7 +274,8 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             throw new IndexShardNotStartedException(shard.shardId(), shard.state()); // trigger retry logic on search node
         }
         if (request.getPrimaryTerm() != shard.getOperationPrimaryTerm()) {
-            final var exception = new ElasticsearchException(
+            // The primary term of the shard has changed since the request was sent. Send exception to signify the blob has been uploaded.
+            final var exception = new ResourceNotFoundException(
                 "primary term mismatch [request=" + request.getPrimaryTerm() + ", shard=" + shard.getOperationPrimaryTerm() + "]"
             );
             throw exception;

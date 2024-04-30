@@ -50,6 +50,7 @@ steps:
               - checkPart2
               - checkPart3
               - checkPart4
+              - checkPart5
               - checkRestCompat
         agents:
           provider: gcp
@@ -86,11 +87,13 @@ steps:
               - graalvm-ce17
               - openjdk17
               - openjdk21
+              - openjdk22
             GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3
               - checkPart4
+              - checkPart5
               - checkRestCompat
         agents:
           provider: gcp
@@ -109,6 +112,7 @@ steps:
               - graalvm-ce17
               - openjdk17
               - openjdk21
+              - openjdk22
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp

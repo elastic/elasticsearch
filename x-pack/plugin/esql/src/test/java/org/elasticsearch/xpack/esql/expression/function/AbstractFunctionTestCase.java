@@ -121,11 +121,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "boolean" -> randomBoolean();
             case "byte" -> randomByte();
             case "short" -> randomShort();
-            case "integer" -> randomInt();
-            case "unsigned_long", "long" -> randomLong();
+            case "integer", "counter_integer" -> randomInt();
+            case "unsigned_long", "long", "counter_long" -> randomLong();
             case "date_period" -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case "datetime" -> randomMillisUpToYear9999();
-            case "double", "scaled_float" -> randomDouble();
+            case "double", "scaled_float", "counter_double" -> randomDouble();
             case "float" -> randomFloat();
             case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));
@@ -964,6 +964,57 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 DataTypes.NULL
             ),
             "boolean or datetime or numeric or string"
+        ),
+        // to_int
+        Map.entry(
+            Set.of(
+                DataTypes.BOOLEAN,
+                EsqlDataTypes.COUNTER_INTEGER,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "boolean or counter_integer or datetime or numeric or string"
+        ),
+        // to_long
+        Map.entry(
+            Set.of(
+                DataTypes.BOOLEAN,
+                EsqlDataTypes.COUNTER_INTEGER,
+                EsqlDataTypes.COUNTER_LONG,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "boolean or counter_integer or counter_long or datetime or numeric or string"
+        ),
+        // to_double
+        Map.entry(
+            Set.of(
+                DataTypes.BOOLEAN,
+                EsqlDataTypes.COUNTER_DOUBLE,
+                EsqlDataTypes.COUNTER_INTEGER,
+                EsqlDataTypes.COUNTER_LONG,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
         ),
         Map.entry(
             Set.of(

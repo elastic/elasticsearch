@@ -123,9 +123,9 @@ public final class ResponseValueUtils {
     private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {
         return switch (dataType) {
             case "unsigned_long" -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
-            case "long" -> ((LongBlock) block).getLong(offset);
-            case "integer" -> ((IntBlock) block).getInt(offset);
-            case "double" -> ((DoubleBlock) block).getDouble(offset);
+            case "long", "counter_long" -> ((LongBlock) block).getLong(offset);
+            case "integer", "counter_integer" -> ((IntBlock) block).getInt(offset);
+            case "double", "counter_double" -> ((DoubleBlock) block).getDouble(offset);
             case "keyword", "text" -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case "ip" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -174,9 +174,9 @@ public final class ResponseValueUtils {
                     case "unsigned_long" -> ((LongBlock.Builder) builder).appendLong(
                         longToUnsignedLong(((Number) value).longValue(), true)
                     );
-                    case "long" -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
-                    case "integer" -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
-                    case "double" -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
+                    case "long", "counter_long" -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
+                    case "integer", "counter_integer" -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
+                    case "double", "counter_double" -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
                     case "keyword", "text", "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                         new BytesRef(value.toString())
                     );

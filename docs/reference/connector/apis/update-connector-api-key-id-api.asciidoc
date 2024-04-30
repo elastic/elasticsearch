@@ -4,7 +4,7 @@
 <titleabbrev>Update connector API key id</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the `api_key_id` and/or `api_key_secret_id` field(s) of a connector, specifying:
 
@@ -23,7 +23,7 @@ See the documentation for {enterprise-search-ref}/native-connectors.html#native-
 [[update-connector-api-key-id-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 * The `api_key_id` parameter should reference an existing API key.
 * The `api_key_secret_id` parameter should reference an existing Connector Secret containing an encoded API key value.

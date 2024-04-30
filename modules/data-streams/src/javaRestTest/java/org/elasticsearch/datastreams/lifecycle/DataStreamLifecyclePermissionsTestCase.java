@@ -97,13 +97,13 @@ public abstract class DataStreamLifecyclePermissionsTestCase extends ESRestTestC
     Settings restPrivilegedClientSettings() {
         // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_data_stream_lifecycle", new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     Settings restUnprivilegedClientSettings() {
         // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before

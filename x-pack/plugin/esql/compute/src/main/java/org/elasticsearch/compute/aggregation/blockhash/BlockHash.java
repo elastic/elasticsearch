@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -17,10 +18,13 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -45,6 +49,18 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * pass the ordinals to the provided {@link GroupingAggregatorFunction.AddInput}.
      */
     public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput);
+
+    /**
+     * Lookup all values for the "group by" columns in the page to the hash and return an
+     * {@link Iterator} of the values. The sum of {@link IntBlock#getPositionCount} for
+     * all blocks returned by the iterator will equal {@link Page#getPositionCount} but
+     * will "target" a size of {@code targetBlockSize}.
+     * <p>
+     *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
+     *     inside the {@link Page}. Close it to release those references.
+     * </p>
+     */
+    public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
@@ -92,6 +108,13 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
                 return new BytesRefLongBlockHash(blockFactory, g2.channel(), g1.channel(), true, emitBatchSize);
             }
         }
+        return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+
+    /**
+     * Temporary method to build a {@link PackedValuesBlockHash}.
+     */
+    public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
     }
 

@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,6 +36,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
     GetComponentTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Inject
     public TransportGetComponentTemplateAction(
@@ -43,7 +44,8 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         super(
             GetComponentTemplateAction.NAME,
@@ -57,6 +59,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -98,11 +101,11 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
                 new GetComponentTemplateAction.Response(
                     results,
                     clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-                    DataStreamGlobalRetention.getFromClusterState(state)
+                    globalRetentionResolver.resolve(state)
                 )
             );
         } else {
-            listener.onResponse(new GetComponentTemplateAction.Response(results, DataStreamGlobalRetention.getFromClusterState(state)));
+            listener.onResponse(new GetComponentTemplateAction.Response(results, globalRetentionResolver.resolve(state)));
         }
     }
 }

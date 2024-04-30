@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,28 +25,27 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * {@code RankContextBuilder} is used as a base class to manage input, parsing,
- * and subsequent generation of appropriate contexts for handling searches that
- * require multiple queries for global rank relevance.
+ * {@code RankBuilder} is used as a base class to manage input, parsing, and subsequent generation of appropriate contexts
+ * for handling searches that require multiple queries and/or ranking steps for global rank relevance.
  */
 public abstract class RankBuilder implements VersionedNamedWriteable, ToXContentObject {
 
-    public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 
-    private final int windowSize;
+    private final int rankWindowSize;
 
-    public RankBuilder(int windowSize) {
-        this.windowSize = windowSize;
+    public RankBuilder(int rankWindowSize) {
+        this.rankWindowSize = rankWindowSize;
     }
 
     public RankBuilder(StreamInput in) throws IOException {
-        windowSize = in.readVInt();
+        rankWindowSize = in.readVInt();
     }
 
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(windowSize);
+        out.writeVInt(rankWindowSize);
         doWriteTo(out);
     }
 
@@ -54,7 +55,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(getWriteableName());
-        builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         doXContent(builder, params);
         builder.endObject();
         builder.endObject();
@@ -63,19 +64,19 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
-    public int windowSize() {
-        return windowSize;
+    public int rankWindowSize() {
+        return rankWindowSize;
     }
 
     /**
-     * Generates a context used to execute required searches on the shard.
+     * Generates a context used to execute required searches during the query phase on the shard.
      */
-    public abstract RankShardContext buildRankShardContext(List<Query> queries, int from);
+    public abstract QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from);
 
     /**
-     * Generates a context used to perform global ranking on the coordinator.
+     * Generates a context used to be executed on the coordinating node, that would combine all individual shard results.
      */
-    public abstract RankCoordinatorContext buildRankCoordinatorContext(int size, int from);
+    public abstract QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from);
 
     @Override
     public final boolean equals(Object obj) {
@@ -87,14 +88,14 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         }
         @SuppressWarnings("unchecked")
         RankBuilder other = (RankBuilder) obj;
-        return Objects.equals(windowSize, other.windowSize()) && doEquals(other);
+        return Objects.equals(rankWindowSize, other.rankWindowSize()) && doEquals(other);
     }
 
     protected abstract boolean doEquals(RankBuilder other);
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), windowSize, doHashCode());
+        return Objects.hash(getClass(), rankWindowSize, doHashCode());
     }
 
     protected abstract int doHashCode();

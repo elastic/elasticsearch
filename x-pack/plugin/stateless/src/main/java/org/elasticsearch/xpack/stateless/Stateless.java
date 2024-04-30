@@ -117,6 +117,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -796,7 +798,11 @@ public class Stateless extends Plugin
 
                 @Override
                 public void afterIndexShardCreated(IndexShard indexShard) {
-                    statelessCommitService.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+                    statelessCommitService.register(
+                        indexShard.shardId(),
+                        indexShard.getOperationPrimaryTerm(),
+                        () -> isInitializingNoSearchShards(indexShard)
+                    );
                     localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNo -> {
                         var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
                         if (indexEngine != null) {
@@ -1194,5 +1200,10 @@ public class Stateless extends Plugin
 
     protected Clock getClock() {
         return Clock.systemUTC();
+    }
+
+    private boolean isInitializingNoSearchShards(IndexShard shard) {
+        ShardRouting shardRouting = shard.routingEntry();
+        return shardRouting.initializing() && shardRouting.recoverySource().getType() != RecoverySource.Type.PEER;
     }
 }

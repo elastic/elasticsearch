@@ -36,11 +36,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
  * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
  */
 public class Right extends EsqlScalarFunction {
-
-    private final Source source;
-
     private final Expression str;
-
     private final Expression length;
 
     @FunctionInfo(
@@ -54,7 +50,6 @@ public class Right extends EsqlScalarFunction {
         @Param(name = "length", type = { "integer" }, description = "The number of characters to return.") Expression length
     ) {
         super(source, Arrays.asList(str, length));
-        this.source = source;
         this.str = str;
         this.length = length;
     }
@@ -84,7 +79,7 @@ public class Right extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return new RightEvaluator.Factory(
-            source,
+            source(),
             context -> new BytesRef(),
             context -> new UnicodeUtil.UTF8CodePoint(),
             toEvaluator.apply(str),

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -43,7 +44,8 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(TEXT, ToIntegerFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new)
+        Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.COUNTER_INTEGER, (fieldEval, source) -> fieldEval)
     );
 
     @FunctionInfo(
@@ -68,7 +70,7 @@ public class ToInteger extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer", "counter_integer" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

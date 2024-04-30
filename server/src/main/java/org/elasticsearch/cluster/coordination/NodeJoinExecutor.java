@@ -124,9 +124,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             newState = ClusterState.builder(initialState);
         } else {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request. Current master: ["
-                + currentNodes.getMasterNode() + "], current term: [" + term + "], local current time: [ "
-                + TimeValue.timeValueMillis(System.currentTimeMillis()) + "]");
+            throw new NotMasterException(
+                "Node ["
+                    + currentNodes.getLocalNode()
+                    + "] not master for join request. Current master: ["
+                    + currentNodes.getMasterNode()
+                    + "], current term: ["
+                    + term
+                    + "], local current time: [ "
+                    + TimeValue.timeValueMillis(System.currentTimeMillis())
+                    + "]"
+            );
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());

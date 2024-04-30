@@ -52,7 +52,7 @@ public class ESPolicyUnitTests extends ESTestCase {
         Permission all = new AllPermission();
         PermissionCollection allCollection = all.newPermissionCollection();
         allCollection.add(all);
-        ESPolicy policy = new ESPolicy(DEFAULT_POLICY, allCollection, Map.of(), true, List.of(), List.of(), Map.of());
+        ESPolicy policy = new ESPolicy(DEFAULT_POLICY, allCollection, Map.of(), true, List.of(), Map.of());
         // restrict ourselves to NoPermission
         PermissionCollection noPermissions = new Permissions();
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
@@ -65,7 +65,7 @@ public class ESPolicyUnitTests extends ESTestCase {
     public void testNullLocation() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
-        ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), List.of(), Map.of());
+        ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), Map.of());
         assertFalse(
             policy.implies(
                 new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
@@ -77,7 +77,7 @@ public class ESPolicyUnitTests extends ESTestCase {
     public void testListen() {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final PermissionCollection noPermissions = new Permissions();
-        final ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), List.of(), Map.of());
+        final ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), Map.of());
         assertFalse(
             policy.implies(
                 new ProtectionDomain(ESPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),
@@ -95,7 +95,6 @@ public class ESPolicyUnitTests extends ESTestCase {
             Map.of(),
             true,
             List.of(new FilePermission("/home/elasticsearch/data/-", "read")),
-            List.of(),
             Map.of()
         );
         assertTrue(
@@ -152,7 +151,6 @@ public class ESPolicyUnitTests extends ESTestCase {
             new Permissions(),
             Map.of(),
             true,
-            List.of(),
             List.of(),
             Map.ofEntries(entry(file1, Set.of(codebase1)), entry(file2, Set.of(codebase1, codebase2)), entry(dir1 + "*", Set.of(codebase3)))
         );

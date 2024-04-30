@@ -44,7 +44,6 @@ final class ESPolicy extends Policy {
     final Policy system;
     final PermissionCollection dynamic;
     final PermissionCollection dataPathPermission;
-    final PermissionCollection forbiddenFilePermission;
     final Map<URL, Policy> plugins;
     final PermissionCollection allExclusiveFiles;
     final Map<FilePermission, Set<URL>> exclusiveFiles;
@@ -56,12 +55,10 @@ final class ESPolicy extends Policy {
         Map<URL, Policy> plugins,
         boolean filterBadDefaults,
         List<FilePermission> dataPathPermissions,
-        List<FilePermission> forbiddenFilePermissions,
         Map<String, Set<URL>> exclusiveFiles
     ) {
         this.template = template;
         this.dataPathPermission = createPermission(dataPathPermissions);
-        this.forbiddenFilePermission = createPermission(forbiddenFilePermissions);
         this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
@@ -114,12 +111,6 @@ final class ESPolicy extends Policy {
         CodeSource codeSource = domain.getCodeSource();
         // codesource can be null when reducing privileges via doPrivileged()
         if (codeSource == null) {
-            return false;
-        }
-
-        // completely deny access to specific files that are forbidden
-        // it is impossible for anything to override this by granting themselves a permission
-        if (forbiddenFilePermission.implies(permission)) {
             return false;
         }
 

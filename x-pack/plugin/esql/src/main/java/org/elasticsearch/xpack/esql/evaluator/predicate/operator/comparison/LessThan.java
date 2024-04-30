@@ -11,8 +11,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -21,7 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.ZoneId;
 import java.util.Map;
 
-public class LessThan extends EsqlBinaryComparison implements Negatable<BinaryComparison> {
+public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
 
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
         Map.entry(DataTypes.INTEGER, LessThanIntsEvaluator.Factory::new),
@@ -35,8 +33,12 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<BinaryCo
         Map.entry(DataTypes.IP, LessThanKeywordsEvaluator.Factory::new)
     );
 
+    public LessThan(Source source, Expression left, Expression right) {
+        this(source, left, right, null);
+    }
+
     public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.LT, zoneId, evaluatorMap);
+        super(source, left, right, BinaryComparisonOperation.LT, zoneId, evaluatorMap);
     }
 
     @Override
@@ -60,7 +62,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<BinaryCo
     }
 
     @Override
-    public BinaryComparison reverse() {
+    public EsqlBinaryComparison reverse() {
         return new GreaterThan(source(), left(), right(), zoneId());
     }
 

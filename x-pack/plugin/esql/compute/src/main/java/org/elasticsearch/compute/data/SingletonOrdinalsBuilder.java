@@ -152,12 +152,22 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
+    public long estimatedBytes() {
+        /*
+         * This is a *terrible* estimate because we have no idea how big the
+         * values in the ordinals are.
+         */
+        long overhead = shouldBuildOrdinalsBlock() ? 5 : 20;
+        return ords.length * overhead;
+    }
+
+    @Override
     public BytesRefBlock build() {
-        if (ords.length >= 2 * docValues.getValueCount() && ords.length >= 32) {
-            return buildOrdinal();
-        } else {
-            return buildRegularBlock();
-        }
+        return shouldBuildOrdinalsBlock() ? buildOrdinal() : buildRegularBlock();
+    }
+
+    boolean shouldBuildOrdinalsBlock() {
+        return ords.length >= 2 * docValues.getValueCount() && ords.length >= 32;
     }
 
     @Override

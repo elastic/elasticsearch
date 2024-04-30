@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestExplainLifecycleAction extends BaseRestHandler {
 
@@ -40,7 +41,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         explainLifecycleRequest.onlyManaged(restRequest.paramAsBoolean("only_managed", false));
         explainLifecycleRequest.onlyErrors(restRequest.paramAsBoolean("only_errors", false));
-        explainLifecycleRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", explainLifecycleRequest.masterNodeTimeout()));
+        explainLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(ExplainLifecycleAction.INSTANCE, explainLifecycleRequest, new RestToXContentListener<>(channel));
     }
 }

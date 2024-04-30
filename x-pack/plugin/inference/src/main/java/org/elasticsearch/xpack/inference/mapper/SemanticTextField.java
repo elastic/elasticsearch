@@ -347,4 +347,5 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
             throw new RuntimeException(exc);
         }
     }
+
 }

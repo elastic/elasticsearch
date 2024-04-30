@@ -34,6 +34,13 @@
     "body": {
       "description": "Search parameters, including template parameters that override defaults",
       "required": false
+    },
+    "params": {
+      "typed_keys":{
+        "type":"boolean",
+        "default":false,
+        "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+      }
     }
   }
 }

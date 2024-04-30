@@ -2195,6 +2195,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .client(client)
                     .featureService(new FeatureService(List.of(new IndicesFeatures())))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
+                    .mapperMetrics(MapperMetrics.NOOP)
                     .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(

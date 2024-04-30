@@ -17,7 +17,6 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.util.List;
@@ -115,7 +114,7 @@ final class FetchSearchPhase extends SearchPhase {
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
-                queryResults.asList().stream().map(SearchPhaseResult::queryResult).forEach(this::releaseIrrelevantSearchContext);
+                queryResults.asList().forEach(this::releaseIrrelevantSearchContext);
                 moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray());
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = context.getRequest().scroll() != null
@@ -136,7 +135,7 @@ final class FetchSearchPhase extends SearchPhase {
                             // if we got some hits from this shard we have to release the context there
                             // we do this as we go since it will free up resources and passing on the request on the
                             // transport layer is cheap.
-                            releaseIrrelevantSearchContext(queryResult.queryResult());
+                            releaseIrrelevantSearchContext(queryResult);
                             progressListener.notifyFetchResult(i);
                         }
                         // in any case we count down this result since we don't talk to this shard anymore
@@ -164,8 +163,9 @@ final class FetchSearchPhase extends SearchPhase {
     ) {
         final SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
         final int shardIndex = queryResult.getShardIndex();
-        // todo: changeme
-        final ShardSearchContextId contextId = queryResult.queryResult().getContextId();
+        final ShardSearchContextId contextId = queryResult.queryResult() != null
+            ? queryResult.queryResult().getContextId()
+            : queryResult.rankFeatureResult().getContextId();
         context.getSearchTransport()
             .sendExecuteFetch(
                 context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId()),
@@ -200,7 +200,7 @@ final class FetchSearchPhase extends SearchPhase {
                             // the search context might not be cleared on the node where the fetch was executed for example
                             // because the action was rejected by the thread pool. in this case we need to send a dedicated
                             // request to clear the search context.
-                            releaseIrrelevantSearchContext(queryResult.queryResult());
+                            releaseIrrelevantSearchContext(queryResult);
                         }
                     }
                 }
@@ -210,19 +210,27 @@ final class FetchSearchPhase extends SearchPhase {
     /**
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
-    private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
+    private void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult) {
         // we only release search context that we did not fetch from, if we are not scrolling
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
-        if (queryResult.hasSearchContext()
+        if (searchPhaseResult == null) {
+            return;
+        }
+        // phaseResult.getContextId() is the same for query & rank feature results
+        SearchPhaseResult phaseResult = searchPhaseResult.queryResult() != null
+            ? searchPhaseResult.queryResult()
+            : searchPhaseResult.rankFeatureResult();
+        if (phaseResult != null
+            && phaseResult.hasSearchContext()
             && context.getRequest().scroll() == null
-            && (context.isPartOfPointInTime(queryResult.getContextId()) == false)) {
+            && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
             try {
-                SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+                SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
                 context.sendReleaseSearchContext(
-                    queryResult.getContextId(),
+                    phaseResult.getContextId(),
                     connection,
-                    context.getOriginalIndices(queryResult.getShardIndex())
+                    context.getOriginalIndices(phaseResult.getShardIndex())
                 );
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);

@@ -67,6 +67,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         final String field = "some_field";
         List<Query> queries = new ArrayList<>();
         CountDownLatch phaseDone = new CountDownLatch(1);
+        final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
 
         // build the appropriate RankBuilder
         RankBuilder rankBuilder = rankBuilder(
@@ -113,7 +114,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         ),
                         10.0F
                     ),
-                    new DocValueFormat[0]);
+                    new DocValueFormat[0]
+                );
 
                 queryResult.size(totalHits);
                 results.consumeResult(queryResult, () -> {});
@@ -173,6 +175,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     ) {
                         // this is called after the RankFeaturePhaseCoordinatorContext has been executed
                         phaseDone.countDown();
+                        finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
                         logger.debug("Skipping moving to next phase");
                     }
                 };
@@ -203,6 +206,14 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 assertEquals(2, rankFeatureShardResult.rankFeatureDocs[1].rank);
                 assertEquals("84", rankFeatureShardResult.rankFeatureDocs[1].featureData);
                 assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
+
+                assertEquals(2, finalResults[0].length);
+                assertEquals(42, finalResults[0][0].doc);
+                assertEquals(10, finalResults[0][0].score, 10E-5);
+                assertEquals(1, ((RankFeatureDoc) finalResults[0][0]).rank);
+                assertEquals(84, finalResults[0][1].doc);
+                assertEquals(9, finalResults[0][1].score, 10E-5);
+                assertEquals(2, ((RankFeatureDoc) finalResults[0][1]).rank);
             } finally {
                 queryResult.decRef();
             }
@@ -217,6 +228,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         final String field = "some_field";
         List<Query> queries = new ArrayList<>();
         CountDownLatch phaseDone = new CountDownLatch(1);
+        final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
 
         // build the appropriate RankBuilder
         RankBuilder rankBuilder = rankBuilder(
@@ -259,36 +271,27 @@ public class RankFeaturePhaseTests extends ESTestCase {
             queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
             final int shard2Results = randomIntBetween(1, 100);
 
-
             final ShardSearchContextId ctxShard3 = new ShardSearchContextId(UUIDs.base64UUID(), 789);
             QuerySearchResult queryResultShard3 = new QuerySearchResult(ctxShard3, shard2Target, null);
             queryResultShard3.setShardIndex(shard3Target.getShardId().getId());
             final int shard3Results = 0;
             try {
                 queryResultShard1.setRankShardResult(
-                    new RankFeatureShardResult(new RankFeatureDoc[] { new RankFeatureDoc(42, 10.0F, -1)})
+                    new RankFeatureShardResult(new RankFeatureDoc[] { new RankFeatureDoc(42, 10.0F, -1) })
                 );
                 queryResultShard1.topDocs(
                     new TopDocsAndMaxScore(
-                        new TopDocs(
-                            new TotalHits(shard1Results, TotalHits.Relation.EQUAL_TO),
-                            new ScoreDoc[] { new ScoreDoc(42, 10.0F)}
-                        ),
+                        new TopDocs(new TotalHits(shard1Results, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 10.0F) }),
                         10.0F
                     ),
                     new DocValueFormat[0]
                 );
                 queryResultShard1.size(shard1Results);
 
-                queryResultShard2.setRankShardResult(
-                    new RankFeatureShardResult(new RankFeatureDoc[] { new RankFeatureDoc(84, 9.0F, -1) })
-                );
+                queryResultShard2.setRankShardResult(new RankFeatureShardResult(new RankFeatureDoc[] { new RankFeatureDoc(84, 9.0F, -1) }));
                 queryResultShard2.topDocs(
                     new TopDocsAndMaxScore(
-                        new TopDocs(
-                            new TotalHits(2, TotalHits.Relation.EQUAL_TO),
-                            new ScoreDoc[] { new ScoreDoc(84, 9.0F) }
-                        ),
+                        new TopDocs(new TotalHits(2, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 9.0F) }),
                         10.0F
                     ),
                     new DocValueFormat[0]
@@ -320,11 +323,11 @@ public class RankFeaturePhaseTests extends ESTestCase {
                             try {
                                 rankFeatureResult.setSearchShardTarget(shard1Target);
                                 // these are the SearchHits generated by the FetchFieldPhase processor
-                                SearchHit[] searchHits = new SearchHit[1];
                                 SearchHit hit = SearchHit.unpooled(42);
                                 hit.shard(shard1Target);
                                 hit.score(10f);
                                 hit.setDocumentField(field, new DocumentField(field, Collections.singletonList("42")));
+                                SearchHit[] searchHits = new SearchHit[] { hit };
                                 SearchHits hits = SearchHits.unpooled(
                                     searchHits,
                                     new TotalHits(shard1Results, TotalHits.Relation.EQUAL_TO),
@@ -341,18 +344,17 @@ public class RankFeaturePhaseTests extends ESTestCase {
                             } finally {
                                 rankFeatureResult.decRef();
                             }
-                        }
-                        else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 84 })) {
+                        } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 84 })) {
                             // second shard
                             RankFeatureResult rankFeatureResult = new RankFeatureResult();
                             try {
-                                rankFeatureResult.setSearchShardTarget(shard1Target);
+                                rankFeatureResult.setSearchShardTarget(shard2Target);
                                 // these are the SearchHits generated by the FetchFieldPhase processor
-                                SearchHit[] searchHits = new SearchHit[1];
                                 SearchHit hit = SearchHit.unpooled(84);
-                                hit.shard(shard1Target);
+                                hit.shard(shard2Target);
                                 hit.score(9F);
                                 hit.setDocumentField(field, new DocumentField(field, Collections.singletonList("42")));
+                                SearchHit[] searchHits = new SearchHit[] { hit };
                                 SearchHits hits = SearchHits.unpooled(
                                     searchHits,
                                     new TotalHits(shard2Results, TotalHits.Relation.EQUAL_TO),
@@ -363,14 +365,14 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = shardRankBuilder
                                     .buildRankFeaturePhaseShardContext();
                                 RankFeatureShardResult rankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext
-                                    .buildRankFeatureShardResult(hits, shard1Target.getShardId().id());
+                                    .buildRankFeatureShardResult(hits, shard2Target.getShardId().id());
                                 rankFeatureResult.shardResult(rankShardResult);
                                 listener.onResponse(rankFeatureResult);
                             } finally {
                                 rankFeatureResult.decRef();
                             }
 
-                        }else {
+                        } else {
                             listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                         }
                     }
@@ -384,6 +386,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     ) {
                         // this is called after the RankFeaturePhaseCoordinatorContext has been executed
                         phaseDone.countDown();
+                        finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
                         logger.debug("Skipping moving to next phase");
                     }
                 };
@@ -393,8 +396,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 assertEquals(0, phaseDone.getCount());
                 SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
                 assertNotNull(rankPhaseResults.getAtomicArray());
-                assertEquals(1, rankPhaseResults.getAtomicArray().length());
-                assertEquals(1, rankPhaseResults.getSuccessfulResults().count());
+                assertEquals(3, rankPhaseResults.getAtomicArray().length());
+                // one result is null
+                assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
 
                 SearchPhaseResult shardResult = rankPhaseResults.getAtomicArray().get(0);
                 assertTrue(shardResult instanceof RankFeatureResult);
@@ -402,21 +406,38 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 assertNotNull(rankResult.rankFeatureResult());
                 assertNull(rankResult.queryResult());
                 assertNotNull(rankResult.rankFeatureResult().shardResult());
-
                 RankFeatureShardResult rankFeatureShardResult = rankResult.rankFeatureResult().shardResult();
-                assertEquals(2, rankFeatureShardResult.rankFeatureDocs.length);
-
+                assertEquals(1, rankFeatureShardResult.rankFeatureDocs.length);
                 assertEquals(42, rankFeatureShardResult.rankFeatureDocs[0].doc);
                 assertEquals(1, rankFeatureShardResult.rankFeatureDocs[0].rank);
                 assertEquals("42", rankFeatureShardResult.rankFeatureDocs[0].featureData);
 
-                assertEquals(84, rankFeatureShardResult.rankFeatureDocs[1].doc);
-                assertEquals(2, rankFeatureShardResult.rankFeatureDocs[1].rank);
-                assertEquals("84", rankFeatureShardResult.rankFeatureDocs[1].featureData);
-                assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
+                shardResult = rankPhaseResults.getAtomicArray().get(1);
+                assertTrue(shardResult instanceof RankFeatureResult);
+                rankResult = (RankFeatureResult) shardResult;
+                assertNotNull(rankResult.rankFeatureResult());
+                assertNull(rankResult.queryResult());
+                assertNotNull(rankResult.rankFeatureResult().shardResult());
+                rankFeatureShardResult = rankResult.rankFeatureResult().shardResult();
+                assertEquals(1, rankFeatureShardResult.rankFeatureDocs.length);
+                assertEquals(84, rankFeatureShardResult.rankFeatureDocs[0].doc);
+                assertEquals(2, rankFeatureShardResult.rankFeatureDocs[0].rank);
+                assertEquals("84", rankFeatureShardResult.rankFeatureDocs[0].featureData);
+
+                shardResult = rankPhaseResults.getAtomicArray().get(2);
+                assertNull(shardResult);
+
+                assertEquals(2, finalResults[0].length);
+                assertEquals(42, finalResults[0][0].doc);
+                assertEquals(10, finalResults[0][0].score, 10E-5);
+                assertEquals(1, ((RankFeatureDoc) finalResults[0][0]).rank);
+                assertEquals(84, finalResults[0][1].doc);
+                assertEquals(9, finalResults[0][1].score, 10E-5);
+                assertEquals(2, ((RankFeatureDoc) finalResults[0][1]).rank);
             } finally {
                 queryResultShard1.decRef();
                 queryResultShard2.decRef();
+                queryResultShard3.decRef();
             }
         }
     }
@@ -465,11 +486,19 @@ public class RankFeaturePhaseTests extends ESTestCase {
         return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize) {
             @Override
             public void rankGlobalResults(List<RankFeatureResult> rankSearchResults, Consumer<ScoreDoc[]> onFinish) {
-                onFinish.accept(
-                    rankSearchResults.stream()
-                        .flatMap(x -> Arrays.stream(x.rankFeatureResult().shardResult().rankFeatureDocs))
-                        .toArray(ScoreDoc[]::new)
-                );
+                List<RankFeatureDoc> features = new ArrayList<>();
+                for (RankFeatureResult rankFeatureResult : rankSearchResults) {
+                    RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
+                    features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
+                }
+                RankFeatureDoc[] featureDocs = features.toArray(new RankFeatureDoc[0]);
+                Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
+                RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, featureDocs.length - from))];
+                for (int rank = 0; rank < topResults.length; ++rank) {
+                    topResults[rank] = featureDocs[from + rank];
+                    topResults[rank].rank = from + rank + 1;
+                }
+                onFinish.accept(topResults);
             }
         };
     }

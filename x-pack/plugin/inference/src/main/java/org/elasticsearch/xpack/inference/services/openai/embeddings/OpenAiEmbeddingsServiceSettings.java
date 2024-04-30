@@ -182,7 +182,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         } else {
             dimensionsSetByUser = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             modelId = in.readString();
         } else {
             modelId = "unset";
@@ -322,7 +322,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
             out.writeBoolean(dimensionsSetByUser);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeString(modelId);
         }
 

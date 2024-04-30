@@ -18,6 +18,34 @@
 #define SQR8S_STRIDE_BYTES_LEN 16
 #endif
 
+#ifdef __linux__
+    #include <sys/auxv.h>
+    #include <asm/hwcap.h>
+    #ifndef HWCAP_NEON
+    #define HWCAP_NEON 0x1000
+    #endif
+#endif
+
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
+EXPORT int vec_caps() {
+#ifdef __APPLE__
+    #ifdef TARGET_OS_OSX
+        // All M series Apple silicon support Neon instructions
+        return 1;
+    #else
+        #error "Unsupported Apple platform"
+    #endif
+#elif __linux__
+    int hwcap = getauxval(AT_HWCAP);
+    return (hwcap & HWCAP_NEON) != 0;
+#else
+    #error "Unsupported aarch64 platform"
+#endif
+}
+
 EXPORT int dot8s_stride() {
     return DOT8_STRIDE_BYTES_LEN;
 }

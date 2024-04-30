@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
@@ -46,19 +45,5 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     @Override
     public DataType dataType() {
         return field.dataType();
-    }
-
-    @Override
-    public final int hashCode() {
-        return Objects.hash(field);
-    }
-
-    @Override
-    public final boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        UnaryScalarFunction other = (UnaryScalarFunction) obj;
-        return Objects.equals(other.field, field);
     }
 }

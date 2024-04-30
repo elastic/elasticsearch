@@ -41,7 +41,16 @@ public class SerializationTestUtils {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
 
     public static void assertSerialization(PhysicalPlan plan) {
-        var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writePhysicalPlanNode, PlanStreamInput::readPhysicalPlanNode);
+        assertSerialization(plan, EsqlTestUtils.TEST_CFG);
+    }
+
+    public static void assertSerialization(PhysicalPlan plan, EsqlConfiguration configuration) {
+        var deserPlan = serializeDeserialize(
+            plan,
+            PlanStreamOutput::writePhysicalPlanNode,
+            PlanStreamInput::readPhysicalPlanNode,
+            configuration
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
     }
 
@@ -51,7 +60,16 @@ public class SerializationTestUtils {
     }
 
     public static void assertSerialization(Expression expression) {
-        Expression deserExpression = serializeDeserialize(expression, PlanStreamOutput::writeExpression, PlanStreamInput::readExpression);
+        assertSerialization(expression, EsqlTestUtils.TEST_CFG);
+    }
+
+    public static void assertSerialization(Expression expression, EsqlConfiguration configuration) {
+        Expression deserExpression = serializeDeserialize(
+            expression,
+            PlanStreamOutput::writeExpression,
+            PlanStreamInput::readExpression,
+            configuration
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(expression, unused -> deserExpression);
     }
 

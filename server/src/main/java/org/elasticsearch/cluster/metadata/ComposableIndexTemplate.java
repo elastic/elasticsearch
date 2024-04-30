@@ -275,10 +275,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
             builder.field(TEMPLATE.getPreferredName());
-            boolean isSystemDataStream = this.dataStreamTemplate != null
-                && this.dataStreamTemplate.isHidden()
-                && indexPatterns.stream().anyMatch(indexPattern -> indexPattern.startsWith("."));
-            this.template.toXContent(builder, params, rolloverConfiguration, globalRetention, isSystemDataStream);
+            this.template.toXContent(builder, params, rolloverConfiguration, globalRetention);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);

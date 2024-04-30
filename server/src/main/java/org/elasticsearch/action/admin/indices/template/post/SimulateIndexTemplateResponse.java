@@ -125,8 +125,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
                 builder,
                 DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
                 rolloverConfiguration,
-                globalRetention,
-                false
+                globalRetention
             );
         }
         if (this.overlappingTemplates != null) {

@@ -149,8 +149,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention, boolean isSystemDataStream) {
-        return getEffectiveDataRetentionWithSource(globalRetention, isSystemDataStream).v1();
+    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention, boolean ignoreGlobalRetention) {
+        return getEffectiveDataRetentionWithSource(globalRetention, ignoreGlobalRetention).v1();
     }
 
     /**
@@ -160,14 +160,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Nullable
     public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(
         @Nullable DataStreamGlobalRetention globalRetention,
-        boolean isSystemDataStream
+        boolean ignoreGlobalRetention
     ) {
         // If lifecycle is disabled there is no effective retention
         if (enabled == false) {
             return Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
         var dataStreamRetention = getDataStreamRetention();
-        if (isSystemDataStream || globalRetention == null) {
+        if (ignoreGlobalRetention || globalRetention == null) {
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
         if (dataStreamRetention == null) {
@@ -330,7 +330,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Params params,
         @Nullable RolloverConfiguration rolloverConfiguration,
         @Nullable DataStreamGlobalRetention globalRetention,
-        boolean isSystemDataStream
+        boolean ignoreGlobalRetention
     ) throws IOException {
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
@@ -342,7 +342,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }
         if (params.paramAsBoolean(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false)) {
-            Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(globalRetention, isSystemDataStream);
+            Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(
+                globalRetention,
+                ignoreGlobalRetention
+            );
             if (effectiveRetention.v1() != null) {
                 builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveRetention.v1().getStringRep());
                 builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveRetention.v2().displayName());
@@ -358,7 +361,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             rolloverConfiguration.evaluateAndConvertToXContent(
                 builder,
                 params,
-                getEffectiveDataRetention(globalRetention, isSystemDataStream)
+                getEffectiveDataRetention(globalRetention, ignoreGlobalRetention)
             );
         }
         builder.endObject();

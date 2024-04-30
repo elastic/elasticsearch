@@ -213,7 +213,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null, null, false);
+        return toXContent(builder, params, null, null);
     }
 
     /**
@@ -223,8 +223,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         XContentBuilder builder,
         Params params,
         @Nullable RolloverConfiguration rolloverConfiguration,
-        @Nullable DataStreamGlobalRetention globalRetention,
-        boolean isSystemDataStream
+        @Nullable DataStreamGlobalRetention globalRetention
     ) throws IOException {
         builder.startObject();
         if (this.settings != null) {
@@ -255,7 +254,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isSystemDataStream);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, true);
         }
         builder.endObject();
         return builder;

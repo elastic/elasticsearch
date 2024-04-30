@@ -344,12 +344,6 @@ ENRICH_FIELD_WS
     : WS -> channel(HIDDEN)
     ;
 
-
-
-
-
-
-
 // | LOOKUP ON key
 mode LOOKUP_MODE;
 LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
@@ -376,13 +370,6 @@ LOOKUP_MULTILINE_COMMENT
 LOOKUP_WS
     : WS -> channel(HIDDEN)
     ;
-
-
-
-
-
-
-
 
 mode MVEXPAND_MODE;
 MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;

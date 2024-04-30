@@ -1,5 +1,0 @@
-pr: 108038
-summary: Excluding system data streams from global and factory retention
-area: Data streams
-type: enhancement
-issues: []

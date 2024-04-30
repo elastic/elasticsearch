@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -37,19 +35,11 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -273,77 +263,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         // ensure consistent order
         Arrays.sort(copyFields);
         return new InferenceFieldMetadata(name(), fieldType().inferenceId, copyFields);
-    }
-
-    /**
-     * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link SemanticTextField.Chunk}.
-     */
-    static List<SemanticTextField.Chunk> toSemanticTextFieldChunks(
-        String field,
-        String inferenceId,
-        List<ChunkedInferenceServiceResults> results,
-        XContentType contentType
-    ) {
-        List<SemanticTextField.Chunk> chunks = new ArrayList<>();
-        for (var result : results) {
-            if (result instanceof ChunkedSparseEmbeddingResults textExpansionResults) {
-                for (var chunk : textExpansionResults.getChunkedResults()) {
-                    chunks.add(
-                        new SemanticTextField.Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.weightedTokens()))
-                    );
-                }
-            } else if (result instanceof ChunkedTextEmbeddingResults textEmbeddingResults) {
-                for (var chunk : textEmbeddingResults.getChunks()) {
-                    chunks.add(
-                        new SemanticTextField.Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.embedding()))
-                    );
-                }
-            } else {
-                throw new ElasticsearchStatusException(
-                    "Invalid inference results format for field [{}] with inference id [{}], got {}",
-                    RestStatus.BAD_REQUEST,
-                    field,
-                    inferenceId,
-                    result.getWriteableName()
-                );
-            }
-        }
-        return chunks;
-    }
-
-    /**
-     * Serialises the {@link TextExpansionResults.WeightedToken} list, according to the provided {@link XContent},
-     * into a {@link BytesReference}.
-     */
-    static BytesReference toBytesReference(XContent xContent, List<TextExpansionResults.WeightedToken> tokens) {
-        try {
-            XContentBuilder b = XContentBuilder.builder(xContent);
-            b.startObject();
-            for (var weightedToken : tokens) {
-                weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
-            }
-            b.endObject();
-            return BytesReference.bytes(b);
-        } catch (IOException exc) {
-            throw new RuntimeException(exc);
-        }
-    }
-
-    /**
-     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
-     */
-    private static BytesReference toBytesReference(XContent xContent, double[] value) {
-        try {
-            XContentBuilder b = XContentBuilder.builder(xContent);
-            b.startArray();
-            for (double v : value) {
-                b.value(v);
-            }
-            b.endArray();
-            return BytesReference.bytes(b);
-        } catch (IOException exc) {
-            throw new RuntimeException(exc);
-        }
     }
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {

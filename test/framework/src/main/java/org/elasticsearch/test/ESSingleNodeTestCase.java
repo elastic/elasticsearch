@@ -41,7 +41,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -51,7 +51,6 @@ import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,6 +64,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -128,6 +128,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
         SearchService searchService = getInstanceFromNode(SearchService.class);
         assertThat(searchService.getActiveContexts(), equalTo(0));
@@ -464,6 +465,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     protected void awaitIndexShardCloseAsyncTasks() {
-        AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks(getInstanceFromNode(ThreadPool.class));
+        final var latch = new CountDownLatch(1);
+        getInstanceFromNode(IndicesClusterStateService.class).onClusterStateShardsClosed(latch::countDown);
+        safeAwait(latch);
     }
 }

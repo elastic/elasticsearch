@@ -228,7 +228,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     protected void doClose() {}
 
     /**
-     * Completed when all the shards removed by the last-applied cluster state have fully closed.
+     * Completed when all the shards removed by earlier-applied cluster states have fully closed.
      * <p>
      * Kind of a hack tbh, we can't be sure the shard locks are fully released when this is completed so there's all sorts of retries and
      * other lenience to handle that. It'd be better to wait for the shard locks to be released and then delete the data. See #74149.
@@ -239,7 +239,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private RefCountingListener currentClusterStateShardsClosedListeners;
 
     /**
-     * @param action Action to run when all the shards removed by the last-applied cluster state have fully closed. May run on the calling
+     * @param action Action to run when all the shards removed by earlier-applied cluster states have fully closed. May run on the calling
      *               thread, or on the thread that completed the closing of the last such shard.
      */
     public void onClusterStateShardsClosed(Runnable action) {
@@ -250,9 +250,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
+        final var previousShardsClosedListener = lastClusterStateShardsClosedListener;
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
         currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
         try {
+            previousShardsClosedListener.addListener(currentClusterStateShardsClosedListeners.acquire());
             doApplyClusterState(event);
         } finally {
             currentClusterStateShardsClosedListeners.close();

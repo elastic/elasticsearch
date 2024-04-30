@@ -38,7 +38,6 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,7 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -427,15 +426,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
     }
 
-    public static void awaitIndexShardCloseAsyncTasks(ThreadPool threadPool) {
-        // closing index shard from the IndicesClusterStateService involves background work on a GENERIC thread - flush the pool to ensure
-        // all such tasks have completed
-        final var threadCount = threadPool.info(ThreadPool.Names.GENERIC).getMax();
-        final var barrier = new CyclicBarrier(threadCount + 1);
-        for (int i = 0; i < threadCount; i++) {
-            threadPool.generic().execute(() -> safeAwait(barrier));
-        }
-        safeAwait(barrier);
+    public static void awaitIndexShardCloseAsyncTasks(IndicesClusterStateService indicesClusterStateService) {
+        final var latch = new CountDownLatch(1);
+        indicesClusterStateService.onClusterStateShardsClosed(latch::countDown);
+        safeAwait(latch);
     }
 
 }

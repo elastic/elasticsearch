@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,8 +26,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Represents a group of permissions for a remote cluster. This is intended to be the model for both the {@link RoleDescriptor}
@@ -52,21 +57,27 @@ import java.util.Set;
  * <code>
  *   "cluster": ["bar"]
  * </code>
+ * If the remote cluster does not support the privilege, as determined by the remote cluster version, the privilege will be not be sent.
  */
 public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
     public static final String NAME = "remote_cluster_permissions";
+    private static final Logger logger = LogManager.getLogger(RemoteClusterPermissions.class);
     private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups;
-    // if adding to this; update related logs/error messages to be plural
-    private static final Set<String> allowedRemoteClusterPermissions = Set.of("monitor_enrich");
+
+    // package private non-final for testing
+    static Map<TransportVersion, Set<String>> allowedRemoteClusterPermissions = Map.of(
+        TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS,
+        Set.of("monitor_enrich")
+    );
     static {
-        assert ClusterPrivilegeResolver.names().containsAll(allowedRemoteClusterPermissions);
+        assert ClusterPrivilegeResolver.names().containsAll(getSupportRemoteClusterPermissions());
     }
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public static Set<String> getSupportRemoteClusterPermissions() {
-        return allowedRemoteClusterPermissions;
+        return allowedRemoteClusterPermissions.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     }
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {
@@ -86,18 +97,50 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         return this;
     }
 
+    /**
+     * Gets the privilege names for the remote cluster. This method will collapse all groups to single String[] all lowercase
+     * and will only return the appropriate privileges for the provided remote cluster version.
+     */
     public String[] privilegeNames(final String remoteClusterAlias, TransportVersion remoteClusterVersion) {
-        // TODO: look at the remote cluster version and return the appropriate privileges for that version
-        return remoteClusterPermissionGroups.stream()
+
+        // get all privileges for the remote cluster
+        Set<String> groupPrivileges = remoteClusterPermissionGroups.stream()
             .filter(group -> group.hasPrivileges(remoteClusterAlias))
             .flatMap(groups -> Arrays.stream(groups.clusterPrivileges()))
             .distinct()
-            .sorted()
-            .toArray(String[]::new);
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+
+        // find all the privileges that are allowed for the remote cluster version
+        Set<String> allowedPermissionsPerVersion = allowedRemoteClusterPermissions.entrySet()
+            .stream()
+            .filter((entry) -> entry.getKey().onOrAfter(remoteClusterVersion))
+            .map(Map.Entry::getValue)
+            .flatMap(Set::stream)
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+
+        // intersect the two sets to get the allowed privileges for the remote cluster version
+        Set<String> allowedPrivileges = new HashSet<>(groupPrivileges);
+        boolean hasRemovedPrivileges = allowedPrivileges.retainAll(allowedPermissionsPerVersion);
+        if (hasRemovedPrivileges) {
+            HashSet<String> removedPrivileges = new HashSet<>(groupPrivileges);
+            removedPrivileges.removeAll(allowedPermissionsPerVersion);
+            logger.info(
+                "Removed unsupported remote cluster permissions {} for remote cluster [{}]. "
+                    + "Due to the remote cluster version, only the following permissions are allowed: {}",
+                removedPrivileges,
+                remoteClusterAlias,
+                allowedPrivileges
+            );
+        }
+
+        return allowedPrivileges.stream().sorted().toArray(String[]::new);
     }
 
     /**
-     * Validates the remote cluster permissions. This method will throw an {@link IllegalArgumentException} if the permissions are invalid.
+     * Validates the remote cluster permissions (regardless of remote cluster version).
+     * This method will throw an {@link IllegalArgumentException} if the permissions are invalid.
      * Generally, this method is just a safety check and validity should be checked before adding the permissions to this class.
      */
     public void validate() {
@@ -108,21 +151,22 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
                 "Invalid remote_cluster permissions found. Please remove the remove the following: "
                     + invalid
                     + " Only "
-                    + allowedRemoteClusterPermissions
-                    + " is allowed"
+                    + getSupportRemoteClusterPermissions()
+                    + " are allowed"
             );
         }
     }
 
     /**
-     * Returns the unsupported privileges in the remote cluster permissions. Empty set if all privileges are supported.
+     * Returns the unsupported privileges in the remote cluster permissions (regardless of remote cluster version).
+     * Empty set if all privileges are supported.
      */
     private Set<String> getUnsupportedPrivileges() {
         Set<String> invalid = new HashSet<>();
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
             for (String namedPrivilege : group.clusterPrivileges()) {
                 String toCheck = namedPrivilege.toLowerCase(Locale.ROOT);
-                if (allowedRemoteClusterPermissions.contains(toCheck) == false) {
+                if (getSupportRemoteClusterPermissions().contains(toCheck) == false) {
                     invalid.add(namedPrivilege);
                 }
             }

@@ -19,10 +19,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTestCase<RemoteClusterPermissions> {
 
@@ -84,14 +89,66 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
     }
 
     public void testPrivilegeNames() {
-        for (int i = 0; i < generateRandomGroups(true).size(); i++) {
+        Map<TransportVersion, Set<String>> original = RemoteClusterPermissions.allowedRemoteClusterPermissions;
+        try {
+            // create random groups with random privileges for random clusters
+            List<RemoteClusterPermissionGroup> randomGroups = generateRandomGroups(true);
+            RemoteClusterPermissions.allowedRemoteClusterPermissions = new HashMap<>();
+            Set<String> allPrivileges = new HashSet<>();
+            // allow all the privileges across the random groups for the current version
+            for (int i = 0; i < randomGroups.size(); i++) {
+                allPrivileges.addAll(Set.of(groupPrivileges.get(i)));
+            }
+            RemoteClusterPermissions.allowedRemoteClusterPermissions.put(TransportVersion.current(), allPrivileges);
+
+            for (int i = 0; i < randomGroups.size(); i++) {
+                String[] privileges = groupPrivileges.get(i);
+                String[] clusters = groupClusters.get(i);
+                for (String cluster : clusters) {
+                    String[] found = remoteClusterPermission.privilegeNames(cluster, TransportVersion.current());
+                    Arrays.sort(found);
+                    // ensure all lowercase since the privilege names are case insensitive and the method will result in lowercase
+                    for (int j = 0; j < privileges.length; j++) {
+                        privileges[j] = privileges[j].toLowerCase(Locale.ROOT);
+                    }
+                    Arrays.sort(privileges);
+                    assertArrayEquals(privileges, found);
+                }
+            }
+        } finally {
+            RemoteClusterPermissions.allowedRemoteClusterPermissions = original;
+        }
+    }
+
+    public void testPrivilegeNamesPerVersion() {
+        // create random groups with random privileges for random clusters
+        List<RemoteClusterPermissionGroup> randomGroups = generateRandomGroups(true);
+        // replace a random value with one that is allowed
+        groupPrivileges.get(0)[0] = "monitor_enrich";
+
+        for (int i = 0; i < randomGroups.size(); i++) {
             String[] privileges = groupPrivileges.get(i);
             String[] clusters = groupClusters.get(i);
             for (String cluster : clusters) {
-                Arrays.sort(privileges);
                 String[] found = remoteClusterPermission.privilegeNames(cluster, TransportVersion.current());
                 Arrays.sort(found);
-                assertArrayEquals(privileges, found);
+                // ensure all lowercase since the privilege names are case insensitive and the method will result in lowercase
+                for (int j = 0; j < privileges.length; j++) {
+                    privileges[j] = privileges[j].toLowerCase(Locale.ROOT);
+                }
+                Arrays.sort(privileges);
+
+                if (i == 0 && privileges.length == 1) {
+                    // special case where there was only 1 random value and it was replaced with a value that is allowed
+                    assertArrayEquals(privileges, found);
+                } else {
+                    // none of the random privileges are not allowed for the current version
+                    assertFalse(Arrays.equals(privileges, found));
+                }
+                if (i == 0) {
+                    // ensure that for the current version we only find "monitor_enrich"
+                    assertThat(Set.of(found), equalTo(Set.of("monitor_enrich")));
+                }
             }
         }
     }
@@ -101,7 +158,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         // random values not allowed
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> remoteClusterPermission.validate());
         assertTrue(error.getMessage().contains("Invalid remote_cluster permissions found. Please remove the remove the following:"));
-        assertTrue(error.getMessage().contains("Only [monitor_enrich] is allowed"));
+        assertTrue(error.getMessage().contains("Only [monitor_enrich] are allowed"));
 
         new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" }))
             .validate(); // no error

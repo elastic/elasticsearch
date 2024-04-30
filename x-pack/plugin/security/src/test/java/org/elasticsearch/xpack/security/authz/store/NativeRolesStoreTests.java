@@ -475,10 +475,10 @@ public class NativeRolesStoreTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "all nodes must have transport version ["
+                    "all nodes must have version ["
                         + (TEST_MODE.REMOTE_CLUSTER_PRIVS.equals(testMode)
                             ? TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
-                            : TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+                            : TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion())
                         + "] or higher to support remote "
                         + (remoteIndicesPrivileges != null ? "indices" : "cluster")
                         + " privileges"

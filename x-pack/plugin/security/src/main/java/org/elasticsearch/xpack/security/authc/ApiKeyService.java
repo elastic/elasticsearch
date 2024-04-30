@@ -332,7 +332,7 @@ public class ApiKeyService {
                 // Creating API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "all nodes must have transport version ["
+                        "all nodes must have version ["
                             + ROLE_REMOTE_CLUSTER_PRIVS
                             + "] or higher to support remote cluster privileges for API keys"
                     )
@@ -516,7 +516,7 @@ public class ApiKeyService {
             // Updating API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
-                    "all nodes must have transport version ["
+                    "all nodes must have version ["
                         + ROLE_REMOTE_CLUSTER_PRIVS
                         + "] or higher to support remote indices privileges for API keys"
                 )

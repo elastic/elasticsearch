@@ -58,14 +58,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
-import org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -311,7 +309,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
-        AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks(getInstanceFromNode(ThreadPool.class));
+        awaitIndexShardCloseAsyncTasks();
 
         assertFalse(firstPath.exists());
 

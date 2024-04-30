@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -50,6 +51,7 @@ import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -459,5 +461,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected boolean enableConcurrentSearch() {
         return true;
+    }
+
+    protected void awaitIndexShardCloseAsyncTasks() {
+        AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks(getInstanceFromNode(ThreadPool.class));
     }
 }

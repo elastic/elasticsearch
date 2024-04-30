@@ -283,7 +283,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         assertEquals(1, service.getActiveContexts());
         assertAcked(indicesAdmin().prepareDelete("index"));
-        awaitIndexShardCloseAsyncTasks(getInstanceFromNode(ThreadPool.class));
+        awaitIndexShardCloseAsyncTasks();
         assertEquals(0, service.getActiveContexts());
     }
 

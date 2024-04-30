@@ -107,17 +107,6 @@ PUT _ilm/policy/my-weather-sensor-lifecycle-policy
 ----
 
 [discrete]
-[[tsds-create-mappings-component-template]]
-==== Create a mappings component template
-
-A TSDS requires a matching index template. In most cases, you compose this index
-template using one or more component templates. You typically use separate
-component templates for mappings and index settings. This lets you reuse the
-component templates in multiple index templates.
-
-For a TSDS, the mappings component template must include mappings for:
-
-[discrete]
 [[create-tsds-index-template]]
 ==== Create an index template
 

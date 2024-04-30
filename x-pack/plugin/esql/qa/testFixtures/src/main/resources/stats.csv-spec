@@ -575,6 +575,43 @@ ca:l | cx:l | l:i
 1    | 1    | null
 ;
 
+countSameFieldWithEval
+from employees | stats  b = count(gender), c = count(gender) by gender | eval b = gender
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+57  | M        | M
+33  | F        | F
+;
+
+countSameFieldWithDissect
+from employees | stats b = count(gender), c = count(gender) by gender | dissect gender "%{b}"
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+57  | M        | M
+33  | F        | F
+;
+
+countSameFieldWithGrok
+from employees | stats  b = count(gender), c = count(gender) by gender | grok gender "%{USERNAME:b}"
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+57  | M        | M
+33  | F        | F
+;
+
+countSameFieldWithEnrich
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | limit 0
+;
+
+c:l | gender:s | b:s
+;
+
 aggsWithoutStats
 from employees | stats by gender | sort gender;
 

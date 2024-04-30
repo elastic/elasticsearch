@@ -14,6 +14,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
@@ -32,9 +33,7 @@ public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHa
     }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";
-
-    public static final String TYPED_KEYS_PARAM = "typed_keys";
-    public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM);
+    public static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM);
 
     @Override
     public String getName() {

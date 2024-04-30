@@ -214,13 +214,9 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Get the minimum security index mapping version in the cluster
      */
     private SystemIndexDescriptor.MappingsVersion getMinSecurityIndexMappingVersion(ClusterState clusterState) {
-        var minClusterVersion = clusterState.getMinSystemIndexMappingVersions().get(systemIndexDescriptor.getPrimaryIndex());
-        // Can be null in mixed clusters. This indicates that the cluster state and index needs to be updated with the latest mapping
-        // version from the index descriptor
-        if (minClusterVersion == null) {
-            return systemIndexDescriptor.getMappingsVersion();
-        }
-        return minClusterVersion;
+        SystemIndexDescriptor.MappingsVersion mappingsVersion = clusterState.getMinSystemIndexMappingVersions()
+            .get(systemIndexDescriptor.getPrimaryIndex());
+        return mappingsVersion == null ? new SystemIndexDescriptor.MappingsVersion(1, 0) : mappingsVersion;
     }
 
     @Override

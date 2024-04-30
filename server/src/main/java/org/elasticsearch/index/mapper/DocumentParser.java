@@ -132,8 +132,9 @@ public final class DocumentParser {
                             XContentDataHelper.encodeToken(context.parser())
                         )
                     );
+                } else {
+                    context.parser().skipChildren();
                 }
-                context.parser().skipChildren();
             } else if (emptyDoc == false) {
                 parseObjectOrNested(context);
             }
@@ -267,8 +268,9 @@ public final class DocumentParser {
                         XContentDataHelper.encodeToken(parser)
                     )
                 );
+            } else {
+                parser.skipChildren();
             }
-            parser.skipChildren();
             return;
         }
         XContentParser.Token token = parser.currentToken();

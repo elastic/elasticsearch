@@ -1414,7 +1414,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     + name()
                     + "] of type ["
                     + typeName()
-                    + "] doesn't not support indexing multiple values for the same field in the same document"
+                    + "] doesn't support indexing multiple values for the same field in the same document"
             );
         }
         if (Token.VALUE_NULL == context.parser().currentToken()) {

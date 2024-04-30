@@ -72,7 +72,8 @@ public class ClusterFormationFailureHelper {
      * @param settings provides the period in which to log cluster formation errors.
      * @param clusterFormationStateSupplier information about the current believed cluster state (See {@link ClusterFormationState})
      * @param threadPool the thread pool on which to run debug logging
-     * @param logLastFailedJoinAttempt invokes an instance of the JoinHelper to log the last encountered join failure (See {@link JoinHelper#logLastFailedJoinAttempt()})
+     * @param logLastFailedJoinAttempt invokes an instance of the JoinHelper to log the last encountered join failure
+     *                                 (See {@link JoinHelper#logLastFailedJoinAttempt()})
      */
     public ClusterFormationFailureHelper(
         Settings settings,

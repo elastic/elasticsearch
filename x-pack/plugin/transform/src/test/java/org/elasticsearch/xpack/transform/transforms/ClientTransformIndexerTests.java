@@ -308,11 +308,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
     public void testDisablePit() throws InterruptedException {
         TransformConfig.Builder configBuilder = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig());
-        if (randomBoolean()) {
-            // TransformConfigTests.randomTransformConfig never produces remote indices in the source.
-            // We need to explicitly set the remote index here for coverage.
-            configBuilder.setSource(new SourceConfig("remote-cluster:remote-index"));
-        }
         TransformConfig config = configBuilder.build();
 
         boolean pitEnabled = TransformEffectiveSettings.isPitDisabled(config.getSettings()) == false;

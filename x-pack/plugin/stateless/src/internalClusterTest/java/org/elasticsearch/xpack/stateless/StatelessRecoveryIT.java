@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -139,6 +140,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
@@ -2110,6 +2112,56 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             throw new AssertionError(e);
         }
         ensureGreen(indexName);
+    }
+
+    /**
+     * Test a race condition where an upload happens, the search shard sees the commit and informs indexing shard prior to the indexing
+     * shard realizing that the commit has happened.
+     */
+    public void testUnpromotableCommitRegistrationDuringUpload() throws InterruptedException {
+        var indexNodeA = startIndexNode();
+        startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(10, 50));
+
+        flush(indexName);
+
+        AtomicReference<AssertionError> rethrow = new AtomicReference<>();
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        final CyclicBarrier uploadBarrier = new CyclicBarrier(2);
+        internalCluster().getInstance(StatelessCommitService.class, indexNodeA).addConsumerForNewUploadedBcc(shardId, info -> {
+            try {
+                safeAwait(uploadBarrier);
+                safeAwait(uploadBarrier);
+            } catch (AssertionError e) {
+                logger.error(e.getMessage(), e);
+                rethrow.set(e);
+            }
+        });
+        Thread thread = new Thread(() -> {
+            indexDocs(indexName, randomIntBetween(1, 50));
+            flush(indexName);
+        });
+
+        thread.start();
+        try {
+            safeAwait(uploadBarrier);
+            assertAcked(
+                admin().indices()
+                    .prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            );
+
+            ensureGreen(indexName);
+
+            safeAwait(uploadBarrier);
+        } finally {
+            thread.join(10000);
+        }
+        assertThat(thread.isAlive(), is(false));
+        assertNull(rethrow.get());
     }
 
     @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")

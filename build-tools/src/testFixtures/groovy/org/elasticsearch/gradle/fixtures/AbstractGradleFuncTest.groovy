@@ -53,7 +53,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
         
-        def mutedTestsFile = Files.createFile(Path.of(testProjectDir.newFolder("build-tools-internal").path, "muted-tests.yml"))
+        def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")
         mutedTestsFile << """
             tests: []
         """

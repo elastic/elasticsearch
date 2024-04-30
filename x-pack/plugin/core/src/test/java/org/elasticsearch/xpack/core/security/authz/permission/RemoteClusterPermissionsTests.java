@@ -145,13 +145,13 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
                     // special case where there was only 1 random value and it was replaced with a value that is allowed
                     assertArrayEquals(privileges, found);
                 } else {
-                    // none of the random privileges are not allowed for the current version
+                    // none of the random privileges are allowed for the current version
                     assertFalse(Arrays.equals(privileges, found));
                     if (i == 0) {
-                        // ensure that for the current version we only find "monitor_enrich"
+                        // ensure that for the current version we only find the valid "monitor_enrich"
                         assertThat(Set.of(found), equalTo(Set.of("monitor_enrich")));
                     } else {
-                        // all other groups should not have any privileges
+                        // all other groups should be found to not have any privileges
                         assertTrue(found.length == 0);
                     }
                 }

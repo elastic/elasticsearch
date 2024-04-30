@@ -136,7 +136,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 transportService.getThreadPool(),
                 TimeValue.timeValueMillis(1),
                 TimeValue.timeValueSeconds(5),
-                TimeValue.timeValueSeconds(60),
+                TimeValue.timeValueMinutes(5),
                 l,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {
@@ -179,7 +179,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             ShardRouting primaryShardRouting = clusterState.routingTable().shardRoutingTable(request.getShardId()).primaryShard();
             sendRequestToPrimaryNode(primaryShardRouting, clusterState, request, listener);
         } else {
-            TimeValue timeout = TimeValue.timeValueSeconds(60);
+            TimeValue timeout = TimeValue.timeValueMinutes(5);
             ClusterStateObserver observer = new ClusterStateObserver(
                 clusterState,
                 clusterService,

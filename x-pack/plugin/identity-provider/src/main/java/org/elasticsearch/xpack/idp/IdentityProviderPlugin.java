@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderFactory;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTemplateRegistry;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderCacheSettings;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
@@ -80,6 +81,15 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
+        var indexTemplateRegistry = new SamlServiceProviderIndexTemplateRegistry(
+            services.environment().settings(),
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
+        );
+        indexTemplateRegistry.initialize();
+
         SamlInit.initialize();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(services.client(), services.clusterService());
         final SecurityContext securityContext = new SecurityContext(settings, services.threadPool().getThreadContext());
@@ -111,7 +121,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         final SamlFactory factory = new SamlFactory();
 
-        return List.of(index, idp, factory, userPrivilegeResolver);
+        return List.of(index, idp, factory, userPrivilegeResolver, indexTemplateRegistry);
     }
 
     @Override

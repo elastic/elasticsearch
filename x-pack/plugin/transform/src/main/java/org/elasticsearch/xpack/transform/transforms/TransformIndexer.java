@@ -390,11 +390,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
-                    // If the transform config index or the transform config is gone, something serious occurred
-                    // We are in an unknown state and should fail out
+                    // If the transform config index or the transform config is gone, then it is possible the transform was deleted.
+                    // If the transform was deleted, it will be in the Aborting state, and we can safely return out. If it is not in the
+                    // Aborting state, then something serious has occurred, and we should fail out.
                     if (failure instanceof ResourceNotFoundException) {
-                        logger.error(msg, failure);
-                        reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        if (IndexerState.ABORTING == getState()) {
+                            logger.atDebug()
+                                .withThrowable(failure)
+                                .log("Transform is in state [{}] during possible failure [{}].", IndexerState.ABORTING.value(), msg);
+                            listener.onResponse(false);
+                        } else {
+                            logger.error(msg, failure);
+                            reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        }
                     } else {
                         logger.warn(msg, failure);
                         auditor.warning(getJobId(), msg);

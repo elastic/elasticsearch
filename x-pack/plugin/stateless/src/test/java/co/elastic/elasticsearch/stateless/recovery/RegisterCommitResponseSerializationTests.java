@@ -22,12 +22,10 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,10 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY;
 import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RegisterCommitResponseSerializationTests extends AbstractWireSerializingTestCase<RegisterCommitResponse> {
 
@@ -70,24 +65,6 @@ public class RegisterCommitResponseSerializationTests extends AbstractWireSerial
             );
             default -> throw new IllegalStateException("Unexpected value " + i);
         };
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final var instance = createTestInstance();
-        final TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(
-            REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY
-        );
-
-        var deserialized = copyInstance(instance, previousVersion);
-        try {
-            assertThat(
-                deserialized.getLatestUploadedBatchedCompoundCommitTermAndGen(),
-                equalTo(instance.getLatestUploadedBatchedCompoundCommitTermAndGen())
-            );
-            assertThat(deserialized.getCompoundCommit(), nullValue());
-        } finally {
-            dispose(deserialized);
-        }
     }
 
     private static StatelessCompoundCommit randomCompoundCommit() {

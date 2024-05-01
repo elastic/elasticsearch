@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -53,8 +54,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.STALE_INDICES_GC;
 
 public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams>
     implements
@@ -104,8 +103,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
         }
 
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-            || clusterState.nodes().isLocalNodeElectedMaster() == false
-            || clusterState.getMinTransportVersion().before(STALE_INDICES_GC)) {
+            || clusterState.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
 
@@ -190,7 +188,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return STALE_INDICES_GC;
+            return TransportVersions.V_8_12_0;
         }
 
         @Override

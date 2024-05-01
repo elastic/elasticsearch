@@ -30,7 +30,6 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_BCC_INFO;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
@@ -56,13 +55,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
     public NewCommitNotificationRequest(final StreamInput in) throws IOException {
         super(in);
         compoundCommit = StatelessCompoundCommit.readFromTransport(in);
-        if (in.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_BCC_INFO)) {
-            batchedCompoundCommitGeneration = in.readVLong();
-            latestUploadedBatchedCompoundCommitTermAndGen = in.readOptionalWriteable(PrimaryTermAndGeneration::new);
-        } else {
-            batchedCompoundCommitGeneration = compoundCommit.generation();
-            latestUploadedBatchedCompoundCommitTermAndGen = compoundCommit.primaryTermAndGeneration();
-        }
+        batchedCompoundCommitGeneration = in.readVLong();
+        latestUploadedBatchedCompoundCommitTermAndGen = in.readOptionalWriteable(PrimaryTermAndGeneration::new);
     }
 
     public long getTerm() {
@@ -137,16 +131,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
         compoundCommit.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_BCC_INFO)) {
-            out.writeVLong(batchedCompoundCommitGeneration);
-            out.writeOptionalWriteable(latestUploadedBatchedCompoundCommitTermAndGen);
-        } else {
-            // The CC must be packaged as a singleton BCC
-            assert compoundCommit.generation() == batchedCompoundCommitGeneration
-                : compoundCommit.generation() + "!=" + batchedCompoundCommitGeneration;
-            assert compoundCommit.primaryTermAndGeneration().equals(latestUploadedBatchedCompoundCommitTermAndGen)
-                : compoundCommit.primaryTermAndGeneration() + "!=" + latestUploadedBatchedCompoundCommitTermAndGen;
-        }
+        out.writeVLong(batchedCompoundCommitGeneration);
+        out.writeOptionalWriteable(latestUploadedBatchedCompoundCommitTermAndGen);
     }
 
     @Override

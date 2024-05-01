@@ -18,7 +18,7 @@ esplugin {
 // this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
 // as we (and tika) demand, and are not interested in, say, having the same version of commons-codec as elasticsearch itself
 def versions = [
-  'tika'  : '2.9.1',
+  'tika'  : '2.9.2',
   'pdfbox': '2.0.29',
   'poi'   : '5.2.3',
   'mime4j': '0.8.10',

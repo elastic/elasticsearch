@@ -1744,93 +1744,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testDoNotDeleteAnyCommitUntilAllNodesReportTheFullSetOfBCCDependencies() throws Exception {
-        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var allNodesResolveReferencesLocally = new AtomicBoolean(false);
-        var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
-            @Override
-            void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
-                deletedCommits.add(staleCompoundCommit);
-            }
-        };
-        var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
-                assert stateRef.get() != null;
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
-            }
-
-            @Override
-            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
-                return fakeSearchNode;
-            }
-
-            @Override
-            protected StatelessCommitCleaner createCommitCleaner(
-                StatelessClusterConsistencyService consistencyService,
-                ThreadPool threadPool,
-                ObjectStoreService objectStoreService
-            ) {
-                return commitCleaner;
-            }
-
-            @Override
-            protected long getPrimaryTerm() {
-                return primaryTerm;
-            }
-
-            @Override
-            protected BooleanSupplier createAllNodesResolveBCCReferencesLocallySupplier() {
-                return allNodesResolveReferencesLocally::get;
-            }
-        }) {
-            var shardId = testHarness.shardId;
-            var commitService = testHarness.commitService;
-
-            var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
-            stateRef.set(state);
-
-            var initialCommits = testHarness.generateIndexCommits(10);
-            for (StatelessCommitRef initialCommit : initialCommits) {
-                commitService.onCommitCreation(initialCommit);
-                fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
-                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
-                );
-            }
-
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
-            commitService.onCommitCreation(mergedCommit);
-
-            markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, commitService, shardId);
-
-            // The cluster is still not upgraded
-            assertThat(deletedCommits, empty());
-
-            // Now the search shard, report that it uses commit 0 and commit 10; therefore we should delete commits [1, 8]
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
-                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
-            );
-
-            // At this point part of the nodes in the cluster report that are
-            // in a version that do not report the explicit set of retained BCCs
-            assertThat(deletedCommits, empty());
-
-            // At this point all the nodes report to be upgraded to the version that reports the explicit set of retained BCCs
-            allNodesResolveReferencesLocally.set(true);
-
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
-                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
-            );
-
-            assertThat(deletedCommits, equalTo(staleCommits(initialCommits, shardId)));
-        }
-    }
-
     public void testScheduledCommitUpload() throws Exception {
         final Set<NewCommitNotificationRequest> newCommitNotificationRequests = ConcurrentCollections.newConcurrentSet();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
@@ -1873,8 +1786,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     this::getShardRoutingTable,
                     clusterService.threadPool(),
                     client,
-                    getCommitCleaner(),
-                    createAllNodesResolveBCCReferencesLocallySupplier()
+                    getCommitCleaner()
                 ) {
                     @Override
                     protected ShardCommitState createShardCommitState(

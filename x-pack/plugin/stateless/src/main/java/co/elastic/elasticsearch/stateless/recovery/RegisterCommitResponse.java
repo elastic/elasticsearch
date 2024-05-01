@@ -28,8 +28,6 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY;
-
 public class RegisterCommitResponse extends ActionResponse {
 
     public static final RegisterCommitResponse EMPTY = new RegisterCommitResponse(PrimaryTermAndGeneration.ZERO, null);
@@ -52,21 +50,14 @@ public class RegisterCommitResponse extends ActionResponse {
 
     public RegisterCommitResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY)) {
-            this.latestUploadedBatchedCompoundCommitTermAndGen = new PrimaryTermAndGeneration(in);
-            this.compoundCommit = in.readOptionalWriteable(input -> StatelessCompoundCommit.readFromTransport(in));
-        } else {
-            this.latestUploadedBatchedCompoundCommitTermAndGen = new PrimaryTermAndGeneration(in);
-            this.compoundCommit = null;
-        }
+        this.latestUploadedBatchedCompoundCommitTermAndGen = new PrimaryTermAndGeneration(in);
+        this.compoundCommit = in.readOptionalWriteable(input -> StatelessCompoundCommit.readFromTransport(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         this.latestUploadedBatchedCompoundCommitTermAndGen.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY)) {
-            out.writeOptionalWriteable(this.compoundCommit);
-        }
+        out.writeOptionalWriteable(this.compoundCommit);
     }
 
     public PrimaryTermAndGeneration getLatestUploadedBatchedCompoundCommitTermAndGen() {

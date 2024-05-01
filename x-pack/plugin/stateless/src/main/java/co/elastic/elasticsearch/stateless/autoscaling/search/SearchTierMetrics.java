@@ -23,7 +23,6 @@ import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,8 +31,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.SEARCH_LOAD_AUTOSCALING;
 
 public class SearchTierMetrics extends AbstractBaseTierMetrics implements AutoscalingMetrics {
     private final MemoryMetrics memoryMetrics;
@@ -64,24 +61,11 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
 
     public SearchTierMetrics(StreamInput in) throws IOException {
         super(in);
-        var transportVersion = in.getTransportVersion();
-        if (transportVersion.before(TransportVersions.V_8_11_X)) {
-            this.memoryMetrics = new MemoryMetrics(in);
-            this.maxShardCopies = new MaxShardCopies(in);
-            this.storageMetrics = new StorageMetrics(in);
-            this.nodesLoad = null;
-            return;
-        }
-
         this.memoryMetrics = in.readOptionalWriteable(MemoryMetrics::new);
         this.maxShardCopies = in.readOptionalWriteable(MaxShardCopies::new);
         this.storageMetrics = in.readOptionalWriteable(StorageMetrics::new);
 
-        if (transportVersion.before(SEARCH_LOAD_AUTOSCALING)) {
-            this.nodesLoad = null;
-        } else {
-            this.nodesLoad = in.readOptionalCollectionAsList(NodeSearchLoadSnapshot::new);
-        }
+        this.nodesLoad = in.readOptionalCollectionAsList(NodeSearchLoadSnapshot::new);
     }
 
     public MemoryMetrics getMemoryMetrics() {
@@ -103,20 +87,11 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        var transportVersion = out.getTransportVersion();
-        if (transportVersion.before(TransportVersions.V_8_11_X)) {
-            memoryMetrics.writeTo(out);
-            maxShardCopies.writeTo(out);
-            storageMetrics.writeTo(out);
-            return;
-        }
         out.writeOptionalWriteable(memoryMetrics);
         out.writeOptionalWriteable(maxShardCopies);
         out.writeOptionalWriteable(storageMetrics);
 
-        if (transportVersion.onOrAfter(SEARCH_LOAD_AUTOSCALING)) {
-            out.writeOptionalCollection(nodesLoad);
-        }
+        out.writeOptionalCollection(nodesLoad);
     }
 
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {

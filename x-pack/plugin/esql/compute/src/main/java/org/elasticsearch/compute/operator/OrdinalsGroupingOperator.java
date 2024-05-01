@@ -531,7 +531,7 @@ public class OrdinalsGroupingOperator implements Operator {
         }
     }
 
-    static abstract class BlockOrdinalsReader {
+    abstract static class BlockOrdinalsReader {
         protected final Thread creationThread;
         protected final BlockFactory blockFactory;
 

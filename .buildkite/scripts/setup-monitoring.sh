@@ -8,10 +8,12 @@ ELASTIC_AGENT_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/el
 ELASTIC_AGENT_DIR=/opt/elastic-agent
 IS_WINDOWS=""
 
+# Windows
 if uname -a | grep -q MING; then
   ELASTIC_AGENT_DIR=/c/elastic-agent
   IS_WINDOWS="true"
 
+  # Make sudo a no-op on Windows
   sudo() {
     "$@"
   }

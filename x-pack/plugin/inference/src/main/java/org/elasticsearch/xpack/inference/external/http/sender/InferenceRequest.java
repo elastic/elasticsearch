@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -23,15 +22,20 @@ public interface InferenceRequest {
      */
     RequestManager getRequestManager();
 
-    /**
-     * Returns the query associated with this request. Used for Rerank tasks.
-     */
-    String getQuery();
+    // /**
+    // * Returns the query associated with this request. Used for Rerank tasks.
+    // */
+    // String getQuery();
+    //
+    // /**
+    // * Returns the text input associated with this request.
+    // */
+    // List<String> getInput();
 
     /**
-     * Returns the text input associated with this request.
+     * Returns the inputs associated with the request.
      */
-    List<String> getInput();
+    InferenceInputs getInferenceInputs();
 
     /**
      * Returns the listener to notify of the results.

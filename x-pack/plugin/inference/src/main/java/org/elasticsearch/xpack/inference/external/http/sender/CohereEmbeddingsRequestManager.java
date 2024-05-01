@@ -19,9 +19,10 @@ import org.elasticsearch.xpack.inference.external.request.cohere.CohereEmbedding
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput.toDocsOnlyInput;
 
 public class CohereEmbeddingsRequestManager extends CohereRequestManager {
     private static final Logger logger = LogManager.getLogger(CohereEmbeddingsRequestManager.class);
@@ -44,13 +45,13 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(input, model);
+        var docsInput = toDocsOnlyInput(inferenceInputs);
+        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(docsInput.getInputs(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -20,11 +20,11 @@ import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenA
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
+import static org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput.toDocsOnlyInput;
 
 public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManager {
 
@@ -55,13 +55,14 @@ public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManag
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        var docsInput = toDocsOnlyInput(inferenceInputs);
+        var truncatedInput = truncate(docsInput.getInputs(), model.getServiceSettings().maxInputTokens());
+
         AzureOpenAiEmbeddingsRequest request = new AzureOpenAiEmbeddingsRequest(truncator, truncatedInput, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

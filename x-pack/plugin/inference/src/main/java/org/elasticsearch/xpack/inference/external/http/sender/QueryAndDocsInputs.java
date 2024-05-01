@@ -7,12 +7,22 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.List;
 import java.util.Objects;
 
 public class QueryAndDocsInputs extends InferenceInputs {
 
-    String query;
+    public static QueryAndDocsInputs toQueryAndDocsInput(InferenceInputs inferenceInputs) {
+        if (inferenceInputs instanceof QueryAndDocsInputs == false) {
+            throw new IllegalArgumentException(Strings.format("Unsupported inference inputs type: [%s]", inferenceInputs.getClass()));
+        }
+
+        return (QueryAndDocsInputs) inferenceInputs;
+    }
+
+    private final String query;
 
     public String getQuery() {
         return query;

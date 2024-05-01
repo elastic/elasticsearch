@@ -7,12 +7,22 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.List;
 import java.util.Objects;
 
 public class DocumentsOnlyInput extends InferenceInputs {
 
-    List<String> input;
+    public static DocumentsOnlyInput toDocsOnlyInput(InferenceInputs inferenceInputs) {
+        if (inferenceInputs instanceof DocumentsOnlyInput == false) {
+            throw new IllegalArgumentException(Strings.format("Unsupported inference inputs type: [%s]", inferenceInputs.getClass()));
+        }
+
+        return (DocumentsOnlyInput) inferenceInputs;
+    }
+
+    private final List<String> input;
 
     public DocumentsOnlyInput(List<String> chunks) {
         super();

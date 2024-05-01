@@ -83,6 +83,19 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return this;
+    }
+
+    public IntVector getOrdinalsVector() {
+        return ordinals;
+    }
+
+    public BytesRefVector getDictionaryVector() {
+        return bytes;
+    }
+
+    @Override
     public BytesRefVector filter(int... positions) {
         if (positions.length >= ordinals.getPositionCount()) {
             OrdinalBytesRefVector result = null;

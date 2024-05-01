@@ -127,8 +127,9 @@ $endif$
 
     IntBlock add($Type$Block block) {
 $if(BytesRef)$
-        if (block instanceof OrdinalBytesRefBlock ordinalsBlock) {
-            return addOrdinalsBlock(ordinalsBlock);
+        var ordinals = block.asOrdinals();
+        if (ordinals != null) {
+            return addOrdinalsBlock(ordinals);
         }
 $endif$
         MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hashAdd(blockFactory, hash);

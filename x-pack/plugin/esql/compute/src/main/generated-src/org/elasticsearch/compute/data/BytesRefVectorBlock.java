@@ -33,6 +33,16 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return new OrdinalBytesRefBlock(ordinals.getOrdinalsVector().asBlock(), ordinals.getDictionaryVector());
+        } else {
+            return null;
+        }
+    }
+
+    @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return vector.getBytesRef(valueIndex, dest);
     }

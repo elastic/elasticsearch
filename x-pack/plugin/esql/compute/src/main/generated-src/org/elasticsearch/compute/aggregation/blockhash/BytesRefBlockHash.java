@@ -88,8 +88,9 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     IntBlock add(BytesRefBlock block) {
-        if (block instanceof OrdinalBytesRefBlock ordinalsBlock) {
-            return addOrdinalsBlock(ordinalsBlock);
+        var ordinals = block.asOrdinals();
+        if (ordinals != null) {
+            return addOrdinalsBlock(ordinals);
         }
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();

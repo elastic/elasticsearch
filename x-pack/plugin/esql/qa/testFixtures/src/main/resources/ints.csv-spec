@@ -986,3 +986,21 @@ s:double | emp_no:integer | salary:integer
 1.0     | 10002          | 56371
 1.0     | 10041          | 56415
 ;
+
+lookup
+required_feature: esql.lookup_command
+FROM employees
+| SORT emp_no
+| LIMIT 4
+| RENAME languages AS int
+| LOOKUP int_number_names ON int
+| RENAME int AS languages, name AS lang_name
+| KEEP emp_no, languages, lang_name
+;
+
+emp_no:long | languages:int | lang_name:keyword
+      10001 |             2 | two
+      10002 |             5 | five
+      10003 |             4 | four
+      10004 |             5 | five
+;

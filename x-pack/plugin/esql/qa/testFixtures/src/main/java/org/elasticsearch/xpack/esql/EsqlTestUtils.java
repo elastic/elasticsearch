@@ -9,9 +9,15 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -30,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
@@ -40,14 +47,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -126,7 +136,7 @@ public final class EsqlTestUtils {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             query,
             false,
-            Map.of()
+            TABLES
         );
     }
 
@@ -263,5 +273,47 @@ public final class EsqlTestUtils {
                 assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
             }
         }
+    }
+
+    private static final Map<String, Map<String, Column>> TABLES;
+    static {
+        BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
+        Map<String, Map<String, Column>> tables = new HashMap<>();
+        try (
+            IntBlock.Builder ints = factory.newIntBlockBuilder(10);
+            LongBlock.Builder longs = factory.newLongBlockBuilder(10);
+            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(10);
+        ) {
+            for (int i = 0; i < 10; i++) {
+                ints.appendInt(i);
+                longs.appendLong(i);
+                names.appendBytesRef(new BytesRef(switch (i) {
+                    case 0 -> "zero";
+                    case 1 -> "one";
+                    case 2 -> "two";
+                    case 3 -> "three";
+                    case 4 -> "four";
+                    case 5 -> "five";
+                    case 6 -> "six";
+                    case 7 -> "seven";
+                    case 8 -> "eight";
+                    case 9 -> "nine";
+                    default -> throw new IllegalArgumentException();
+                }));
+            }
+
+            IntBlock intsBlock = ints.build();
+            LongBlock longsBlock = longs.build();
+            BytesRefBlock namesBlock = names.build();
+            tables.put("int_number_names", Map.of(
+                "int", new Column(DataTypes.INTEGER, intsBlock),
+                "name", new Column(DataTypes.KEYWORD, namesBlock)
+            ));
+            tables.put("long_number_names", Map.of(
+                "long", new Column(DataTypes.LONG, longsBlock),
+                "name", new Column(DataTypes.KEYWORD, namesBlock)
+            ));
+        }
+        TABLES = unmodifiableMap(tables);
     }
 }

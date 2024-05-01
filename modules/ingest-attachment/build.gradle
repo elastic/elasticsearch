@@ -29,10 +29,12 @@ def versions = [
   'slf4' : '2.0.10',
   'xz' : '1.9',
   'commonsIo' : '2.15.1',
-  'juniversalchardet' : '1.0.3', //TODO: update this version with the updated group
+  //intentionally using the elder "juniversalchardet:juniversalchardet" rather than the newer "com.github.albfernandez:juniversalchardet"
+  //since the "com.github.albfernandez" fork has some problems with Chinese.
+  'juniversalchardet' : '1.0.3',
   'tagsoup' : '1.2.1',
   'jempbox' : '1.8.17',
-  'xmlbeans' : '5.1.1', //TODO: where does this come from ?
+  'xmlbeans' : '5.2.0', //poi-ooxml dependency: https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/
   'commonsCollections4' : '4.4',
   'commonsCompress' : '1.26.1',
   'commonsLang3' :'3.14.0',

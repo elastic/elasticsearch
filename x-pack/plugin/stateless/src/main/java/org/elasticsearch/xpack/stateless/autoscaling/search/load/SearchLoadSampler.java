@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.SEARCH_LOAD_AUTOSCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
 /**
@@ -165,10 +164,6 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
      * Non-private only for testing.
      */
     void publishSearchLoad(double load, String nodeId, ActionListener<Void> listener) {
-        if (clusterService.state().getMinTransportVersion().before(SEARCH_LOAD_AUTOSCALING)) {
-            // If the master is not on a version that supports receiving the published search load, we abort.
-            return;
-        }
         var request = new PublishNodeSearchLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), load);
         client.execute(TransportPublishSearchLoads.INSTANCE, request, listener.map(unused -> null));
     }

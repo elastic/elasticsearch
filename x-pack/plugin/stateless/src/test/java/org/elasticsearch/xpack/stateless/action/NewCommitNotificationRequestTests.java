@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.action;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -29,14 +28,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_BCC_INFO;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -112,13 +109,6 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
     @Override
     protected Writeable.Reader<NewCommitNotificationRequest> instanceReader() {
         return NewCommitNotificationRequest::new;
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(NEW_COMMIT_NOTIFICATION_WITH_BCC_INFO);
-        // BWC only works for singleton BCC
-        final NewCommitNotificationRequest request = randomRequestWithSingleCC();
-        assertSerialization(request, previousVersion);
     }
 
     public void testValidationErrors() {

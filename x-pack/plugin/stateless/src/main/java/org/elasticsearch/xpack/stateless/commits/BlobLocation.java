@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.BLOB_LOCATION_WITHOUT_BLOB_LENGTH;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -89,14 +88,7 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
     }
 
     public static BlobLocation readFromTransport(StreamInput streamInput) throws IOException {
-        // TODO: remove this BWC version check
-        if (streamInput.getTransportVersion().before(BLOB_LOCATION_WITHOUT_BLOB_LENGTH)) {
-            final String message = "remote node version too low " + streamInput.getTransportVersion();
-            assert false : message;
-            throw new IllegalStateException(message);
-        } else {
-            return readWithoutBlobLength(streamInput);
-        }
+        return readWithoutBlobLength(streamInput);
     }
 
     private static BlobLocation readWithBlobLength(StreamInput streamInput) throws IOException {
@@ -120,12 +112,6 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(primaryTerm());
         out.writeString(blobName());
-        // TODO: remove this BWC version check
-        if (out.getTransportVersion().before(BLOB_LOCATION_WITHOUT_BLOB_LENGTH)) {
-            final String message = "remote node version too low " + out.getTransportVersion();
-            assert false : message;
-            throw new IllegalStateException(message);
-        }
         out.writeVLong(offset);
         out.writeVLong(fileLength);
     }

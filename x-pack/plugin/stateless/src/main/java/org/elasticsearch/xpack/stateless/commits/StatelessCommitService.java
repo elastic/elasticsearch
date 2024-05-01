@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -172,7 +171,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private final TimeValue shardInactivityDuration;
     private final TimeValue shardInactivityMonitorInterval;
-    private final BooleanSupplier allNodesResolveBCCReferencesLocally;
     private final ShardInactivityMonitor shardInactivityMonitor;
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final boolean statelessUploadDelayed;
@@ -196,10 +194,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             (shardId) -> clusterService.state().routingTable().shardRoutingTable(shardId),
             clusterService.threadPool(),
             client,
-            commitCleaner,
-            () -> clusterService.state()
-                .getMinTransportVersion()
-                .onOrAfter(ServerlessTransportVersions.EXPLICIT_BCC_REFERENCES_TRACKING_ADDED)
+            commitCleaner
         );
     }
 
@@ -210,8 +205,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Function<ShardId, IndexShardRoutingTable> shardRouting,
         ThreadPool threadPool,
         Client client,
-        StatelessCommitCleaner commitCleaner,
-        BooleanSupplier allNodesResolveBCCReferencesLocally
+        StatelessCommitCleaner commitCleaner
     ) {
         this.objectStoreService = objectStoreService;
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
@@ -219,7 +213,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.threadPool = threadPool;
         this.client = client;
         this.commitCleaner = commitCleaner;
-        this.allNodesResolveBCCReferencesLocally = allNodesResolveBCCReferencesLocally;
         this.shardInactivityDuration = SHARD_INACTIVITY_DURATION_TIME_SETTING.get(settings);
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
         this.shardInactivityMonitor = new ShardInactivityMonitor();
@@ -1836,10 +1829,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // (but would be safe - and we rely on it, this check is just an optimistic check)
                 return;
             }
-            if (allNodesResolveBCCReferencesLocally() == false) {
-                // Ignore notification responses until all nodes report the full set of BCCs that are in use
-                return;
-            }
 
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 // we are allowed to shrink the set of search nodes for any generation <= notificationGeneration, since after the
@@ -2460,9 +2449,5 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + "] in recovered commit";
         }
         return true;
-    }
-
-    private boolean allNodesResolveBCCReferencesLocally() {
-        return allNodesResolveBCCReferencesLocally.getAsBoolean();
     }
 }

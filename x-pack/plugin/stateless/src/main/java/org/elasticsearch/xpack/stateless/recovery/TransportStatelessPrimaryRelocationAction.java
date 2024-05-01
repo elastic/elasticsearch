@@ -432,11 +432,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             super(in);
             recoveryId = in.readVLong();
 
-            if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.DUMMY_PRIMARY_RELOCATION_CHANGE)) {
-                boolean value = in.readBoolean();
-                if (value != in.getTransportVersion().onOrAfter(ServerlessTransportVersions.DUMMY_PRIMARY_RELOCATION_CHANGE_FIX)) {
-                    throw new AssertionError("Transport api patch test failed");
-                }
+            // this field was only used to test serverless serialization infrastructure, we can now remove it
+            if (in.getTransportVersion().before(ServerlessTransportVersions.REMOVE_DUMMY_PRIMARY_RELOCATION_CHANGE)) {
+                in.readBoolean();
             }
 
             shardId = new ShardId(in);
@@ -449,10 +447,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             super.writeTo(out);
             out.writeVLong(recoveryId);
 
-            // See note in StreamInput ctor about this temporary boolean for testing transport patching
-            if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.DUMMY_PRIMARY_RELOCATION_CHANGE)) {
-                boolean value = out.getTransportVersion().onOrAfter(ServerlessTransportVersions.DUMMY_PRIMARY_RELOCATION_CHANGE_FIX);
-                out.writeBoolean(value);
+            if (out.getTransportVersion().before(ServerlessTransportVersions.REMOVE_DUMMY_PRIMARY_RELOCATION_CHANGE)) {
+                out.writeBoolean(true);
             }
 
             shardId.writeTo(out);

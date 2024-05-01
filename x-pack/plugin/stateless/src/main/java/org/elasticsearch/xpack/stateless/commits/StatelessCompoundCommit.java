@@ -63,8 +63,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMPOUND_COMMIT_WITH_INTERNAL_FILES;
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMPOUND_COMMIT_WITH_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -148,12 +146,8 @@ public record StatelessCompoundCommit(
         out.writeVLong(translogRecoveryStartFile);
         out.writeString(nodeEphemeralId);
         out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        if (out.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_SIZE)) {
-            out.writeVLong(sizeInBytes);
-        }
-        if (out.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_INTERNAL_FILES)) {
-            out.writeStringCollection(internalFiles);
-        }
+        out.writeVLong(sizeInBytes);
+        out.writeStringCollection(internalFiles);
     }
 
     public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
@@ -162,7 +156,7 @@ public record StatelessCompoundCommit(
         long translogRecoveryStartFile = in.readVLong();
         String nodeEphemeralId = in.readString();
         Map<String, BlobLocation> commitFiles = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
-        long sizeInBytes = in.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_SIZE) ? in.readVLong() : 0;
+        long sizeInBytes = in.readVLong();
         return new StatelessCompoundCommit(
             shardId,
             primaryTermAndGeneration,
@@ -170,9 +164,7 @@ public record StatelessCompoundCommit(
             nodeEphemeralId,
             commitFiles,
             sizeInBytes,
-            in.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_INTERNAL_FILES)
-                ? in.readCollectionAsImmutableSet(StreamInput::readString)
-                : computeInternalFilesForLegacyCC(primaryTermAndGeneration, commitFiles)
+            in.readCollectionAsImmutableSet(StreamInput::readString)
         );
     }
 
@@ -185,18 +177,6 @@ public record StatelessCompoundCommit(
 
     public Set<String> getInternalFiles() {
         return internalFiles;
-    }
-
-    private static Set<String> computeInternalFilesForLegacyCC(
-        PrimaryTermAndGeneration primaryTermAndGeneration,
-        Map<String, BlobLocation> commitFiles
-    ) {
-        final String compoundCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation());
-        return commitFiles.entrySet()
-            .stream()
-            .filter(commitFile -> compoundCommitBlobName.equals(commitFile.getValue().blobName()))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableSet());
     }
 
     static long writeInternalFilesToStore(OutputStream outputStream, List<InternalFile> internalFiles, Directory directory)

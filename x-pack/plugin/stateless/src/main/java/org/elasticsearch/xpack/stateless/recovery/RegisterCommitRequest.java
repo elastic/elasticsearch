@@ -29,8 +29,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY;
-
 public class RegisterCommitRequest extends ActionRequest {
 
     @Nullable // null for search nodes that do not support recovering from virtual batched compound commit
@@ -65,12 +63,7 @@ public class RegisterCommitRequest extends ActionRequest {
 
     public RegisterCommitRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY)) {
-            this.batchedCompoundCommitPrimaryTermAndGeneration = new PrimaryTermAndGeneration(in);
-        } else {
-            // the search node that issued this request does not support recovering from virtual batched compound commit
-            this.batchedCompoundCommitPrimaryTermAndGeneration = null;
-        }
+        this.batchedCompoundCommitPrimaryTermAndGeneration = new PrimaryTermAndGeneration(in);
         this.compoundCommitPrimaryTermAndGeneration = new PrimaryTermAndGeneration(in);
         this.shardId = new ShardId(in);
         this.nodeId = in.readString();
@@ -80,10 +73,7 @@ public class RegisterCommitRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(REGISTER_BATCHED_COMPOUND_COMMIT_ON_SEARCH_SHARD_RECOVERY)) {
-            assert batchedCompoundCommitPrimaryTermAndGeneration != null;
-            batchedCompoundCommitPrimaryTermAndGeneration.writeTo(out);
-        }
+        batchedCompoundCommitPrimaryTermAndGeneration.writeTo(out);
         compoundCommitPrimaryTermAndGeneration.writeTo(out);
         shardId.writeTo(out);
         out.writeString(nodeId);

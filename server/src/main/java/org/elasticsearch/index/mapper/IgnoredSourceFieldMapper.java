@@ -54,7 +54,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public record NameValue(String name, int parentOffset, BytesRef value) {
         String getParentFieldName() {
             // _doc corresponds to the root object
-            return (parentOffset == 0) ? "_doc" : name.substring(0, parentOffset - 1);
+            return (parentOffset == 0) ? MapperService.SINGLE_MAPPING_NAME : name.substring(0, parentOffset - 1);
         }
 
         String getFieldName() {
@@ -93,9 +93,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         // Ignored values are only expected in synthetic mode.
-        assert context.getIgnoredFieldValues().isEmpty()
-            || context.indexSettings().getMode().isSyntheticSourceEnabled()
-            || context.mappingLookup().isSourceSynthetic();
+        assert context.getIgnoredFieldValues().isEmpty() || context.mappingLookup().isSourceSynthetic();
         for (NameValue nameValue : context.getIgnoredFieldValues()) {
             context.doc().add(new StoredField(NAME, encode(nameValue)));
         }

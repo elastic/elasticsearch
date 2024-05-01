@@ -1199,7 +1199,7 @@ public abstract class FieldMapper extends Mapper {
         private final String mapperName;
         private final List<String> conflicts = new ArrayList<>();
 
-        Conflicts(String mapperName) {
+        public Conflicts(String mapperName) {
             this.mapperName = mapperName;
         }
 
@@ -1211,7 +1211,7 @@ public abstract class FieldMapper extends Mapper {
             conflicts.add("Cannot update parameter [" + parameter + "] from [" + existing + "] to [" + toMerge + "]");
         }
 
-        void check() {
+        public void check() {
             if (conflicts.isEmpty()) {
                 return;
             }

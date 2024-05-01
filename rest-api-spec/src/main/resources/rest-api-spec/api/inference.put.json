@@ -1,8 +1,8 @@
 {
-  "inference.inference":{
+  "inference.put":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/post-inference-api.html",
-      "description":"Perform inference"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/put-inference-api.html",
+      "description":"Configure an inference endpoint for use in the Inference API"
     },
     "stability":"experimental",
     "visibility":"public",
@@ -15,7 +15,7 @@
         {
           "path":"/_inference/{inference_id}",
           "methods":[
-            "POST"
+            "PUT"
           ],
           "parts":{
             "inference_id":{
@@ -27,7 +27,7 @@
         {
           "path":"/_inference/{task_type}/{inference_id}",
           "methods":[
-            "POST"
+            "PUT"
           ],
           "parts":{
             "task_type":{
@@ -43,7 +43,7 @@
       ]
     },
     "body":{
-      "description":"The inference payload"
+      "description":"The inference endpoint's task and service settings"
     }
   }
 }

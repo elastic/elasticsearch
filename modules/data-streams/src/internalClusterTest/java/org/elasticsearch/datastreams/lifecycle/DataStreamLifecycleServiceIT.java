@@ -94,8 +94,8 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT.TestPlugin.SYSTEM_DATA_STREAM_NAME;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT.TestPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT.TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT.TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS;
 import static org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService.STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF;
 import static org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService.STAGNATING_INDEX_IMPACT;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -116,7 +116,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class, TestPlugin.class);
+        return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class, TestSystemDataStreamPlugin.class);
     }
 
     @Override
@@ -236,7 +236,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 });
 
                 // Now we advance the time to well beyond the configured retention. We expect that the older index will have been deleted.
-                now.addAndGet(TimeValue.timeValueDays(3 * TestPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS).millis());
+                now.addAndGet(TimeValue.timeValueDays(3 * TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS).millis());
                 assertBusy(() -> {
                     GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
                         new String[] { SYSTEM_DATA_STREAM_NAME }
@@ -1005,7 +1005,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         assertAcked(client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest));
     }
 
-    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+    /*
+     * This test plugin adds `.system-test` as a known system data stream. The data stream is not created by this plugin. But if it is
+     * created, it will be a system data stream.
+     */
+    public static class TestSystemDataStreamPlugin extends Plugin implements SystemIndexPlugin {
         public static final String SYSTEM_DATA_STREAM_NAME = ".system-test";
         public static final int SYSTEM_DATA_STREAM_RETENTION_DAYS = 100;
 

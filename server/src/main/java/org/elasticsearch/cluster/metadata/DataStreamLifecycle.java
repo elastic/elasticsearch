@@ -204,9 +204,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             globalRetention,
             false
         );
-        if (effectiveDataRetentionWithSource == null || effectiveDataRetentionWithSource.v1() == null) {
-            return;
-        }
         String effectiveRetentionStringRep = effectiveDataRetentionWithSource.v1().getStringRep();
         switch (effectiveDataRetentionWithSource.v2()) {
             case DEFAULT_GLOBAL_RETENTION -> HeaderWarning.addWarning(

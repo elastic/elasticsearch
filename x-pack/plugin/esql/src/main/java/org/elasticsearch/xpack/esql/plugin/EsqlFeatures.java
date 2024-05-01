@@ -126,6 +126,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields");
 
+    /**
+     * Support for {@code LOOKUP} command
+     */
+    public static final NodeFeature LOOKUP_COMMAND = new NodeFeature("esql.lookup_command");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -145,7 +150,8 @@ public class EsqlFeatures implements FeatureSpecification {
             STRING_LITERAL_AUTO_CASTING,
             CASTING_OPERATOR,
             MV_ORDERING_SORTED_ASCENDING,
-            METRICS_COUNTER_FIELDS
+            METRICS_COUNTER_FIELDS,
+            LOOKUP_COMMAND
         );
     }
 

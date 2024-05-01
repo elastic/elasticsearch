@@ -171,7 +171,7 @@ public class ParseTables {
                     }
                     case START_ARRAY -> parseIntArray(builder);
                     case VALUE_NULL -> builder.appendNull();
-                    case VALUE_NUMBER -> appendInt(builder);
+                    case VALUE_NUMBER, VALUE_STRING -> appendInt(builder);
                     default -> throw new XContentParseException(p.getTokenLocation(), "expected number, array of numbers, or null");
                 }
             }
@@ -186,7 +186,7 @@ public class ParseTables {
                     builder.endPositionEntry();
                     return;
                 }
-                case VALUE_NUMBER -> appendInt(builder);
+                case VALUE_NUMBER, VALUE_STRING -> appendInt(builder);
                 default -> throw new XContentParseException(p.getTokenLocation(), "expected number");
             }
         }
@@ -213,7 +213,7 @@ public class ParseTables {
                     }
                     case START_ARRAY -> parseLongArray(builder);
                     case VALUE_NULL -> builder.appendNull();
-                    case VALUE_NUMBER -> appendLong(builder);
+                    case VALUE_NUMBER, VALUE_STRING -> appendLong(builder);
                     default -> throw new XContentParseException(p.getTokenLocation(), "expected number, array of numbers, or null");
                 }
             }
@@ -228,7 +228,7 @@ public class ParseTables {
                     builder.endPositionEntry();
                     return;
                 }
-                case VALUE_NUMBER -> appendLong(builder);
+                case VALUE_NUMBER, VALUE_STRING -> appendLong(builder);
                 default -> throw new XContentParseException(p.getTokenLocation(), "expected number");
             }
         }

@@ -30,7 +30,8 @@ def versions = [
   'xz' : '1.9',
   'commonsIo' : '2.15.1',
   'juniversalchardet' : '1.0.3', //TODO: update this version with the updated group
-  'tagsoup' : '1.2.1'
+  'tagsoup' : '1.2.1',
+  'jempbox' : '1.8.17'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -83,7 +84,7 @@ dependencies {
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:jempbox:1.8.17"
+  api "org.apache.pdfbox:jempbox:${versions.jempbox}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"

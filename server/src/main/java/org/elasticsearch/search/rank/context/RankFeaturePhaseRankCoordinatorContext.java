@@ -9,7 +9,7 @@
 package org.elasticsearch.search.rank.context;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.SearchPhaseResult;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -40,8 +40,12 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * To support non-blocking async operations, once we generate a final array of {@link ScoreDoc} results, we pass them
      * to the {@param onFinish} consumer to proceed with the next steps, as defined by the caller.
      *
-     * @param rankSearchResults a list of rank feature results from each shard
+     * @param phaseResults a list of the appropriate phase results from each shard
      * @param onFinish a consumer to be called once the global ranking is complete
      */
-    public abstract void rankGlobalResults(List<RankFeatureResult> rankSearchResults, Consumer<ScoreDoc[]> onFinish);
+    public abstract void rankGlobalResults(List<SearchPhaseResult> phaseResults, Consumer<ScoreDoc[]> onFinish);
+
+    public boolean needsFieldData() {
+        return true;
+    }
 }

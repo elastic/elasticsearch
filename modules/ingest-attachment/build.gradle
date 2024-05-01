@@ -27,7 +27,8 @@ def versions = [
   'mime4j': '0.8.11',
   'commonsCodec': '1.16.1',
   'slf4' : '2.0.10',
-  'xz' : '1.9'
+  'xz' : '1.9',
+  'commonsIo' : '2.15.1'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -69,7 +70,7 @@ dependencies {
   api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
   api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   api "org.tukaani:xz:${versions.xz}"
-  api 'commons-io:commons-io:2.14.0'
+  api "commons-io:commons-io:${versions.commonsIo}"
 
   // character set detection
   api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'

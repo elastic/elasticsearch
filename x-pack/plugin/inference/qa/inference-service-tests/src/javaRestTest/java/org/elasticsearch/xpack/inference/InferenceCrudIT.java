@@ -15,7 +15,6 @@ import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -31,22 +30,22 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             putModel("te_model_" + i, mockSparseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         }
 
-        var getAllModels = (List<Map<String, Object>>) getAllModels().get("models");
+        var getAllModels = getAllModels();
         assertThat(getAllModels, hasSize(9));
 
-        var getSparseModels = (List<Map<String, Object>>) getModels("_all", TaskType.SPARSE_EMBEDDING).get("models");
+        var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
         assertThat(getSparseModels, hasSize(5));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }
 
-        var getDenseModels = (List<Map<String, Object>>) getModels("_all", TaskType.TEXT_EMBEDDING).get("models");
+        var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
         assertThat(getDenseModels, hasSize(4));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
         }
 
-        var singleModel = (List<Map<String, Object>>) getModels("se_model_1", TaskType.SPARSE_EMBEDDING).get("models");
+        var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
         assertThat(singleModel, hasSize(1));
         assertEquals("se_model_1", singleModel.get(0).get("model_id"));
 
@@ -63,7 +62,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var e = expectThrows(ResponseException.class, () -> getModels("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
         assertThat(
             e.getMessage(),
-            containsString("Requested task type [text_embedding] does not match the model's task type [sparse_embedding]")
+            containsString("Requested task type [text_embedding] does not match the inference endpoint's task type [sparse_embedding]")
         );
     }
 
@@ -72,7 +71,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var e = expectThrows(ResponseException.class, () -> deleteModel("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
         assertThat(
             e.getMessage(),
-            containsString("Requested task type [text_embedding] does not match the model's task type [sparse_embedding]")
+            containsString("Requested task type [text_embedding] does not match the inference endpoint's task type [sparse_embedding]")
         );
     }
 
@@ -80,7 +79,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     public void testGetModelWithAnyTaskType() throws IOException {
         String inferenceEntityId = "sparse_embedding_model";
         putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var singleModel = (List<Map<String, Object>>) getModels(inferenceEntityId, TaskType.ANY).get("models");
+        var singleModel = getModels(inferenceEntityId, TaskType.ANY);
         assertEquals(inferenceEntityId, singleModel.get(0).get("model_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
     }
@@ -89,9 +88,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     public void testApisWithoutTaskType() throws IOException {
         String modelId = "no_task_type_in_url";
         putModel(modelId, mockSparseServiceModelConfig(TaskType.SPARSE_EMBEDDING));
-        var singleModel = (List<Map<String, Object>>) getModel(modelId).get("models");
-        assertEquals(modelId, singleModel.get(0).get("model_id"));
-        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
+        var singleModel = getModel(modelId);
+        assertEquals(modelId, singleModel.get("model_id"));
+        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         var inference = inferOnMockService(modelId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);

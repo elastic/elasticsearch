@@ -599,6 +599,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final IndexLongFieldRange timestampRange;
 
+    // range for the event.ingested field for the Index
+    private final IndexLongFieldRange eventIngestedRange = IndexLongFieldRange.UNKNOWN;  // MP TODO: set dynamically
     private final int priority;
 
     private final long creationDate;
@@ -1839,6 +1841,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
+        private IndexLongFieldRange eventIngestedRange = IndexLongFieldRange.NO_SHARDS;
         private LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
@@ -2087,6 +2090,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder timestampRange(IndexLongFieldRange timestampRange) {
             this.timestampRange = timestampRange;
+            return this;
+        }
+
+        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
+            assert eventIngestedRange != null : "eventIngestedRange cannot be null";
+            this.eventIngestedRange = eventIngestedRange;
             return this;
         }
 

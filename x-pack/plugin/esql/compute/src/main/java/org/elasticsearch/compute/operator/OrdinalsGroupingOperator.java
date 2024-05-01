@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -375,16 +377,27 @@ public class OrdinalsGroupingOperator implements Operator {
                     currentReader = new BlockOrdinalsReader(docValuesSupplier.get(), blockFactory);
                 }
                 try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
-                    for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                        int start = ordinals.getFirstValueIndex(p);
-                        int end = start + ordinals.getValueCount(p);
-                        for (int i = start; i < end; i++) {
-                            long ord = ordinals.getInt(i);
+                    IntVector ordinalsVector = ordinals.asVector();
+                    if (ordinalsVector != null) {
+                        for (int p = 0; p < ordinalsVector.getPositionCount(); p++) {
+                            long ord = ordinalsVector.getInt(p);
                             visitedOrds.set(ord);
                         }
-                    }
-                    for (GroupingAggregatorFunction.AddInput addInput : prepared) {
-                        addInput.add(0, ordinals);
+                        for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                            addInput.add(0, ordinalsVector);
+                        }
+                    } else {
+                        for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                            int start = ordinals.getFirstValueIndex(p);
+                            int end = start + ordinals.getValueCount(p);
+                            for (int i = start; i < end; i++) {
+                                long ord = ordinals.getInt(i);
+                                visitedOrds.set(ord);
+                            }
+                        }
+                        for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                            addInput.add(0, ordinals);
+                        }
                     }
                 }
             } catch (IOException e) {
@@ -512,6 +525,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     static final class BlockOrdinalsReader {
         private final SortedSetDocValues sortedSetDocValues;
+        private final SortedDocValues singleValues;
         private final Thread creationThread;
         private final BlockFactory blockFactory;
 
@@ -519,9 +533,33 @@ public class OrdinalsGroupingOperator implements Operator {
             this.sortedSetDocValues = sortedSetDocValues;
             this.blockFactory = blockFactory;
             this.creationThread = Thread.currentThread();
+            this.singleValues = DocValues.unwrapSingleton(sortedSetDocValues);
         }
 
         IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
+            if (singleValues != null) {
+                return readSingle(docs).asBlock();
+            } else {
+                return readMultiple(docs);
+            }
+        }
+
+        private IntVector readSingle(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    int doc = docs.getInt(p);
+                    if (singleValues.advanceExact(doc)) {
+                        builder.appendInt(singleValues.ordValue() + 1);
+                    } else {
+                        builder.appendInt(0);
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private IntBlock readMultiple(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
@@ -546,7 +584,11 @@ public class OrdinalsGroupingOperator implements Operator {
         }
 
         int docID() {
-            return sortedSetDocValues.docID();
+            if (singleValues != null) {
+                return singleValues.docID();
+            } else {
+                return sortedSetDocValues.docID();
+            }
         }
 
         /**

@@ -226,9 +226,9 @@ to not be actively written anymore in order to provide good performance. These a
 - <<ilm-readonly>>
 - <<ilm-searchable-snapshot>>
 - <<ilm-shrink>>
-{ilm-cap} will **not** proceed with executing these actions until the upper time-bound 
-for accepting writes, represented by the <<index-time-series-end-time,`index.time_series.end_time`>> 
-index setting, has lapsed. 
+{ilm-cap} will **not** proceed with executing these actions until the upper time-bound
+for accepting writes, represented by the <<index-time-series-end-time,`index.time_series.end_time`>>
+index setting, has lapsed.
 
 If no backing index can accept a document's `@timestamp` value, {es} rejects the
 document.
@@ -290,7 +290,7 @@ created the initial backing index has:
 
 Only data that falls inside that range can be indexed.
 
-In our <<tsds-create-index-settings-component-template,TSDS example>>,
+In our <<create-tsds-index-template,TSDS example>>,
 `index.look_ahead_time` is set to three hours, so only documents with a
 `@timestamp` value that is within three hours previous or subsequent to the
 present time are accepted for indexing.

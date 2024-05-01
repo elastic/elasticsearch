@@ -31,7 +31,6 @@ import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -63,26 +62,6 @@ public enum RangeType {
             throws IOException {
             InetAddress address = InetAddresses.forString(parser.text());
             return included ? address : nextDown(address);
-        }
-
-        public Object defaultFrom(Object parsedTo) {
-            if (parsedTo == null) {
-                return minValue();
-            }
-
-            // Make sure that we keep the range inside the same address family.
-            // `minValue()` is always IPv6 so we need to adjust it.
-            return parsedTo instanceof Inet4Address ? InetAddressPoint.decode(new byte[4]) : minValue();
-        }
-
-        public Object defaultTo(Object parsedFrom) {
-            if (parsedFrom == null) {
-                return maxValue();
-            }
-
-            // Make sure that we keep the range inside the same address family.
-            // `maxValue()` is always IPv6 so we need to adjust it.
-            return parsedFrom instanceof Inet4Address ? InetAddressPoint.decode(new byte[] { -1, -1, -1, -1 }) : maxValue();
         }
 
         @Override
@@ -865,12 +844,13 @@ public enum RangeType {
         return included ? value : (Number) nextDown(value);
     }
 
-    public Object defaultFrom(Object parsedTo) {
-        return minValue();
+    public Object defaultFrom(boolean included) {
+        return included ? minValue() : nextUp(minValue());
+
     }
 
-    public Object defaultTo(Object parsedFrom) {
-        return maxValue();
+    public Object defaultTo(boolean included) {
+        return included ? maxValue() : nextDown(maxValue());
     }
 
     public abstract Object minValue();

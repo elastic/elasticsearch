@@ -236,14 +236,14 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         }
     }
 
-    protected static String storedValue(ParsedDocument doc) {
+    private static String storedValue(ParsedDocument doc) {
         assertEquals(3, doc.rootDoc().getFields("field").size());
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         IndexableField storedField = fields.get(2);
         return storedField.stringValue();
     }
 
-    public void testNullBounds() throws IOException {
+    public final void testNullBounds() throws IOException {
 
         // null, null => min, max
         assertNullBounds(b -> b.startObject("field").nullField("gte").nullField("lte").endObject(), true, true);
@@ -339,24 +339,18 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             // Also, "to" field always comes first.
             Map<String, Object> output = new LinkedHashMap<>();
 
-            // Range values are not properly normalized for default values
-            // which results in off by one error here.
-            // So "gte": null and "gt": null both result in "gte": MIN_VALUE.
-            // This is a bug, see #107282.
-            if (from == null) {
-                output.put("gte", rangeType().minValue());
-            } else if (includeFrom) {
-                output.put("gte", from);
+            var fromWithDefaults = from != null ? from : rangeType().minValue();
+            if (includeFrom) {
+                output.put("gte", fromWithDefaults);
             } else {
-                output.put("gte", type.nextUp(from));
+                output.put("gte", type.nextUp(fromWithDefaults));
             }
 
-            if (to == null) {
-                output.put("lte", rangeType().maxValue());
-            } else if (includeTo) {
-                output.put("lte", to);
+            var toWithDefaults = to != null ? to : rangeType().maxValue();
+            if (includeTo) {
+                output.put("lte", toWithDefaults);
             } else {
-                output.put("lte", type.nextDown(to));
+                output.put("lte", type.nextDown(toWithDefaults));
             }
 
             return output;

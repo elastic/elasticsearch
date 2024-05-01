@@ -87,7 +87,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 

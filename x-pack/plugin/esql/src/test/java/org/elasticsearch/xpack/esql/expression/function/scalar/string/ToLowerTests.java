@@ -14,8 +14,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToLowerTests extends AbstractFunctionTestCase {
+public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
     public ToLowerTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -72,8 +72,8 @@ public class ToLowerTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new ToLower(source, args.get(0), EsqlTestUtils.TEST_CFG);
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+        return new ToLower(source, args.get(0), configuration);
     }
 
     private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {

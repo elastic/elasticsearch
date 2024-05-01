@@ -28,6 +28,7 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.11.0")) { bwcVersion,
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
   }
 }
 

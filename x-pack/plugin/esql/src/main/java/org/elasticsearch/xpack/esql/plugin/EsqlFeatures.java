@@ -122,9 +122,15 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending");
 
     /**
+     * Support for metrics counter fields
+     */
+    public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields");
+
+    /**
      * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
      */
-    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_815 = new NodeFeature("esql.string_literal_auto_casting_8_15_0");
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_8_15 = new NodeFeature("esql.string_literal_auto_casting_8_15_0");
+
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -145,7 +151,8 @@ public class EsqlFeatures implements FeatureSpecification {
             STRING_LITERAL_AUTO_CASTING,
             CASTING_OPERATOR,
             MV_ORDERING_SORTED_ASCENDING,
-            STRING_LITERAL_AUTO_CASTING_815
+            METRICS_COUNTER_FIELDS,
+            STRING_LITERAL_AUTO_CASTING_8_15
         );
     }
 

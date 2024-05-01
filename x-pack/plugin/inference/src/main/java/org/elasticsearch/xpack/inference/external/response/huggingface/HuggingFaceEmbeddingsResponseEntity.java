@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.external.response.huggingface;
@@ -148,7 +150,12 @@ public class HuggingFaceEmbeddingsResponseEntity {
     private static TextEmbeddingResults.Embedding parseEmbeddingEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
 
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, HuggingFaceEmbeddingsResponseEntity::parseEmbeddingList);
+        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, HuggingFaceEmbeddingsResponseEntity::parseEmbeddingList);
+        float[] embeddingValues = new float[embeddingValuesList.size()];
+        for (int i = 0; i < embeddingValuesList.size(); i++) {
+            embeddingValues[i] = embeddingValuesList.get(i);
+        }
+
         return new TextEmbeddingResults.Embedding(embeddingValues);
     }
 

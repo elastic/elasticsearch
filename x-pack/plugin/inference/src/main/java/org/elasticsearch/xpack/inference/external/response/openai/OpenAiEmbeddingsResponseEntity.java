@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.external.response.openai;
@@ -95,9 +97,14 @@ public class OpenAiEmbeddingsResponseEntity {
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, OpenAiEmbeddingsResponseEntity::parseEmbeddingList);
+        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, OpenAiEmbeddingsResponseEntity::parseEmbeddingList);
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
+
+        float[] embeddingValues = new float[embeddingValuesList.size()];
+        for (int i = 0; i < embeddingValuesList.size(); i++) {
+            embeddingValues[i] = embeddingValuesList.get(i);
+        }
 
         return new TextEmbeddingResults.Embedding(embeddingValues);
     }

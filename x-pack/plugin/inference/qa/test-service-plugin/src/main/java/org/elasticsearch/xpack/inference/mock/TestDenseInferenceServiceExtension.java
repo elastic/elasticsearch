@@ -122,9 +122,9 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         private TextEmbeddingResults makeResults(List<String> input, int dimensions) {
             List<TextEmbeddingResults.Embedding> embeddings = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                List<Float> values = new ArrayList<>();
+                float[] values = new float[dimensions];
                 for (int j = 0; j < dimensions; j++) {
-                    values.add((float) j);
+                    values[j] = ((float) j);
                 }
                 embeddings.add(new TextEmbeddingResults.Embedding(values));
             }

@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.core.inference.results;
@@ -17,9 +19,11 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -80,7 +84,7 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
     @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getResultsField(), embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+        map.put(getResultsField(), embeddings);
 
         return map;
     }
@@ -88,7 +92,7 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
     @Override
     public Map<String, Object> asMap(String outputField) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(outputField, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+        map.put(outputField, embeddings);
 
         return map;
     }
@@ -98,20 +102,33 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
         throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LegacyTextEmbeddingResults that = (LegacyTextEmbeddingResults) o;
+        return Objects.equals(embeddings, that.embeddings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(embeddings);
+    }
+
     public TextEmbeddingResults transformToTextEmbeddingResults() {
         return new TextEmbeddingResults(this);
     }
 
-    public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
+    public record Embedding(float[] values) implements Writeable, ToXContentObject {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+            this(in.readFloatArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(values, StreamOutput::writeFloat);
+            out.writeFloatArray(values);
         }
 
         @Override
@@ -119,7 +136,7 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
             builder.startObject();
 
             builder.startArray(EMBEDDING);
-            for (Float value : values) {
+            for (float value : values) {
                 builder.value(value);
             }
             builder.endArray();
@@ -133,8 +150,17 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
             return Strings.toString(this);
         }
 
-        public Map<String, Object> asMap() {
-            return Map.of(EMBEDDING, values);
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Embedding embedding = (Embedding) o;
+            return Arrays.equals(values, embedding.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(values);
         }
     }
 }

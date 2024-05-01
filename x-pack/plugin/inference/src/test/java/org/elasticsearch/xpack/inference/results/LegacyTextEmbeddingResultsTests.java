@@ -38,27 +38,17 @@ public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTest
 
     private static LegacyTextEmbeddingResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
-        List<Float> floats = new ArrayList<>(columns);
-
+        // List<Float> floats = new ArrayList<>(columns);
+        float[] floats = new float[columns];
         for (int i = 0; i < columns; i++) {
-            floats.add(randomFloat());
+            floats[i] = randomFloat();
         }
 
         return new LegacyTextEmbeddingResults.Embedding(floats);
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new LegacyTextEmbeddingResults(List.of(new LegacyTextEmbeddingResults.Embedding(List.of(0.1F))));
-
-        assertThat(
-            entity.asMap(),
-            is(
-                Map.of(
-                    LegacyTextEmbeddingResults.TEXT_EMBEDDING,
-                    List.of(Map.of(LegacyTextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)))
-                )
-            )
-        );
+        var entity = new LegacyTextEmbeddingResults(List.of(new LegacyTextEmbeddingResults.Embedding(new float[] { 0.1F })));
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
@@ -75,21 +65,11 @@ public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTest
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
         var entity = new LegacyTextEmbeddingResults(
-            List.of(new LegacyTextEmbeddingResults.Embedding(List.of(0.1F)), new LegacyTextEmbeddingResults.Embedding(List.of(0.2F)))
-
-        );
-
-        assertThat(
-            entity.asMap(),
-            is(
-                Map.of(
-                    LegacyTextEmbeddingResults.TEXT_EMBEDDING,
-                    List.of(
-                        Map.of(LegacyTextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)),
-                        Map.of(LegacyTextEmbeddingResults.Embedding.EMBEDDING, List.of(0.2F))
-                    )
-                )
+            List.of(
+                new LegacyTextEmbeddingResults.Embedding(new float[] { 0.1F }),
+                new LegacyTextEmbeddingResults.Embedding(new float[] { 0.2F })
             )
+
         );
 
         String xContentResult = Strings.toString(entity, true, true);

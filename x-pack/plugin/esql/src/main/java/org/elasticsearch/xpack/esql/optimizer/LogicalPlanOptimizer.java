@@ -15,14 +15,17 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -55,8 +58,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -1308,6 +1309,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         protected LogicalPlan rule(Aggregate aggregate) {
             List<Alias> evals = new ArrayList<>();
             Map<String, Attribute> evalNames = new HashMap<>();
+            Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
             List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
             boolean groupingChanged = false;
 
@@ -1321,6 +1323,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     evals.add(as);
                     evalNames.put(as.name(), attr);
                     newGroupings.set(i, attr);
+                    if (as.child() instanceof GroupingFunction gf) {
+                        groupingAttributes.put(gf, attr);
+                    }
                 }
             }
 
@@ -1373,6 +1378,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             result = af.replaceChildren(newChildren);
                         }
                         return result;
+                    });
+                    // replace any grouping functions with their references pointing to the added synthetic eval
+                    replaced = replaced.transformDown(GroupingFunction.class, gf -> {
+                        aggsChanged.set(true);
+                        // should never return null, as it's verified.
+                        // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
+                        return groupingAttributes.get(gf);
                     });
 
                     return as.replaceChild(replaced);
@@ -1672,7 +1684,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * 1. replaces reference to field attributes with their source
      * 2. in case of Count, aligns the various forms (Count(1), Count(0), Count(), Count(*)) to Count(*)
      */
-    // TODO waiting on https://github.com/elastic/elasticsearch/issues/100634
+    // TODO still needed?
     static class NormalizeAggregate extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override

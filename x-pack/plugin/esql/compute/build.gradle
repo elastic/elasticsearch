@@ -350,6 +350,33 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
   }
+  // block builders
+  File lookupInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Lookup.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntLookup.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongLookup.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleLookup.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefLookup.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanLookup.java"
+  }
   File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
   template {
     it.properties = intProperties
@@ -405,26 +432,26 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
   }
 
-  File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/X-MultivalueDedupe.java.st")
+  File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")
   template {
     it.properties = intProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeInt.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeInt.java"
   }
   template {
     it.properties = longProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeLong.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeLong.java"
   }
   template {
     it.properties = doubleProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeDouble.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeDouble.java"
   }
   template {
     it.properties = bytesRefProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeBytesRef.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeBytesRef.java"
   }
   File blockHashInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/blockhash/X-BlockHash.java.st")
   template {

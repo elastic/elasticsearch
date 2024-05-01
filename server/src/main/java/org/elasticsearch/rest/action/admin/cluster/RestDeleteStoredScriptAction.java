@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
@@ -38,7 +39,7 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
         String id = request.param("id");
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(id);
         deleteStoredScriptRequest.ackTimeout(request.paramAsTime("timeout", deleteStoredScriptRequest.ackTimeout()));
-        deleteStoredScriptRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteStoredScriptRequest.masterNodeTimeout()));
+        deleteStoredScriptRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new RestToXContentListener<>(channel));
     }

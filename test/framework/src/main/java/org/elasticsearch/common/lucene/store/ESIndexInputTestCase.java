@@ -8,6 +8,7 @@
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -73,16 +74,36 @@ public class ESIndexInputTestCase extends ESTestCase {
             switch (readStrategy) {
                 case 0, 1, 2, 3:
                     if (length - readPos >= Long.BYTES && readStrategy <= 0) {
-                        ByteBuffer.wrap(output, readPos, Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(indexInput.readLong());
+                        long read = indexInput.readLong();
+                        ByteBuffer.wrap(output, readPos, Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(read);
                         readPos += Long.BYTES;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readLong(indexInput.getFilePointer() - Long.BYTES));
+                            indexInput.seek(readPos);
+                        }
                     } else if (length - readPos >= Integer.BYTES && readStrategy <= 1) {
-                        ByteBuffer.wrap(output, readPos, Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(indexInput.readInt());
+                        int read = indexInput.readInt();
+                        ByteBuffer.wrap(output, readPos, Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(read);
                         readPos += Integer.BYTES;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readInt(indexInput.getFilePointer() - Integer.BYTES));
+                            indexInput.seek(readPos);
+                        }
                     } else if (length - readPos >= Short.BYTES && readStrategy <= 2) {
-                        ByteBuffer.wrap(output, readPos, Short.BYTES).order(ByteOrder.LITTLE_ENDIAN).putShort(indexInput.readShort());
+                        short read = indexInput.readShort();
+                        ByteBuffer.wrap(output, readPos, Short.BYTES).order(ByteOrder.LITTLE_ENDIAN).putShort(read);
                         readPos += Short.BYTES;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readShort(indexInput.getFilePointer() - Short.BYTES));
+                            indexInput.seek(readPos);
+                        }
                     } else {
-                        output[readPos++] = indexInput.readByte();
+                        byte read = indexInput.readByte();
+                        output[readPos++] = read;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readByte(indexInput.getFilePointer() - 1));
+                            indexInput.seek(readPos);
+                        }
                     }
                     break;
                 case 4:

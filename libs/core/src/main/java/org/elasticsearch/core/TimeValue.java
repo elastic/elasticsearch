@@ -17,9 +17,11 @@ public class TimeValue implements Comparable<TimeValue> {
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
 
-    public static final TimeValue MINUS_ONE = timeValueMillis(-1);
-    public static final TimeValue ZERO = timeValueMillis(0);
-    public static final TimeValue MAX_VALUE = TimeValue.timeValueNanos(Long.MAX_VALUE);
+    public static final TimeValue MINUS_ONE = new TimeValue(-1, TimeUnit.MILLISECONDS);
+    public static final TimeValue ZERO = new TimeValue(0, TimeUnit.MILLISECONDS);
+    public static final TimeValue MAX_VALUE = new TimeValue(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+    public static final TimeValue THIRTY_SECONDS = new TimeValue(30, TimeUnit.SECONDS);
+    public static final TimeValue ONE_MINUTE = new TimeValue(1, TimeUnit.MINUTES);
 
     private static final long C0 = 1L;
     private static final long C1 = C0 * 1000L;
@@ -49,14 +51,28 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     public static TimeValue timeValueMillis(long millis) {
+        if (millis == 0) {
+            return ZERO;
+        }
+        if (millis == -1) {
+            return MINUS_ONE;
+        }
         return new TimeValue(millis, TimeUnit.MILLISECONDS);
     }
 
     public static TimeValue timeValueSeconds(long seconds) {
+        if (seconds == 30) {
+            // common value, no need to allocate each time
+            return THIRTY_SECONDS;
+        }
         return new TimeValue(seconds, TimeUnit.SECONDS);
     }
 
     public static TimeValue timeValueMinutes(long minutes) {
+        if (minutes == 1) {
+            // common value, no need to allocate each time
+            return ONE_MINUTE;
+        }
         return new TimeValue(minutes, TimeUnit.MINUTES);
     }
 
@@ -362,18 +378,18 @@ public class TimeValue implements Comparable<TimeValue> {
         }
         final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
         if (normalized.endsWith("nanos")) {
-            return new TimeValue(parse(sValue, normalized, "nanos", settingName), TimeUnit.NANOSECONDS);
+            return TimeValue.timeValueNanos(parse(sValue, normalized, "nanos", settingName));
         } else if (normalized.endsWith("micros")) {
             return new TimeValue(parse(sValue, normalized, "micros", settingName), TimeUnit.MICROSECONDS);
         } else if (normalized.endsWith("ms")) {
-            return new TimeValue(parse(sValue, normalized, "ms", settingName), TimeUnit.MILLISECONDS);
+            return TimeValue.timeValueMillis(parse(sValue, normalized, "ms", settingName));
         } else if (normalized.endsWith("s")) {
-            return new TimeValue(parse(sValue, normalized, "s", settingName), TimeUnit.SECONDS);
+            return TimeValue.timeValueSeconds(parse(sValue, normalized, "s", settingName));
         } else if (sValue.endsWith("m")) {
             // parsing minutes should be case-sensitive as 'M' means "months", not "minutes"; this is the only special case.
-            return new TimeValue(parse(sValue, normalized, "m", settingName), TimeUnit.MINUTES);
+            return TimeValue.timeValueMinutes(parse(sValue, normalized, "m", settingName));
         } else if (normalized.endsWith("h")) {
-            return new TimeValue(parse(sValue, normalized, "h", settingName), TimeUnit.HOURS);
+            return TimeValue.timeValueHours(parse(sValue, normalized, "h", settingName));
         } else if (normalized.endsWith("d")) {
             return new TimeValue(parse(sValue, normalized, "d", settingName), TimeUnit.DAYS);
         } else if (normalized.matches("-0*1")) {

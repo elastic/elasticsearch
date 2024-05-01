@@ -249,4 +249,16 @@ public class TimeValueTests extends ESTestCase {
             TimeUnit.DAYS
         );
     }
+
+    public void testInternedValues() {
+        assertSame(TimeValue.timeValueMillis(-1), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.timeValueMillis(0), TimeValue.ZERO);
+        assertSame(TimeValue.timeValueSeconds(30), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.timeValueMinutes(1), TimeValue.ONE_MINUTE);
+
+        assertSame(TimeValue.parseTimeValue("-1", getTestName()), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.parseTimeValue("0", getTestName()), TimeValue.ZERO);
+        assertSame(TimeValue.parseTimeValue("30s", getTestName()), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.parseTimeValue("1m", getTestName()), TimeValue.ONE_MINUTE);
+    }
 }

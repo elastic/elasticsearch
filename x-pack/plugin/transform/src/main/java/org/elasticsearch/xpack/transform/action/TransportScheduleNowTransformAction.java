@@ -61,7 +61,6 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 

@@ -704,7 +704,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             e,
                             state,
                             shardCloseExecutor,
-                            getShardsClosedListener()
+                            ActionListener.noop() // on the failure path, did not create the shard, so don't need to wait for it to close
                         );
                     }
                 }, () -> {

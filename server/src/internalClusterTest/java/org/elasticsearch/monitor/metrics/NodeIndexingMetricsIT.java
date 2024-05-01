@@ -44,7 +44,6 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return List.of(
-                // disable metrics cache refresh delay
                 Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
             );
         }
@@ -59,7 +58,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0))
+            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
             .build();
     }
 

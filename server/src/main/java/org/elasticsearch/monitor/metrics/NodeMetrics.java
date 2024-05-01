@@ -547,9 +547,10 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .orElse(0L);
 
                     long rejectionsDiff = totalCoordinatingRejectionsCurrent - totalCoordinatingRejectionsPrevious.get();
-                    assert rejectionsDiff >= 0;  // monotonically increasing counter
                     long requestsDiff = totalCoordinatingRequestsCurrent - totalCoordinatingRequestsPrevious.get();
-                    assert requestsDiff >= 0;    // monotonically increasing counter
+
+                    // derived from monotonically increasing counters
+                    assert rejectionsDiff >= 0 && requestsDiff >= 0;
 
                     double ratio;
                     if (rejectionsDiff + requestsDiff > 0) {
@@ -654,9 +655,10 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .orElse(0L);
 
                     long documentRejectionsDiff = totalPrimaryDocumentRejectionsCurrent - totalPrimaryDocumentRejectionsPrevious.get();
-                    assert documentRejectionsDiff >= 0;  // monotonically increasing counter
                     long primaryOperationsDiff = totalPrimaryOperationsCurrent - totalPrimaryOperationsPrevious.get();
-                    assert primaryOperationsDiff >= 0;    // monotonically increasing counter
+
+                    // derived from monotonically increasing counters
+                    assert documentRejectionsDiff >= 0 && primaryOperationsDiff >= 0;
 
                     double ratio;
                     if (documentRejectionsDiff + primaryOperationsDiff > 0) {

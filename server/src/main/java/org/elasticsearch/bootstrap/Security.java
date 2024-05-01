@@ -131,8 +131,7 @@ final class Security {
                 pluginPolicies,
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment),
-                createForbiddenFilePermissions(environment),
-                createExclusiveFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
+                readExclusiveFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
             )
         );
 
@@ -195,25 +194,19 @@ final class Security {
         return toFilePermissions(policy);
     }
 
-    private static List<FilePermission> createForbiddenFilePermissions(Environment environment) throws IOException {
-        Permissions policy = new Permissions();
-        addSingleFilePath(policy, environment.configFile().resolve("elasticsearch.yml"), "read,readlink,write,delete,execute");
-        addSingleFilePath(policy, environment.configFile().resolve("jvm.options"), "read,readlink,write,delete,execute");
-        Path jvmOptionsD = environment.configFile().resolve("jvm.options.d");
-        if (Files.isDirectory(jvmOptionsD)) {
-            // we don't want to create this if it doesn't exist
-            addDirectoryPath(policy, "forbidden_access", jvmOptionsD, "read,readlink,write,delete,execute", false);
-        }
-        return toFilePermissions(policy);
-    }
-
-    private static Map<String, Set<URL>> createExclusiveFiles(
+    private static Map<String, Set<URL>> readExclusiveFiles(
         Environment environment,
         Policy template,
         Collection<URL> mainCodebases,
         Map<URL, Policy> pluginPolicies
     ) throws IOException {
         Map<String, Set<URL>> exclusiveFiles = new HashMap<>();
+
+        // always add some config files as exclusive files that no one can access
+        // there's no reason for anyone to read these once the security manager is initialized
+        exclusiveFiles.put(environment.configFile().resolve("elasticsearch.yml").toString(), new HashSet<>());
+        exclusiveFiles.put(environment.configFile().resolve("jvm.options").toString(), new HashSet<>());
+        exclusiveFiles.put(environment.configFile().resolve("jvm.options.d/-").toString(), new HashSet<>());
 
         for (URL url : mainCodebases) {
             PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())

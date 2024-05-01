@@ -106,32 +106,6 @@ public class ESPolicyUnitTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "to create FilePermission object")
-    public void testForbiddenFilesAreForbidden() {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
-
-        FilePermission configPerm = new FilePermission("/home/elasticsearch/config/-", "read");
-        PermissionCollection coll = configPerm.newPermissionCollection();
-        coll.add(configPerm);
-
-        ESPolicy policy = new ESPolicy(
-            DEFAULT_POLICY,
-            coll,
-            Map.of(),
-            true,
-            List.of(),
-            List.of(new FilePermission("/home/elasticsearch/config/forbidden.yml", "read")),
-            Map.of()
-        );
-        ProtectionDomain pd = new ProtectionDomain(
-            new CodeSource(randomBoolean() ? null : randomFrom(TEST_CODEBASES.values()), (Certificate[]) null),
-            new Permissions()
-        );
-
-        assertTrue(policy.implies(pd, new FilePermission("/home/elasticsearch/config/config.yml", "read")));
-        assertFalse(policy.implies(pd, new FilePermission("/home/elasticsearch/config/forbidden.yml", "read")));
-    }
-
-    @SuppressForbidden(reason = "to create FilePermission object")
     public void testExclusiveAccess() {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
 

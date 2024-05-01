@@ -116,7 +116,7 @@ To setup a TSDS create an index template with the following details:
 using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
 naming scheme].
 
-* That the template is data stream enabled.
+* Enable data streams.
 
 * Specify a mapping that defines your dimensions and metrics:
 
@@ -130,7 +130,7 @@ naming scheme].
 
 * Define index settings:
 
-** Set `index.mode` setting set to `time_series`.
+** Set `index.mode` setting to `time_series`.
 
 ** Your lifecycle policy in the `index.lifecycle.name` index setting.
 

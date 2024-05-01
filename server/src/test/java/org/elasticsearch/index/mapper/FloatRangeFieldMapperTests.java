@@ -115,8 +115,4 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108121")
-    public void testSyntheticSourceMany() {}
 }

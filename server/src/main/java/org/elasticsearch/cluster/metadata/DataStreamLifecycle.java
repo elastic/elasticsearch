@@ -313,7 +313,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null, null, false);
+        return toXContent(builder, params, null, null, true);
     }
 
     /**

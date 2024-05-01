@@ -25,12 +25,12 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
 
     protected final int size;
     protected final int from;
-    protected final int windowSize;
+    protected final int rankWindowSize;
 
-    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int windowSize) {
+    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
-        this.windowSize = windowSize;
+        this.rankWindowSize = rankWindowSize;
     }
 
     /**

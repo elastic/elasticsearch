@@ -796,7 +796,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                             } finally {
                                 rankFeatureResult.decRef();
                             }
-                        } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11, 2 })) {
+                        } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11, 2, 200 })) {
                             // second shard
                             RankFeatureResult rankFeatureResult = new RankFeatureResult();
                             try {
@@ -836,7 +836,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
                 List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
                     new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2")
+                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2"),
+                    new ExpectedRankFeatureDoc(200, 3, 101.0F, "ranked_200")
 
                 );
                 assertShardResults(shard2Result, expectedShard2Results);
@@ -975,7 +976,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
                 List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
                     new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                    new ExpectedRankFeatureDoc(2, 3, 109F, "ranked_2")
+                    new ExpectedRankFeatureDoc(2, 2, 109F, "ranked_2")
                 );
                 assertShardResults(shard2Result, expectedShard2Results);
 
@@ -1008,6 +1009,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 }
                 RankFeatureDoc[] featureDocs = features.toArray(new RankFeatureDoc[0]);
                 Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
+                featureDocs = Arrays.stream(featureDocs).limit(rankWindowSize).toArray(RankFeatureDoc[]::new);
                 RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, featureDocs.length - from))];
                 // perform pagination
                 for (int rank = 0; rank < topResults.length; ++rank) {

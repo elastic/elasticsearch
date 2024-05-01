@@ -25,8 +25,8 @@ import java.util.function.Consumer;
 
 public abstract class RerankingRankFeaturePhaseCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
 
-    public RerankingRankFeaturePhaseCoordinatorContext(int size, int from, int windowSize) {
-        super(size, from, windowSize);
+    public RerankingRankFeaturePhaseCoordinatorContext(int size, int from, int rankWindowSize) {
+        super(size, from, rankWindowSize);
     }
 
     /**

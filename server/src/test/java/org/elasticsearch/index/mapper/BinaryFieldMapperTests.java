@@ -8,14 +8,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -134,6 +138,45 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testDefaultsForTimeSeriesIndex() throws IOException {
+        var isStored = randomBoolean();
+
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "binary");
+            if (isStored) {
+                b.field("store", "true");
+            }
+            b.endObject();
+
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+            b.startObject("dimension");
+            b.field("type", "keyword");
+            b.field("time_series_dimension", "true");
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
+            b.field("@timestamp", randomMillisUpToYear9999());
+            b.field("dimension", "dimension1");
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var docValuesField = fields.stream().filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY).findFirst();
+        assertTrue("Doc values are not present", docValuesField.isPresent());
+    }
+
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         if (rarely()) return null;
@@ -153,11 +196,6 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsIgnoreMalformed() {
-        return false;
-    }
-
-    @Override
-    protected boolean supportsCopyTo() {
         return false;
     }
 
@@ -217,7 +255,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
                 b.field("type", "binary").field("doc_values", "true");
 
                 if (rarely()) {
-                    b.field("store", true);
+                    b.field("store", false);
                 }
             }
 

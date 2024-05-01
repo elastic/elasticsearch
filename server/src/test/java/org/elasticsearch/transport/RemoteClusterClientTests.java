@@ -145,6 +145,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .put("cluster.remote.test.skip_unavailable", "false") // ensureConnected is only true for skip_unavailable=false
                 .build();
             try (
                 MockTransportService service = MockTransportService.createNewService(
@@ -267,7 +268,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
                     // check that we quickly fail
                     expectThrows(
-                        NoSuchRemoteClusterException.class,
+                        ConnectTransportException.class,
                         () -> PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
                             f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                         )
@@ -282,7 +283,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                         PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
                             f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                         );
-                    } catch (NoSuchRemoteClusterException e) {
+                    } catch (ConnectTransportException e) {
                         // keep retrying on this exception, the goal is to check that we eventually reconnect
                         throw new AssertionError(e);
                     }

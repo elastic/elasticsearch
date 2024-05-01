@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
@@ -196,20 +195,6 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     @Override
     public DataType dataType() {
         return field.dataType();
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, start, end);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvSlice other = (MvSlice) obj;
-        return Objects.equals(other.field, field) && Objects.equals(other.start, start) && Objects.equals(other.end, end);
     }
 
     static int adjustIndex(int oldOffset, int fieldValueCount, int first) {

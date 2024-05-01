@@ -40,11 +40,6 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
         return this;
     }
 
-    public ClusterHealthRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
     public ClusterHealthRequestBuilder setWaitForStatus(ClusterHealthStatus waitForStatus) {
         request.waitForStatus(waitForStatus);
         return this;

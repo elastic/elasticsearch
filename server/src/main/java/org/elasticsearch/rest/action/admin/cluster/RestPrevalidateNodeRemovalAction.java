@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
 
@@ -43,8 +44,12 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
             .setIds(ids)
             .setExternalIds(externalIds)
             .build();
-        prevalidationRequest.masterNodeTimeout(request.paramAsTime("master_timeout", prevalidationRequest.masterNodeTimeout()));
         prevalidationRequest.timeout(request.paramAsTime("timeout", prevalidationRequest.timeout()));
+        if (request.hasParam("master_timeout")) {
+            prevalidationRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        } else {
+            prevalidationRequest.masterNodeTimeout(prevalidationRequest.timeout());
+        }
         return channel -> client.execute(
             PrevalidateNodeRemovalAction.INSTANCE,
             prevalidationRequest,

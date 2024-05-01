@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -115,20 +114,6 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     @Override
     public DataType dataType() {
         return DataTypes.KEYWORD;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(mvLeft, mvRight, delim);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvZip other = (MvZip) obj;
-        return Objects.equals(other.mvLeft, mvLeft) && Objects.equals(other.mvRight, mvRight) && Objects.equals(other.delim, delim);
     }
 
     private static void buildOneSide(BytesRefBlock.Builder builder, int start, int end, BytesRefBlock field, BytesRef fieldScratch) {

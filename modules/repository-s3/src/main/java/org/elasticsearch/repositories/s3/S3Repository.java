@@ -223,8 +223,8 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
-        if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
+        if (Strings.hasLength(bucket) == false) {
+            throw new IllegalArgumentException("Invalid S3 bucket name, cannot be null or empty");
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());

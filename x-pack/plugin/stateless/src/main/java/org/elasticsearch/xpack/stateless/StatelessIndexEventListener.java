@@ -263,7 +263,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                             // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
                             // until the next new commit notification.
                             compoundCommit = batchedCompoundCommit.last();
-                            lastUploaded = compoundCommit.primaryTermAndGeneration();
+                            lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
 
                             // TODO removes this branch once indexing shards are upgraded to a version that provides a real or EMPTY commit
                         } else {

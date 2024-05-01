@@ -653,6 +653,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterDedupCommand(EsqlBaseParser.DedupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSortCommand(EsqlBaseParser.SortCommandContext ctx) { }
   /**
    * {@inheritDoc}

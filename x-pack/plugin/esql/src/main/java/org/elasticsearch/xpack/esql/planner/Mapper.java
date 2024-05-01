@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
+import org.elasticsearch.xpack.esql.plan.physical.DedupExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.plan.logical.DedupBy;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -169,6 +172,10 @@ public class Mapper {
             return map(limit, child);
         }
 
+        if (p instanceof DedupBy dedup) {
+            return map(dedup, child);
+        }
+
         if (p instanceof OrderBy o) {
             return map(o, child);
         }
@@ -222,6 +229,11 @@ public class Mapper {
     private PhysicalPlan map(OrderBy o, PhysicalPlan child) {
         child = addExchangeForFragment(o, child);
         return new OrderExec(o.source(), child, o.order());
+    }
+
+    private PhysicalPlan map(DedupBy d, PhysicalPlan child) {
+        child = addExchangeForFragment(d, child);
+        return new DedupExec(d.source(), child, d.fields());
     }
 
     private PhysicalPlan map(TopN topN, PhysicalPlan child) {

@@ -7,6 +7,31 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
+import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+
+import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Period;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
@@ -42,6 +67,7 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.plan.logical.DedupBy;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -50,31 +76,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
-
-import java.math.BigInteger;
-import java.time.Duration;
-import java.time.Period;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class StatementParserTests extends ESTestCase {
 
@@ -453,6 +454,16 @@ public class StatementParserTests extends ESTestCase {
         assertThat(orderBy.children().get(0), instanceOf(Filter.class));
         assertThat(orderBy.children().get(0).children().size(), equalTo(1));
         assertThat(orderBy.children().get(0).children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+    }
+
+    public void testDedupCommand() {
+        // LogicalPlan cmd = processingCommand("dedup a");
+        // assertEquals(DedupBy.class, cmd.getClass());
+
+        LogicalPlan plan = statement("from test | dedup `a`");
+        assertThat(plan, instanceOf(DedupBy.class));
+        DedupBy dedup = (DedupBy) plan;
+        assertThat(dedup.fields().get(0), equalTo(attribute("a")));
     }
 
     public void testSubquery() {

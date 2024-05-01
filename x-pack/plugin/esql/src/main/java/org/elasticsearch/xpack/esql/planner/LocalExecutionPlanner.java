@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DedupExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -97,6 +98,7 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.operator.DedupOperator.DedupOperatorFactory;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
@@ -194,6 +196,8 @@ public class LocalExecutionPlanner {
             return planGrok(grok, context);
         } else if (node instanceof ProjectExec project) {
             return planProject(project, context);
+        } else if (node instanceof DedupExec dedup) {
+            return planDedup(dedup, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
         } else if (node instanceof LimitExec limit) {
@@ -537,6 +541,11 @@ public class LocalExecutionPlanner {
         }
 
         return source.with(new ProjectOperatorFactory(projectionList), layout.build());
+    }
+
+    private PhysicalOperation planDedup(DedupExec dedup, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(dedup.child(), context);
+        return source.with(new DedupOperatorFactory(5), source.layout);
     }
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {

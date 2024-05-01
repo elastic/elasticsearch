@@ -15,6 +15,7 @@ MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
+DEDUP : 'dedup'               -> pushMode(DEDUP_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
@@ -364,6 +365,34 @@ MVEXPAND_MULTILINE_COMMENT
     ;
 
 MVEXPAND_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode DEDUP_MODE;
+DEDUP_PIPE : PIPE -> type(PIPE), popMode;
+DEDUP_DOT: DOT -> type(DOT);
+
+DEDUP_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
+    ;
+
+DEDUP_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+DEDUP_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER)
+    ;
+
+DEDUP_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+DEDUP_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+DEDUP_WS
     : WS -> channel(HIDDEN)
     ;
 

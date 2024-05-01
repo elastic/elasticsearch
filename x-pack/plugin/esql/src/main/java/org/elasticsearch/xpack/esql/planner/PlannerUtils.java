@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.physical.DedupExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
+import org.elasticsearch.xpack.ql.plan.logical.DedupBy;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -91,6 +93,8 @@ public class PlannerUtils {
                 return new TopNExec(topN.source(), unused, topN.order(), topN.limit(), 2000);
             } else if (pipelineBreaker instanceof Limit limit) {
                 return new LimitExec(limit.source(), unused, limit.limit());
+            } else if (pipelineBreaker instanceof DedupBy dedup) {
+                return new DedupExec(dedup.source(), unused, dedup.fields());
             } else if (pipelineBreaker instanceof OrderBy order) {
                 return new OrderExec(order.source(), unused, order.order());
             } else if (pipelineBreaker instanceof Aggregate aggregate) {

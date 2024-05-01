@@ -148,6 +148,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DedupExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -192,6 +193,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
+import org.elasticsearch.xpack.ql.plan.logical.DedupBy;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -261,6 +263,7 @@ public final class PlanNamedTypes {
         return List.of(
             // Physical Plan Nodes
             of(PhysicalPlan.class, AggregateExec.class, PlanNamedTypes::writeAggregateExec, PlanNamedTypes::readAggregateExec),
+            of(PhysicalPlan.class, DedupExec.class, PlanNamedTypes::writeDedupExec, PlanNamedTypes::readDedupExec),
             of(PhysicalPlan.class, DissectExec.class, PlanNamedTypes::writeDissectExec, PlanNamedTypes::readDissectExec),
             of(PhysicalPlan.class, EsQueryExec.class, PlanNamedTypes::writeEsQueryExec, PlanNamedTypes::readEsQueryExec),
             of(PhysicalPlan.class, EsSourceExec.class, PlanNamedTypes::writeEsSourceExec, PlanNamedTypes::readEsSourceExec),
@@ -296,6 +299,7 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, Grok.class, PlanNamedTypes::writeGrok, PlanNamedTypes::readGrok),
             of(LogicalPlan.class, Limit.class, PlanNamedTypes::writeLimit, PlanNamedTypes::readLimit),
             of(LogicalPlan.class, MvExpand.class, PlanNamedTypes::writeMvExpand, PlanNamedTypes::readMvExpand),
+            of(LogicalPlan.class, DedupBy.class, PlanNamedTypes::writeDedupBy, PlanNamedTypes::readDedupBy),
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
             of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN),
@@ -698,6 +702,20 @@ public final class PlanNamedTypes {
         out.writeAttribute(mvExpandExec.expanded());
     }
 
+    static DedupExec readDedupExec(PlanStreamInput in) throws IOException {
+        return new DedupExec(
+            in.readSource(),
+            in.readPhysicalPlanNode(),
+            readNamedExpressions(in)
+        );
+    }
+
+    static void writeDedupExec(PlanStreamOutput out, DedupExec dedupExec) throws IOException {
+        out.writeNoSource();
+        out.writePhysicalPlanNode(dedupExec.child());
+        writeNamedExpressions(out, dedupExec.fields());
+    }
+
     static OrderExec readOrderExec(PlanStreamInput in) throws IOException {
         return new OrderExec(
             in.readSource(),
@@ -934,6 +952,20 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(mvExpand.child());
         out.writeNamedExpression(mvExpand.target());
         out.writeAttribute(mvExpand.expanded());
+    }
+
+    static DedupBy readDedupBy(PlanStreamInput in) throws IOException {
+        return new DedupBy(
+            in.readSource(),
+            in.readLogicalPlanNode(),
+            readNamedExpressions(in)
+        );
+    }
+
+    static void writeDedupBy(PlanStreamOutput out, DedupBy dedup) throws IOException {
+        out.writeNoSource();
+        out.writeLogicalPlanNode(dedup.child());
+        writeNamedExpressions(out, dedup.fields());
     }
 
     static OrderBy readOrderBy(PlanStreamInput in) throws IOException {

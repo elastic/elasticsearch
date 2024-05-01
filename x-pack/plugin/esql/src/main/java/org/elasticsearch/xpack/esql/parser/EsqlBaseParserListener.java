@@ -596,6 +596,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#sortCommand}.
    * @param ctx the parse tree
    */

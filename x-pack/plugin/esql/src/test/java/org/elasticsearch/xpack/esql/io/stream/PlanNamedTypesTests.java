@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DedupExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -88,6 +89,7 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
+import org.elasticsearch.xpack.ql.plan.logical.DedupBy;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -121,6 +123,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     // programmatically. Excludes LocalSourceExec
     public static final List<Class<? extends PhysicalPlan>> PHYSICAL_PLAN_NODE_CLS = List.of(
         AggregateExec.class,
+        DedupExec.class,
         DissectExec.class,
         EsQueryExec.class,
         EsSourceExec.class,
@@ -157,6 +160,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     // programmatically.
     public static final List<Class<? extends LogicalPlan>> LOGICAL_PLAN_NODE_CLS = List.of(
         Aggregate.class,
+        DedupBy.class,
         Dissect.class,
         Enrich.class,
         EsRelation.class,

@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
+import org.elasticsearch.compute.operator.DedupOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -181,6 +182,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 ExchangeSinkOperator.Status.ENTRY,
                 ExchangeSourceOperator.Status.ENTRY,
                 HashAggregationOperator.Status.ENTRY,
+                DedupOperator.Status.ENTRY,
                 LimitOperator.Status.ENTRY,
                 LuceneOperator.Status.ENTRY,
                 TopNOperatorStatus.ENTRY,

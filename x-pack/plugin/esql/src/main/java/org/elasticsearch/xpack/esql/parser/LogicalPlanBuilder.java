@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.DedupBy;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -156,6 +157,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }
         };
+    }
+
+    @Override
+    public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
+        var identifiers = ctx.qualifiedNamePattern();
+        List<NamedExpression> removals = new ArrayList<>(identifiers.size());
+
+        for (QualifiedNamePatternContext patternContext : identifiers) {
+            NamedExpression ne = visitQualifiedNamePattern(patternContext);
+            if (ne instanceof UnresolvedStar) {
+                var src = ne.source();
+                throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
+            }
+            removals.add(ne);
+        }
+
+        Source src = source(ctx);
+        return child -> new DedupBy(src, child, removals);
     }
 
     @Override

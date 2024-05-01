@@ -32,6 +32,7 @@ processingCommand
     | inlinestatsCommand
     | limitCommand
     | keepCommand
+    | dedupCommand
     | sortCommand
     | statsCommand
     | whereCommand
@@ -178,6 +179,10 @@ constant
 
 limitCommand
     : LIMIT INTEGER_LITERAL
+    ;
+
+dedupCommand
+    : DEDUP qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 sortCommand

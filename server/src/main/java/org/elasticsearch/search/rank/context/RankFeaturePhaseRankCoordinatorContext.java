@@ -40,10 +40,10 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * To support non-blocking async operations, once we generate a final array of {@link ScoreDoc} results, we pass them
      * to the {@param onFinish} consumer to proceed with the next steps, as defined by the caller.
      *
-     * @param phaseResults a list of the appropriate phase results from each shard
+     * @param phaseResultsPerShard a list of the appropriate phase results from each shard
      * @param onFinish a consumer to be called once the global ranking is complete
      */
-    public abstract void rankGlobalResults(List<SearchPhaseResult> phaseResults, Consumer<ScoreDoc[]> onFinish);
+    public abstract void rankGlobalResults(List<SearchPhaseResult> phaseResultsPerShard, Consumer<ScoreDoc[]> onFinish);
 
     public boolean needsFieldData() {
         return true;

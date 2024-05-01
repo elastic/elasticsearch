@@ -181,7 +181,8 @@ public class RankFeaturePhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         assert rankFeaturePhaseRankCoordinatorContext != null;
-        rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(phaseResults.getAtomicArray().asList(), (scoreDocs) -> {
+        List<SearchPhaseResult> rankedResultsPerShard = phaseResults.getAtomicArray().asList();
+        rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(rankedResultsPerShard, (scoreDocs) -> {
             SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(reducedQueryPhase, scoreDocs);
             moveToNextPhase(phaseResults, reducedRankFeaturePhase);
         });

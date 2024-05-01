@@ -28,6 +28,10 @@ End of the range. Can be a number or a date expressed as a string.
 Creates human-friendly buckets and returns a value for each row that corresponds
 to the resulting bucket the row falls into.
 
+`BUCKET` can work in two modes: one in which the size of the bucket is computed
+based on a buckets count recommendation (four parameters) and a range, and
+another in which the bucket size is provided directly (two parameters).
+
 Using a target number of buckets, a start of a range, and an end of a range,
 `BUCKET` picks an appropriate bucket size to generate the target number of
 buckets or fewer. For example, asking for at most 20 buckets over a year results
@@ -46,9 +50,7 @@ The goal isn't to provide *exactly* the target number of buckets, it's to pick a
 range that people are comfortable with that provides at most the target number
 of buckets.
 
-Combine `BUCKET` with
-<<esql-stats-by>> to create a histogram:
-
+Combine `BUCKET` with an <<esql-agg-functions,aggregation>> to create a histogram:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketMonthlyHistogram]
@@ -78,6 +80,20 @@ pick a good bucket size. For rows with a value outside of the range, it returns
 a bucket value that corresponds to a bucket outside the range. Combine
 `BUCKET` with <<esql-where>> to filter rows.
 
+If the desired bucket size is known in advance, simply provide it as the second
+argument, leaving the range out:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan-result]
+|===
+
+NOTE: When providing the bucket size as the second parameter, it must be a time
+duration or date period.
+
 `BUCKET` can also operate on numeric fields. For example, to create a
 salary histogram:
 
@@ -94,7 +110,19 @@ Unlike the earlier example that intentionally filters on a date range, you
 rarely want to filter on a numeric range. You have to find the `min` and `max`
 separately. {esql} doesn't yet have an easy way to do that automatically.
 
-*Examples*
+The range can be omitted if the desired bucket size is known in advance. Simply
+provide it as the second argument:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumericWithSpan]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumericWithSpan-result]
+|===
+
+NOTE: When providing the bucket size as the second parameter, it must be
+of a floating point type.
 
 Create hourly buckets for the last 24 hours, and calculate the number of events
 per hour:
@@ -104,6 +132,8 @@ per hour:
 ----
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketLast24hr]
 ----
+
+*Examples*
 
 Create monthly buckets for the year 1985, and calculate the average salary by
 hiring month:
@@ -115,4 +145,17 @@ include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/bucket.csv-spec[tag=bucket_in_agg-result]
+|===
+
+`BUCKET` may be used in both the aggregating and grouping part of the
+<<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
+part the function is referenced by an alias defined in the
+grouping part, or that it is invoked with the exact same expression:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/bucket.csv-spec[tag=reuseGroupingFunctionWithExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/bucket.csv-spec[tag=reuseGroupingFunctionWithExpression-result]
 |===

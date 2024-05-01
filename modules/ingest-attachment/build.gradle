@@ -33,7 +33,8 @@ def versions = [
   'tagsoup' : '1.2.1',
   'jempbox' : '1.8.17',
   'xmlbeans' : '5.1.1', //TODO: where does this come from ?
-  'commonsCollections4' : '4.4'
+  'commonsCollections4' : '4.4',
+  'commonsCompress' : '1.26.1'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -97,7 +98,7 @@ dependencies {
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api 'org.apache.commons:commons-compress:1.26.1'
+  api "org.apache.commons:commons-compress:${versions.commonsCompress}"
   // Outlook documents
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"

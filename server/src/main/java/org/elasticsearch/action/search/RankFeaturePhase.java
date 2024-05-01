@@ -88,7 +88,7 @@ public class RankFeaturePhase extends SearchPhase {
         });
     }
 
-    private void innerRun() throws Exception {
+    void innerRun() throws Exception {
         // if the RankBuilder specifies a QueryPhaseCoordinatorContext, it will be called as part of the reduce call
         // to operate on the first `window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();

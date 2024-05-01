@@ -25,7 +25,8 @@ def versions = [
   'poi'   : '5.2.5',
   'sparsebitset' : '1.3', //poi dependency: https://repo1.maven.org/maven2/org/apache/poi/poi/
   'mime4j': '0.8.11',
-  'commonsCodec': '1.16.1'
+  'commonsCodec': '1.16.1',
+  'slf4' : '2.0.10'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -42,8 +43,8 @@ configurations.testCompileClasspath {
 
 dependencies {
   // take over logging for all dependencies
-  api "org.slf4j:slf4j-api:2.0.9"
-  api "org.slf4j:jcl-over-slf4j:2.0.9"
+  api "org.slf4j:slf4j-api:${versions.slf4}"
+  api "org.slf4j:jcl-over-slf4j:${versions.slf4}"
 
   // route slf4j over log4j
   // TODO blocked on https://github.com/elastic/elasticsearch/issues/93714

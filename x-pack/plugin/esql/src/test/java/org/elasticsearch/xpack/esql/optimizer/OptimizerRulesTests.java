@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -15,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -39,14 +44,17 @@ import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
+    private static final Literal ZERO = new Literal(Source.EMPTY, 0, DataTypes.INTEGER);
     private static final Literal ONE = new Literal(Source.EMPTY, 1, DataTypes.INTEGER);
     private static final Literal TWO = new Literal(Source.EMPTY, 2, DataTypes.INTEGER);
     private static final Literal THREE = new Literal(Source.EMPTY, 3, DataTypes.INTEGER);
     private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataTypes.INTEGER);
     private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataTypes.INTEGER);
+    public static final Literal TWO_DOUBLE = new Literal(EMPTY, 2d, DataTypes.DOUBLE);
 
     private static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -74,6 +82,10 @@ public class OptimizerRulesTests extends ESTestCase {
 
     private static FieldAttribute getFieldAttribute() {
         return TestUtils.getFieldAttribute("a");
+    }
+
+    private static OptimizerRules.SimplifyComparisonsArithmetics simplifyComparisonsArithmetics() {
+        return new OptimizerRules.SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible);
     }
 
     //
@@ -499,5 +511,112 @@ public class OptimizerRulesTests extends ESTestCase {
         OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(eq1, exp);
+    }
+
+    // Tests for SimplifyComparisonArithmetics
+    // a + 1 == 0 -> a == -1
+    public void testSimplifyEqualsAddition() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Add(EMPTY, fa, ONE), ZERO);
+        Equals expected = equalsOf(fa, new Literal(EMPTY, -1, DataTypes.INTEGER));
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(expected, actual);
+    }
+
+    // a - 1 == 0 -> a == 1
+    public void testSimplifyEqualsSubtraction() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Sub(EMPTY, fa, ONE), ZERO);
+        Equals expected = equalsOf(fa, ONE);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(expected, actual);
+    }
+
+    // a * 2 == 4 -> a == 2
+    public void testSimplifyEqualsMultiplicationExact() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Mul(EMPTY, fa, TWO), FOUR);
+        Equals expected = equalsOf(fa, TWO);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(expected, actual);
+    }
+
+    // a * 3 == 4 -> no change (integers)
+    public void testSimplifyEqualsMultiplicationUneven() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Mul(EMPTY, fa, THREE), FOUR);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        // Since these are all integers, we aren't able to rearrange this. Although it seems like we could rewrite the whole thing to
+        // false, since no integer a satisfies this equality.
+        assertEquals(before, actual);
+    }
+
+    // a * 0 == 2 -> Multiplications and divisions involving a zero are not optimized
+    public void testSimplifyEqualsMultiplicationZero() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Mul(EMPTY, fa, ZERO), TWO);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(before, actual);
+    }
+
+    // a / 2 == 2 -> not optimized for integers
+    public void testSimplifyEqualsDivideInteger() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Div(EMPTY, fa, TWO), TWO);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(before, actual);
+    }
+
+    // a / 2 == 2 -> Also not optimized, due to floating point rounding
+    public void testSimplifyEqualsDivideDouble() {
+        FieldAttribute fa = TestUtils.getFieldAttribute("a", DOUBLE);
+        Equals before = equalsOf(new Div(EMPTY, fa, TWO_DOUBLE), TWO_DOUBLE);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(before, actual);
+    }
+
+    // a / 2 == 0 -> Multiplications and divisions involving a zero are not optimized
+    public void testSimplifyEqualsDivideZero() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Div(EMPTY, fa, TWO), ZERO);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(before, actual);
+    }
+
+    // a % 3 == 2 -> Mod is not an invertable operation, so it can't be optimized in this way
+    public void testSimplifyEqualsMod() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Div(EMPTY, fa, THREE), TWO);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(before, actual);
+    }
+
+    // a * -2 > 4 -> a < -2
+    public void testSimplifyGreaterThanWithNegativeMultiplication() {
+        FieldAttribute fa = getFieldAttribute();
+        GreaterThan before = greaterThanOf(new Mul(EMPTY, fa, new Literal(EMPTY, -2, DataTypes.INTEGER)), FOUR);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        LessThan expected = lessThanOf(fa, new Literal(EMPTY, -2, DataTypes.INTEGER));
+        Expression actual = rule.rule(before);
+        assertEquals(expected, actual);
     }
 }

@@ -59,8 +59,8 @@ $endif$
 
 $if(BytesRef)$
     /**
-     * Returns an ordinal BytesRef block if this block is backed by a dictionary and ordinals;
-     * otherwise, returns null. Callers must not release this block as no extra reference is retained by this method.
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
      */
     OrdinalBytesRefBlock asOrdinals();
 $endif$

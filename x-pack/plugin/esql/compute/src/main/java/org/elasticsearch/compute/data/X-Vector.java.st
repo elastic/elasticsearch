@@ -45,8 +45,8 @@ $endif$
 
 $if(BytesRef)$
     /**
-     * Returns an ordinal BytesRef vector if this vector is backed by a dictionary and ordinals;
-     * otherwise, returns null. Callers must not release this vector as no extra reference is retained by this method.
+     * Returns an ordinal BytesRef vector if this vector is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
      */
     OrdinalBytesRefVector asOrdinals();
 $endif$

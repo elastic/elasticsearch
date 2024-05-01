@@ -78,8 +78,8 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public BytesRefBlock asBlock() {
-        return new BytesRefVectorBlock(this);
+    public OrdinalBytesRefBlock asBlock() {
+        return new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
     }
 
     @Override

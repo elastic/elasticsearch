@@ -39,7 +39,7 @@ $if(BytesRef)$
     public OrdinalBytesRefBlock asOrdinals() {
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
-            return new OrdinalBytesRefBlock(ordinals.getOrdinalsVector().asBlock(), ordinals.getDictionaryVector());
+            return ordinals.asBlock();
         } else {
             return null;
         }

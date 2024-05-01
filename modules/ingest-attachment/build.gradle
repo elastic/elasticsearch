@@ -31,7 +31,8 @@ def versions = [
   'commonsIo' : '2.15.1',
   'juniversalchardet' : '1.0.3', //TODO: update this version with the updated group
   'tagsoup' : '1.2.1',
-  'jempbox' : '1.8.17'
+  'jempbox' : '1.8.17',
+  'xmlbeans' : '5.1.1' //TODO: where does this come from ?
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -90,7 +91,7 @@ dependencies {
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonsCodec}"
-  api 'org.apache.xmlbeans:xmlbeans:5.1.1'
+  api "org.apache.xmlbeans:xmlbeans:${versions.xmlbeans}"
   api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"

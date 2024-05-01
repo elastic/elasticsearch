@@ -56,20 +56,25 @@ public final class Int3Hash extends AbstractHash {
      * Get the id associated with <code>key</code> or -1 if the key is not contained in the hash.
      */
     public long find(int key1, int key2, int key3) {
-        final long slot = slot(hash(key1, key2, key3), mask);
-        for (long index = slot;; index = nextSlot(index, mask)) {
+        long index = slot(hash(key1, key2, key3), mask);
+        while (true) {
             final long id = id(index);
-            long keyOffset = 3 * id;
-            if (id == -1 || (keys.get(keyOffset) == key1 && keys.get(keyOffset + 1) == key2 && keys.get(keyOffset + 2) == key3)) {
+            if (id == -1) {
                 return id;
+            } else {
+                long keyOffset = 3 * id;
+                if ((keys.get(keyOffset) == key1 && keys.get(keyOffset + 1) == key2 && keys.get(keyOffset + 2) == key3)) {
+                    return id;
+                }
             }
+            index = nextSlot(index, mask);
         }
     }
 
     private long set(int key1, int key2, int key3, long id) {
         assert size < maxSize;
-        final long slot = slot(hash(key1, key2, key3), mask);
-        for (long index = slot;; index = nextSlot(index, mask)) {
+        long index = slot(hash(key1, key2, key3), mask);
+        while (true) {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);
@@ -82,6 +87,7 @@ public final class Int3Hash extends AbstractHash {
                     return -1 - curId;
                 }
             }
+            index = nextSlot(index, mask);
         }
     }
 
@@ -94,14 +100,15 @@ public final class Int3Hash extends AbstractHash {
     }
 
     private void reset(int key1, int key2, int key3, long id) {
-        final long slot = slot(hash(key1, key2, key3), mask);
-        for (long index = slot;; index = nextSlot(index, mask)) {
+        long index = slot(hash(key1, key2, key3), mask);
+        while (true) {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);
                 append(id, key1, key2, key3);
                 break;
             }
+            index = nextSlot(index, mask);
         }
     }
 

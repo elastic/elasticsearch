@@ -49,6 +49,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -703,7 +704,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             e,
                             state,
                             shardCloseExecutor,
-                            ActionListener.noop()
+                            getShardsClosedListener()
                         );
                     }
                 }, () -> {
@@ -985,15 +986,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     // package-private for testing
     synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
-        failAndRemoveShard(
-            shardRouting,
-            sendShardFailure,
-            "failed recovery",
-            failure,
-            clusterService.state(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            ActionListener.noop()
-        );
+        try {
+            CloseUtils.executeDirectly(
+                l -> failAndRemoveShard(
+                    shardRouting,
+                    sendShardFailure,
+                    "failed recovery",
+                    failure,
+                    clusterService.state(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    l
+                )
+            );
+        } catch (Exception e) {
+            // should not be possible
+            final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
+            logger.error(wrappedException.getMessage(), e);
+            assert false : e;
+        }
     }
 
     private void failAndRemoveShard(
@@ -1057,15 +1067,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardRouting shardRouting = shardFailure.routing();
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
-                    failAndRemoveShard(
-                        shardRouting,
-                        true,
-                        "shard failure, reason [" + shardFailure.reason() + "]",
-                        shardFailure.cause(),
-                        clusterService.state(),
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* NB holding mutex while closing shard, ES-8334 TODO revisit this? */,
-                        ActionListener.noop()
-                    );
+                    try {
+                        CloseUtils.executeDirectly(
+                            l -> failAndRemoveShard(
+                                shardRouting,
+                                true,
+                                "shard failure, reason [" + shardFailure.reason() + "]",
+                                shardFailure.cause(),
+                                clusterService.state(),
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE /* NB holding mutex while closing shard, ES-8334 TODO revisit this? */,
+                                l
+                            )
+                        );
+                    } catch (Exception e) {
+                        // should not be possible
+                        final var wrappedException = new IllegalStateException(
+                            "unexpected failure in FailedShardHandler on " + shardRouting,
+                            e
+                        );
+                        logger.error(wrappedException.getMessage(), e);
+                        assert false : e;
+                    }
                 }
             });
         }

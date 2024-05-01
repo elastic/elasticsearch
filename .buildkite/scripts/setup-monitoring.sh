@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+AGENT_VERSION="8.10.1"
+
 ELASTIC_AGENT_URL=$(vault read -field=url secret/ci/elastic-elasticsearch/elastic-agent-token)
 ELASTIC_AGENT_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/elastic-agent-token)
 
@@ -28,11 +30,11 @@ if [[ ! -d $ELASTIC_AGENT_DIR ]]; then
 
   cd $ELASTIC_AGENT_DIR
 
-  archive=elastic-agent-8.10.1-linux-x86_64.tar.gz
+  archive="elastic-agent-$AGENT_VERSION-linux-x86_64.tar.gz"
   if [[ "$IS_WINDOWS" == "true" ]]; then
-    archive=elastic-agent-8.10.1-windows-x86_64.zip
+    archive="elastic-agent-$AGENT_VERSION-windows-x86_64.zip"
   elif [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
-    archive=elastic-agent-8.10.1-linux-arm64.tar.gz
+    archive="elastic-agent-$AGENT_VERSION-linux-arm64.tar.gz"
   fi
 
   curl -L -O "https://artifacts.elastic.co/downloads/beats/elastic-agent/$archive"

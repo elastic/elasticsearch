@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfPrimarySegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -297,14 +298,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         );
 
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
-        for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            indexDocument(client(), dataStream, true);
-        }
+        indexDocument(client(), dataStream, true);
 
-        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(
-            dataStream,
-            1L
-        );
+        var backingIndices = getBackingIndices(client(), dataStream);
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndices.get(0);
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(restoredIndexName);

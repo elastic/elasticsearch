@@ -29,7 +29,8 @@ def versions = [
   'slf4' : '2.0.10',
   'xz' : '1.9',
   'commonsIo' : '2.15.1',
-  'juniversalchardet' : '1.0.3' //TODO: update this version with the updated group
+  'juniversalchardet' : '1.0.3', //TODO: update this version with the updated group
+  'tagsoup' : '1.2.1'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -78,7 +79,7 @@ dependencies {
 
   // external parser libraries
   // HTML
-  api 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
+  api "org.ccil.cowan.tagsoup:tagsoup:${versions.tagsoup}"
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"

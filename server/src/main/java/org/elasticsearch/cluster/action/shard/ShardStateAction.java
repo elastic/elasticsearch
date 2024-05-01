@@ -707,7 +707,7 @@ public class ShardStateAction {
                         metadataBuilder.put(
                             IndexMetadata.builder(metadataBuilder.getSafe(updatedTimestampRangeEntry.getKey()))
                                 .timestampRange(timeRanges.timestampRange())
-                            /// MP TODO: add eventIngestedRange
+                                .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();

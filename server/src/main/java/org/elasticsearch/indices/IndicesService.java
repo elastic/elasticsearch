@@ -81,6 +81,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
@@ -163,6 +164,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -396,13 +398,18 @@ public class IndicesService extends AbstractLifecycleComponent
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final Index index : indices) {
-            indicesStopExecutor.execute(() -> {
-                try {
-                    removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown");
-                } finally {
-                    latch.countDown();
-                }
-            });
+            indicesStopExecutor.execute(
+                () -> ActionListener.run(
+                    ActionListener.assertOnce(ActionListener.<Void>releasing(latch::countDown)),
+                    l -> removeIndex(
+                        index,
+                        IndexRemovalReason.SHUTDOWN,
+                        "shutdown",
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* node shutdown can be blocking */,
+                        l
+                    )
+                )
+            );
         }
         try {
             if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
@@ -668,7 +675,7 @@ public class IndicesService extends AbstractLifecycleComponent
             return indexService;
         } finally {
             if (success == false) {
-                indexService.close("plugins_failed", true);
+                CloseUtils.executeDirectly(l -> indexService.close("plugins_failed", true, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l));
             }
         }
     }
@@ -705,7 +712,11 @@ public class IndicesService extends AbstractLifecycleComponent
             finalListeners,
             indexingMemoryController
         );
-        try (Closeable dummy = () -> indexService.close("temp", false)) {
+        try (
+            Closeable ignored = () -> CloseUtils.executeDirectly(
+                l -> indexService.close("temp", false, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l)
+            )
+        ) {
             return indexServiceConsumer.apply(indexService);
         }
     }
@@ -846,7 +857,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesFieldDataCache,
                 emptyList()
             );
-            closeables.add(() -> service.close("metadata verification", false));
+            closeables.add(
+                () -> CloseUtils.executeDirectly(
+                    l -> service.close("metadata verification", false, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l)
+                )
+            );
             service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metadata.equals(metadataUpdate) == false) {
                 service.updateMetadata(metadata, metadataUpdate);
@@ -896,36 +911,52 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public void removeIndex(final Index index, final IndexRemovalReason reason, final String extraInfo) {
+    public void removeIndex(
+        final Index index,
+        final IndexRemovalReason reason,
+        final String extraInfo,
+        Executor shardCloseExecutor,
+        ActionListener<Void> shardsClosedListener
+    ) {
         final String indexName = index.getName();
-        try {
+        ActionListener.run(ActionListener.assertOnce(shardsClosedListener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
+            l.onResponse(null);
+        })), l -> {
             final IndexService indexService;
             final IndexEventListener listener;
             synchronized (this) {
-                if (hasIndex(index) == false) {
-                    return;
+                if (hasIndex(index)) {
+                    logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
+                    indexService = indices.get(index.getUUID());
+                    assert indexService != null : "IndexService is null for index: " + index;
+                    indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
+                    listener = indexService.getIndexEventListener();
+                } else {
+                    indexService = null;
+                    listener = null;
                 }
+            }
 
-                logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
-                indexService = indices.get(index.getUUID());
-                assert indexService != null : "IndexService is null for index: " + index;
-                indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
-                listener = indexService.getIndexEventListener();
+            assert (indexService == null) == (listener == null) : indexService + " vs " + listener;
+
+            if (indexService == null) {
+                l.onResponse(null);
+                return;
             }
 
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
-            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
-            logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
-            final IndexSettings indexSettings = indexService.getIndexSettings();
-            listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
-            if (reason == IndexRemovalReason.DELETED) {
-                // now we are done - try to wipe data on disk if possible
-                deleteIndexStore(extraInfo, indexService.index(), indexSettings);
-            }
-        } catch (Exception e) {
-            logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
-        }
+            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, shardCloseExecutor, ActionListener.runBefore(l, () -> {
+                logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+                final IndexSettings indexSettings = indexService.getIndexSettings();
+                listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
+                if (reason == IndexRemovalReason.DELETED) {
+                    // now we are done - try to wipe data on disk if possible
+                    deleteIndexStore(extraInfo, indexService.index(), indexSettings);
+                }
+            }));
+        });
     }
 
     public IndicesFieldDataCache getIndicesFieldDataCache() {
@@ -974,7 +1005,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-     * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
+     * but does not deal with in-memory structures. For those call {@link #removeIndex}
      */
     @Override
     public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {

@@ -481,11 +481,11 @@ class RequestExecutorService implements RequestExecutor {
 
         private void rejectTasks(List<RejectableTask> tasks) {
             for (var task : tasks) {
-                rejectTask(task);
+                rejectTaskForShutdown(task);
             }
         }
 
-        private void rejectTask(RejectableTask task) {
+        private void rejectTaskForShutdown(RejectableTask task) {
             try {
                 task.onRejection(
                     new EsRejectedExecutionException(

@@ -121,6 +121,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending");
 
+    /**
+     * Support for metrics counter fields
+     */
+    public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -139,7 +144,8 @@ public class EsqlFeatures implements FeatureSpecification {
             ST_DISJOINT,
             STRING_LITERAL_AUTO_CASTING,
             CASTING_OPERATOR,
-            MV_ORDERING_SORTED_ASCENDING
+            MV_ORDERING_SORTED_ASCENDING,
+            METRICS_COUNTER_FIELDS
         );
     }
 

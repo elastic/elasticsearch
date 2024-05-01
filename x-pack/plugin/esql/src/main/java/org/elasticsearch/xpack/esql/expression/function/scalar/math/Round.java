@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -171,19 +170,5 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         }
         var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
         return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, decimals);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        Round other = (Round) obj;
-        return Objects.equals(other.field, field) && Objects.equals(other.decimals, decimals);
     }
 }

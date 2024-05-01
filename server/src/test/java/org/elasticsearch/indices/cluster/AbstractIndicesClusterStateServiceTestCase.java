@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -214,12 +215,19 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public synchronized void removeIndex(Index index, IndexRemovalReason reason, String extraInfo) {
+        public synchronized void removeIndex(
+            Index index,
+            IndexRemovalReason reason,
+            String extraInfo,
+            Executor shardCloseExecutor,
+            ActionListener<Void> shardsClosedListener
+        ) {
             if (hasIndex(index)) {
                 Map<String, MockIndexService> newIndices = new HashMap<>(indices);
                 newIndices.remove(index.getUUID());
                 indices = unmodifiableMap(newIndices);
             }
+            shardsClosedListener.onResponse(null);
         }
 
         @Override
@@ -304,14 +312,18 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public synchronized void removeShard(int shardId, String reason) {
-            if (shards.containsKey(shardId) == false) {
-                return;
+        public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
+            try {
+                if (shards.containsKey(shardId) == false) {
+                    return;
+                }
+                HashMap<Integer, MockIndexShard> newShards = new HashMap<>(shards);
+                MockIndexShard indexShard = newShards.remove(shardId);
+                assert indexShard != null;
+                shards = unmodifiableMap(newShards);
+            } finally {
+                closeListener.onResponse(null);
             }
-            HashMap<Integer, MockIndexShard> newShards = new HashMap<>(shards);
-            MockIndexShard indexShard = newShards.remove(shardId);
-            assert indexShard != null;
-            shards = unmodifiableMap(newShards);
         }
 
         @Override

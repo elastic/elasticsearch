@@ -1030,7 +1030,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    private String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
         if (mapper instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isDimension() == false) {
             return "All fields that match routing_path must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
@@ -1156,7 +1156,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    public final void testSyntheticSourceMany() throws IOException {
+    public void testSyntheticSourceMany() throws IOException {
         boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
         int maxValues = randomBoolean() ? 1 : 5;
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);

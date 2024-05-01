@@ -34,7 +34,8 @@ def versions = [
   'jempbox' : '1.8.17',
   'xmlbeans' : '5.1.1', //TODO: where does this come from ?
   'commonsCollections4' : '4.4',
-  'commonsCompress' : '1.26.1'
+  'commonsCompress' : '1.26.1',
+  'commonsLang3' :'3.14.0'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -103,7 +104,7 @@ dependencies {
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  api "org.apache.commons:commons-lang3:3.14.0"
+  api "org.apache.commons:commons-lang3:${versions.commonsLang3}"
   // Microsoft Word files with visio diagrams
   api 'org.apache.commons:commons-math3:3.6.1'
   // POIs dependency

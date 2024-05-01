@@ -352,7 +352,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 final SortedSetDocValues sortedSetDocValues = docValuesSupplier.get();
                 bitArray = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
                 groupingAggregators = aggregatorsSupplier.get();
-                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues, blockFactory);
+                this.currentReader = BlockOrdinalsReader.newReader(blockFactory, sortedSetDocValues);
                 this.blockFactory = blockFactory;
                 this.docValuesSupplier = docValuesSupplier;
                 this.aggregators = groupingAggregators;
@@ -374,30 +374,19 @@ public class OrdinalsGroupingOperator implements Operator {
                 }
 
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
-                    currentReader = new BlockOrdinalsReader(docValuesSupplier.get(), blockFactory);
+                    currentReader = BlockOrdinalsReader.newReader(blockFactory, docValuesSupplier.get());
                 }
                 try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
-                    IntVector ordinalsVector = ordinals.asVector();
-                    if (ordinalsVector != null) {
-                        for (int p = 0; p < ordinalsVector.getPositionCount(); p++) {
-                            long ord = ordinalsVector.getInt(p);
+                    for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                        int start = ordinals.getFirstValueIndex(p);
+                        int end = start + ordinals.getValueCount(p);
+                        for (int i = start; i < end; i++) {
+                            long ord = ordinals.getInt(i);
                             visitedOrds.set(ord);
                         }
-                        for (GroupingAggregatorFunction.AddInput addInput : prepared) {
-                            addInput.add(0, ordinalsVector);
-                        }
-                    } else {
-                        for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                            int start = ordinals.getFirstValueIndex(p);
-                            int end = start + ordinals.getValueCount(p);
-                            for (int i = start; i < end; i++) {
-                                long ord = ordinals.getInt(i);
-                                visitedOrds.set(ord);
-                            }
-                        }
-                        for (GroupingAggregatorFunction.AddInput addInput : prepared) {
-                            addInput.add(0, ordinals);
-                        }
+                    }
+                    for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                        addInput.add(0, ordinals);
                     }
                 }
             } catch (IOException e) {
@@ -523,43 +512,46 @@ public class OrdinalsGroupingOperator implements Operator {
         }
     }
 
-    static final class BlockOrdinalsReader {
-        private final SortedSetDocValues sortedSetDocValues;
-        private final SortedDocValues singleValues;
-        private final Thread creationThread;
-        private final BlockFactory blockFactory;
+    static abstract class BlockOrdinalsReader {
+        protected final Thread creationThread;
+        protected final BlockFactory blockFactory;
 
-        BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues, BlockFactory blockFactory) {
-            this.sortedSetDocValues = sortedSetDocValues;
+        BlockOrdinalsReader(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
             this.creationThread = Thread.currentThread();
-            this.singleValues = DocValues.unwrapSingleton(sortedSetDocValues);
         }
 
-        IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
+        static BlockOrdinalsReader newReader(BlockFactory blockFactory, SortedSetDocValues sortedSetDocValues) {
+            SortedDocValues singleValues = DocValues.unwrapSingleton(sortedSetDocValues);
             if (singleValues != null) {
-                return readSingle(docs).asBlock();
+                return new SortedDocValuesBlockOrdinalsReader(blockFactory, singleValues);
             } else {
-                return readMultiple(docs);
+                return new SortedSetDocValuesBlockOrdinalsReader(blockFactory, sortedSetDocValues);
             }
         }
 
-        private IntVector readSingle(IntVector docs) throws IOException {
-            final int positionCount = docs.getPositionCount();
-            try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
-                for (int p = 0; p < positionCount; p++) {
-                    int doc = docs.getInt(p);
-                    if (singleValues.advanceExact(doc)) {
-                        builder.appendInt(singleValues.ordValue() + 1);
-                    } else {
-                        builder.appendInt(0);
-                    }
-                }
-                return builder.build();
-            }
+        abstract IntBlock readOrdinalsAdded1(IntVector docs) throws IOException;
+
+        abstract int docID();
+
+        /**
+         * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
+         */
+        static boolean canReuse(BlockOrdinalsReader reader, int startingDocID) {
+            return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
+        }
+    }
+
+    private static class SortedSetDocValuesBlockOrdinalsReader extends BlockOrdinalsReader {
+        private final SortedSetDocValues sortedSetDocValues;
+
+        SortedSetDocValuesBlockOrdinalsReader(BlockFactory blockFactory, SortedSetDocValues sortedSetDocValues) {
+            super(blockFactory);
+            this.sortedSetDocValues = sortedSetDocValues;
         }
 
-        private IntBlock readMultiple(IntVector docs) throws IOException {
+        @Override
+        IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
@@ -583,19 +575,38 @@ public class OrdinalsGroupingOperator implements Operator {
             }
         }
 
+        @Override
         int docID() {
-            if (singleValues != null) {
-                return singleValues.docID();
-            } else {
-                return sortedSetDocValues.docID();
+            return sortedSetDocValues.docID();
+        }
+    }
+
+    private static class SortedDocValuesBlockOrdinalsReader extends BlockOrdinalsReader {
+        private final SortedDocValues sortedDocValues;
+
+        SortedDocValuesBlockOrdinalsReader(BlockFactory blockFactory, SortedDocValues sortedDocValues) {
+            super(blockFactory);
+            this.sortedDocValues = sortedDocValues;
+        }
+
+        @Override
+        IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    if (sortedDocValues.advanceExact(docs.getInt(p))) {
+                        builder.appendInt(sortedDocValues.ordValue() + 1);
+                    } else {
+                        builder.appendInt(0);
+                    }
+                }
+                return builder.build().asBlock();
             }
         }
 
-        /**
-         * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
-         */
-        static boolean canReuse(BlockOrdinalsReader reader, int startingDocID) {
-            return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
+        @Override
+        int docID() {
+            return sortedDocValues.docID();
         }
     }
 }

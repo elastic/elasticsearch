@@ -250,7 +250,11 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             }
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
-            assertThat(serialized, containsString("effective_retention"));
+            if (globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null) {
+                assertThat(serialized, containsString("effective_retention"));
+            } else {
+                assertThat(serialized, not(containsString("effective_retention")));
+            }
         }
     }
 

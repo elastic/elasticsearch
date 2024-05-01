@@ -1156,7 +1156,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    public final void testSyntheticSourceMany() throws IOException {
+    public void testSyntheticSourceMany() throws IOException {
         boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
         int maxValues = randomBoolean() ? 1 : 5;
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);

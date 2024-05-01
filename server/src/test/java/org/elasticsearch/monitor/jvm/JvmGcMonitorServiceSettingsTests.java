@@ -48,7 +48,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        final String timeValue = "-" + randomTimeValue(2, 1000); // -1 is handled separately
+        final String timeValue = "-" + randomTimeValue(2, 1000).getStringRep(); // -1 is handled separately
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));

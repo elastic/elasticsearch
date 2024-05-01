@@ -2436,6 +2436,7 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
+            awaitIndexShardCloseAsyncTasks();
             // Checks that the breakers have been reset without incurring a
             // network request, because a network request can increment one
             // of the breakers

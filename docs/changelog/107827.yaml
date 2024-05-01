@@ -1,5 +1,5 @@
 pr: 107827
 summary: Add permission to give exclusive access to certain files
-area: "Security, Infra/Plugins"
+area: Security
 type: bug
 issues: []

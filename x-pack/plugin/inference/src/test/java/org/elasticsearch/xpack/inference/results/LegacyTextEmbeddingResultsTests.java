@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 

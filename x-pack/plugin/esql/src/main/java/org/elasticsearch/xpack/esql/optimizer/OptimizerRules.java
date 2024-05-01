@@ -755,7 +755,7 @@ class OptimizerRules {
                     .create(bcl.source(), bcl, opRight);
                 bcRightExpression = tryFolding(bcRightExpression);
                 return bcRightExpression != null
-                    ? postProcess((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
+                    ? postProcess((EsqlBinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
                     : comparison;
             }
 
@@ -764,7 +764,7 @@ class OptimizerRules {
             abstract boolean isOpUnsafe();
 
             // - post optimisation adjustments
-            Expression postProcess(BinaryComparison binaryComparison) {
+            Expression postProcess(EsqlBinaryComparison binaryComparison) {
                 return binaryComparison;
             }
         }
@@ -822,7 +822,7 @@ class OptimizerRules {
             }
 
             @Override
-            Expression postProcess(BinaryComparison binaryComparison) {
+            Expression postProcess(EsqlBinaryComparison binaryComparison) {
                 // negative multiplication/division changes the direction of the comparison
                 return opRightSign < 0 ? binaryComparison.reverse() : binaryComparison;
             }

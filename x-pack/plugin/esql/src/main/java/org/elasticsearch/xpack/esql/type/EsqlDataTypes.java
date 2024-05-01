@@ -230,6 +230,7 @@ public final class EsqlDataTypes {
             && isCounterType(t) == false;
     }
 
+    @Deprecated
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;

@@ -222,4 +222,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         );
     }
 
+    @Override
+    public String toString() {
+        return left() + symbol() + right();
+    }
 }

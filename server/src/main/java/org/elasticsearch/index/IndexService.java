@@ -618,7 +618,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } finally {
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
-                if (indexShard != null) {
+                if (indexShard == null) {
+                    closeListener.onResponse(null);
+                } else {
                     // only flush if we are closed (closed index or shutdown) and if we are not deleted
                     final boolean flushEngine = deleted.get() == false && closed.get();
                     // if the store is still open, want to keep it open until afterIndexShardClosed

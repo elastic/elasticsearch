@@ -268,6 +268,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(shard.mapperService()).thenReturn(mapperService);
+        addMockCloseImplementation(shard);
 
         // merged mapping source needs to be different from previous one for the master node to be invoked
         DocumentMapper mergedDoc = mock(DocumentMapper.class);
@@ -991,6 +992,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong(), anyString())).thenCallRealMethod();
             MapperService mapperService = mock(MapperService.class);
             when(shard.mapperService()).thenReturn(mapperService);
+            addMockCloseImplementation(shard);
 
             // merged mapping source needs to be different from previous one for the master node to be invoked
             DocumentMapper mergedDoc = mock(DocumentMapper.class);

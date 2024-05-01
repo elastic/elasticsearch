@@ -154,7 +154,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropagateNullable(),
             new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination(),
             new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.CombineDisjunctionsToIn(),
-            new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
+            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),

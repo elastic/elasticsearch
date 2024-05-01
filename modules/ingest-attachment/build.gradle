@@ -28,7 +28,8 @@ def versions = [
   'commonsCodec': '1.16.1',
   'slf4' : '2.0.10',
   'xz' : '1.9',
-  'commonsIo' : '2.15.1'
+  'commonsIo' : '2.15.1',
+  'juniversalchardet' : '1.0.3' //TODO: update this version with the updated group
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -73,7 +74,7 @@ dependencies {
   api "commons-io:commons-io:${versions.commonsIo}"
 
   // character set detection
-  api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
+  api "com.googlecode.juniversalchardet:juniversalchardet:${versions.juniversalchardet}"
 
   // external parser libraries
   // HTML

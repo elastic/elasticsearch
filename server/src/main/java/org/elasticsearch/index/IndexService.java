@@ -378,9 +378,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     ActionListener.run(refs.acquireListener().delegateResponse((l, e) -> {
                         logger.warn("failed to close shard", e);
                         l.onResponse(null);
-                    }), l ->
-                    // ES-8334 passthru, enclosing method is also async
-                    removeShard(shardId, reason, shardCloseExecutor, l));
+                    }), l -> removeShard(shardId, reason, shardCloseExecutor, l));
                 }
             }
         } else {
@@ -560,17 +558,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
                 final var finalStore = store;
                 final var finalIndexShard = indexShard;
-                CloseUtils.executeDirectly(l ->
-                // ES-8334 complete, we're on the exception path here, closing a shard that failed to start up should be fast enough
-                closeShard(
-                    "initialization failed",
-                    shardId,
-                    finalIndexShard,
-                    finalStore,
-                    eventListener,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    l
-                ));
+                CloseUtils.executeDirectly(
+                    l -> closeShard(
+                        "initialization failed",
+                        shardId,
+                        finalIndexShard,
+                        finalStore,
+                        eventListener,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* closing a shard that failed to start up should be fast enough */,
+                        l
+                    )
+                );
             }
         }
     }
@@ -588,7 +586,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             : closeListener;
 
         shards = Maps.copyMapWithRemovedEntry(shards, shardId);
-        // ES-8334 passthru, enclosing method is also async
         closeShard(
             reason,
             indexShard.shardId(),
@@ -624,8 +621,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (indexShard != null) {
                     // only flush if we are closed (closed index or shutdown) and if we are not deleted
                     final boolean flushEngine = deleted.get() == false && closed.get();
-                    // if the store is still open, want to keep it open while closing the shard
-                    final var hasStoreRef = store != null && store.tryIncRef();
+                    // if the store is still open, want to keep it open until afterIndexShardClosed
+                    assert store == null || store.hasReferences() : "store exists but already closed";
+                    final var hasStoreRef = store != null && store.tryIncRef(); // being cautious
                     ActionListener.run(new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
@@ -648,9 +646,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                             logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
                             onResponse(null); // otherwise ignore the exception
                         }
-                    }, l ->
-                    // ES-8334 passthru, enclosing method is also async
-                    indexShard.close(reason, flushEngine, closeExecutor, l));
+                    }, l -> indexShard.close(reason, flushEngine, closeExecutor, l));
                 }
             }
         } finally {

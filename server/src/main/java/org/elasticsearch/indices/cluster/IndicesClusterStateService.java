@@ -375,7 +375,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final SubscribableListener<Void> indexServiceClosedListener;
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
-                // ES-8334 complete
                 indexServiceClosedListener = SubscribableListener.newForked(
                     l -> indicesService.removeIndex(index, DELETED, "index no longer part of the metadata", shardCloseExecutor, l)
                 );
@@ -473,7 +472,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
-                // ES-8334 complete
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
             } else {
                 // remove shards based on routing nodes (no deletion of data)
@@ -485,7 +483,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // we can just remove the shard without cleaning it locally, since we will clean it in IndicesStore
                         // once all shards are allocated
                         logger.debug("{} removing shard (not allocated)", shardId);
-                        // ES-8334 complete
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (not allocated)",
@@ -499,7 +496,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             currentRoutingEntry,
                             newShardRouting
                         );
-                        // ES-8334 complete
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (stale copy)",
@@ -512,7 +508,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // cluster state may result in a new shard being initialized while having the same allocation id as the currently
                         // started shard.
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
-                        // ES-8334 complete
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (stale copy)",
@@ -524,7 +519,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
                         // and assigning an initializing primary to this node
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
-                        // ES-8334 complete
                         indexService.removeShard(
                             shardId.id(),
                             "removing shard (stale copy)",
@@ -590,7 +584,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     failShardReason = "failed to create index";
                 } else {
                     failShardReason = "failed to update mapping for index";
-                    // ES-8334 TBD failure path, should we block?
                     indicesService.removeIndex(
                         index,
                         FAILURE,
@@ -645,7 +638,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     reason = "mapping update failed";
                     indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
-                    // ES-8334 TBD we're on the failure path, might not be important
                     indicesService.removeIndex(
                         index,
                         FAILURE,

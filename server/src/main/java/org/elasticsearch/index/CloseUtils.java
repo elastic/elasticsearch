@@ -23,31 +23,48 @@ public class CloseUtils {
     private CloseUtils() {/* no instances */}
 
     /**
+     * Sentinel result value to record success
+     */
+    private static final Exception SUCCEEDED = new Exception() {
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this;
+        }
+    };
+
+    /**
      * Execute a naturally-async action (e.g. to close a shard) but using the current thread so that it completes synchronously, re-throwing
      * any exception that might be passed to its listener.
      */
     public static void executeDirectly(CheckedConsumer<ActionListener<Void>, IOException> action) throws IOException {
+        // it's possible to do this with a PlainActionFuture too but extracting the exact Exception is a bit of a pain because of
+        // exception-mangling and/or interrupt handling - see #108125
         final var closeExceptionRef = new AtomicReference<Exception>();
-        ActionListener.run(new ActionListener<>() {
+        ActionListener.run(ActionListener.assertOnce(new ActionListener<>() {
             @Override
-            public void onResponse(Void unused) {}
+            public void onResponse(Void unused) {
+                closeExceptionRef.set(SUCCEEDED);
+            }
 
             @Override
             public void onFailure(Exception e) {
                 closeExceptionRef.set(e);
             }
-        }, action);
+        }), action);
         final var closeException = closeExceptionRef.get();
-        if (closeException != null) {
-            if (closeException instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            if (closeException instanceof IOException ioException) {
-                throw ioException;
-            }
-            assert false : closeException;
-            throw new RuntimeException("unexpected exception on shard close", closeException);
+        if (closeException == SUCCEEDED) {
+            return;
         }
+        if (closeException instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        }
+        if (closeException instanceof IOException ioException) {
+            throw ioException;
+        }
+        assert false : closeException;
+        if (closeException != null) {
+            throw new RuntimeException("unexpected exception on shard close", closeException);
+        } // else listener not completed, definitely a bug, but throwing something won't help anyone here
     }
 
     /**

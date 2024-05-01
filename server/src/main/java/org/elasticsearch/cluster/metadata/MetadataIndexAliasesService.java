@@ -198,7 +198,6 @@ public class MetadataIndexAliasesService {
             return currentState;
         } finally {
             for (Index index : indicesToClose) {
-                // ES-8334 complete no shards created
                 indicesService.removeIndex(
                     index,
                     NO_LONGER_ASSIGNED,

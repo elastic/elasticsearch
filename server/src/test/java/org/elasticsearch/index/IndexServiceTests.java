@@ -461,7 +461,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public static void closeIndexService(IndexService indexService) throws IOException {
-        // ES-8334 complete, these tests can close synchronously
         CloseUtils.executeDirectly(
             l -> indexService.close("IndexServiceTests#closeIndexService", false, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
         );

@@ -1728,7 +1728,6 @@ public class MetadataIndexTemplateService {
 
         } finally {
             if (createdIndex != null) {
-                // ES-8334 complete no shards created
                 indicesService.removeIndex(
                     createdIndex,
                     NO_LONGER_ASSIGNED,

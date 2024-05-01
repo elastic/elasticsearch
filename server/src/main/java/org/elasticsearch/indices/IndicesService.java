@@ -398,9 +398,18 @@ public class IndicesService extends AbstractLifecycleComponent
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final Index index : indices) {
-            indicesStopExecutor.execute(() -> ActionListener.run(ActionListener.<Void>releasing(latch::countDown), l ->
-            // ES-8334 complete, node shutdown can be blocking
-            removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown", EsExecutors.DIRECT_EXECUTOR_SERVICE, l)));
+            indicesStopExecutor.execute(
+                () -> ActionListener.run(
+                    ActionListener.assertOnce(ActionListener.<Void>releasing(latch::countDown)),
+                    l -> removeIndex(
+                        index,
+                        IndexRemovalReason.SHUTDOWN,
+                        "shutdown",
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* node shutdown can be blocking */,
+                        l
+                    )
+                )
+            );
         }
         try {
             if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
@@ -666,7 +675,6 @@ public class IndicesService extends AbstractLifecycleComponent
             return indexService;
         } finally {
             if (success == false) {
-                // ES-8334 complete, we're on the failure path and didn't create any shards to close
                 CloseUtils.executeDirectly(l -> indexService.close("plugins_failed", true, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l));
             }
         }
@@ -705,7 +713,6 @@ public class IndicesService extends AbstractLifecycleComponent
             indexingMemoryController
         );
         try (
-            // ES-8334 complete, we don't start any shards here, just auxiliary services
             Closeable ignored = () -> CloseUtils.executeDirectly(
                 l -> indexService.close("temp", false, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l)
             )
@@ -850,7 +857,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesFieldDataCache,
                 emptyList()
             );
-            // ES-8334 complete, no shards created
             closeables.add(
                 () -> CloseUtils.executeDirectly(
                     l -> service.close("metadata verification", false, CloseUtils.NO_SHARDS_CREATED_EXECUTOR, l)
@@ -913,10 +919,10 @@ public class IndicesService extends AbstractLifecycleComponent
         ActionListener<Void> shardsClosedListener
     ) {
         final String indexName = index.getName();
-        ActionListener.run(shardsClosedListener.delegateResponse((l, e) -> {
+        ActionListener.run(ActionListener.assertOnce(shardsClosedListener.delegateResponse((l, e) -> {
             logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
             l.onResponse(null);
-        }), l -> {
+        })), l -> {
             final IndexService indexService;
             final IndexEventListener listener;
             synchronized (this) {
@@ -941,7 +947,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
-            // ES-8334 passthru enclosing method is async
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, shardCloseExecutor, ActionListener.runBefore(l, () -> {
                 logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
                 final IndexSettings indexSettings = indexService.getIndexSettings();

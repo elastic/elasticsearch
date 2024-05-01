@@ -61,6 +61,10 @@ public class LifecycleTests extends ESTestCase {
         assertEquals(expectedState == Lifecycle.State.STOPPED, lifecycle.stopped());
         assertEquals(expectedState == Lifecycle.State.CLOSED, lifecycle.closed());
         assertEquals(expectedState == Lifecycle.State.STOPPED || expectedState == Lifecycle.State.CLOSED, lifecycle.stoppedOrClosed());
+        assertEquals(
+            expectedState == Lifecycle.State.INITIALIZED || expectedState == Lifecycle.State.STARTED,
+            lifecycle.initializedOrStarted()
+        );
     }
 
     public void testThreadSafety() {

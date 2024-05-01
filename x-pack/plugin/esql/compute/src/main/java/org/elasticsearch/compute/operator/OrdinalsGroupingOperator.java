@@ -377,22 +377,41 @@ public class OrdinalsGroupingOperator implements Operator {
                     currentReader = BlockOrdinalsReader.newReader(blockFactory, docValuesSupplier.get());
                 }
                 try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
-                    for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                        int start = ordinals.getFirstValueIndex(p);
-                        int end = start + ordinals.getValueCount(p);
-                        for (int i = start; i < end; i++) {
-                            long ord = ordinals.getInt(i);
-                            visitedOrds.set(ord);
-                        }
-                    }
-                    for (GroupingAggregatorFunction.AddInput addInput : prepared) {
-                        addInput.add(0, ordinals);
+                    final IntVector ordinalsVector = ordinals.asVector();
+                    if (ordinalsVector != null) {
+                        addOrdinalsInput(ordinalsVector, prepared);
+                    } else {
+                        addOrdinalsInput(ordinals, prepared);
                     }
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
                 page.releaseBlocks();
+            }
+        }
+
+        void addOrdinalsInput(IntBlock ordinals, GroupingAggregatorFunction.AddInput[] prepared) {
+            for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                int start = ordinals.getFirstValueIndex(p);
+                int end = start + ordinals.getValueCount(p);
+                for (int i = start; i < end; i++) {
+                    long ord = ordinals.getInt(i);
+                    visitedOrds.set(ord);
+                }
+            }
+            for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                addInput.add(0, ordinals);
+            }
+        }
+
+        void addOrdinalsInput(IntVector ordinals, GroupingAggregatorFunction.AddInput[] prepared) {
+            for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                long ord = ordinals.getInt(p);
+                visitedOrds.set(ord);
+            }
+            for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                addInput.add(0, ordinals);
             }
         }
 

@@ -52,7 +52,7 @@ dependencies {
 
   // nop all slf4j logging
   // workaround for https://github.com/elastic/elasticsearch/issues/93714
-  api "org.slf4j:slf4j-nop:2.0.9"
+  api "org.slf4j:slf4j-nop:${versions.slf4}"
 
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"

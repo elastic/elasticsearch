@@ -17,12 +17,13 @@ esplugin {
 
 // this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
 // as we (and tika) demand, and are not interested in, say, having the same version of commons-codec as elasticsearch itself
-// when updating tika, please review it's parent pom and manually update the transitive dependencies here
+// when updating tika, please review it's parent pom : https://repo1.maven.org/maven2/org/apache/tika/tika-parent
+// and manually update the transitive dependencies here
 def versions = [
   'tika'  : '2.9.2',
   'pdfbox': '2.0.31',
   'poi'   : '5.2.3',
-  'mime4j': '0.8.10',
+  'mime4j': '0.8.11',
   'commonsCodec': '1.16.1'
 ]
 

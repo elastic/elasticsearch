@@ -1347,7 +1347,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                 @Override
                 public void onFailure(Exception e) {
-                    assert false : e; // GENERIC pool doesn't reject anything
+                    // should be impossible, GENERIC pool doesn't reject anything
+                    logger.error("unexpected failure running " + command.toString(), e);
+                    assert false : new AssertionError("unexpected failure running " + command, e);
                 }
 
                 @Override

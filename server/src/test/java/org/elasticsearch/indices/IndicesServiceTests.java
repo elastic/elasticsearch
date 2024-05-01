@@ -307,7 +307,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
-
         awaitIndexShardCloseAsyncTasks();
 
         assertFalse(firstPath.exists());

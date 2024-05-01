@@ -431,5 +431,4 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         indicesClusterStateService.onClusterStateShardsClosed(latch::countDown);
         safeAwait(latch);
     }
-
 }

@@ -18,7 +18,7 @@ dependencies {
   implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "org.apache.commons:commons-compress:1.24.0"
+  implementation "org.apache.commons:commons-compress:1.26.1"
   implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
@@ -37,6 +37,20 @@ tasks.named("thirdPartyAudit").configure {
           'com.github.luben.zstd.BufferPool',
           'com.github.luben.zstd.ZstdInputStream',
           'com.github.luben.zstd.ZstdOutputStream',
+          'org.apache.commons.io.Charsets',
+          'org.apache.commons.io.FileUtils',
+          'org.apache.commons.io.FilenameUtils',
+          'org.apache.commons.io.IOUtils',
+          'org.apache.commons.io.build.AbstractOrigin',
+          'org.apache.commons.io.build.AbstractStreamBuilder',
+          'org.apache.commons.io.file.attribute.FileTimes',
+          'org.apache.commons.io.input.BoundedInputStream',
+          'org.apache.commons.io.input.CloseShieldInputStream',
+          'org.apache.commons.io.input.CountingInputStream',
+          'org.apache.commons.io.input.NullInputStream',
+          'org.apache.commons.io.output.ByteArrayOutputStream',
+          'org.apache.commons.io.output.CountingOutputStream',
+          'org.apache.commons.io.output.NullOutputStream',
           'org.brotli.dec.BrotliInputStream',
           'org.objectweb.asm.AnnotationVisitor',
           'org.objectweb.asm.Attribute',
@@ -57,6 +71,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.tukaani.xz.MemoryLimitException',
           'org.tukaani.xz.UnsupportedOptionsException',
           'org.tukaani.xz.XZ',
-          'org.tukaani.xz.XZOutputStream',
+          'org.tukaani.xz.XZOutputStream'
   )
 }

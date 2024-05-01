@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.search;
+package org.elasticsearch.xpack.ml.queries;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -14,9 +14,11 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,12 +26,21 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +49,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
     public static final String NAME = "sparse_vector";
@@ -54,6 +67,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final String inferenceId;
     private final String text;
     private final Boolean shouldPruneTokens;
+
+    private SetOnce<TextExpansionResults> weightedTokensSupplier;
+
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
@@ -94,6 +110,16 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.inferenceId = in.readOptionalString();
         this.text = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
+    }
+
+    public SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
+        this.fieldName = other.fieldName;
+        this.shouldPruneTokens = other.shouldPruneTokens;
+        this.tokens = other.tokens;
+        this.inferenceId = other.inferenceId;
+        this.text = other.text;
+        this.tokenPruningConfig = other.tokenPruningConfig;
+        this.weightedTokensSupplier = weightedTokensSupplier;
     }
 
     public String getFieldName() {
@@ -210,63 +236,76 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             return this;
         } else {
             // Inference
-            throw new UnsupportedOperationException("Inference is not supported yet");
-            // if (weightedTokensSupplier != null) {
-            // if (weightedTokensSupplier.get() == null) {
-            // return this;
-            // }
-            // return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
-            // }
-            //
-            // CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-            // modelId,
-            // List.of(modelText),
-            // TextExpansionConfigUpdate.EMPTY_UPDATE,
-            // false,
-            // InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
-            // );
-            // inferRequest.setHighPriority(true);
-            // inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-            //
-            // SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-            // queryRewriteContext.registerAsyncAction(
-            // (client, listener) -> executeAsyncWithOrigin(
-            // client,
-            // ML_ORIGIN,
-            // CoordinatedInferenceAction.INSTANCE,
-            // inferRequest,
-            // ActionListener.wrap(inferenceResponse -> {
-            //
-            // if (inferenceResponse.getInferenceResults().isEmpty()) {
-            // listener.onFailure(new IllegalStateException("inference response contain no results"));
-            // return;
-            // }
-            //
-            // if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
-            // textExpansionResultsSupplier.set(textExpansionResults);
-            // listener.onResponse(null);
-            // } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
-            // listener.onFailure(new IllegalStateException(warning.getWarning()));
-            // } else {
-            // listener.onFailure(
-            // new IllegalStateException(
-            // "expected a result of type ["
-            // + TextExpansionResults.NAME
-            // + "] received ["
-            // + inferenceResponse.getInferenceResults().get(0).getWriteableName()
-            // + "]. Is ["
-            // + modelId
-            // + "] a compatible model?"
-            // )
-            // );
-            // }
-            // }, listener::onFailure)
-            // )
-            // );
-            //
-            // return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+            if (weightedTokensSupplier != null) {
+                if (weightedTokensSupplier.get() == null) {
+                    return this;
+                }
+                return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
+            }
 
+            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+                TaskType.TEXT_EMBEDDING,
+                inferenceId,
+                text,
+                List.of(text),
+                Map.of(),
+                InputType.SEARCH,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            );
+
+            SetOnce<TextExpansionResults> sparseEmbeddingResultsSupplier = new SetOnce<>();
+            queryRewriteContext.registerAsyncAction(
+                (client, listener) -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    inferenceRequest,
+                    ActionListener.wrap(inferenceResponse -> {
+                        if (inferenceResponse.getResults().asMap().isEmpty()) {
+                            listener.onFailure(new IllegalStateException("inference response contain no results"));
+                            return;
+                        }
+
+                        if (inferenceResponse.getResults()
+                            .transformToLegacyFormat()
+                            .get(0) instanceof TextExpansionResults textExpansionResults) {
+                            sparseEmbeddingResultsSupplier.set(textExpansionResults);
+                            listener.onResponse(null);
+                        } else if (inferenceResponse.getResults()
+                            .transformToLegacyFormat()
+                            .get(0) instanceof WarningInferenceResults warning) {
+                                listener.onFailure(new IllegalStateException(warning.getWarning()));
+                            } else {
+                                listener.onFailure(
+                                    new IllegalStateException(
+                                        "expected a result of type ["
+                                            + TextExpansionResults.NAME
+                                            + "] received ["
+                                            + inferenceResponse.getResults().transformToLegacyFormat().get(0).getWriteableName()
+                                            + "]. Is ["
+                                            + inferenceId
+                                            + "] a compatible inferenceId?"
+                                    )
+                                );
+                            }
+                    }, listener::onFailure)
+                )
+            );
+
+            return new SparseVectorQueryBuilder(this, sparseEmbeddingResultsSupplier);
         }
+    }
+
+    private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
+        // TODO support pruning config
+        var boolQuery = QueryBuilders.boolQuery();
+        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
+        }
+        boolQuery.minimumShouldMatch(1);
+        boolQuery.boost(boost);
+        boolQuery.queryName(queryName);
+        return boolQuery;
     }
 
     private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
@@ -336,7 +375,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
         String fieldName = (String) a[0];
         @SuppressWarnings("unchecked")
-        Map<String, Double> weightedTokenMap = (Map<String, Double>) a[1];
+        Map<String, Double> weightedTokenMap = (a[1] != null ? (Map<String, Double>) a[1] : Map.of());
         List<WeightedToken> weightedTokens = weightedTokenMap.entrySet()
             .stream()
             .map(e -> new WeightedToken(e.getKey(), e.getValue().floatValue()))

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -28,24 +28,46 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
-import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldType;
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
+import java.util.stream.Collectors;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
+    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     private final String fieldName;
     private final List<WeightedToken> tokens;
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
+
+    public enum AllowedFieldType {
+        RANK_FEATURES("rank_features"),
+        SPARSE_VECTOR("sparse_vector");
+
+        private final String typeName;
+
+        AllowedFieldType(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
+
+        public static boolean isFieldTypeAllowed(String typeName) {
+            return Arrays.stream(values()).anyMatch(value -> value.typeName.equals(typeName));
+        }
+
+        public static String getAllowedFieldTypesAsString() {
+            return Arrays.stream(values()).map(value -> value.typeName).collect(Collectors.joining(", "));
+        }
+    }
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
         this(fieldName, tokens, null);

@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +22,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder.PRUNING_CONFIG_FIELD;
+import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");
@@ -96,7 +97,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
     /**
      * Returns whether the filtering process retains tokens identified as non-relevant based on the specified thresholds
      * (ratio and weight). When {@code true}, only non-relevant tokens are considered for matching and scoring documents.
-     * Enabling this option is valuable for re-scoring top hits retrieved from a {@link SparseVectorQueryBuilder} with
+     * Enabling this option is valuable for re-scoring top hits retrieved from another {@link QueryBuilder} with
      * active thresholds.
      */
     public boolean isOnlyScorePrunedTokens() {
@@ -149,7 +150,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 ).contains(currentFieldName) == false) {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG_FIELD.getPreferredName() + "] unknown token [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + currentFieldName + "]"
                     );
                 }
             } else if (token.isValue()) {
@@ -162,13 +163,13 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG_FIELD.getPreferredName() + "] does not support [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG.getPreferredName() + "] does not support [" + currentFieldName + "]"
                     );
                 }
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "[" + PRUNING_CONFIG_FIELD.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                    "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
                 );
             }
         }

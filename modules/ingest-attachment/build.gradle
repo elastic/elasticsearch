@@ -32,7 +32,8 @@ def versions = [
   'juniversalchardet' : '1.0.3', //TODO: update this version with the updated group
   'tagsoup' : '1.2.1',
   'jempbox' : '1.8.17',
-  'xmlbeans' : '5.1.1' //TODO: where does this come from ?
+  'xmlbeans' : '5.1.1', //TODO: where does this come from ?
+  'commonsCollections4' : '4.4'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -92,7 +93,7 @@ dependencies {
   api "org.apache.poi:poi:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonsCodec}"
   api "org.apache.xmlbeans:xmlbeans:${versions.xmlbeans}"
-  api 'org.apache.commons:commons-collections4:4.4'
+  api "org.apache.commons:commons-collections4:${versions.commonsCollections4}"
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork

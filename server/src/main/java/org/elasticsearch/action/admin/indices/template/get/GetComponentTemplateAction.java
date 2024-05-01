@@ -198,12 +198,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
                 componentTemplate.getValue()
-                    .toXContent(
-                        builder,
-                        DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
-                        rolloverConfiguration,
-                        globalRetention
-                    );
+                    .toXContent(builder, DataStreamLifecycle.maybeAddEffectiveRetentionParams(params), rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

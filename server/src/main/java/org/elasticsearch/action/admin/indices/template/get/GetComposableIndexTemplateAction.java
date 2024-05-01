@@ -197,12 +197,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
                 indexTemplate.getValue()
-                    .toXContent(
-                        builder,
-                        DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
-                        rolloverConfiguration,
-                        globalRetention
-                    );
+                    .toXContent(builder, DataStreamLifecycle.maybeAddEffectiveRetentionParams(params), rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

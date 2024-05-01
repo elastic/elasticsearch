@@ -138,7 +138,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             }
             boolean globalRetentionIsNotNull = globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null;
             boolean configuredLifeCycleIsNotNull = lifecycle.getDataRetention() != null && lifecycle.getDataRetention().value() != null;
-            if (lifecycle.isEnabled() && ((systemDataStream == false && globalRetentionIsNotNull) || (configuredLifeCycleIsNotNull))) {
+            if (lifecycle.isEnabled() && ((systemDataStream == false && globalRetentionIsNotNull) || configuredLifeCycleIsNotNull)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));

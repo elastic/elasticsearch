@@ -46,6 +46,13 @@ $endif$
         return new $Type$VectorBlock(this);
     }
 
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+$endif$
+
     @Override
     public $Type$Vector filter(int... positions) {
         return blockFactory().newConstant$Type$Vector(value, positions.length);

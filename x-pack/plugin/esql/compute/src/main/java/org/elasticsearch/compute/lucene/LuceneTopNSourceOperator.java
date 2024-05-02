@@ -232,8 +232,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     @Override
     protected void describe(StringBuilder sb) {
-        sb.append(", limit=").append(limit);
-        sb.append(", sorts=").append(sorts);
+        sb.append(", limit = ").append(limit);
+        String notPrettySorts = sorts.stream().map(Strings::toString).collect(Collectors.joining(","));
+        sb.append(", sorts = [").append(notPrettySorts).append("]");
     }
 
     static final class PerShardCollector {

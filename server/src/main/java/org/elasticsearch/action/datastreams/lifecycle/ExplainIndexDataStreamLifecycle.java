@@ -141,7 +141,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             }
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isSystemDataStream);
+                lifecycle.toXContent(builder, params, rolloverConfiguration, isSystemDataStream ? null : globalRetention);
             }
             if (this.error != null) {
                 if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {

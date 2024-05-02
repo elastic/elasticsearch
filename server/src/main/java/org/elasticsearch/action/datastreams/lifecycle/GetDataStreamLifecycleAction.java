@@ -186,8 +186,7 @@ public class GetDataStreamLifecycleAction {
                         builder,
                         org.elasticsearch.cluster.metadata.DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
                         rolloverConfiguration,
-                        globalRetention,
-                        isSystemDataStream
+                        isSystemDataStream ? null : globalRetention
                     );
                 }
                 builder.endObject();

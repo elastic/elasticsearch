@@ -118,12 +118,12 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             boolean systemDataStream = randomBoolean();
-            lifecycle.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention, systemDataStream);
+            lifecycle.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(
-                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
-            ).getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
             // Verify that max_age is marked as automatic, if it's set on auto
@@ -138,7 +138,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             }
             boolean globalRetentionIsNotNull = globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null;
             boolean configuredLifeCycleIsNotNull = lifecycle.getDataRetention() != null && lifecycle.getDataRetention().value() != null;
-            if (lifecycle.isEnabled() && ((systemDataStream == false && globalRetentionIsNotNull) || configuredLifeCycleIsNotNull)) {
+            if (lifecycle.isEnabled() && (globalRetentionIsNotNull || configuredLifeCycleIsNotNull)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));
@@ -278,34 +278,30 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
     }
 
     public void testEffectiveRetention() {
-        final boolean isSystemDataStream = false;
         // No retention in the data stream lifecycle
         {
             DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
             Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
-                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+                .getEffectiveDataRetentionWithSource(null);
             assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
             effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(null, maxRetention),
-                isSystemDataStream
+                new DataStreamGlobalRetention(null, maxRetention)
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
 
             effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null),
-                isSystemDataStream
+                new DataStreamGlobalRetention(defaultRetention, null)
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
 
             effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxRetention),
-                isSystemDataStream
+                new DataStreamGlobalRetention(defaultRetention, maxRetention)
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
@@ -321,21 +317,19 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
 
             Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
-                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+                .getEffectiveDataRetentionWithSource(null);
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
             effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null),
-                isSystemDataStream
+                new DataStreamGlobalRetention(defaultRetention, null)
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
             TimeValue maxGlobalRetention = randomBoolean() ? dataStreamRetention : TimeValue.timeValueDays(dataStreamRetention.days() + 1);
             effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention),
-                isSystemDataStream
+                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention)
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
@@ -347,93 +341,10 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                         ? null
                         : TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
                     maxRetentionLessThanDataStream
-                ),
-                isSystemDataStream
+                )
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetentionLessThanDataStream));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
-        }
-    }
-
-    public void testEffectiveRetentionSystemDataStream() {
-        /*
-         * This is very similar to testEffectiveRetention(), but it sets isSystemDataStream to true, so we expect the global data stream
-         * lifecycle to have no impact.
-         */
-        final boolean isSystemDataStream = true;
-        // No retention in the data stream lifecycle
-        {
-            DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
-            TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
-            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
-                .getEffectiveDataRetentionWithSource(null, randomBoolean());
-            assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
-
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(null, maxRetention),
-                isSystemDataStream
-            );
-            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(null));
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
-
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null),
-                isSystemDataStream
-            );
-            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(null));
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
-
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxRetention),
-                isSystemDataStream
-            );
-            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(null));
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
-        }
-
-        // With retention in the data stream lifecycle
-        {
-            TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
-            DataStreamLifecycle lifecycleRetention = DataStreamLifecycle.newBuilder()
-                .dataRetention(dataStreamRetention)
-                .downsampling(randomDownsampling())
-                .build();
-            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
-
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
-                .getEffectiveDataRetentionWithSource(null, randomBoolean());
-            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
-
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, null),
-                isSystemDataStream
-            );
-            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
-
-            TimeValue maxGlobalRetention = randomBoolean() ? dataStreamRetention : TimeValue.timeValueDays(dataStreamRetention.days() + 1);
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention),
-                isSystemDataStream
-            );
-            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
-
-            TimeValue maxRetentionLessThanDataStream = TimeValue.timeValueDays(dataStreamRetention.days() - 1);
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(
-                    randomBoolean()
-                        ? null
-                        : TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
-                    maxRetentionLessThanDataStream
-                ),
-                isSystemDataStream
-            );
-            assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
-            assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
         }
     }
 

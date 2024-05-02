@@ -24,6 +24,7 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -49,7 +50,6 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
-import org.apache.lucene.util.quantization.ScalarQuantizedRandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -449,7 +449,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                 }
             }
             if (scorerSupplier == null) {
-                scorerSupplier = new ScalarQuantizedRandomVectorScorerSupplier(
+                scorerSupplier = new ScalarQuantizedVectorScorer.ScalarQuantizedRandomVectorScorerSupplier(
                     fieldInfo.getVectorSimilarityFunction(),
                     mergedQuantizationState,
                     new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(

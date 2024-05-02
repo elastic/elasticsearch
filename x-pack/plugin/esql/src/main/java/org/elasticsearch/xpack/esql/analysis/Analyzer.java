@@ -439,11 +439,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (a.expressionsResolved() == false && Resolvables.resolved(groupings)) {
+            if (a.expressionsResolved() == false) {
                 AttributeMap<Expression> resolved = new AttributeMap<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
-                    if (attr != null) {
+                    if (attr != null && attr.resolved()) {
                         resolved.put(attr, attr);
                     }
                 }

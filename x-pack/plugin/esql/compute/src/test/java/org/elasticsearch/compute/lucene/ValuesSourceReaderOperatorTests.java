@@ -365,12 +365,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "ValuesSourceReaderOperator[fields = [long]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("ValuesSourceReaderOperator[fields = [long]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

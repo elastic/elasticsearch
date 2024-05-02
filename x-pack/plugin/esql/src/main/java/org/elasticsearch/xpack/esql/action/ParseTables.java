@@ -42,7 +42,6 @@ public class ParseTables {
 
     ParseTables(EsqlQueryRequest request, XContentParser p) {
         // TODO use a real block factory
-        // NOCOMMIT really account for size
         this.blockFactory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
         this.request = request;
         this.p = p;
@@ -66,6 +65,10 @@ public class ParseTables {
         }
     }
 
+    /**
+     * Parse a table from the request. Object keys are in the format {@code name:type}
+     * so we can be sure we'll always have a type.
+     */
     private Map<String, Column> parseTable() throws IOException {
         Map<String, Column> columns = new TreeMap<>();
         boolean success = false;
@@ -80,13 +83,15 @@ public class ParseTables {
                         return columns;
                     }
                     case FIELD_NAME -> {
-                        // NOCOMMIT just infer type from the json
                         String[] fname = p.currentName().split(":");
                         if (fname.length != 2) {
                             throw new XContentParseException(
                                 p.getTokenLocation(),
                                 "expected columns named name:type but was [" + p.currentName() + "]"
                             );
+                        }
+                        if (columns.containsKey(fname[0])) {
+                            throw new XContentParseException(p.getTokenLocation(), "duplicate column name [" + fname[0] + "]");
                         }
                         columns.put(fname[0], parseColumn(fname[1]));
                     }
@@ -105,7 +110,7 @@ public class ParseTables {
 
     private Column parseColumn(String type) throws IOException {
         return switch (type) {
-            case "int" -> parseIntColumn();
+            case "integer" -> parseIntColumn();
             case "keyword" -> parseKeywordColumn();
             case "long" -> parseLongColumn();
             default -> throw new XContentParseException(p.getTokenLocation(), "unsupported type [" + type + "]");
@@ -126,7 +131,7 @@ public class ParseTables {
                     }
                     case START_ARRAY -> parseTextArray(builder, scratch);
                     case VALUE_NULL -> builder.appendNull();
-                    case VALUE_STRING -> appendText(builder, scratch);
+                    case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN -> appendText(builder, scratch);
                     default -> throw new XContentParseException(p.getTokenLocation(), "expected string, array of strings, or null");
                 }
             }

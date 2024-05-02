@@ -65,7 +65,8 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.resultTruncationDefaultSize = resultTruncationDefaultSize;
         this.query = query;
         this.profile = profile;
-        this.tables = tables != null ? tables : emptyMap();
+        this.tables = tables;
+        assert tables != null;
     }
 
     public EsqlConfiguration(BlockStreamInput in) throws IOException {

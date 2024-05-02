@@ -101,7 +101,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
                     validationException
                 );
             }
-
+            if (tables.isEmpty() == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.TABLES_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
         }
         return validationException;
     }

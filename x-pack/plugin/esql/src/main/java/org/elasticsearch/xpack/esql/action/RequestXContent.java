@@ -54,7 +54,7 @@ final class RequestXContent {
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
-    private static final ParseField TABLES_FIELD = new ParseField("tables");
+    static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");

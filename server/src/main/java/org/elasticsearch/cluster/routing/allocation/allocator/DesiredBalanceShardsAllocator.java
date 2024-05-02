@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -34,8 +35,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -59,6 +62,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
+    private final Set<String> processedNodeShutdowns = new HashSet<>();
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -112,6 +116,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
+                processNodeShutdowns(desiredBalanceInput.routingAllocation().getClusterState());
 
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);
@@ -191,6 +196,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // This is fine as balance should have incremental rather than radical changes.
         // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).
         reconcile(currentDesiredBalance, allocation);
+    }
+
+    private void processNodeShutdowns(ClusterState clusterState) {
+        final var nodes = clusterState.nodes();
+        final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
+        // If we remove a shutdown marker from a node, but it is still in the cluster, we'd need a reset.
+        boolean reset = processedNodeShutdowns.stream()
+            .anyMatch(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
+        // Clean up processed shutdowns that are removed from the cluster metadata
+        processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
+
+        for (var shutdown : nodeShutdowns.getAll().entrySet()) {
+            if (shutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+                reset |= processedNodeShutdowns.add(shutdown.getKey());
+            }
+        }
+        if (reset) {
+            resetDesiredBalance();
+        }
     }
 
     @Override
@@ -373,5 +397,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             final long finished = threadPool.relativeTimeInMillis();
             metric.inc(finished - started);
         }
+    }
+
+    // Visible for testing
+    Set<String> getProcessedNodeShutdowns() {
+        return Set.copyOf(processedNodeShutdowns);
     }
 }

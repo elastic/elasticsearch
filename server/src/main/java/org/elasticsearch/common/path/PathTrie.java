@@ -201,6 +201,7 @@ public class PathTrie<T> {
             TrieNode node = children.get(WILDCARD);
             if (node != null
                 && token.startsWith("_")
+                && token.equals("_all") == false    // _all is always allowed for params, it's used so much
                 && (node.additionalStrings == null || node.additionalStrings.contains(token) == false)) {
                 return null;
             }

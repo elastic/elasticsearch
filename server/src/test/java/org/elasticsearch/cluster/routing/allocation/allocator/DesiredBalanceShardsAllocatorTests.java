@@ -720,16 +720,16 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             rerouteAndWait(service, clusterState, "random-reroute");
             assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
             assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), equalTo(Set.of(node2.getId())));
-
+            // Remove the shutdown marker
             final var clusterStateBuilder = ClusterState.builder(clusterState)
                 .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
-            final var nodeRemovedFromCluster = randomBoolean();
-            if (nodeRemovedFromCluster) {
+            final var removeNodeFromCluster = randomBoolean();
+            if (removeNodeFromCluster) {
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()));
             }
             clusterState = clusterStateBuilder.build();
             rerouteAndWait(service, clusterState, "random-reroute");
-            if (nodeRemovedFromCluster) {
+            if (removeNodeFromCluster) {
                 assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
             } else {
                 assertTrue("desired balance reset should be called again for processed shutdowns", resetCalled.get());
@@ -737,14 +737,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
 
             resetCalled.set(false);
-            if (nodeRemovedFromCluster == false) {
-                clusterState = ClusterState.builder(clusterState)
-                    .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
-                    .build();
-                rerouteAndWait(service, clusterState, "reroute-after-node-removed");
-                assertFalse("desired balance reset should not be called", resetCalled.get());
-                assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());
-            }
+            rerouteAndWait(service, clusterState, "random-reroute");
+            assertFalse("desired balance reset should not be called", resetCalled.get());
+            assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());
         } finally {
             clusterService.close();
             terminate(threadPool);

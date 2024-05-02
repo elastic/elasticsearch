@@ -10,13 +10,13 @@
           "name" : "str",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "String expression. If `null`, the function returns `null`."
         },
         {
           "name" : "prefix",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "String expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -28,17 +28,20 @@
           "name" : "str",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "String expression. If `null`, the function returns `null`."
         },
         {
           "name" : "prefix",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "String expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
       "returnType" : "boolean"
     }
+  ],
+  "examples" : [
+    "FROM employees\n| KEEP last_name\n| EVAL ln_S = STARTS_WITH(last_name, \"B\")"
   ]
 }

@@ -14,9 +14,12 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 
 import java.io.IOException;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +42,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
@@ -99,7 +102,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_search", "cross_cluster_replication" },
+            new String[] { "cross_cluster_search", "cross_cluster_replication", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
@@ -151,6 +154,12 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             () -> parseForAccess(randomFrom("{\"search\":null}", "{\"replication\":null}", "{\"search\":null,\"replication\":null}"))
         );
         assertThat(e2.getMessage(), containsString("doesn't support values of type: VALUE_NULL"));
+    }
+
+    public void testAPIKeyAllowsAllRemoteClusterPrivilegesForCCS() throws IOException {
+        // if users can add remote cluster permissions to a role, then the APIKey should also allow that for that permission
+        // the inverse however, is not guaranteed. cross_cluster_search exists largely for internal use and is not exposed to the users role
+        assertTrue(Set.of(CCS_CLUSTER_PRIVILEGE_NAMES).containsAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()));
     }
 
     private static void assertRoleDescriptor(

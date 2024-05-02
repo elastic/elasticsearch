@@ -71,9 +71,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             FieldFetcher fieldFetcher = FieldFetcher.create(
                 searchExecutionContext,
-                Collections.singletonList(new FieldAndFormat("field", null)),
-                (s1, mappedFieldType) -> true,
-                (s1, mappedFieldType) -> true
+                Collections.singletonList(new FieldAndFormat("field", null))
             );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

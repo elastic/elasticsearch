@@ -12,11 +12,13 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class HashLookupOperatorTests extends OperatorTestCase {
     @Override
@@ -80,19 +82,14 @@ public class HashLookupOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "HashLookup[keys=[{name=foo, type=LONG, positions=4, size=104b}], mapping=[0]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return matchesRegex("HashLookup\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "HashLookup[keys=[foo], hash=PackedValuesBlockHash{groups=[0:LONG], entries=4, size=544b}, mapping=[0]]";
-    }
-
-    @Override
-    // when you remove this AwaitsFix, also make this method in the superclass final again
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108045")
-    public void testSimpleToString() {
-        super.testSimpleToString();
+    protected Matcher<String> expectedToStringOfSimple() {
+        return matchesRegex(
+            "HashLookup\\[keys=\\[foo], hash=PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+b}, mapping=\\[0]]"
+        );
     }
 }

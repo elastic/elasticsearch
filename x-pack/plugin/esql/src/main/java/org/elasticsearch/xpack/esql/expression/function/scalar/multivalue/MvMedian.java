@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -37,9 +38,25 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 public class MvMedian extends AbstractMultivalueFunction {
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the median value."
+        description = "Converts a multivalued field into a single valued field containing the median value.",
+        examples = {
+            @Example(file = "math", tag = "mv_median"),
+            @Example(
+                description = "If the row has an even number of values for a column, "
+                    + "the result will be the average of the middle two entries. If the column is not floating point, "
+                    + "the average rounds *down*:",
+                file = "math",
+                tag = "mv_median_round_down"
+            ) }
     )
-    public MvMedian(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvMedian(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Multivalue expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

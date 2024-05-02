@@ -35,7 +35,7 @@ public class StartsWith extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Returns a boolean that indicates whether a keyword string starts with another string",
+        description = "Returns a boolean that indicates whether a keyword string starts with another string.",
         examples = @Example(file = "docs", tag = "startsWith")
     )
     public StartsWith(

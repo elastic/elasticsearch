@@ -35,7 +35,7 @@ public class EndsWith extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Returns a boolean that indicates whether a keyword string ends with another string",
+        description = "Returns a boolean that indicates whether a keyword string ends with another string.",
         examples = @Example(file = "string", tag = "endsWith")
     )
     public EndsWith(

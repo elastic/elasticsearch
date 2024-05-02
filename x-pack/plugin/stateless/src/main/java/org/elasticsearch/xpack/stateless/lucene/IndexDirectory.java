@@ -826,7 +826,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                         // We clone the actual delegate input. No need to clone our Delegate wrapper with the "cached" flag.
                         IndexInput inputToClone = current.getDelegate();
                         assert FilterIndexInput.unwrap(inputToClone) instanceof SearchIndexInput : toString();
-                        return seekOnClone(((BlobCacheBufferedIndexInput) inputToClone).clone());
+                        return seekOnClone((BlobCacheBufferedIndexInput) inputToClone.clone());
                     } else {
                         final var clone = (ReopeningIndexInput) super.clone();
                         clone.delegate = (Delegate) current.clone();

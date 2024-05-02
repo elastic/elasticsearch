@@ -97,7 +97,11 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     }
 
     @Override
-    public SearchIndexInput clone() {
+    public IndexInput clone() {
+        var bufferClone = tryCloneBuffer();
+        if (bufferClone != null) {
+            return bufferClone;
+        }
         SearchIndexInput searchIndexInput = new SearchIndexInput(super.toString(), cacheFile, context, cacheBlobReader, length(), offset);
         try {
             searchIndexInput.seek(getFilePointer());

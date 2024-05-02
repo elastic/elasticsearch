@@ -819,14 +819,18 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         @Override
-        public BlobCacheBufferedIndexInput clone() {
+        public IndexInput clone() {
+            var bufferClone = tryCloneBuffer();
+            if (bufferClone != null) {
+                return bufferClone;
+            }
             try {
                 return executeLocallyOrReopen(current -> {
                     if (current.isCached()) {
                         // We clone the actual delegate input. No need to clone our Delegate wrapper with the "cached" flag.
                         IndexInput inputToClone = current.getDelegate();
                         assert FilterIndexInput.unwrap(inputToClone) instanceof SearchIndexInput : toString();
-                        return seekOnClone((BlobCacheBufferedIndexInput) inputToClone.clone());
+                        return seekOnClone(inputToClone.clone());
                     } else {
                         final var clone = (ReopeningIndexInput) super.clone();
                         clone.delegate = (Delegate) current.clone();
@@ -843,7 +847,7 @@ public class IndexDirectory extends ByteSizeDirectory {
         /**
          * Apply the super file pointer (based on buffer position) to the cloned object.
          */
-        private BlobCacheBufferedIndexInput seekOnClone(BlobCacheBufferedIndexInput clone) {
+        private IndexInput seekOnClone(IndexInput clone) {
             try {
                 clone.seek(getFilePointer());
             } catch (IOException e) {

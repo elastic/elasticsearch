@@ -29,16 +29,19 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
@@ -97,7 +100,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.tokenPruningConfig = tokenPruningConfig;
 
         if (tokens == null ^ inferenceId == null == false) {
-            throw new IllegalArgumentException("[" + NAME + "] requires one of tokens or inference_id");
+            throw new IllegalArgumentException(
+                "[" + NAME + "] requires one of " + QUERY_VECTOR_FIELD.getPreferredName() + " or " + INFERENCE_ID_FIELD.getPreferredName()
+            );
         }
         // TODO additional validation
     }
@@ -229,77 +234,169 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
 
         if (tokens != null) {
             // Weighted tokens
-            return this;
+            return weightedTokensToQuery(fieldName, tokens);
         } else {
             // Inference
             if (weightedTokensSupplier != null) {
-                if (weightedTokensSupplier.get() == null) {
+                TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
+                if (textExpansionResults == null) {
                     return this;
                 }
-                return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
+                return weightedTokensToQuery(fieldName, textExpansionResults.getWeightedTokens());
             }
 
-            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                TaskType.TEXT_EMBEDDING,
+            // Get model ID from inference ID
+            GetInferenceModelAction.Request getInferenceModelActionRequest = new GetInferenceModelAction.Request(
                 inferenceId,
-                text,
-                List.of(text),
-                Map.of(),
-                InputType.SEARCH,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+                TaskType.SPARSE_EMBEDDING
             );
 
-            SetOnce<TextExpansionResults> sparseEmbeddingResultsSupplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction(
                 (client, listener) -> executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
-                    InferenceAction.INSTANCE,
-                    inferenceRequest,
-                    ActionListener.wrap(inferenceResponse -> {
-                        if (inferenceResponse.getResults().asMap().isEmpty()) {
-                            listener.onFailure(new IllegalStateException("inference response contain no results"));
-                            return;
+                    GetInferenceModelAction.INSTANCE,
+                    getInferenceModelActionRequest,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(GetInferenceModelAction.Response response) {
+                            String modelId = response.getModels().get(0).getInferenceEntityId();
+                            CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
+                                modelId,
+                                List.of(text),
+                                TextExpansionConfigUpdate.EMPTY_UPDATE,
+                                false,
+                                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+                            );
+                            inferRequest.setHighPriority(true);
+                            inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+
+                            queryRewriteContext.registerAsyncAction(
+                                (client1, listener1) -> executeAsyncWithOrigin(
+                                    client1,
+                                    ML_ORIGIN,
+                                    InferenceAction.INSTANCE,
+                                    inferRequest,
+                                    ActionListener.wrap(inferenceResponse -> {
+                                        if (inferenceResponse.getResults().asMap().isEmpty()) {
+                                            listener1.onFailure(new IllegalStateException("inference response contain no results"));
+                                            return;
+                                        }
+
+                                        if (inferenceResponse.getResults()
+                                            .transformToLegacyFormat()
+                                            .get(0) instanceof TextExpansionResults textExpansionResults) {
+                                            weightedTokensSupplier.set(textExpansionResults);
+                                            listener1.onResponse(null);
+                                        } else if (inferenceResponse.getResults()
+                                            .transformToLegacyFormat()
+                                            .get(0) instanceof WarningInferenceResults warning) {
+                                                listener1.onFailure(new IllegalStateException(warning.getWarning()));
+                                            } else {
+                                                listener1.onFailure(
+                                                    new IllegalStateException(
+                                                        "expected a result of type ["
+                                                            + TextExpansionResults.NAME
+                                                            + "] received ["
+                                                            + inferenceResponse.getResults()
+                                                                .transformToLegacyFormat()
+                                                                .get(0)
+                                                                .getWriteableName()
+                                                            + "]. Is ["
+                                                            + inferenceId
+                                                            + "] a compatible inferenceId?"
+                                                    )
+                                                );
+                                            }
+                                    }, listener1::onFailure)
+                                )
+                            );
                         }
 
-                        if (inferenceResponse.getResults()
-                            .transformToLegacyFormat()
-                            .get(0) instanceof TextExpansionResults textExpansionResults) {
-                            sparseEmbeddingResultsSupplier.set(textExpansionResults);
-                            listener.onResponse(null);
-                        } else if (inferenceResponse.getResults()
-                            .transformToLegacyFormat()
-                            .get(0) instanceof WarningInferenceResults warning) {
-                                listener.onFailure(new IllegalStateException(warning.getWarning()));
-                            } else {
-                                listener.onFailure(
-                                    new IllegalStateException(
-                                        "expected a result of type ["
-                                            + TextExpansionResults.NAME
-                                            + "] received ["
-                                            + inferenceResponse.getResults().transformToLegacyFormat().get(0).getWriteableName()
-                                            + "]. Is ["
-                                            + inferenceId
-                                            + "] a compatible inferenceId?"
-                                    )
-                                );
-                            }
-                    }, listener::onFailure)
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
                 )
             );
 
-            return new SparseVectorQueryBuilder(this, sparseEmbeddingResultsSupplier);
+            // queryRewriteContext.registerAsyncAction(
+            // (client, listener) -> executeAsyncWithOrigin(
+            // client,
+            // ML_ORIGIN,
+            // GetInferenceModelAction.INSTANCE,
+            // getInferenceModelActionRequest,
+            // ActionListener.wrap(getInferenceModelActionResponse -> {
+            // if (getInferenceModelActionResponse.getModels().isEmpty()) {
+            // listener.onFailure(new IllegalStateException("Inference ID not found: " + inferenceId));
+            // return;
+            // }
+            // String modelId = getInferenceModelActionResponse.getModels().get(0).getInferenceEntityId();
+            // CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
+            // modelId,
+            // List.of(text),
+            // TextExpansionConfigUpdate.EMPTY_UPDATE,
+            // false,
+            // InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            // );
+            // inferRequest.setHighPriority(true);
+            // inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+            //
+            // queryRewriteContext.registerAsyncAction(
+            // (client1, listener1) -> executeAsyncWithOrigin(
+            // client1,
+            // ML_ORIGIN,
+            // InferenceAction.INSTANCE,
+            // inferRequest,
+            // ActionListener.wrap(inferenceResponse -> {
+            // if (inferenceResponse.getResults().asMap().isEmpty()) {
+            // listener1.onFailure(new IllegalStateException("inference response contain no results"));
+            // return;
+            // }
+            //
+            // if (inferenceResponse.getResults()
+            // .transformToLegacyFormat()
+            // .get(0) instanceof TextExpansionResults textExpansionResults) {
+            // weightedTokensSupplier.set(textExpansionResults);
+            // listener1.onResponse(null);
+            // } else if (inferenceResponse.getResults()
+            // .transformToLegacyFormat()
+            // .get(0) instanceof WarningInferenceResults warning) {
+            // listener1.onFailure(new IllegalStateException(warning.getWarning()));
+            // } else {
+            // listener1.onFailure(
+            // new IllegalStateException(
+            // "expected a result of type ["
+            // + TextExpansionResults.NAME
+            // + "] received ["
+            // + inferenceResponse.getResults().transformToLegacyFormat().get(0).getWriteableName()
+            // + "]. Is ["
+            // + inferenceId
+            // + "] a compatible inferenceId?"
+            // )
+            // );
+            // }
+            // }, listener1::onFailure)
+            // )
+            // );
+            // listener.onResponse(null);
+            // }, listener::onFailure)
+            // )
+            // );
+
+            return new SparseVectorQueryBuilder(this, weightedTokensSupplier);
         }
     }
 
-    private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
+    private QueryBuilder weightedTokensToQuery(String fieldName, List<WeightedToken> weightedTokens) {
         // TODO support pruning config
         var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+        for (var weightedToken : weightedTokens) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
@@ -375,11 +472,10 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
         String fieldName = (String) a[0];
         @SuppressWarnings("unchecked")
-        Map<String, Double> weightedTokenMap = (a[1] != null ? (Map<String, Double>) a[1] : Map.of());
-        List<WeightedToken> weightedTokens = weightedTokenMap.entrySet()
-            .stream()
-            .map(e -> new WeightedToken(e.getKey(), e.getValue().floatValue()))
-            .toList();
+        Map<String, Double> weightedTokenMap = (Map<String, Double>) a[1];
+        List<WeightedToken> weightedTokens = weightedTokenMap != null
+            ? weightedTokenMap.entrySet().stream().map(e -> new WeightedToken(e.getKey(), e.getValue().floatValue())).toList()
+            : null;
         String inferenceId = (String) a[2];
         String text = (String) a[3];
         Boolean shouldPruneTokens = (Boolean) a[4];

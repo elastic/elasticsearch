@@ -79,12 +79,9 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-<<<<<<< HEAD
-=======
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
->>>>>>> cf1f83fdde7 (Fix lingering license warning header (#108031))
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;

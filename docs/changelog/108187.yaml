@@ -1,5 +1,0 @@
-pr: 108187
-summary: Revert "Make `MappedActionFilter` its own interface"
-area: Infra/Core
-type: bug
-issues: []

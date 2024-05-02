@@ -61,6 +61,8 @@ public class PathTrie<T> {
     private static final String SEPARATOR = "/";
     private static final String WILDCARD = "*";
 
+    private static final Set<String> PARAM_WILDCARDS = Set.of("_all", "_doc", "_id");
+
     public PathTrie(UnaryOperator<String> decoder) {
         this.decoder = decoder;
         root = new TrieNode(SEPARATOR, null);
@@ -201,7 +203,7 @@ public class PathTrie<T> {
             TrieNode node = children.get(WILDCARD);
             if (node != null
                 && token.startsWith("_")
-                && token.equals("_all") == false    // _all is always allowed for params, it's used so much
+                && PARAM_WILDCARDS.contains(token) == false
                 && (node.additionalStrings == null || node.additionalStrings.contains(token) == false)) {
                 return null;
             }

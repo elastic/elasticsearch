@@ -43,7 +43,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             new Route(GET, "/_nodes"),
             // this endpoint is used for metrics, not for node IDs, like /_nodes/fs
             new Route(GET, "/_nodes/{nodeId|_local|_master}"),
-            new Route(GET, "/_nodes/{nodeId}/{metrics}"),
+            new Route(GET, "/_nodes/{nodeId}/{metrics|_none}"),
             // added this endpoint to be aligned with stats
             new Route(GET, "/_nodes/{nodeId}/info/{metrics}")
         );

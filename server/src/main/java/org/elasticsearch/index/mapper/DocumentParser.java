@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -414,7 +415,23 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                fieldMapper.parse(context);
+                if (context.mappingLookup().isSourceSynthetic() && fieldMapper.supportsSyntheticSourceNatively() == false) {
+                    Tuple<XContentParser, XContentParser> clonedParsers = XContentHelper.cloneParser(context.parser());
+
+                    int parentOffset = context.parent() instanceof RootObjectMapper ? 0 : context.parent().fullPath().length() + 1;
+                    context.addIgnoredField(
+                        new IgnoredSourceFieldMapper.NameValue(
+                            fieldMapper.name(),
+                            parentOffset,
+                            XContentDataHelper.encodeToken(clonedParsers.v1())
+                        )
+                    );
+
+                    var switchParserContext = context.switchParser(clonedParsers.v2());
+                    fieldMapper.parse(switchParserContext);
+                } else {
+                    fieldMapper.parse(context);
+                }
             }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();

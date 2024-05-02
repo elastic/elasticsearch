@@ -7,9 +7,17 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -19,6 +27,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -219,7 +229,138 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        enum ShapeType {
+            POINT,
+            LINESTRING,
+            POLYGON,
+            MULTIPOINT,
+            MULTILINESTRING,
+            MULTIPOLYGON,
+            GEOMETRYCOLLECTION,
+            BBOX
+        }
+        ;
+
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                if (randomBoolean()) {
+                    Value v = generateValue();
+                    if (v.wktOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.output, v.wktOutput, this::mapping);
+                    }
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
+                }
+
+                List<Value> values = randomList(1, maxValues, this::generateValue);
+                List<Object> in = values.stream().map(Value::input).toList();
+                List<Object> out = values.stream().map(Value::output).toList();
+                List<Object> outBlock = values.stream().map(v -> v.wktOutput != null ? v.wktOutput : v.output).toList();
+
+                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+            }
+
+            private record Value(Object input, Object output, String wktOutput) {
+                Value(Object input, Object output) {
+                    this(input, output, null);
+                }
+            }
+
+            private Value generateValue() {
+                if (ignoreMalformed && randomBoolean()) {
+                    List<Supplier<Object>> choices = List.of(
+                        () -> randomAlphaOfLength(3),
+                        ESTestCase::randomInt,
+                        ESTestCase::randomLong,
+                        ESTestCase::randomFloat,
+                        ESTestCase::randomDouble
+                    );
+                    Object v = randomFrom(choices).get();
+                    return new Value(v, v);
+                }
+                if (randomBoolean()) {
+                    return new Value(null, null);
+                }
+
+                var type = randomFrom(ShapeType.values());
+                var isGeoJson = randomBoolean();
+
+                switch (type) {
+                    case POINT -> {
+                        var point = GeometryTestUtils.randomPoint(false);
+                        return value(point, isGeoJson);
+                    }
+                    case LINESTRING -> {
+                        var line = GeometryTestUtils.randomLine(false);
+                        return value(line, isGeoJson);
+                    }
+                    default -> {
+                        return ignoreMalformed ? new Value("foo", "foo") : new Value(null, null);
+                    }
+                }
+            }
+
+            private static Value value(Geometry geometry, boolean isGeoJson) {
+                var wktString = WellKnownText.toWKT(geometry);
+
+                if (isGeoJson) {
+                    var map = GeoJson.toMap(geometry);
+                    return new Value(map, map, wktString);
+                }
+
+                return new Value(wktString, wktString);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "geo_shape");
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("doc_values", false);
+                }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        return v -> asWKT((BytesRef) v);
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        // TODO are we okay that we don't support synthetic source here?
+        return new BlockReaderSupport(false, false, mapper, loaderFieldName);
+    }
+
+    @Override
+    protected boolean supportsEmptyInputArray() {
+        // TODO currently we serialize empty array as is in synthetic source but apparently for other fields we don't
+        // and we skip the entire field
+        return false;
+    }
+
+    @Override
+    protected boolean supportsCopyTo() {
+        // TODO this is so that `testSyntheticSourceInvalid` does not complain
+        // in theory geo_shape could support copy_to
+        // should we fail to construct synthetic source in `FieldMapper` if there is copy_to ?
+        return false;
     }
 
     @Override

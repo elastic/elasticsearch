@@ -602,6 +602,11 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsSyntheticSourceNatively() {
+        return true;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;

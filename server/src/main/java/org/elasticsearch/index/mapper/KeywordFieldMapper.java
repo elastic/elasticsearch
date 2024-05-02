@@ -1022,6 +1022,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsSyntheticSourceNatively() {
+        return true;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return syntheticFieldLoader(simpleName());
     }

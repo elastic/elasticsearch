@@ -748,4 +748,24 @@ public class XContentHelper {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
+
+    public static Tuple<XContentParser, XContentParser> cloneParser(XContentParser parser) throws IOException {
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+
+        var bytes = BytesReference.bytes(builder);
+        var configuration = XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+            .withDeprecationHandler(parser.getDeprecationHandler())
+            .withRestApiVersion(parser.getRestApiVersion());
+
+        var parser1 = createParserNotCompressed(configuration, bytes, parser.contentType());
+        var parser2 = createParserNotCompressed(configuration, bytes, parser.contentType());
+
+        assert parser1.currentToken() == null;
+        parser1.nextToken();
+        assert parser2.currentToken() == null;
+        parser2.nextToken();
+
+        return Tuple.tuple(parser1, parser2);
+    }
 }

@@ -683,6 +683,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsSyntheticSourceNatively() {
+        return true;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (ignoreMalformed) {
             throw new IllegalArgumentException(

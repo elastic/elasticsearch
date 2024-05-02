@@ -344,6 +344,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsSyntheticSourceNatively() {
+        return true;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         String value = fieldType().value();
         ;

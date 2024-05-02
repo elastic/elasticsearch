@@ -181,6 +181,7 @@ public abstract class FieldMapper extends Mapper {
             if (hasScript) {
                 throwIndexingWithScriptParam();
             }
+
             parseCreateField(context);
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
@@ -436,6 +437,26 @@ public abstract class FieldMapper extends Mapper {
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();
+    }
+
+    /**
+     * If a mapper natively supports synthetic source, f.e. by constructing it from doc values.
+     * @return true or false
+     */
+    protected boolean supportsSyntheticSourceNatively() {
+        return false;
+    }
+
+    /**
+     * Mappers override this method with native synthetic source support.
+     * If mapper does not support synthetic source, it is generated using generic implementation
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     *
+     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
+     */
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {

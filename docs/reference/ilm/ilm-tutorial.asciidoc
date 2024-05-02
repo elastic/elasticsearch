@@ -17,7 +17,7 @@ TIP: <<data-streams,Data streams>> are best suited for
 <<data-streams-append-only,append-only>> use cases. If you need to update or delete existing time
 series data, you can perform update or delete operations directly on the data stream backing index.
 If you frequently send multiple documents using the same `_id` expecting last-write-wins, you may
-want to use an index alias with a write index instead. You can still use <<index-lifecycle-management,ILM>> to manage and <<index-rollover,rollover>> 
+want to use an index alias with a write index instead. You can still use <<index-lifecycle-management,ILM>> to manage and <<index-rollover,roll over>> 
 the alias's indices. Skip to <<manage-time-series-data-without-data-streams>>.
 
 [discrete]

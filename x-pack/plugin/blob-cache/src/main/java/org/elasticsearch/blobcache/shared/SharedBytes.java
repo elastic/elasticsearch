@@ -204,7 +204,7 @@ public class SharedBytes extends AbstractRefCounted {
             if (bytesRead <= 0) {
                 break;
             }
-            bytesCopied = copyToCacheFileAligned(fc, fileChannelPos, progressUpdater, buffer);
+            bytesCopied = copyToCacheFileAligned(fc, fileChannelPos + bytesCopied, progressUpdater, buffer);
         }
         return bytesCopied;
     }

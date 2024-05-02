@@ -128,10 +128,14 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
-        if (upgradedNodes.size() < requestedUpgradedNodes) {
+        // Grab the first node and set the version to be different from the current version for a multiversioned cluster
+        ElasticsearchNode firstNode = cluster.getFirstNode();
+        firstNode.setVersion(Version.OLD_CLUSTER_VERSION);
+
+        if (upgradedNodes.size() < requestedUpgradedNodes - 1) {
             closeClients();
             // we might be running a specific upgrade test by itself - check previous nodes too
-            for (int n = 0; n < requestedUpgradedNodes; n++) {
+            for (int n = 0; n < requestedUpgradedNodes - 1; n++) {
                 if (upgradedNodes.add(n)) {
                     try {
                         logger.info("Upgrading node {} to version {}", n, Version.CURRENT);
@@ -144,6 +148,25 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             }
             initClient();
         }
+    }
+
+    @Test
+    public void testShutdown() {
+        // This test is here to catch issues with a node shutting down during upgrade
+        
+        // Get last node which was not upgraded in the previous test
+        ElasticsearchNode lastNode = cluster.getLastNode();
+
+        //Upgrade the node
+        cluster.upgradeNodeToVersion(requestedUpgradedNodes - 1, Version.CURRENT);
+
+        // Shutdown the node
+        lastNode.stop();
+
+        // Restart the node
+        lastNode.start();
+
+        assertTrue(lastNode.isProcessAlive());
     }
 
     @AfterClass

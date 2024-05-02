@@ -1073,12 +1073,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean updatableTo(IndexOptions update) {
-            boolean sameType = update.type.equals(this.type);
-            if (sameType) {
+            boolean updatable = update.type.equals(this.type);
+            if (updatable) {
                 Int8HnswIndexOptions int8HnswIndexOptions = (Int8HnswIndexOptions) update;
-                sameType = int8HnswIndexOptions.m >= this.m;
+                // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
+                // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
+                updatable = int8HnswIndexOptions.m >= this.m && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval);
             }
-            return sameType;
+            return updatable;
         }
     }
 
@@ -1099,12 +1101,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean updatableTo(IndexOptions update) {
-            boolean sameType = update.type.equals(this.type);
-            if (sameType) {
+            boolean updatable = update.type.equals(this.type);
+            if (updatable) {
+                // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
                 HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) update;
-                sameType = hnswIndexOptions.m >= this.m;
+                updatable = hnswIndexOptions.m >= this.m;
             }
-            return sameType || update.type.equals(VectorIndexType.INT8_HNSW.name);
+            return updatable || (update.type.equals(VectorIndexType.INT8_HNSW.name) && ((Int8HnswIndexOptions) update).m >= m);
         }
 
         @Override

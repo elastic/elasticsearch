@@ -204,15 +204,21 @@ public class SharedBytes extends AbstractRefCounted {
             if (bytesRead <= 0) {
                 break;
             }
-            if (buffer.hasRemaining()) {
-                // ensure that last write is aligned on 4k boundaries (= page size)
-                final int remainder = buffer.position() % PAGE_SIZE;
-                final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
-                buffer.position(buffer.position() + adjustment);
-            }
-            bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buffer);
-            progressUpdater.accept(bytesCopied);
+            bytesCopied = copyToCacheFileAligned(fc, fileChannelPos, progressUpdater, buffer);
         }
+        return bytesCopied;
+    }
+
+    public static int copyToCacheFileAligned(IO fc, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
+        throws IOException {
+        if (buffer.hasRemaining()) {
+            // ensure that last write is aligned on 4k boundaries (= page size)
+            final int remainder = buffer.position() % PAGE_SIZE;
+            final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
+            buffer.position(buffer.position() + adjustment);
+        }
+        int bytesCopied = positionalWrite(fc, fileChannelPos, buffer);
+        progressUpdater.accept(bytesCopied);
         return bytesCopied;
     }
 

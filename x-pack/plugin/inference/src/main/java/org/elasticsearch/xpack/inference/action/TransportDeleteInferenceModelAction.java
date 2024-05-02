@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
+import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
@@ -70,14 +71,7 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // specific task type in request does not match the models
-                l1.onFailure(
-                    new ElasticsearchStatusException(
-                        "Requested task type [{}] does not match the model's task type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        request.getTaskType(),
-                        unparsedModel.taskType()
-                    )
-                );
+                l1.onFailure(InferenceExceptions.mismatchedTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
             var service = serviceRegistry.getService(unparsedModel.service());

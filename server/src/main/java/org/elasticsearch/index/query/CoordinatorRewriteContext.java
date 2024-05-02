@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -27,15 +28,17 @@ import java.util.function.LongSupplier;
  * don't hold queried data. See IndexMetadata#getTimestampRange() for more details
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
-    private final IndexLongFieldRange indexLongFieldRange;
-    private final DateFieldMapper.DateFieldType timestampFieldType;
+    private final DateFieldRange atTimestampInfo; // Refers to '@timestamp' field
+    // Refers to 'event.ingested' field
+    private DateFieldRange eventIngestedInfo;  // TODO: make final
+
+    public record DateFieldRange(DateFieldMapper.DateFieldType fieldType, IndexLongFieldRange fieldRange) {}
 
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        IndexLongFieldRange indexLongFieldRange,
-        DateFieldMapper.DateFieldType timestampFieldType
+        DateFieldRange atTimestampRange  // MP TODO: add eventIngestedRange
     ) {
         super(
             parserConfig,
@@ -53,29 +56,56 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null
         );
-        this.indexLongFieldRange = indexLongFieldRange;
-        this.timestampFieldType = timestampFieldType;
+        this.atTimestampInfo = atTimestampRange;
     }
 
-    long getMinTimestamp() {
-        return indexLongFieldRange.getMin();
+    long getMinTimestamp(String fieldName) {
+        /// MP TODO: are there static final entries for these field names somewhere?
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldRange().getMin();
+        } else if (fieldName.equals("event.ingested")) {
+            return eventIngestedInfo.fieldRange.getMin();
+        } else {
+            throw new IllegalArgumentException(
+                "Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but got: " + fieldName
+            );
+        }
     }
 
-    long getMaxTimestamp() {
-        return indexLongFieldRange.getMax();
+    long getMaxTimestamp(String fieldName) {
+        /// MP TODO: are there static final entries for these field names somewhere?
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldRange().getMax();
+        } else if (fieldName.equals("event.ingested")) {
+            return eventIngestedInfo.fieldRange.getMax();
+        } else {
+            throw new IllegalArgumentException(
+                "Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but got: " + fieldName
+            );
+        }
     }
 
-    boolean hasTimestampData() {
-        return indexLongFieldRange.isComplete() && indexLongFieldRange != IndexLongFieldRange.EMPTY;
+    boolean hasTimestampData(String fieldName) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldRange().isComplete() && atTimestampInfo.fieldRange() != IndexLongFieldRange.EMPTY;
+        } else if (fieldName.equals("event.ingested")) {
+            return eventIngestedInfo.fieldRange().isComplete() && eventIngestedInfo.fieldRange() != IndexLongFieldRange.EMPTY;
+        } else {
+            throw new IllegalArgumentException(
+                "Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but got: " + fieldName
+            );
+        }
     }
 
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
-        if (fieldName.equals(timestampFieldType.name()) == false) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldType();
+        } else if (fieldName.equals("event.ingested")) {
+            return eventIngestedInfo.fieldType();
+        } else {
             return null;
         }
-
-        return timestampFieldType;
     }
 
     @Override

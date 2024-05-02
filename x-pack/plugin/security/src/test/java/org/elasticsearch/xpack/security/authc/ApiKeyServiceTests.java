@@ -1510,10 +1510,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
+        try (var ignored = appender.capturing(ApiKeyService.class)) {
             appender.addExpectation(
                 new MockLogAppender.PatternSeenEventExpectation(
                     "evict",
@@ -1556,9 +1554,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             apiKeyAuthCache.invalidateAll();
             appender.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1575,10 +1571,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
+        try (var ignored = appender.capturing(ApiKeyService.class)) {
             appender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "evict",
@@ -1596,9 +1590,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(1, apiKeyAuthCache.count());
             appender.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1612,10 +1604,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
+        try (var ignored = appender.capturing(ApiKeyService.class)) {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
             final long thrashingCheckIntervalInSeconds = 300L;
@@ -1670,9 +1660,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 

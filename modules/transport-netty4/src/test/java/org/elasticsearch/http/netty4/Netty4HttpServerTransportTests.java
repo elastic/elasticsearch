@@ -81,7 +81,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
-import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
@@ -569,8 +568,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         };
         // there's only one netty worker thread that's reused across client requests
         Settings settings = Settings.builder()
-            .put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
-            .put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
+            .put(Netty4Transport.WORKER_COUNT.getKey(), 1)
+            .put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
             .build();
         NioEventLoopGroup group = new NioEventLoopGroup();
         AtomicBoolean acceptChannel = new AtomicBoolean();

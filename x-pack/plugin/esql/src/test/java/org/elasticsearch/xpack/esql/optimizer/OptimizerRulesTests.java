@@ -45,7 +45,6 @@ import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
@@ -548,7 +547,7 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
-    // a * 3 == 4   ->   a == 2
+    // a * 3 == 4   ->   no change (integers)
     public void testSimplifyEqualsMultiplicationUneven() {
         FieldAttribute fa = getFieldAttribute();
         Equals before = equalsOf(new Mul(EMPTY, fa, THREE), FOUR);
@@ -557,6 +556,16 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression actual = rule.rule(before);
         // Since these are all integers, we aren't able to rearrange this.  Although it seems like we could rewrite the whole thing to
         // false, since no integer a satisfies this equality.
+        assertEquals(before, actual);
+    }
+
+    // a * 0 == 2   ->   Multiplications and divisions involving a zero are not optimized
+    public void testSimplifyEqualsMultiplicationZero() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Mul(EMPTY, fa, ZERO), TWO);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
         assertEquals(before, actual);
     }
 
@@ -569,10 +578,21 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression actual = rule.rule(before);
         assertEquals(before, actual);
     }
+
     // a / 2 == 2   ->   Also not optimized, due to floating point rounding
     public void testSimplifyEqualsDivideDouble() {
         FieldAttribute fa = TestUtils.getFieldAttribute("a", DOUBLE);
         Equals before = equalsOf(new Div(EMPTY, fa, TWO_DOUBLE), TWO_DOUBLE);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        Expression actual = rule.rule(before);
+        assertEquals(before, actual);
+    }
+
+    // a / 2 == 0   ->   Multiplications and divisions involving a zero are not optimized
+    public void testSimplifyEqualsDivideZero() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals before = equalsOf(new Div(EMPTY, fa, TWO), ZERO);
         OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
 
         Expression actual = rule.rule(before);
@@ -587,5 +607,16 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Expression actual = rule.rule(before);
         assertEquals(before, actual);
+    }
+
+    // a * -2 > 4   ->   a < -2
+    public void testSimplifyGreaterThanWithNegativeMultiplication() {
+        FieldAttribute fa = getFieldAttribute();
+        GreaterThan before = greaterThanOf(new Mul(EMPTY, fa, new Literal(EMPTY, -2, DataTypes.INTEGER)), FOUR);
+        OptimizerRules.SimplifyComparisonsArithmetics rule = simplifyComparisonsArithmetics();
+
+        LessThan expected = lessThanOf(fa, new Literal(EMPTY, -2, DataTypes.INTEGER));
+        Expression actual = rule.rule(before);
+        assertEquals(expected, actual);
     }
 }

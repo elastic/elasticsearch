@@ -109,7 +109,6 @@ public class ReservedClusterStateService {
     }
 
     ReservedStateChunk parse(String namespace, XContentParser parser) {
-        logger.info("Parsing reserved state chunk [{}]", namespace);
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {

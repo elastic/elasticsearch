@@ -60,6 +60,11 @@ public class MappedActionFiltersTests extends ESTestCase {
             }
 
             @Override
+            public int order() {
+                return 0;
+            }
+
+            @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void apply(
                 Task task,
                 String action,
@@ -96,6 +101,11 @@ public class MappedActionFiltersTests extends ESTestCase {
             }
 
             @Override
+            public int order() {
+                return 0;
+            }
+
+            @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void apply(
                 Task task,
                 String action,
@@ -111,6 +121,11 @@ public class MappedActionFiltersTests extends ESTestCase {
             @Override
             public String actionName() {
                 return "dummyAction";
+            }
+
+            @Override
+            public int order() {
+                return 0;
             }
 
             @Override
@@ -147,6 +162,11 @@ public class MappedActionFiltersTests extends ESTestCase {
             @Override
             public String actionName() {
                 return "dummyAction";
+            }
+
+            @Override
+            public int order() {
+                return 0;
             }
 
             @Override

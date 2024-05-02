@@ -16,7 +16,6 @@ public interface EmbeddingResults {
 
     EmbeddingType embeddingType();
 
-
     enum EmbeddingType {
         SPARSE {
             public Class<? extends InferenceServiceResults> matchedClass() {

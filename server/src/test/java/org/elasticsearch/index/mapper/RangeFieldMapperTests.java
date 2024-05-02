@@ -359,7 +359,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         @Override
         public int compareTo(TestRange<T> o) {
             return Comparator.comparing((TestRange<T> r) -> r.from, Comparator.nullsFirst(Comparator.naturalOrder()))
-                .thenComparing((TestRange<T> r) -> r.to)
+                // `> a` is converted into `>= a + 1` and so included range end will be smaller in resulting source
+                .thenComparing(r -> r.includeFrom, Comparator.reverseOrder())
+                .thenComparing(r -> r.to, Comparator.nullsLast(Comparator.naturalOrder()))
+                // `< a` is converted into `<= a - 1` and so included range end will be larger in resulting source
+                .thenComparing(r -> r.includeTo)
                 .compare(this, o);
         }
     }

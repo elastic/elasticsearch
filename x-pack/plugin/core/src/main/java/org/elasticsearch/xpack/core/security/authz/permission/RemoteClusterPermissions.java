@@ -32,7 +32,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Represents a group of permissions for a remote cluster. This is intended to be the model for both the {@link RoleDescriptor}
+ * Represents the set of permissions for remote clusters. This is intended to be the model for both the {@link RoleDescriptor}
  * and {@link Role}. This model is not intended to be sent to a remote cluster, but can be (wire) serialized within a single cluster
  * as well as the Xcontent serialization for the REST API and persistence of the role in the security index. The privileges modeled here
  * will be converted to the appropriate cluster privileges when sent to a remote cluster.

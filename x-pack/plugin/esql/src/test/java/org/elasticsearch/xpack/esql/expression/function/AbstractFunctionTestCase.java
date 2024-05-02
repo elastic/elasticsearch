@@ -360,25 +360,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         boolean readFloating = randomBoolean();
         int positions = between(1, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
-        int perRowBytesRefSize = 0;
-        for (TestCaseSupplier.TypedData d : data) {
-            if (d.getValue() instanceof BytesRef b) {
-                perRowBytesRefSize += b.length;
-            }
-            if (d.getValue() instanceof List<?> l) {
-                for (Object o : l) {
-                    if (o instanceof BytesRef b) {
-                        perRowBytesRefSize += b.length;
-                    }
-                }
-            }
-        }
-        if (perRowBytesRefSize > 0) {
-            int n = Math.max(20 * 1024 * 1024 / perRowBytesRefSize, 20);
-            if (n < positions) {
-                positions = n;
-            }
-        }
         Page onePositionPage = row(testCase.getDataValues());
         Block[] manyPositionsBlocks = new Block[data.size()];
         Set<Integer> nullPositions = insertNulls

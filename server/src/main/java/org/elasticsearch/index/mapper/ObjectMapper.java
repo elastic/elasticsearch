@@ -823,7 +823,7 @@ public class ObjectMapper extends Mapper {
             if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
                 return false;
             }
-            ignoredValues = objectsWithIgnoredFields.get(name());
+            ignoredValues = objectsWithIgnoredFields.remove(name());
             hasValue |= ignoredValues != null;
             for (SourceLoader.SyntheticFieldLoader loader : fields) {
                 hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);

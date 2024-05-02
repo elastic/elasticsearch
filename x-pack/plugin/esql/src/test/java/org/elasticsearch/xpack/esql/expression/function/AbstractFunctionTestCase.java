@@ -311,6 +311,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
         } catch (CircuitBreakingException ex) {
             assertThat(ex.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+            assertFalse("Test data is too large to fit in the memory", true);
         }
     }
 
@@ -324,6 +325,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
         } catch (CircuitBreakingException ex) {
             assertThat(ex.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+            assertFalse("Test data is too large to fit in the memory", true);
         }
     }
 
@@ -1533,17 +1535,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected final DriverContext driverContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
         return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
     }
 
     protected final DriverContext crankyContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
+            .withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays.withCircuitBreaking(), new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
     }
 
     @After

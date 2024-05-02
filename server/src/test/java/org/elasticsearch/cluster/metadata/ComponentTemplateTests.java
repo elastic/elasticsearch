@@ -291,7 +291,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
-            template.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
+            template.toXContent(builder, withEffectiveRetention, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
@@ -299,13 +299,12 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was no retention provided by the user, the global retention applies
+            /*
+             * A template does not have a global retention and the lifecycle has no retention, so there will be no data_retention or
+             * effective_retention.
+             */
             assertThat(serialized, not(containsString("data_retention")));
-            if (globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null) {
-                assertThat(serialized, containsString("effective_retention"));
-            } else {
-                assertThat(serialized, not(containsString("effective_retention")));
-            }
+            assertThat(serialized, not(containsString("effective_retention")));
         }
     }
 }

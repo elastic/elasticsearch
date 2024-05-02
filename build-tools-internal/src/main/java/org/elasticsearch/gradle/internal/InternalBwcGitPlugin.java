@@ -122,7 +122,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir());
             // Fetch latest from remotes, including tags, overriding any existing local refs
-            fetchLatest.commandLine("git", "fetch", "--all", "--tags", "--force");
+            fetchLatest.commandLine("git", "fetch", "--all", "--tags", "--force", "--recurse-submodules");
         });
 
         String projectPath = project.getPath();

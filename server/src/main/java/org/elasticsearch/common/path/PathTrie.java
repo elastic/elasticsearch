@@ -15,6 +15,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -58,7 +59,6 @@ public class PathTrie<T> {
     private T rootValue;
 
     private static final String SEPARATOR = "/";
-    private static final char REGEX_SEPARATOR = '|';
     private static final String WILDCARD = "*";
 
     public PathTrie(UnaryOperator<String> decoder) {
@@ -69,7 +69,7 @@ public class PathTrie<T> {
     private class TrieNode {
         private T value;
         private String namedWildcard;
-        private Pattern wildcardRegex;
+        private Set<String> additionalStrings;
 
         private Map<String, TrieNode> children;
 
@@ -81,21 +81,16 @@ public class PathTrie<T> {
             }
         }
 
-        private void updateNamedWildcard(String key) {
-            assert key.startsWith("{") && key.endsWith("}") : key + " is not a wildcard";
+        private static final Pattern SPLIT = Pattern.compile("[{|}]");
 
-            Pattern newWildcardRegex;
-            String newNamedWildcard;
-            int regexIndex = key.lastIndexOf(REGEX_SEPARATOR);
-            if (regexIndex >= 0) {
-                // first part is regex, second part is param id
-                // remember to strip off the { and }
-                newWildcardRegex = Pattern.compile(key.substring(1, regexIndex));
-                newNamedWildcard = key.substring(regexIndex + 1, key.length() - 1);
-            } else {
-                newWildcardRegex = null;
-                newNamedWildcard = key.substring(1, key.length() - 1);
-            }
+        private void updateNamedWildcard(String key) {
+            assert key.charAt(0) == '{' && key.charAt(key.length() - 1) == '}' : key + " is not a wildcard";
+
+            String[] wildcardSpec = SPLIT.split(key);
+            // first one is always the empty string because split() is a bit weird
+            assert wildcardSpec[0].isEmpty();
+            String newNamedWildcard = wildcardSpec[1];
+            Set<String> newAdditionalStrings = Set.copyOf(Arrays.asList(wildcardSpec).subList(2, wildcardSpec.length));
 
             if (newNamedWildcard.equals(namedWildcard) == false) {
                 if (namedWildcard != null) {
@@ -106,20 +101,20 @@ public class PathTrie<T> {
                 namedWildcard = newNamedWildcard;
             }
 
-            if (newWildcardRegex != null
-                && newWildcardRegex.pattern().equals(wildcardRegex != null ? wildcardRegex.pattern() : null) == false) {
-                if (wildcardRegex != null) {
+            if (newAdditionalStrings.isEmpty() == false
+                && newAdditionalStrings.equals(additionalStrings) == false) {
+                if (additionalStrings != null) {
                     throw new IllegalArgumentException(
-                        "Trying to use conflicting wildcard regex for same wildcard ["
+                        "Trying to use conflicting additional strings for same wildcard ["
                             + namedWildcard
                             + "]: ["
-                            + wildcardRegex
+                            + additionalStrings
                             + "] and ["
-                            + newWildcardRegex
+                            + newAdditionalStrings
                             + "]"
                     );
                 }
-                wildcardRegex = newWildcardRegex;
+                additionalStrings = newAdditionalStrings;
             }
         }
 
@@ -204,15 +199,11 @@ public class PathTrie<T> {
         }
 
         private TrieNode getWildcardNodeForToken(String token) {
-            TrieNode wildcard = children.get(WILDCARD);
-            // check the wildcard regex too, if the token itself is not a wildcard
-            if (token.equals(WILDCARD) == false
-                && wildcard != null
-                && wildcard.wildcardRegex != null
-                && wildcard.wildcardRegex.matcher(token).matches() == false) {
+            if (token.startsWith("_") && (additionalStrings == null || additionalStrings.contains(token) == false)) {
                 return null;
             }
-            return wildcard;
+
+            return children.get(WILDCARD);
         }
 
         private T retrieve(String[] path, int index, Map<String, String> params, TrieMatchingMode trieMatchingMode) {

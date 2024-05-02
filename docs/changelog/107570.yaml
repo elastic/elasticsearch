@@ -1,6 +1,0 @@
-pr: 107570
-summary: "Allow regexes to be specified as part of rest paths, limiting when handlers\
-  \ are called"
-area: Infra/REST API
-type: enhancement
-issues: []

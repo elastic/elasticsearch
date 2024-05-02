@@ -99,17 +99,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
     }
 
-    public void testNameRegexClashes() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("{.*|testA}", "test1");
-
-        var e = expectThrows(IllegalArgumentException.class, () -> trie.insert("{testB}", "test2"));
-        assertThat(e.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: [testA] and [testB]"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> trie.insert("{.+|testA}", "test2"));
-        assertThat(e.getMessage(), equalTo("Trying to use conflicting wildcard regex for same wildcard [testA]: [.*] and [.+]"));
-    }
-
     // https://github.com/elastic/elasticsearch/pull/17916
     public void testWildcardMatchingModes() {
         PathTrie<String> trie = new PathTrie<>(NO_DECODER);
@@ -237,61 +226,5 @@ public class PathTrieTests extends ESTestCase {
         params.clear();
         assertThat(pathTrie.retrieve("/<logstash-{now%2Fd}>/type/id", params), equalTo("test"));
         assertThat(params, equalTo(Map.of("index", "<logstash-{now/d}>", "type", "type", "id", "id")));
-    }
-
-    public void testWildcardRegexes() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("x/{a.*a|test}", "test1");
-        trie.insert("{a.*a|test}/a", "test2");
-        trie.insert("/{a.*a|test}", "test3");
-        trie.insert("/{a.*a|test}/_endpoint", "test4");
-        trie.insert("/*/{a.*a|test}/_endpoint", "test5");
-
-        Map<String, String> params = new HashMap<>();
-        assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
-        assertThat(params, equalTo(Map.of("test", "*")));
-        assertThat(trie.retrieve("/x/a"), nullValue());
-
-        params = new HashMap<>();
-        assertThat(trie.retrieve("/aba/a", params), equalTo("test2"));
-        assertThat(params, equalTo(Map.of("test", "aba")));
-        assertThat(trie.retrieve("/a/a"), nullValue());
-
-        params = new HashMap<>();
-        assertThat(trie.retrieve("/*", params), equalTo("test3"));
-        assertThat(params, equalTo(Map.of("test", "*")));
-
-        params = new HashMap<>();
-        assertThat(trie.retrieve("/*/_endpoint", params), equalTo("test4"));
-        assertThat(params, equalTo(Map.of("test", "*")));
-        assertThat(trie.retrieve("/a/_endpoint"), nullValue());
-
-        params = new HashMap<>();
-        assertThat(trie.retrieve("aba/*/_endpoint", params), equalTo("test5"));
-        assertThat(params, equalTo(Map.of("test", "*")));
-        assertThat(trie.retrieve("/a/*/_endpoint"), nullValue());
-
-        trie = new PathTrie<>(NO_DECODER);
-        trie.insert("/{m|n|test2}", "test6");
-        assertThat(trie.retrieve("/m"), equalTo("test6"));
-        assertThat(trie.retrieve("/n"), equalTo("test6"));
-        assertThat(trie.retrieve("/o"), nullValue());
-    }
-
-    public void testUpdateRegexes() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("{testA}", "test1");
-
-        // regex can be updated once as part of a path
-        trie.insert("{a.*a|testA}/x", "test2");
-        trie.insert("{testA}/y", "test3");
-        // but fails if updated again
-        expectThrows(IllegalArgumentException.class, () -> trie.insert("{.+|testA}/z", "test4"));
-
-        assertThat(trie.retrieve("aa"), equalTo("test1"));
-        assertThat(trie.retrieve("aa/x"), equalTo("test2"));
-        assertThat(trie.retrieve("aa/y"), equalTo("test3"));
-        assertThat(trie.retrieve("aa/z"), nullValue());
-        assertThat(trie.retrieve("a/y"), nullValue());
     }
 }

@@ -136,4 +136,9 @@ public record TextEmbeddingResults(List<FloatEmbedding> embeddings) implements I
     public List<FloatEmbedding> embeddings() {
         return embeddings;
     }
+
+    @Override
+    public EmbeddingType embeddingType() {
+        return EmbeddingType.FLOAT;
+    }
 }

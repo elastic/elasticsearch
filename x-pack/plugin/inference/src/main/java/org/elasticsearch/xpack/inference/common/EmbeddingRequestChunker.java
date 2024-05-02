@@ -25,9 +25,6 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbedding;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,28 +61,7 @@ public class EmbeddingRequestChunker {
     private AtomicArray<ErrorChunkedInferenceResults> errors;
     private ActionListener<List<ChunkedInferenceServiceResults>> finalListener;
 
-    private enum EmbeddingType {
-        SPARSE {
-            public Class<? extends InferenceServiceResults> matchedClass() {
-                return SparseEmbeddingResults.class;
-            };
-        },
-        FLOAT {
-            public Class<? extends InferenceServiceResults> matchedClass() {
-                return TextEmbeddingResults.class;
-            };
-        },
-
-        BYTE {
-            public Class<? extends InferenceServiceResults> matchedClass() {
-                return TextEmbeddingByteResults.class;
-            };
-        };
-
-        public abstract Class<? extends InferenceServiceResults> matchedClass();
-    }
-
-    private AtomicReference<EmbeddingType> firstResultType = new AtomicReference<>();
+    private AtomicReference<EmbeddingResults.EmbeddingType> firstResultType = new AtomicReference<>();
 
     public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch) {
         this.maxNumberOfInputsPerBatch = maxNumberOfInputsPerBatch;
@@ -219,16 +195,9 @@ public class EmbeddingRequestChunker {
                     start += pos.embeddingCount();
                 }
 
-                if (firstResultType.get() == null) {
-                    if (inferenceServiceResults instanceof TextEmbeddingResults) {
-                        firstResultType.set(EmbeddingType.FLOAT);
-                    } else if (inferenceServiceResults instanceof TextEmbeddingByteResults) {
-                        firstResultType.set(EmbeddingType.BYTE);
-                    } else if (inferenceServiceResults instanceof SparseEmbeddingResults) {
-                        firstResultType.set(EmbeddingType.SPARSE);
-                    }
-                } else {
-                    if (firstResultType.get().matchedClass().equals(inferenceServiceResults.getClass()) == false) {
+                if (firstResultType.compareAndSet(null, embeddingResults.embeddingType()) == false) {
+                    // firstResultType is set so check the latest matches the first
+                    if (firstResultType.get().equals(embeddingResults.embeddingType()) == false) {
                         onFailure(
                             new ElasticsearchStatusException(
                                 "The embedding response types are different. [{}] does not match the first response type [{}]",
@@ -277,7 +246,7 @@ public class EmbeddingRequestChunker {
         }
 
         ChunkedInferenceServiceResults mergeResults(
-            EmbeddingType embeddingType,
+            EmbeddingResults.EmbeddingType embeddingType,
             List<String> chunks,
             AtomicArray<List<? extends Embedding<?>>> embeddings
         ) {

@@ -57,6 +57,11 @@ public class TextEmbeddingByteResults implements InferenceServiceResults, TextEm
     }
 
     @Override
+    public EmbeddingType embeddingType() {
+        return EmbeddingType.BYTE;
+    }
+
+    @Override
     public int getFirstEmbeddingSize() {
         return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
     }

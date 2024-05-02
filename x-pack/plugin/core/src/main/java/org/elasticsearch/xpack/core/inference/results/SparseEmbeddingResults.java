@@ -112,4 +112,9 @@ public record SparseEmbeddingResults(List<SparseEmbedding> embeddings) implement
             )
             .toList();
     }
+
+    @Override
+    public EmbeddingType embeddingType() {
+        return EmbeddingType.SPARSE;
+    }
 }

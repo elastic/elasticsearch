@@ -689,7 +689,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107405")
     public void testInfiniteTimeout() throws Exception {
         createRepository("test-repo", "mock");
         createIndex("test-idx", 1, 0);

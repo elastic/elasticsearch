@@ -431,8 +431,8 @@
   - match: { hits.total.value: 40 }
   - length: { hits.hits: 5 }
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "31" }
-  - match: { hits.hits.2._id: "11" }
+  - match: { hits.hits.1._id: "11" }
+  - match: { hits.hits.2._id: "31" }
   - match: { hits.hits.3._id: "2" }
   - match: { hits.hits.4._id: "21" }
 

@@ -101,8 +101,7 @@ public class PathTrie<T> {
                 namedWildcard = newNamedWildcard;
             }
 
-            if (newAdditionalStrings.isEmpty() == false
-                && newAdditionalStrings.equals(additionalStrings) == false) {
+            if (newAdditionalStrings.isEmpty() == false && newAdditionalStrings.equals(additionalStrings) == false) {
                 if (additionalStrings != null) {
                     throw new IllegalArgumentException(
                         "Trying to use conflicting additional strings for same wildcard ["
@@ -199,11 +198,13 @@ public class PathTrie<T> {
         }
 
         private TrieNode getWildcardNodeForToken(String token) {
-            if (token.startsWith("_") && (additionalStrings == null || additionalStrings.contains(token) == false)) {
+            TrieNode node = children.get(WILDCARD);
+            if (node != null
+                && token.startsWith("_")
+                && (node.additionalStrings == null || node.additionalStrings.contains(token) == false)) {
                 return null;
             }
-
-            return children.get(WILDCARD);
+            return node;
         }
 
         private T retrieve(String[] path, int index, Map<String, String> params, TrieMatchingMode trieMatchingMode) {

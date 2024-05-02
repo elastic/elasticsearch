@@ -104,7 +104,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 scores = blockFactory.newDoubleVectorBuilder(estimatedSize);
             } finally {
                 if (docs == null) {
-                    Releasables.closeExpectNoException(shards, segments, docs);
+                    Releasables.closeExpectNoException(shards, segments, docs, scores);
                 }
             }
             this.shards = shards;
@@ -195,14 +195,14 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 return result.asBlock();
             } finally {
                 if (result == null) {
-                    Releasables.closeExpectNoException(shards, segments, docs);
+                    Releasables.closeExpectNoException(shards, segments, docs, scores);
                 }
             }
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(shards, segments, docs);
+            Releasables.closeExpectNoException(shards, segments, docs, scores);
         }
     }
 

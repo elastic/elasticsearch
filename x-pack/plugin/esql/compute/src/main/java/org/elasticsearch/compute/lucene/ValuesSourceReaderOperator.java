@@ -306,6 +306,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             blocks[i] = in.filter(backwards);
             in.close();
         }
+        scores.close();
     }
 
     private class LoadFromMany implements Releasable {
@@ -318,6 +319,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         private final int[] backwards;
         private final Block.Builder[] builders;
         private final BlockLoader.RowStrideReader[] rowStride;
+
+        private DoubleBlock.Builder scoreBuilder;
 
         BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
@@ -412,6 +415,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public void close() {
             Releasables.closeExpectNoException(builders);
+            Releasables.closeExpectNoException(scoreBuilder);
+            Releasables.closeExpectNoException(scores);
         }
     }
 

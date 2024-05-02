@@ -168,7 +168,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             DataPartitioning.SHARD,
             10_000,
             100,
-            QueryBuilders.matchQuery("stored_text", "time")
+            QueryBuilders.matchQuery("stored_text", "lost")
         );
 
         Operator op =  new ValuesSourceReaderOperator.Factory(

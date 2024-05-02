@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
@@ -518,69 +519,39 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testAggsResolutionWithUnresolvedGroupings() {
-        // TODO: parameterize/randomize.
-        assertThat(
-            error("FROM tests | STATS count_distinct(emp_no) by BUCKET(languages, 10)"),
-            equalTo(
-                "1:46: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
-            )
+        String agg_func = randomFrom(
+            new String[] {
+                "avg",
+                "count",
+                "count_distinct",
+                "min",
+                "max",
+                "median",
+                "median_absolute_deviation",
+                "percentile",
+                "sum",
+                "values" }
         );
 
+        assertThat(error("FROM tests | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
         assertThat(
-            error("FROM tests | STATS count_distinct(x) by BUCKET(languages, 10), x = emp_no"),
-            equalTo(
-                "1:41: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            error("FROM tests | STATS " + agg_func + "(x) by foobar, x = emp_no"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]")
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(languages, 10)"),
+            matchesRegex(
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER] and the second of type \\[INTEGER]\n"
+                    + "line 1:\\d+: Unknown column \\[foobar]"
             )
         );
-
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        // TODO: Ideally, we'd detect that count_distinct(x) doesn't require an error message.
         assertThat(
-            error("FROM tests | STATS count_distinct(foobar) by BUCKET(languages, 10)"),
-            equalTo(
-                "1:46: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]\n"
-                    + "line 1:35: Unknown column [foobar]"
-            )
+            error("FROM tests | STATS " + agg_func + "(x) by x = foobar"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
         );
-
-        assertThat(
-            error("FROM tests | STATS count_distinct(BUCKET(languages, 10)) by BUCKET(languages, 10)"),
-            equalTo(
-                "1:61: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
-            )
-        );
-
-        assertThat(
-            error("FROM tests | STATS count_distinct(BUCKET(to_long(languages), 10)) by BUCKET(languages, 10)"),
-            equalTo(
-                "1:70: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]\n"
-                    + "line 1:35: function expects exactly four arguments when the first one is of type [LONG] and the second of type [INTEGER]"
-            )
-        );
-
-        // TODO: this test case is likely redundant
-        assertThat(
-            error("FROM tests | STATS count_distinct(BUCKET(languages, 10)) by emp_no"),
-            equalTo(
-                "1:35: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
-            )
-        );
-    }
-
-    public void testUsingUnresolvedGroupingInAggs() {
-        // TODO: think of edge cases, parameterize/randomize.
-        assertThat(
-            error("FROM tests | STATS count_distinct(x) by x = BUCKET(languages, 10)"),
-            equalTo(
-                "1:45: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
-            )
-        );
-    }
-
-    public void testUsingUnresolvedAttributeInEval() {
-        // TODO: think of edge cases, parameterize/randomize.
-        assertThat(error("FROM tests | eval x = foobar, y = x + 1"), equalTo("1:23: Unknown column [foobar]"));
-
-        assertThat(error("FROM tests | eval x = foobar, y = x + 1, z = y + 2"), equalTo("1:23: Unknown column [foobar]"));
-
     }
 
     private String error(String query) {

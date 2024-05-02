@@ -212,13 +212,14 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
-                    "Authentication failed using realms [realm1/realm1,realm2/reaml2]."
+                    "Authentication failed using realms [realm1/realm1,realm2/realm2]."
                         + " Realms [realm3/realm3] were skipped because they are not permitted on the current license"
                 )
             );
             final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
+            mockAppender.assertAllExpectationsMatched();
         }
     }
 

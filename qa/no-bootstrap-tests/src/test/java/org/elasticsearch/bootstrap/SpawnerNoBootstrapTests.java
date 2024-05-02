@@ -203,20 +203,16 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         String stdoutLoggerName = "test_plugin-controller-stdout";
         String stderrLoggerName = "test_plugin-controller-stderr";
-        MockLogAppender stdoutAppender = new MockLogAppender();
-        MockLogAppender stderrAppender = new MockLogAppender();
+        MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(LogManager.getLogger(stdoutLoggerName), Level.TRACE);
         Loggers.setLevel(LogManager.getLogger(stderrLoggerName), Level.TRACE);
         CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
         if (expectSpawn) {
-            stdoutAppender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
-            stderrAppender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
+            appender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
+            appender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
         }
 
-        try (
-            var stdoutRelease = stdoutAppender.capturing(stderrLoggerName);
-            var stderrRelease = stderrAppender.capturing(stderrLoggerName)
-        ) {
+        try (var ignore = appender.capturing(stdoutLoggerName, stderrLoggerName)) {
             Spawner spawner = new Spawner();
             spawner.spawnNativeControllers(environment);
 
@@ -234,8 +230,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             } else {
                 assertThat(processes, hasSize(0));
             }
-            stdoutAppender.assertAllExpectationsMatched();
-            stderrAppender.assertAllExpectationsMatched();
+            appender.assertAllExpectationsMatched();
         }
     }
 

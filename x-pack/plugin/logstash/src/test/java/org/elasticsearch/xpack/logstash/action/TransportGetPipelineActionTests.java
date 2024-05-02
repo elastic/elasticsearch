@@ -78,7 +78,6 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             );
 
             final var client = getMockClient(threadPool, multiGetResponse);
-            Loggers.addAppender(logger, mockLogAppender);
             TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
             GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2"));
 

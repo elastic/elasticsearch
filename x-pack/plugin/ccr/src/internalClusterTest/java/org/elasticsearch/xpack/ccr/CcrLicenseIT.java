@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -130,6 +132,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
     }
 
     public void testAutoFollowCoordinatorLogsSkippingAutoFollowCoordinationWithNonCompliantLicense() throws Exception {
+        final Logger logger = LogManager.getLogger(AutoFollowCoordinator.class);
         final MockLogAppender appender = new MockLogAppender();
 
         try (var ignored = appender.capturing(AutoFollowCoordinator.class)) {

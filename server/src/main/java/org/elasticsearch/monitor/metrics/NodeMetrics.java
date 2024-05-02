@@ -19,7 +19,6 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -27,7 +26,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them as metrics through
@@ -529,41 +527,17 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
-        AtomicLong totalCoordinatingRequestsPrevious = new AtomicLong(0);
-        AtomicLong totalCoordinatingRejectionsPrevious = new AtomicLong(0);
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.coordinating_operations.request.rejections.ratio",
-                "Ratio of rejected coordinating requests",
-                "ratio",
-                () -> {
-                    long totalCoordinatingRequestsCurrent = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating_operations.requests.total",
+                "Total number of coordinating requests",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getTotalCoordinatingRequests)
-                        .orElse(0L);
-                    long totalCoordinatingRejectionsCurrent = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getCoordinatingRejections)
-                        .orElse(0L);
-
-                    long rejectionsDiff = totalCoordinatingRejectionsCurrent - totalCoordinatingRejectionsPrevious.get();
-                    long requestsDiff = totalCoordinatingRequestsCurrent - totalCoordinatingRequestsPrevious.get();
-
-                    // derived from monotonically increasing counters
-                    assert rejectionsDiff >= 0 && requestsDiff >= 0;
-
-                    double ratio;
-                    if (rejectionsDiff + requestsDiff > 0) {
-                        ratio = (double) rejectionsDiff / (rejectionsDiff + requestsDiff);
-                    } else {
-                        ratio = 0;
-                    }
-
-                    totalCoordinatingRequestsPrevious.set(totalCoordinatingRequestsCurrent);
-                    totalCoordinatingRejectionsPrevious.set(totalCoordinatingRejectionsCurrent);
-
-                    return new DoubleWithAttributes(ratio);
-                }
+                        .orElse(0L)
+                )
             )
         );
 
@@ -637,41 +611,17 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
-        AtomicLong totalPrimaryOperationsPrevious = new AtomicLong(0);
-        AtomicLong totalPrimaryDocumentRejectionsPrevious = new AtomicLong(0);
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.primary_operations.document.rejections.ratio",
-                "Ratio of rejected primary operations",
-                "ratio",
-                () -> {
-                    long totalPrimaryOperationsCurrent = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalPrimaryOps)
-                        .orElse(0L);
-                    long totalPrimaryDocumentRejectionsCurrent = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.primary_operations.document.rejections.total",
+                "Total number of rejected indexing documents",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getPrimaryDocumentRejections)
-                        .orElse(0L);
-
-                    long documentRejectionsDiff = totalPrimaryDocumentRejectionsCurrent - totalPrimaryDocumentRejectionsPrevious.get();
-                    long primaryOperationsDiff = totalPrimaryOperationsCurrent - totalPrimaryOperationsPrevious.get();
-
-                    // derived from monotonically increasing counters
-                    assert documentRejectionsDiff >= 0 && primaryOperationsDiff >= 0;
-
-                    double ratio;
-                    if (documentRejectionsDiff + primaryOperationsDiff > 0) {
-                        ratio = (double) documentRejectionsDiff / (documentRejectionsDiff + primaryOperationsDiff);
-                    } else {
-                        ratio = 0;
-                    }
-
-                    totalPrimaryOperationsPrevious.set(totalPrimaryOperationsCurrent);
-                    totalPrimaryDocumentRejectionsPrevious.set(totalPrimaryDocumentRejectionsCurrent);
-
-                    return new DoubleWithAttributes(ratio);
-                }
+                        .orElse(0L)
+                )
             )
         );
 

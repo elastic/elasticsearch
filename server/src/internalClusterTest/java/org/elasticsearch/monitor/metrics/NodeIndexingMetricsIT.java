@@ -62,7 +62,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testNodeIndexingMetricsArePublishing() throws Exception {
+    public void testNodeIndexingMetricsArePublishing() {
 
         final String dataNode = internalCluster().startNode();
         ensureStableCluster(1);
@@ -152,10 +152,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(coordinatingOperationsRejectionsTotal.getLong(), equalTo(0L));
 
         var coordinatingOperationsRejectionsRatio = getSingleRecordedMetric(
-            plugin::getDoubleGaugeMeasurement,
-            "es.indexing.coordinating_operations.request.rejections.ratio"
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.coordinating_operations.requests.total"
         );
-        assertThat(coordinatingOperationsRejectionsRatio.getDouble(), equalTo(0.0));
+        // Note: `delete` request goes thru `TransportBulkAction` invoking coordinating/primary limit checks
+        assertThat(coordinatingOperationsRejectionsRatio.getLong(), equalTo((long) docsCount + deletesCount));
 
         var primaryOperationsSize = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.primary_operations.size");
         assertThat(primaryOperationsSize.getLong(), greaterThan(0L));
@@ -186,14 +187,14 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(primaryOperationsRejectionsTotal.getLong(), equalTo(0L));
 
         var primaryOperationsDocumentRejectionsRatio = getSingleRecordedMetric(
-            plugin::getDoubleGaugeMeasurement,
-            "es.indexing.primary_operations.document.rejections.ratio"
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.primary_operations.document.rejections.total"
         );
-        assertThat(primaryOperationsDocumentRejectionsRatio.getDouble(), equalTo(0.0));
+        assertThat(primaryOperationsDocumentRejectionsRatio.getLong(), equalTo(0L));
 
     }
 
-    public void testCoordinatingRejectionMetricsArePublishing() throws Exception {
+    public void testCoordinatingRejectionMetricsArePublishing() {
 
         // lower Indexing Pressure limits to trigger coordinating rejections
         final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "1KB"));
@@ -219,19 +220,19 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         // simulate async apm `polling` call for metrics
         plugin.collect();
 
-        // this bulk request is too big to pass coordinating limit check
+        // this bulk request is too big to pass coordinating limit check, it has to be reported towards `rejections` total metric
         var coordinatingOperationsRejectionsTotal = getSingleRecordedMetric(
             plugin::getLongAsyncCounterMeasurement,
             "es.indexing.coordinating_operations.rejections.total"
         );
         assertThat(coordinatingOperationsRejectionsTotal.getLong(), equalTo(1L));
 
-        var coordinatingOperationsRejectionsRatio = getSingleRecordedMetric(
-            plugin::getDoubleGaugeMeasurement,
-            "es.indexing.coordinating_operations.request.rejections.ratio"
+        // `requests` metric should remain to `0`
+        var coordinatingOperationsRequestsTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.coordinating_operations.requests.total"
         );
-        assertThat(coordinatingOperationsRejectionsRatio.getDouble(), equalTo(1.0));
-
+        assertThat(coordinatingOperationsRequestsTotal.getLong(), equalTo(0L));
     }
 
     public void testCoordinatingRejectionMetricsSpiking() throws Exception {
@@ -271,9 +272,8 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             equalTo(0L)
         );
         assertThat(
-            getSingleRecordedMetric(plugin::getDoubleGaugeMeasurement, "es.indexing.coordinating_operations.request.rejections.ratio")
-                .getDouble(),
-            equalTo(0.0)
+            getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.coordinating_operations.requests.total").getLong(),
+            equalTo((long) successfulBulkCount)
         );
 
         // simulate spike of rejected coordinating operations after steady processing
@@ -291,21 +291,20 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         // simulate async apm `polling` call for metrics
         plugin.collect();
 
-        // assert that recent rejections were not diminished by long pile of previously successful calls
         assertThat(
             getLatestRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.coordinating_operations.rejections.total")
                 .getLong(),
             equalTo((long) rejectedBulkCount)
         );
+        // number of successfully processed coordinating requests should remain as seen before
         assertThat(
-            getLatestRecordedMetric(plugin::getDoubleGaugeMeasurement, "es.indexing.coordinating_operations.request.rejections.ratio")
-                .getDouble(),
-            equalTo(1.0)
+            getLatestRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.coordinating_operations.requests.total").getLong(),
+            equalTo((long) successfulBulkCount)
         );
 
     }
 
-    public void testPrimaryDocumentRejectionMetricsArePublishing() throws Exception {
+    public void testPrimaryDocumentRejectionMetricsArePublishing() {
 
         // setting low Indexing Pressure limits to trigger primary rejections
         final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "2KB").build());
@@ -353,22 +352,23 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         plugin.collect();
 
         // this bulk request is too big to pass coordinating limit check
-        var primaryOperationsRejectionsTotal = getSingleRecordedMetric(
-            plugin::getLongAsyncCounterMeasurement,
-            "es.indexing.primary_operations.rejections.total"
-        );
-        assertThat(primaryOperationsRejectionsTotal.getLong(), equalTo((long) numberOfShards));
-
-        var primaryOperationsDocumentRejectionsRatio = getSingleRecordedMetric(
-            plugin::getDoubleGaugeMeasurement,
-            "es.indexing.primary_operations.document.rejections.ratio"
-        );
-        // ratio of rejected documents vs all indexing documents
         assertThat(
-            doublesEquals(primaryOperationsDocumentRejectionsRatio.getDouble(), (double) batchCountOne / (batchCountOne + batchCountTwo)),
-            equalTo(true)
+            getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.primary_operations.rejections.total").getLong(),
+            equalTo((long) numberOfShards)
         );
 
+        // all unsuccessful indexing operations (aka documents) should be reported towards `.document.rejections.total` metric
+        assertThat(
+            getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.primary_operations.document.rejections.total")
+                .getLong(),
+            equalTo((long) batchCountOne)
+        );
+
+        // all successful indexing operations (aka documents) should be reported towards `.primary_operations.total` metric
+        assertThat(
+            getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.primary_operations.total").getLong(),
+            equalTo((long) batchCountTwo)
+        );
     }
 
     public void testPrimaryDocumentRejectionMetricsFluctuatingOverTime() throws Exception {
@@ -396,6 +396,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         int numberOfMetricCollectionRounds = randomIntBetween(2, 10);
         logger.debug("--> running {} rounds of gauging metrics", numberOfMetricCollectionRounds);
 
+        // to simulate cumulative property of underneath metric counters
+        int prevRejectedDocumentsNumber = 0;
+        int prevAcceptedDocumentsNumber = 0;
+
         for (int i = 0; i < numberOfMetricCollectionRounds; i++) {
 
             final BulkRequest bulkRequestOne = new BulkRequest();
@@ -408,7 +412,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
             final BulkRequest bulkRequestTwo = new BulkRequest();
             int rejectedDocumentsNumber = randomIntBetween(1, 20);
-            for (int k = 0; k < rejectedDocumentsNumber; k++) {
+            for (int j = 0; j < rejectedDocumentsNumber; j++) {
                 bulkRequestTwo.add(new IndexRequest("test-index-two").source("field", randomAlphaOfLength(5120)));
             }
 
@@ -429,14 +433,20 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             // simulate async apm `polling` call for metrics
             plugin.collect();
 
-            var primaryOperationsDocumentRejectionsRatio = getLatestRecordedMetric(
-                plugin::getDoubleGaugeMeasurement,
-                "es.indexing.primary_operations.document.rejections.ratio"
+            // all unsuccessful indexing operations (aka documents) should be reported towards `.document.rejections.total` metric
+            assertThat(
+                getLatestRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.primary_operations.document.rejections.total")
+                    .getLong(),
+                equalTo((long) rejectedDocumentsNumber + prevRejectedDocumentsNumber)
             );
-            // ratio of rejected documents vs all indexing documents since last execution
-            double actual = primaryOperationsDocumentRejectionsRatio.getDouble();
-            double expected = (double) rejectedDocumentsNumber / (acceptedDocumentsNumber + rejectedDocumentsNumber);
-            assertThat(expected + " != " + actual, doublesEquals(actual, expected), equalTo(true));
+            prevRejectedDocumentsNumber += rejectedDocumentsNumber;
+
+            // all successful indexing operations (aka documents) should be reported towards `.primary_operations.total` metric
+            assertThat(
+                getLatestRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.primary_operations.total").getLong(),
+                equalTo((long) acceptedDocumentsNumber + prevAcceptedDocumentsNumber)
+            );
+            prevAcceptedDocumentsNumber += acceptedDocumentsNumber;
 
         }
     }

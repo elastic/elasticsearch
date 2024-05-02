@@ -22,34 +22,6 @@ public class TextExpansionResults extends NlpInferenceResults {
 
     public static final String NAME = "text_expansion_result";
 
-    // public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
-    //
-    // public WeightedToken(StreamInput in) throws IOException {
-    // this(in.readString(), in.readFloat());
-    // }
-    //
-    // @Override
-    // public void writeTo(StreamOutput out) throws IOException {
-    // out.writeString(token);
-    // out.writeFloat(weight);
-    // }
-    //
-    // @Override
-    // public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-    // builder.field(token, weight);
-    // return builder;
-    // }
-    //
-    // public Map<String, Object> asMap() {
-    // return Map.of(token, weight);
-    // }
-    //
-    // @Override
-    // public String toString() {
-    // return Strings.toString(this);
-    // }
-    // }
-
     private final String resultsField;
     private final List<WeightedToken> weightedTokens;
 

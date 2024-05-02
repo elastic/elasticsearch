@@ -9,6 +9,7 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class MockLogAppender {
 
+    private static final Logger logger = LogManager.getLogger(MockLogAppender.class);
     private static final Map<String, List<MockLogAppender>> mockAppenders = new ConcurrentHashMap<>();
     private static final RealMockAppender parent = new RealMockAppender();
     private final List<WrappedLoggingExpectation> expectations;
@@ -47,7 +49,7 @@ public class MockLogAppender {
 
         @Override
         public void append(LogEvent event) {
-            List<MockLogAppender> appenders = mockAppenders.get(event.getLoggerName());
+            List<MockLogAppender> appenders = mockAppenders.getOrDefault(event.getLoggerName(), List.of());
             for (MockLogAppender appender : appenders) {
                 if (appender.isAlive.get() == false) {
                     continue;
@@ -72,15 +74,9 @@ public class MockLogAppender {
      * Initialize the mock log appender with the log4j system.
      */
     public static void init() {
-        Loggers.addAppender(LogManager.getLogger(), parent);
+        parent.start();
+        Loggers.addAppender(LogManager.getLogger(""), parent);
     }
-
-    // TODO: remove dummy methods
-    public void start() {
-
-    }
-
-    public void stop() {}
 
     public void addExpectation(LoggingExpectation expectation) {
         expectations.add(new WrappedLoggingExpectation(expectation));
@@ -273,7 +269,7 @@ public class MockLogAppender {
     /**
      * Adds the list of class loggers to this {@link MockLogAppender}.
      *
-     * Stops ({@link #stop()}) and runs some checks on the {@link MockLogAppender} once the returned object is released.
+     * Stops and runs some checks on the {@link MockLogAppender} once the returned object is released.
      */
     public Releasable capturing(Class<?>... classes) {
         return appendToLoggers(Arrays.stream(classes).map(Class::getCanonicalName).toList());

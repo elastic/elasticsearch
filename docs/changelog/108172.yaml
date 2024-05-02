@@ -1,7 +1,0 @@
-pr: 108172
-summary: Use direct method mapping for zstd
-area: Infra/Core
-type: bug
-issues:
- - 107504
- - 107770

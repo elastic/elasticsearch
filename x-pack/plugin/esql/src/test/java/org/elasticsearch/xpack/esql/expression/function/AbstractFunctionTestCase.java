@@ -1171,6 +1171,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderTypes(List.of("v"));
             return;
         }
+        if (name.equalsIgnoreCase("rlike")) {
+            renderTypes(List.of("str", "pattern", "caseInsensitive"));
+            return;
+        }
+        if (name.equalsIgnoreCase("like")) {
+            renderTypes(List.of("str", "pattern"));
+            return;
+        }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);

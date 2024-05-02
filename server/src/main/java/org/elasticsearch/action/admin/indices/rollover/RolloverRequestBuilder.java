@@ -43,6 +43,11 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
+    public RolloverRequestBuilder lazy(boolean lazy) {
+        this.request.lazy(lazy);
+        return this;
+    }
+
     public RolloverRequestBuilder settings(Settings settings) {
         this.request.getCreateIndexRequest().settings(settings);
         return this;

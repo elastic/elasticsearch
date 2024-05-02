@@ -26,7 +26,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,18 +42,17 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -153,9 +151,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private final String index;
+    private final ThreadContext threadContext;
     private final Client client;
+    final AsyncSearchSecurity security;
     private final Client clientWithOrigin;
-    private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
@@ -174,8 +173,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         BigArrays bigArrays
     ) {
         this.index = index;
-        this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
+        this.threadContext = threadContext;
         this.client = client;
+        this.security = new AsyncSearchSecurity(
+            index,
+            new SecurityContext(clusterService.getSettings(), client.threadPool().getThreadContext()),
+            client,
+            origin
+        );
         this.clientWithOrigin = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
@@ -201,11 +206,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return client;
     }
 
-    /**
-     * Returns the authentication information, or null if the current context has no authentication info.
-     **/
-    public SecurityContext getSecurityContext() {
-        return securityContext;
+    public AsyncSearchSecurity getSecurity() {
+        return security;
     }
 
     /**
@@ -215,7 +217,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
     public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
-        indexResponse(docId, headers, response, false, listener);
+        indexResponse(docId, headers, null, response, false, listener);
+    }
+
+    public void createResponseForEQL(
+        String docId,
+        Map<String, String> headers,
+        Map<String, List<String>> responseHeaders,
+        R response,
+        ActionListener<DocWriteResponse> listener
+    ) {
+        indexResponse(docId, headers, responseHeaders, response, false, listener);
     }
 
     /**
@@ -223,7 +235,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * and the expected expiration time.
      */
     public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
-        indexResponse(docId, headers, response, true, listener);
+        indexResponse(docId, headers, null, response, true, listener);
     }
 
     public void updateResponse(
@@ -238,6 +250,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void indexResponse(
         String docId,
         Map<String, String> headers,
+        @Nullable Map<String, List<String>> responseHeaders,
         R response,
         boolean limitToMaxResponseSize,
         ActionListener<DocWriteResponse> listener
@@ -245,10 +258,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         try {
             var buffer = allocateBuffer(limitToMaxResponseSize);
             listener = ActionListener.runBefore(listener, buffer::close);
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer)
-                .startObject()
+            final XContentBuilder source = jsonBuilder(buffer).startObject()
                 .field(HEADERS_FIELD, headers)
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime());
+            if (responseHeaders != null) {
+                source.field(RESPONSE_HEADERS_FIELD, responseHeaders);
+            }
+
             addResultFieldAndFinish(response, source);
             clientWithOrigin.index(new IndexRequest(index).create(true).id(docId).source(buffer.bytes(), source.contentType()), listener);
         } catch (Exception e) {
@@ -269,7 +285,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         ReleasableBytesStreamOutput buffer = null;
         try {
             buffer = allocateBuffer(isFailure == false);
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer).startObject().field(RESPONSE_HEADERS_FIELD, responseHeaders);
+            final XContentBuilder source = jsonBuilder(buffer).startObject().field(RESPONSE_HEADERS_FIELD, responseHeaders);
             addResultFieldAndFinish(response, source);
             clientWithOrigin.update(
                 new UpdateRequest().index(index).id(docId).doc(buffer.bytes(), source.contentType()).retryOnConflict(5),
@@ -383,7 +399,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             return null;
         }
         // Check authentication for the user
-        if (false == securityContext.canIAccessResourcesCreatedWithHeaders(asyncTask.getOriginHeaders())) {
+        if (false == security.currentUserHasAccessToTask(asyncTask)) {
             throw new ResourceNotFoundException(asyncExecutionId.getEncoded() + " not found");
         }
         return asyncTask;
@@ -425,7 +441,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onFailure(e);
                 return;
             }
-            listener.onResponse(resp);
+            ActionListener.respondAndRelease(listener, resp);
         }));
     }
 
@@ -456,7 +472,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         @SuppressWarnings("unchecked")
                         final Map<String, String> headers = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
-                        if (checkAuthentication && false == securityContext.canIAccessResourcesCreatedWithHeaders(headers)) {
+                        if (checkAuthentication && false == security.currentUserHasAccessToTaskWithHeaders(headers)) {
                             throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
                         }
                     }
@@ -466,7 +482,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                             parser
                         );
                         if (restoreResponseHeaders) {
-                            restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
+                            restoreResponseHeadersContext(threadContext, responseHeaders);
                         }
                     }
                     default -> XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
@@ -474,7 +490,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
             Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");
             Objects.requireNonNull(expirationTime, "Get result doesn't include [" + EXPIRATION_TIME_FIELD + "] field");
-            return resp.withExpirationTime(expirationTime);
+            try {
+                return resp.withExpirationTime(expirationTime);
+            } finally {
+                resp.decRef();
+            }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse the get result", e);
         }
@@ -490,64 +510,43 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         Class<T> tClass,
         Function<T, SR> statusProducerFromTask,
         TriFunction<R, Long, String, SR> statusProducerFromIndex,
-        ActionListener<SR> outerListener
+        ActionListener<SR> originalListener
     ) {
         // check if the result has expired
-        outerListener = outerListener.delegateFailure((listener, resp) -> {
+        final ActionListener<SR> outerListener = originalListener.delegateFailure((listener, resp) -> {
             if (resp.getExpirationTime() < System.currentTimeMillis()) {
                 listener.onFailure(new ResourceNotFoundException(request.getId()));
             } else {
                 listener.onResponse(resp);
             }
         });
-        AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
-        try {
-            T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
-            if (asyncTask != null) { // get status response from task
-                SR response = statusProducerFromTask.apply(asyncTask);
-                outerListener.onResponse(response);
-            } else {
-                // get status response from index
-                getResponseFromIndex(
-                    asyncExecutionId,
-                    false,
-                    false,
-                    outerListener.map(resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))
-                );
+        security.currentUserCanSeeStatusOfAllSearches(ActionListener.wrap(canSeeAll -> {
+            AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
+            try {
+                T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
+                if (asyncTask != null) { // get status response from task
+                    if (canSeeAll || security.currentUserHasAccessToTask(asyncTask)) {
+                        var response = statusProducerFromTask.apply(asyncTask);
+                        outerListener.onResponse(response);
+                    } else {
+                        outerListener.onFailure(new ResourceNotFoundException(request.getId()));
+                    }
+                } else {
+                    // get status response from index
+                    final boolean checkAuthentication = canSeeAll == false;
+                    getResponseFromIndex(
+                        asyncExecutionId,
+                        false,
+                        checkAuthentication,
+                        outerListener.map(
+                            resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
+                        )
+                    );
+                }
+            } catch (Exception exc) {
+                outerListener.onFailure(exc);
             }
-        } catch (Exception exc) {
-            outerListener.onFailure(exc);
-        }
-    }
-
-    private static final FetchSourceContext FETCH_HEADERS_FIELD_CONTEXT = FetchSourceContext.of(
-        true,
-        new String[] { HEADERS_FIELD },
-        Strings.EMPTY_ARRAY
-    );
-
-    /**
-     * Checks if the current user can access the async search result of the original user.
-     **/
-    void ensureAuthenticatedUserCanDeleteFromIndex(AsyncExecutionId executionId, ActionListener<Void> listener) {
-        GetRequest internalGet = new GetRequest(index).preference(executionId.getEncoded())
-            .id(executionId.getDocId())
-            .fetchSourceContext(FETCH_HEADERS_FIELD_CONTEXT);
-
-        clientWithOrigin.get(internalGet, ActionListener.wrap(get -> {
-            if (get.isExists() == false) {
-                listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
-                return;
-            }
-            // Check authentication for the user
-            @SuppressWarnings("unchecked")
-            Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
-            if (securityContext.canIAccessResourcesCreatedWithHeaders(headers)) {
-                listener.onResponse(null);
-            } else {
-                listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
-            }
-        }, exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
+        }, outerListener::onFailure));
     }
 
     /**
@@ -566,10 +565,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        final StreamInput input;
         if (version.onOrAfter(TransportVersions.V_7_15_0)) {
-            encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
+            input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
+        } else {
+            input = new InputStreamStreamInput(encodedIn);
         }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
             in.setTransportVersion(version);
             return reader.read(in);
         }

@@ -10,8 +10,9 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -19,21 +20,30 @@ import java.util.Objects;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, IntBlock, LongBlock, DoubleBlock, BytesRefBlock {
+final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+    implements
+        BooleanBlock,
+        IntBlock,
+        LongBlock,
+        DoubleBlock,
+        BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
-
-    // Eventually, this should use the GLOBAL breaking instance
-    ConstantNullBlock(int positionCount) {
-        this(positionCount, BlockFactory.getNonBreakingInstance());
-    }
+    private final int positionCount;
+    private BlockFactory blockFactory;
 
     ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
-        super(positionCount, blockFactory);
+        this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
     }
 
     @Override
     public ConstantNullVector asVector() {
+        return null;
+    }
+
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }
 
@@ -72,19 +82,20 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
 
+    @Override
+    public ReleasableIterator<ConstantNullBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return ReleasableIterator.single((ConstantNullBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+    }
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Block.class,
         "ConstantNullBlock",
-        ConstantNullBlock::of
+        in -> ((BlockStreamInput) in).readConstantNullBlock()
     );
 
     @Override
     public String getWriteableName() {
         return "ConstantNullBlock";
-    }
-
-    static ConstantNullBlock of(StreamInput in) throws IOException {
-        return new ConstantNullBlock(in.readVInt());
     }
 
     @Override
@@ -98,7 +109,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
     }
 
     @Override
-    public Block expand() {
+    public ConstantNullBlock expand() {
         incRef();
         return this;
     }
@@ -128,7 +139,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed());
     }
 
     static class Builder implements Block.Builder {
@@ -174,11 +185,6 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            return appendNull();
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do
@@ -186,6 +192,11 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
              * block containing only nulls.
              */
             return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return BASE_RAM_BYTES_USED;
         }
 
         @Override
@@ -231,5 +242,35 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
     public long getLong(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public int getTotalValueCount() {
+        return 0;
+    }
+
+    @Override
+    public int getPositionCount() {
+        return positionCount;
+    }
+
+    @Override
+    public int getFirstValueIndex(int position) {
+        return 0;
+    }
+
+    @Override
+    public int getValueCount(int position) {
+        return 0;
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
     }
 }

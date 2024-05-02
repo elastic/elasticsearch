@@ -165,9 +165,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
+        done = true;
         cancelSubscription();
         clearQueue();
-        done = true;
         // cancel should be called from the consumer
         // thread, but to avoid potential deadlocks
         // we just try to release a possibly blocked
@@ -177,9 +177,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public void onError(Throwable t) {
+        done = true;
         clearQueue();
         error = t;
-        done = true;
         signalConsumer();
     }
 

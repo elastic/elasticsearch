@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -39,8 +40,19 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         )
     );
 
-    @FunctionInfo(returnType = "double")
-    public ToRadians(Source source, @Param(name = "v", type = { "double", "long", "unsigned_long", "integer" }) Expression field) {
+    @FunctionInfo(
+        returnType = "double",
+        description = "Converts a number in {wikipedia}/Degree_(angle)[degrees] to {wikipedia}/Radian[radians].",
+        examples = @Example(file = "floats", tag = "to_radians")
+    )
+    public ToRadians(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

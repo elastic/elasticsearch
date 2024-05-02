@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants.CONNECTOR_SYNC_JOB_ID_PARAM;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestUpdateConnectorSyncJobErrorAction extends BaseRestHandler {
 
     @Override
@@ -46,7 +50,7 @@ public class RestUpdateConnectorSyncJobErrorAction extends BaseRestHandler {
         return restChannel -> client.execute(
             UpdateConnectorSyncJobErrorAction.INSTANCE,
             request,
-            new RestToXContentListener<>(restChannel)
+            new RestToXContentListener<>(restChannel, ConnectorUpdateActionResponse::status)
         );
     }
 }

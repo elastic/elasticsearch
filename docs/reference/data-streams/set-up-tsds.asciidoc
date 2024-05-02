@@ -8,8 +8,6 @@ To set up a <<tsds,time series data stream (TSDS)>>, follow these steps:
 
 . Check the <<tsds-prereqs,prerequisites>>.
 . <<tsds-ilm-policy>>.
-. <<tsds-create-mappings-component-template>>.
-. <<tsds-create-index-settings-component-template>>.
 . <<create-tsds-index-template>>.
 . <<create-tsds>>.
 . <<secure-tsds>>.
@@ -109,34 +107,52 @@ PUT _ilm/policy/my-weather-sensor-lifecycle-policy
 ----
 
 [discrete]
-[[tsds-create-mappings-component-template]]
-==== Create a mappings component template
+[[create-tsds-index-template]]
+==== Create an index template
 
-A TSDS requires a matching index template. In most cases, you compose this index
-template using one or more component templates. You typically use separate
-component templates for mappings and index settings. This lets you reuse the
-component templates in multiple index templates.
+To setup a TSDS create an index template with the following details:
 
-For a TSDS, the mappings component template must include mappings for:
+* One or more index patterns that match the TSDS's name. We recommend
+using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
+naming scheme].
 
-* One or more <<time-series-dimension,dimension fields>> with a
-`time_series_dimension` value of `true`. At least one of these dimensions must
-be a plain `keyword` field.
+* Enable data streams.
 
-Optionally, the template can also include mappings for:
+* Specify a mapping that defines your dimensions and metrics:
 
-* One or more <<time-series-metric,metric fields>>, marked using the
-`time_series_metric` mapping parameter.
+** One or more <<time-series-dimension,dimension fields>> with a `time_series_dimension` value of `true`.
+   At least one of these dimensions must be a plain `keyword` field.
 
-* A `date` or `date_nanos` mapping for the `@timestamp` field. If you don’t
-specify a mapping, Elasticsearch maps `@timestamp` as a `date` field with
-default options.
+** One or more <<time-series-metric,metric fields>>, marked using the `time_series_metric` mapping parameter.
+
+** Optional: A `date` or `date_nanos` mapping for the `@timestamp` field. If you don’t specify a mapping,
+   Elasticsearch maps `@timestamp` as a `date` field with default options.
+
+* Define index settings:
+
+** Set `index.mode` setting to `time_series`.
+
+** Your lifecycle policy in the `index.lifecycle.name` index setting.
+
+** Optional: Other index settings, such as <<dynamic-index-number-of-replicas,`index.number_of_replicas`>>,
+   for your TSDS's backing indices.
+
+* A priority higher than `200` to avoid collisions with built-in templates.
+See <<avoid-index-pattern-collisions>>.
+
+* Optional: Component templates containing your mappings and other index settings.
 
 [source,console]
 ----
-PUT _component_template/my-weather-sensor-mappings
+PUT _index_template/my-weather-sensor-index-template
 {
+  "index_patterns": ["metrics-weather_sensors-*"],
+  "data_stream": { },
   "template": {
+    "settings": {
+      "index.mode": "time_series",
+      "index.lifecycle.name": "my-lifecycle-policy"
+    },
     "mappings": {
       "properties": {
         "sensor_id": {
@@ -156,91 +172,11 @@ PUT _component_template/my-weather-sensor-mappings
           "time_series_metric": "gauge"
         },
         "@timestamp": {
-          "type": "date",
-          "format": "strict_date_optional_time"
+          "type": "date"
         }
       }
     }
   },
-  "_meta": {
-    "description": "Mappings for weather sensor data"
-  }
-}
-----
-// TEST[continued]
-
-[discrete]
-[[tsds-create-index-settings-component-template]]
-==== Create an index settings component template
-
-Optionally, the index settings component template for a TSDS can include:
-
-* Your lifecycle policy in the `index.lifecycle.name` index setting.
-* The <<tsds-look-ahead-time,`index.look_ahead_time`>> index setting.
-* The <<tsds-look-back-time,`index.look_back_time`>> index setting.
-* Other index settings, such as <<index-codec,`index.codec`>>, for your TSDS's
-backing indices.
-
-IMPORTANT: Don't specify the `index.routing_path` index setting in a component
-template. If you choose, you can configure `index.routing_path` directly in the
-index template, as shown in the following step.
-
-[source,console]
-----
-PUT _component_template/my-weather-sensor-settings
-{
-  "template": {
-    "settings": {
-      "index.lifecycle.name": "my-lifecycle-policy",
-      "index.look_ahead_time": "3h"
-    }
-  },
-  "_meta": {
-    "description": "Index settings for weather sensor data"
-  }
-}
-----
-// TEST[continued]
-
-[discrete]
-[[create-tsds-index-template]]
-==== Create an index template
-
-Use your component templates to create an index template. In the index template,
-specify:
-
-* One or more index patterns that match the TSDS's name. We recommend
-using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
-naming scheme].
-
-* That the template is data stream enabled.
-
-* An `index.mode` object set to `time_series`.
-
-* Optional: The `index.routing_path` index setting. The setting value should
-only match plain `keyword` dimension fields and should be set directly in the
-index template. When not defined explicitly, the `index.routing_path` setting is
-generated from the mapping using all mappings that are set with
-`time_series_dimension` set to `true`.
-
-* The component templates containing your mappings and other index settings.
-
-* A priority higher than `200` to avoid collisions with built-in templates.
-See <<avoid-index-pattern-collisions>>.
-
-[source,console]
-----
-PUT _index_template/my-weather-sensor-index-template
-{
-  "index_patterns": ["metrics-weather_sensors-*"],
-  "data_stream": { },
-  "template": {
-    "settings": {
-      "index.mode": "time_series",
-      "index.routing_path": [ "sensor_id", "location" ]
-    }
-  },
-  "composed_of": [ "my-weather-sensor-mappings", "my-weather-sensor-settings" ],
   "priority": 500,
   "_meta": {
     "description": "Template for my weather sensor data"
@@ -254,7 +190,6 @@ PUT _index_template/my-weather-sensor-index-template
 ----
 DELETE _data_stream/*
 DELETE _index_template/*
-DELETE _component_template/my-*
 DELETE _ilm/policy/my-weather-sensor-lifecycle-policy
 ----
 // TEST[continued]

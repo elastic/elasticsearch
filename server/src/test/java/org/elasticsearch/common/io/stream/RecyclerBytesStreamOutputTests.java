@@ -788,7 +788,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         try (RecyclerBytesStreamOutput streamOut = new RecyclerBytesStreamOutput(recycler)) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
-            Map<String, Object> streamInMap = in.readMap();
+            Map<String, Object> streamInMap = in.readGenericMap();
             assertEquals(streamOutMap, streamInMap);
         }
     }
@@ -1026,6 +1026,11 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             public V<BytesRef> obtain() {
                 pagesAllocated.incrementAndGet();
                 return page;
+            }
+
+            @Override
+            public int pageSize() {
+                return pageSize;
             }
         })) {
             var bytesAllocated = 0;

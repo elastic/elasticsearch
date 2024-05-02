@@ -106,7 +106,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
             new Scope(OIDCScopeValue.OPENID),
             new ClientID(clientId),
             new URI(redirectUri)
-        ).endpointURI(new URI(C2ID_AUTH_ENDPOINT)).state(new State(state)).nonce(new Nonce(nonce)).build();
+        ).endpointURI(new URI(c2id.getC2OPUrl() + "/c2id-login")).state(new State(state)).nonce(new Nonce(nonce)).build();
 
         final String implicitFlowURI = authenticateAtOP(oidcAuthRequest.toURI());
 

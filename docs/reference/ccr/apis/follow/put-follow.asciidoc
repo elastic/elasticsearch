@@ -65,6 +65,7 @@ referenced leader index. When this API returns, the follower index exists, and
   follower shard requires transferring all the remote Lucene segment files to
   the follower index.
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-put-follow-request-body]]
 ==== {api-request-body-title}

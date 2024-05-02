@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -57,11 +57,13 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -79,6 +81,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -92,6 +96,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -120,6 +125,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
@@ -161,7 +167,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             Downsample.class,
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
-            IndexLifecycle.class
+            IndexLifecycle.class,
+            TestTelemetryPlugin.class
         );
     }
 
@@ -241,7 +248,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(indicesAdmin().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
-    public void testDownsampleIndex() throws IOException {
+    public void testDownsampleIndex() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
@@ -300,7 +307,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
     }
 
-    public void testDownsampleOfDownsample() throws IOException {
+    public void testDownsampleOfDownsample() throws Exception {
         int intervalMinutes = randomIntBetween(10, 120);
         DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes));
         SourceSupplier sourceSupplier = () -> {
@@ -423,7 +430,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("downsample configuration is missing"));
     }
 
-    public void testDownsampleSparseMetrics() throws IOException {
+    public void testDownsampleSparseMetrics() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -457,7 +464,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString(downsampleIndex));
     }
 
-    public void testDownsampleEmptyIndex() throws IOException {
+    public void testDownsampleEmptyIndex() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex, true);
@@ -465,7 +472,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
     }
 
-    public void testDownsampleIndexWithNoMetrics() throws IOException {
+    public void testDownsampleIndexWithNoMetrics() throws Exception {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         indicesAdmin().prepareCreate(sourceIndex)
@@ -547,7 +554,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 fail("downsample index has not been created");
             }
         });
-        downsample(sourceIndex, downsampleIndex, config);
+
+        assertBusy(() -> {
+            try {
+                client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config));
+            } catch (ElasticsearchException e) {
+                fail("transient failure due to overlapping downsample operations");
+            }
+        });
+
         // We must wait until the in-progress downsample ends, otherwise data will not be cleaned up
         assertBusy(() -> assertTrue("In progress downsample did not complete", downsampleListener.success), 60, TimeUnit.SECONDS);
     }
@@ -558,7 +573,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         final Instant now = Instant.now();
         SourceSupplier sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli());
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
@@ -622,11 +637,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -670,11 +687,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -736,11 +755,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         /*
@@ -752,7 +773,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         indexer.execute();
     }
 
-    public void testDownsampleStats() throws IOException {
+    public void testDownsampleStats() throws Exception {
         final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -787,11 +808,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 task,
                 client(),
                 indexService,
+                getInstanceFromNode(DownsampleMetrics.class),
                 shard.shardId(),
                 downsampleIndex,
                 config,
                 new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
                 new String[] {},
+                new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
                 new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
             );
 
@@ -843,11 +866,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 new BytesRef(
@@ -917,47 +942,63 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1 },
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
+                // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
                 new BytesRef(
                     new byte[] {
-                        0x01,
-                        0x0C,
-                        0x64,
-                        0x69,
-                        0x6d,
-                        0x65,
-                        0x6E,
+                        0x24,
+                        0x42,
+                        (byte) 0xe4,
+                        (byte) 0x9f,
+                        (byte) 0xe2,
+                        (byte) 0xde,
+                        (byte) 0xbb,
+                        (byte) 0xf8,
+                        (byte) 0xfc,
+                        0x7d,
+                        0x1a,
+                        (byte) 0xb1,
+                        0x27,
+                        (byte) 0x85,
+                        (byte) 0xc2,
+                        (byte) 0x8e,
+                        0x3a,
+                        (byte) 0xae,
+                        0x38,
+                        0x6c,
+                        (byte) 0xf6,
+                        (byte) 0xae,
+                        0x0f,
+                        0x4f,
+                        0x44,
+                        (byte) 0xf1,
                         0x73,
-                        0x69,
-                        0x6F,
-                        0x6E,
-                        0x5F,
-                        0x6B,
-                        0x77,
-                        0x73,
-                        0x04,
-                        0x64,
-                        0x69,
-                        0x6D,
-                        0x32 }
+                        0x02,
+                        (byte) 0x90,
+                        0x1d,
+                        0x79,
+                        (byte) 0xf8,
+                        0x0d,
+                        (byte) 0xc2,
+                        0x7e,
+                        (byte) 0x91,
+                        0x15 }
                 )
             )
         );
 
         final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
-        int dim2DocCount = client().prepareSearch(sourceIndex)
-            .setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim2"))
-            .setSize(10_000)
-            .get()
-            .getHits()
-            .getHits().length;
-
+        long dim2DocCount = SearchResponseUtils.getTotalHitsValue(
+            client().prepareSearch(sourceIndex).setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim1")).setSize(10_000)
+        );
         assertDownsampleIndexer(indexService, shardNum, task, response2, dim2DocCount);
     }
 
@@ -1061,12 +1102,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         return response;
     }
 
-    private Aggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
-        return client().prepareSearch(index).addAggregation(aggregationBuilder).get().getAggregations();
+    private InternalAggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
+        var resp = client().prepareSearch(index).addAggregation(aggregationBuilder).get();
+        try {
+            return resp.getAggregations();
+        } finally {
+            resp.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private void assertDownsampleIndex(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws IOException {
+    private void assertDownsampleIndex(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws Exception {
         // Retrieve field information for the metric fields
         final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
@@ -1125,6 +1171,45 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .filter(entry -> labelFields.containsKey(entry.getKey()))
             .toList());
         assertEquals(labelFieldDownsampleIndexCloneProperties, labelFieldSourceIndexProperties);
+
+        // Check that metrics get collected as expected.
+        final TestTelemetryPlugin plugin = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        final List<Measurement> latencyShardMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
+        assertFalse(latencyShardMetrics.isEmpty());
+        for (Measurement measurement : latencyShardMetrics) {
+            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+            assertEquals(1, measurement.attributes().size());
+            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
+        }
+        List<Measurement> shardActionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS_SHARD);
+        assertThat(shardActionMeasurements.size(), greaterThanOrEqualTo(1));
+        assertThat(shardActionMeasurements.get(0).getLong(), equalTo(1L));
+        assertThat(shardActionMeasurements.get(0).attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
+
+        // Total latency and counters are recorded after reindex and force-merge complete.
+        assertBusy(() -> {
+            final List<Measurement> latencyTotalMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
+            assertFalse(latencyTotalMetrics.isEmpty());
+            for (Measurement measurement : latencyTotalMetrics) {
+                assertTrue(
+                    measurement.value().toString(),
+                    measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000
+                );
+                assertEquals(1, measurement.attributes().size());
+                assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
+            }
+
+            List<Measurement> actionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS);
+            assertThat(actionMeasurements.size(), greaterThanOrEqualTo(1));
+            assertThat(actionMeasurements.get(0).getLong(), equalTo(1L));
+            assertThat(
+                actionMeasurements.get(0).attributes().get("status"),
+                Matchers.in(List.of("success", "invalid_configuration", "failed"))
+            );
+        }, 10, TimeUnit.SECONDS);
     }
 
     private void assertDownsampleIndexAggregations(
@@ -1135,8 +1220,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields
     ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
-        Aggregations origResp = aggregate(sourceIndex, aggregations);
-        Aggregations downsampleResp = aggregate(downsampleIndex, aggregations);
+        InternalAggregations origResp = aggregate(sourceIndex, aggregations);
+        InternalAggregations downsampleResp = aggregate(downsampleIndex, aggregations);
         assertEquals(origResp.asMap().keySet(), downsampleResp.asMap().keySet());
 
         StringTerms originalTsIdTermsAggregation = (StringTerms) origResp.getAsMap().values().stream().toList().get(0);
@@ -1161,25 +1246,25 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 InternalDateHistogram.Bucket downsampleDateHistogramBucket = downsampleDateHistogramBuckets.get(i);
                 assertEquals(originalDateHistogramBucket.getKeyAsString(), downsampleDateHistogramBucket.getKeyAsString());
 
-                Aggregations originalAggregations = originalDateHistogramBucket.getAggregations();
-                Aggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
+                InternalAggregations originalAggregations = originalDateHistogramBucket.getAggregations();
+                InternalAggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
                 assertEquals(originalAggregations.asList().size(), downsampleAggregations.asList().size());
 
-                List<Aggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
+                List<InternalAggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
                     .stream()
                     .filter(agg -> agg.getType().equals("top_hits") == false)
                     .toList();
-                List<Aggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
+                List<InternalAggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
                     .stream()
                     .filter(agg -> agg.getType().equals("top_hits") == false)
                     .toList();
                 assertEquals(nonTopHitsOriginalAggregations, nonTopHitsDownsampleAggregations);
 
-                List<Aggregation> topHitsOriginalAggregations = originalAggregations.asList()
+                List<InternalAggregation> topHitsOriginalAggregations = originalAggregations.asList()
                     .stream()
                     .filter(agg -> agg.getType().equals("top_hits"))
                     .toList();
-                List<Aggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
+                List<InternalAggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
                     .stream()
                     .filter(agg -> agg.getType().equals("top_hits"))
                     .toList();
@@ -1221,7 +1306,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                             );
                             Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
                             Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().toList().get(0).getValue();
-                            Optional<Aggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()
+                            Optional<InternalAggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()
                                 .filter(agg -> agg.getName().equals("metric_" + downsampleTopHits.getName()))
                                 .findFirst();
                             // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
@@ -1439,14 +1524,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .template(indexTemplate)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            .indexTemplate(template);
-        assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet());
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+            dataStreamName + "_template"
+        ).indexTemplate(template);
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get());
         return dataStreamName;
     }
 
-    public void testConcurrentDownsample() throws IOException, InterruptedException {
+    public void testConcurrentDownsample() throws Exception {
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
@@ -1525,7 +1611,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testDuplicateDownsampleRequest() throws IOException, InterruptedException {
+    public void testDuplicateDownsampleRequest() throws Exception {
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());

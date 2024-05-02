@@ -63,7 +63,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
 
     /**
      * Returns the total size in bytes of all documents in this stats.
-     * This value may be more reliable than {@link StoreStats#getSizeInBytes()} in estimating the index size.
+     * This value may be more reliable than {@link StoreStats#sizeInBytes()} in estimating the index size.
      */
     public long getTotalSizeInBytes() {
         return totalSizeInBytes;
@@ -81,6 +81,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.DOCS);
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
+        builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
         builder.endObject();
         return builder;
     }
@@ -102,5 +103,6 @@ public class DocsStats implements Writeable, ToXContentFragment {
         static final String DOCS = "docs";
         static final String COUNT = "count";
         static final String DELETED = "deleted";
+        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
     }
 }

@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -19,8 +20,11 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 
@@ -63,7 +67,11 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, String mapping) {
-        return analyze(query, analyzer(loadMapping(mapping, "test"), TEST_VERIFIER, configuration(query)));
+        return analyze(query, "test", mapping);
+    }
+
+    public static LogicalPlan analyze(String query, String index, String mapping) {
+        return analyze(query, analyzer(loadMapping(mapping, index), TEST_VERIFIER, configuration(query)));
     }
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {
@@ -88,28 +96,46 @@ public final class AnalyzerTestUtils {
     }
 
     public static EnrichResolution defaultEnrichResolution() {
-        EnrichPolicyResolution policyRes = loadEnrichPolicyResolution(
-            "languages",
-            "language_code",
-            "languages_idx",
-            "mapping-languages.json"
+        EnrichResolution enrichResolution = new EnrichResolution();
+        loadEnrichPolicyResolution(enrichResolution, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+        loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "client_cidr", "client_cidr", "client_cidr", "mapping-client_cidr.json");
+        loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json");
+        loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "heights_policy", "height_range", "heights", "mapping-heights.json");
+        loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "decades_policy", "date_range", "decades", "mapping-decades.json");
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            GEO_MATCH_TYPE,
+            "city_boundaries",
+            "city_boundary",
+            "airport_city_boundaries",
+            "mapping-airport_city_boundaries.json"
         );
-        return new EnrichResolution(Set.of(policyRes), Set.of("languages"));
+        return enrichResolution;
     }
 
-    public static EnrichPolicyResolution loadEnrichPolicyResolution(
-        String policyName,
-        String matchField,
-        String idxName,
-        String mappingFile
+    public static void loadEnrichPolicyResolution(
+        EnrichResolution enrich,
+        String policyType,
+        String policy,
+        String field,
+        String index,
+        String mapping
     ) {
-        IndexResolution mapping = loadMapping(mappingFile, idxName);
-        List<String> enrichFields = new ArrayList<>(mapping.get().mapping().keySet());
-        enrichFields.remove(matchField);
-        return new EnrichPolicyResolution(
-            policyName,
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(idxName), matchField, enrichFields),
-            mapping
+        IndexResolution indexResolution = loadMapping(mapping, index);
+        List<String> enrichFields = new ArrayList<>(indexResolution.get().mapping().keySet());
+        enrichFields.remove(field);
+        enrich.addResolvedPolicy(
+            policy,
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(field, policyType, enrichFields, Map.of("", index), indexResolution.get().mapping())
         );
+    }
+
+    public static void loadEnrichPolicyResolution(EnrichResolution enrich, String policy, String field, String index, String mapping) {
+        loadEnrichPolicyResolution(enrich, EnrichPolicy.MATCH_TYPE, policy, field, index, mapping);
+    }
+
+    public static IndexResolution tsdbIndexResolution() {
+        return loadMapping("tsdb-mapping.json", "test");
     }
 }

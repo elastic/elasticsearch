@@ -369,21 +369,23 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertTrue(state.getMetadata().persistentSettings().getAsBoolean("archived.this.is.unknown", false));
 
         // cannot remove read only block due to archived settings
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> {
+        {
             Settings.Builder builder = Settings.builder();
             clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
             clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder).setTransientSettings(builder).get();
-        });
-        assertTrue(e1.getMessage().contains("unknown setting [archived.this.is.unknown]"));
+            final IllegalArgumentException e1 = expectThrows(
+                IllegalArgumentException.class,
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder).setTransientSettings(builder)
+            );
+            assertTrue(e1.getMessage().contains("unknown setting [archived.this.is.unknown]"));
+        }
 
         // fail to clear archived settings with non-archived settings
         final ClusterBlockException e2 = expectThrows(
             ClusterBlockException.class,
-            () -> clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
                 .setTransientSettings(Settings.builder().putNull("archived.*"))
-                .get()
         );
         if (readOnly) {
             assertTrue(e2.getMessage().contains("cluster read-only (api)"));
@@ -395,7 +397,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         // fail to clear archived settings due to cluster read only block
         final ClusterBlockException e3 = expectThrows(
             ClusterBlockException.class,
-            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get()
+            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*"))
         );
         if (readOnly) {
             assertTrue(e3.getMessage().contains("cluster read-only (api)"));
@@ -404,8 +406,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertTrue(e3.getMessage().contains("cluster read-only / allow delete (api)"));
         }
 
-        // fail to clear archived settings with adding cluster block
-        final ClusterBlockException e4 = expectThrows(ClusterBlockException.class, () -> {
+        {
+            // fail to clear archived settings with adding cluster block
             Settings.Builder builder = Settings.builder().putNull("archived.*");
             if (randomBoolean()) {
                 builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
@@ -415,27 +417,33 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             } else {
                 builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
             }
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder).get();
-        });
-        if (readOnly) {
-            assertTrue(e4.getMessage().contains("cluster read-only (api)"));
-        }
-        if (readOnlyAllowDelete) {
-            assertTrue(e4.getMessage().contains("cluster read-only / allow delete (api)"));
+            final ClusterBlockException e4 = expectThrows(
+                ClusterBlockException.class,
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder)
+            );
+            if (readOnly) {
+                assertTrue(e4.getMessage().contains("cluster read-only (api)"));
+            }
+            if (readOnlyAllowDelete) {
+                assertTrue(e4.getMessage().contains("cluster read-only / allow delete (api)"));
+            }
         }
 
-        // fail to set archived settings to non-null value even with clearing blocks together
-        final ClusterBlockException e5 = expectThrows(ClusterBlockException.class, () -> {
+        {
+            // fail to set archived settings to non-null value even with clearing blocks together
             Settings.Builder builder = Settings.builder().put("archived.this.is.unknown", "false");
             clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
             clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder).get();
-        });
-        if (readOnly) {
-            assertTrue(e5.getMessage().contains("cluster read-only (api)"));
-        }
-        if (readOnlyAllowDelete) {
-            assertTrue(e5.getMessage().contains("cluster read-only / allow delete (api)"));
+            final ClusterBlockException e5 = expectThrows(
+                ClusterBlockException.class,
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(builder)
+            );
+            if (readOnly) {
+                assertTrue(e5.getMessage().contains("cluster read-only (api)"));
+            }
+            if (readOnlyAllowDelete) {
+                assertTrue(e5.getMessage().contains("cluster read-only / allow delete (api)"));
+            }
         }
 
         // we can clear read-only block with archived settings together
@@ -536,7 +544,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsRequestBuilder throwBuilder = clusterAdmin().prepareUpdateSettings();
         consumer.accept(Settings.builder().put("logger._root", "BOOM"), throwBuilder);
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> throwBuilder.get());
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, throwBuilder);
         assertEquals("Unknown level constant [BOOM].", e.getMessage());
 
         try {

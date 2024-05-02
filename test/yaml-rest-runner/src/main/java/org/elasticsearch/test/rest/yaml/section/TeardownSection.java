@@ -35,7 +35,7 @@ public class TeardownSection {
     }
 
     public static TeardownSection parse(XContentParser parser) throws IOException {
-        SkipSection skipSection = SkipSection.parseIfNext(parser);
+        PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser);
         List<ExecutableSection> executableSections = new ArrayList<>();
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);
@@ -50,21 +50,21 @@ public class TeardownSection {
         }
 
         parser.nextToken();
-        return new TeardownSection(skipSection, executableSections);
+        return new TeardownSection(prerequisiteSection, executableSections);
     }
 
-    public static final TeardownSection EMPTY = new TeardownSection(SkipSection.EMPTY, Collections.emptyList());
+    public static final TeardownSection EMPTY = new TeardownSection(PrerequisiteSection.EMPTY, Collections.emptyList());
 
-    private final SkipSection skipSection;
+    private final PrerequisiteSection prerequisiteSection;
     private final List<ExecutableSection> doSections;
 
-    TeardownSection(SkipSection skipSection, List<ExecutableSection> doSections) {
-        this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
+    TeardownSection(PrerequisiteSection prerequisiteSection, List<ExecutableSection> doSections) {
+        this.prerequisiteSection = Objects.requireNonNull(prerequisiteSection, "skip section cannot be null");
         this.doSections = Collections.unmodifiableList(doSections);
     }
 
-    public SkipSection getSkipSection() {
-        return skipSection;
+    public PrerequisiteSection getPrerequisiteSection() {
+        return prerequisiteSection;
     }
 
     public List<ExecutableSection> getDoSections() {

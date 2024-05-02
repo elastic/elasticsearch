@@ -20,8 +20,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -52,15 +56,22 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assume.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTests extends ESTestCase {
 
@@ -70,6 +81,7 @@ public class TransportBulkActionTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
+    private FeatureService mockFeatureService;
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -83,7 +95,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 null,
-                null,
+                mockFeatureService,
+                new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool),
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
@@ -92,7 +105,7 @@ public class TransportBulkActionTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             if (beforeIndexCreation != null) {
                 beforeIndexCreation.run();
@@ -128,6 +141,8 @@ public class TransportBulkActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
+        mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         bulkAction = new TestTransportBulkAction();
     }
 
@@ -308,32 +323,140 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
-    public void testRejectCoordination() throws Exception {
+    private void blockWriteThreadPool(CountDownLatch blockingLatch) {
+        assertThat(blockingLatch.getCount(), greaterThan(0L));
+        final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
+        expectThrows(EsRejectedExecutionException.class, () -> {
+            // noinspection InfiniteLoopStatement
+            while (true) {
+                executor.execute(() -> safeAwait(blockingLatch));
+            }
+        });
+    }
+
+    public void testRejectCoordination() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            threadPool.startForcingRejections();
+            blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            expectThrows(EsRejectedExecutionException.class, future);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
     }
 
-    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+    public void testRejectionAfterCreateIndexIsPropagated() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
         bulkAction.failIndexCreation = randomBoolean();
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
+            bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            expectThrows(EsRejectedExecutionException.class, future);
             assertTrue(bulkAction.indexCreated);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
+    }
+
+    public void testResolveFailureStoreFromMetadata() throws Exception {
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
+
+        String dataStreamWithFailureStore = "test-data-stream-failure-enabled";
+        String dataStreamWithoutFailureStore = "test-data-stream-failure-disabled";
+        long testTime = randomMillisUpToYear9999();
+
+        IndexMetadata backingIndex1 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithFailureStore, testTime).build();
+        IndexMetadata backingIndex2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithoutFailureStore, testTime).build();
+        IndexMetadata failureStoreIndex1 = DataStreamTestHelper.createFirstFailureStore(dataStreamWithFailureStore, testTime).build();
+
+        Metadata metadata = Metadata.builder()
+            .dataStreams(
+                Map.of(
+                    dataStreamWithFailureStore,
+                    DataStreamTestHelper.newInstance(
+                        dataStreamWithFailureStore,
+                        List.of(backingIndex1.getIndex()),
+                        1L,
+                        Map.of(),
+                        false,
+                        null,
+                        List.of(failureStoreIndex1.getIndex())
+                    ),
+                    dataStreamWithoutFailureStore,
+                    DataStreamTestHelper.newInstance(
+                        dataStreamWithoutFailureStore,
+                        List.of(backingIndex2.getIndex()),
+                        1L,
+                        Map.of(),
+                        false,
+                        null,
+                        List.of()
+                    )
+                ),
+                Map.of()
+            )
+            .indices(
+                Map.of(
+                    backingIndex1.getIndex().getName(),
+                    backingIndex1,
+                    backingIndex2.getIndex().getName(),
+                    backingIndex2,
+                    failureStoreIndex1.getIndex().getName(),
+                    failureStoreIndex1
+                )
+            )
+            .build();
+
+        // Data stream with failure store should store failures
+        assertThat(TransportBulkAction.shouldStoreFailure(dataStreamWithFailureStore, metadata, testTime), is(true));
+        // Data stream without failure store should not
+        assertThat(TransportBulkAction.shouldStoreFailure(dataStreamWithoutFailureStore, metadata, testTime), is(false));
+        // An index should not be considered for failure storage
+        assertThat(TransportBulkAction.shouldStoreFailure(backingIndex1.getIndex().getName(), metadata, testTime), is(false));
+        // even if that index is itself a failure store
+        assertThat(TransportBulkAction.shouldStoreFailure(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(false));
+    }
+
+    public void testResolveFailureStoreFromTemplate() throws Exception {
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
+
+        String dsTemplateWithFailureStore = "test-data-stream-failure-enabled";
+        String dsTemplateWithoutFailureStore = "test-data-stream-failure-disabled";
+        String indexTemplate = "test-index";
+        long testTime = randomMillisUpToYear9999();
+
+        Metadata metadata = Metadata.builder()
+            .indexTemplates(
+                Map.of(
+                    dsTemplateWithFailureStore,
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(dsTemplateWithFailureStore + "-*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+                        .build(),
+                    dsTemplateWithoutFailureStore,
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(dsTemplateWithoutFailureStore + "-*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, false))
+                        .build(),
+                    indexTemplate,
+                    ComposableIndexTemplate.builder().indexPatterns(List.of(indexTemplate + "-*")).build()
+                )
+            )
+            .build();
+
+        // Data stream with failure store should store failures
+        assertThat(TransportBulkAction.shouldStoreFailure(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
+        // Data stream without failure store should not
+        assertThat(TransportBulkAction.shouldStoreFailure(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
+        // An index template should not be considered for failure storage
+        assertThat(TransportBulkAction.shouldStoreFailure(indexTemplate + "-1", metadata, testTime), is(false));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

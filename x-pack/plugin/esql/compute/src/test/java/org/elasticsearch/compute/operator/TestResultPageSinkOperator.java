@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 
 import java.util.function.Consumer;
 
@@ -21,7 +21,7 @@ public class TestResultPageSinkOperator extends PageConsumerOperator {
 
     public TestResultPageSinkOperator(Consumer<Page> pageConsumer) {
         super(page -> {
-            Page copy = BlockTestUtils.deepCopyOf(page, BlockFactory.getNonBreakingInstance());
+            Page copy = BlockTestUtils.deepCopyOf(page, TestBlockFactory.getNonBreakingInstance());
             page.releaseBlocks();
             pageConsumer.accept(copy);
         });

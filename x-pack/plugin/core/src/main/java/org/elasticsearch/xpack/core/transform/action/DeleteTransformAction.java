@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,7 +25,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/transform/delete";
 
     private DeleteTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -75,14 +74,9 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id, force, deleteDestIndex);
+            return Objects.hash(ackTimeout(), id, force, deleteDestIndex);
         }
 
         @Override
@@ -99,7 +93,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             return Objects.equals(id, other.id)
                 && force == other.force
                 && deleteDestIndex == other.deleteDestIndex
-                && timeout().equals(other.timeout());
+                && ackTimeout().equals(other.ackTimeout());
         }
     }
 }

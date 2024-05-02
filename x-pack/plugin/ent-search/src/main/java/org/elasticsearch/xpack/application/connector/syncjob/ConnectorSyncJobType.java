@@ -21,7 +21,7 @@ public enum ConnectorSyncJobType {
             }
         }
 
-        throw new IllegalArgumentException("Unknown sync job type '" + syncJobTypeString + "'.");
+        throw new IllegalArgumentException("Unknown " + ConnectorSyncJobType.class.getSimpleName() + " [" + syncJobTypeString + "].");
     }
 
     @Override

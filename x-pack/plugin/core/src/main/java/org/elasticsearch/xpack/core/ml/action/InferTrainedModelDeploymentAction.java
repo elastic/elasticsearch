@@ -21,11 +21,9 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -56,7 +54,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
-        super(NAME, InferTrainedModelDeploymentAction.Response::new);
+        super(NAME);
     }
 
     /**
@@ -70,40 +68,20 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
-
-        static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
-        static {
-            PARSER.declareString(Request.Builder::setId, InferModelAction.Request.DEPLOYMENT_ID);
-            PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
-            PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
-            PARSER.declareNamedObject(
-                Request.Builder::setUpdate,
-                ((p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, c)),
-                INFERENCE_CONFIG
-            );
-        }
-
-        public static Request.Builder parseRequest(String id, XContentParser parser) {
-            Request.Builder builder = PARSER.apply(parser, null);
-            if (id != null) {
-                builder.setId(id);
-            }
-            return builder;
-        }
 
         private String id;
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
-        private boolean highPriority = false;
+        private boolean highPriority;
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
         private final List<String> textInput;
         private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+        private boolean chunkResults = false;
 
         public static Request forDocs(String id, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             return new Request(
@@ -111,7 +89,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                false,
                 inferenceTimeout
             );
         }
@@ -122,7 +99,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                false,
                 inferenceTimeout
             );
         }
@@ -133,7 +109,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
             List<String> textInput,
-            boolean highPriority,
             TimeValue inferenceTimeout
         ) {
             this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
@@ -141,13 +116,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             this.textInput = textInput;
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
-            this.highPriority = highPriority;
+            this.highPriority = false;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            docs = in.readCollectionAsImmutableList(StreamInput::readMap);
+            docs = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
@@ -158,10 +133,15 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 textInput = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+                chunkResults = in.readBoolean();
+            } else {
+                chunkResults = false;
             }
         }
 
@@ -215,6 +195,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return prefixType;
         }
 
+        public boolean isChunkResults() {
+            return chunkResults;
+        }
+
+        public void setChunkResults(boolean chunkResults) {
+            this.chunkResults = chunkResults;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
@@ -241,8 +229,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+                out.writeBoolean(chunkResults);
             }
         }
 
@@ -262,12 +253,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(highPriority, that.highPriority)
                 && Objects.equals(textInput, that.textInput)
-                && (prefixType == that.prefixType);
+                && (prefixType == that.prefixType)
+                && (chunkResults == that.chunkResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput, prefixType);
+            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput, prefixType, chunkResults);
         }
 
         @Override
@@ -275,55 +267,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", this.id), parentTaskId, headers);
         }
 
-        public static class Builder {
-
-            private String id;
-            private List<Map<String, Object>> docs;
-            private TimeValue timeout;
-            private InferenceConfigUpdate update;
-            private boolean skipQueue = false;
-            private List<String> textInput;
-
-            private Builder() {}
-
-            public Builder setId(String id) {
-                this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
-                return this;
-            }
-
-            public Builder setDocs(List<Map<String, Object>> docs) {
-                this.docs = ExceptionsHelper.requireNonNull(docs, DOCS);
-                return this;
-            }
-
-            public Builder setInferenceTimeout(TimeValue inferenceTimeout) {
-                this.timeout = inferenceTimeout;
-                return this;
-            }
-
-            public Builder setUpdate(InferenceConfigUpdate update) {
-                this.update = update;
-                return this;
-            }
-
-            private Builder setInferenceTimeout(String inferenceTimeout) {
-                return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
-            }
-
-            public Builder setTextInput(List<String> textInput) {
-                this.textInput = textInput;
-                return this;
-            }
-
-            public Builder setSkipQueue(boolean skipQueue) {
-                this.skipQueue = skipQueue;
-                return this;
-            }
-
-            public Request build() {
-                return new Request(id, update, docs, textInput, skipQueue, timeout);
-            }
-        }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {

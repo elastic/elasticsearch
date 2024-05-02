@@ -285,16 +285,22 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
         private void retry(long currentStateVersion, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
-                final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
-                if (remainingTimeoutMS <= 0) {
-                    logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
-                    listener.onFailure(new MasterNotDiscoveredException(failure));
-                    return;
+                final TimeValue timeout;
+                if (request.masterNodeTimeout().millis() < 0) {
+                    timeout = null;
+                } else {
+                    final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+                    if (remainingTimeoutMS <= 0) {
+                        logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
+                        listener.onFailure(new MasterNotDiscoveredException(failure));
+                        return;
+                    }
+                    timeout = TimeValue.timeValueMillis(remainingTimeoutMS);
                 }
                 this.observer = new ClusterStateObserver(
                     currentStateVersion,
                     clusterService.getClusterApplierService(),
-                    TimeValue.timeValueMillis(remainingTimeoutMS),
+                    timeout,
                     logger,
                     threadPool.getThreadContext()
                 );

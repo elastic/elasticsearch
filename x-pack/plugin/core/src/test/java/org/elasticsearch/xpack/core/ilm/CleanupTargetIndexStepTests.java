@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -173,7 +173,7 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(DeleteIndexAction.NAME));
+                assertThat(action.name(), is(TransportDeleteIndexAction.TYPE.name()));
                 assertTrue(request instanceof DeleteIndexRequest);
                 assertThat(((DeleteIndexRequest) request).indices(), arrayContaining(shrinkIndexName));
             }

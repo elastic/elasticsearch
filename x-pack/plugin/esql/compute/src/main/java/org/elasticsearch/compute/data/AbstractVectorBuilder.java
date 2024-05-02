@@ -48,7 +48,7 @@ abstract class AbstractVectorBuilder implements Vector.Builder {
     }
 
     protected void adjustBreaker(long deltaBytes) {
-        blockFactory.adjustBreaker(deltaBytes, false);
+        blockFactory.adjustBreaker(deltaBytes);
         estimatedBytes += deltaBytes;
     }
 
@@ -60,6 +60,11 @@ abstract class AbstractVectorBuilder implements Vector.Builder {
         if (closed) {
             throw new IllegalStateException("already closed");
         }
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return estimatedBytes;
     }
 
     /**

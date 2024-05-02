@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.apmdata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -19,7 +21,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 
@@ -37,12 +38,14 @@ import static org.elasticsearch.xpack.apmdata.ResourceUtils.loadVersionedResourc
  * Creates all index templates and ingest pipelines that are required for using Elastic APM.
  */
 public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
+    private static final Logger logger = LogManager.getLogger(APMIndexTemplateRegistry.class);
+
     private final int version;
 
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
-    private final boolean enabled;
+    private volatile boolean enabled;
 
     @SuppressWarnings("unchecked")
     public APMIndexTemplateRegistry(
@@ -75,8 +78,6 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
                 Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
                 return loadIngestPipeline(pipelineConfig.getKey(), version, (List<String>) pipelineConfig.getValue().get("dependencies"));
             }).collect(Collectors.toList());
-
-            enabled = XPackSettings.APM_DATA_ENABLED.get(nodeSettings);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -84,6 +85,11 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public int getVersion() {
         return version;
+    }
+
+    void setEnabled(boolean enabled) {
+        logger.info("APM index template registry is {}", enabled ? "enabled" : "disabled");
+        this.enabled = enabled;
     }
 
     public boolean isEnabled() {
@@ -134,7 +140,9 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     private static ComponentTemplate loadComponentTemplate(String name, int version) {
         try {
             final byte[] content = loadVersionedResourceUTF8("/component-templates/" + name + ".yaml", version);
-            return ComponentTemplate.parse(YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content));
+            try (var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
+                return ComponentTemplate.parse(parser);
+            }
         } catch (Exception e) {
             throw new RuntimeException("failed to load APM Ingest plugin's component template: " + name, e);
         }
@@ -143,7 +151,9 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     private static ComposableIndexTemplate loadIndexTemplate(String name, int version) {
         try {
             final byte[] content = loadVersionedResourceUTF8("/index-templates/" + name + ".yaml", version);
-            return ComposableIndexTemplate.parse(YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content));
+            try (var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
+                return ComposableIndexTemplate.parse(parser);
+            }
         } catch (Exception e) {
             throw new RuntimeException("failed to load APM Ingest plugin's index template: " + name, e);
         }

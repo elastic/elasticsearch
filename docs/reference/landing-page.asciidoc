@@ -79,6 +79,11 @@
 
 <h3 class="gtk">Get to know Elasticsearch</h3>
 
+<p>
+  <em>New webinar:</em>
+  <a href="https://www.elastic.co/virtual-events/architecting-search-apps-on-google-cloud">Architect search apps with Google Cloud</a>
+</p>
+
 <div class="my-5">
   <div class="d-flex align-items-center mb-3">
     <h4 class="mt-3">

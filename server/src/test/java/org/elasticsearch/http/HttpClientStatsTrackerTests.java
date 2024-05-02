@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -437,7 +438,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         private final long absoluteTimeOffset = randomLong();
 
         FakeTimeThreadPool() {
-            super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
+            super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP);
             stopCachedTimeThread();
             setRandomTime();
         }

@@ -12,6 +12,10 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+/**
+ * Extracts non-sort-key values for top-n from their {@link BytesRefBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class ValueExtractorForBytesRef implements ValueExtractor {
     static ValueExtractorForBytesRef extractorFor(TopNEncoder encoder, boolean inKey, BytesRefBlock block) {
         BytesRefVector vector = block.asVector();

@@ -111,7 +111,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public SourceConfig(final StreamInput in) throws IOException {
         index = in.readStringArray();
         queryConfig = new QueryConfig(in);
-        runtimeMappings = in.readMap();
+        runtimeMappings = in.readGenericMap();
     }
 
     public String[] getIndex() {

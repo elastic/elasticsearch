@@ -1,0 +1,49 @@
+[[esql-version]]
+=== {esql} language versions
+
+++++
+<titleabbrev>Language versions</titleabbrev>
+++++
+
+[discrete]
+[[esql-versions-released]]
+==== Released versions
+
+* Version `2024.04.01`
+
+[discrete]
+[[esql-versions-explanation]]
+==== How versions work
+
+{esql} language versions are independent of {es} versions.
+Versioning the language ensures that your queries will always
+remain valid, independent of new {es} and {esql} releases. And it lets us
+evolve ESQL as we learn more from people using it. We don't plan to make
+huge changes to it, but we know we've made mistakes and we don't want those
+to live forever.
+
+For instance, the following query will remain valid, even if a future
+version of {esql} introduces syntax changes or changes how the used
+commands or functions work.
+
+[source,console]
+----
+POST /_query?format=txt
+{
+  "version": "2024.04.01",
+  "query": """
+    FROM library
+    | EVAL release_month = DATE_TRUNC(1 month, release_date)
+    | KEEP release_month
+    | SORT release_month ASC
+    | LIMIT 3
+  """
+}
+----
+// TEST[setup:library]
+
+We won't make breaking changes to released {esql} versions and
+versions will remain supported until they are deprecated.
+New features, bug fixes, and performance improvements
+will continue to be added to released {esql} versions,
+provided they do not involve breaking changes.

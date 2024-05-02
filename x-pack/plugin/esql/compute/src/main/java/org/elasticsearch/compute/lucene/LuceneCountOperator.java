@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,8 +48,8 @@ public class LuceneCountOperator extends LuceneOperator {
         private final LuceneSliceQueue sliceQueue;
 
         public Factory(
-            List<SearchContext> searchContexts,
-            Function<SearchContext, Query> queryFunction,
+            List<? extends ShardContext> contexts,
+            Function<ShardContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int limit
@@ -58,7 +57,7 @@ public class LuceneCountOperator extends LuceneOperator {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-            this.sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
@@ -124,6 +123,7 @@ public class LuceneCountOperator extends LuceneOperator {
             assert remainingDocs <= 0 : remainingDocs;
             return null;
         }
+        long start = System.nanoTime();
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             // no scorer means no more docs
@@ -160,8 +160,8 @@ public class LuceneCountOperator extends LuceneOperator {
                 LongBlock count = null;
                 BooleanBlock seen = null;
                 try {
-                    count = LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE, blockFactory);
-                    seen = BooleanBlock.newConstantBlockWith(true, PAGE_SIZE, blockFactory);
+                    count = blockFactory.newConstantLongBlockWith(totalHits, PAGE_SIZE);
+                    seen = blockFactory.newConstantBooleanBlockWith(true, PAGE_SIZE);
                     page = new Page(PAGE_SIZE, count, seen);
                 } finally {
                     if (page == null) {
@@ -172,6 +172,8 @@ public class LuceneCountOperator extends LuceneOperator {
             return page;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            processingNanos += System.nanoTime() - start;
         }
     }
 

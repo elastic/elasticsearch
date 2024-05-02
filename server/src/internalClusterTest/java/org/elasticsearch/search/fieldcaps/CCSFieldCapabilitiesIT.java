@@ -25,14 +25,21 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Collection<String> remoteClusterAlias() {
         return List.of("remote_cluster");
+    }
+
+    @Override
+    protected boolean reuseClusters() {
+        return false;
     }
 
     @Override
@@ -81,7 +88,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         // if we only query the remote we should get back an exception only
         ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder()).get()
+            client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
         );
         assertEquals("I throw because I choose to.", ex.getMessage());
 
@@ -104,5 +111,18 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         ex = failure.getException();
         assertEquals(IllegalArgumentException.class, ex.getClass());
         assertEquals("I throw because I choose to.", ex.getMessage());
+    }
+
+    public void testFailedToConnectToRemoteCluster() throws Exception {
+        String localIndex = "local_index";
+        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate(localIndex));
+        client(LOCAL_CLUSTER).prepareIndex(localIndex).setId("1").setSource("foo", "bar").get();
+        client(LOCAL_CLUSTER).admin().indices().prepareRefresh(localIndex).get();
+        cluster("remote_cluster").close();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("*", "remote_cluster:*").setFields("*").get();
+        assertThat(response.getIndices(), arrayContaining(localIndex));
+        List<FieldCapabilitiesFailure> failures = response.getFailures();
+        assertThat(failures, hasSize(1));
+        assertThat(failures.get(0).getIndices(), arrayContaining("remote_cluster:*"));
     }
 }

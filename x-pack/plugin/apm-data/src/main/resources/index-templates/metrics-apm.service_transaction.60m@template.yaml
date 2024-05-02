@@ -16,12 +16,12 @@ composed_of:
 - metrics-apm@mappings
 - metrics-apm@settings
 - metrics-apm.service_transaction@mappings
-- apm@custom
-- metrics-apm.service_transaction@custom
+- metrics@custom
+- metrics-apm.service_transaction.60m@custom
 - ecs@mappings
 ignore_missing_component_templates:
-- apm@custom
-- metrics-apm.service_transaction@custom
+- metrics@custom
+- metrics-apm.service_transaction.60m@custom
 template:
   settings:
     index:

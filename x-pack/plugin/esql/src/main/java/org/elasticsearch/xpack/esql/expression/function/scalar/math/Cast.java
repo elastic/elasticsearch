@@ -11,12 +11,13 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class Cast {
     /**
@@ -84,14 +85,12 @@ public class Cast {
 
     @Evaluator(extraName = "IntToUnsignedLong")
     static long castIntToUnsignedLong(int v) {
-        return castLongToUnsignedLong(v);
+        return intToUnsignedLong(v);
     }
 
     @Evaluator(extraName = "LongToUnsignedLong")
+    // TODO: catch-to-null in evaluator?
     static long castLongToUnsignedLong(long v) {
-        if (v < 0) {
-            throw new QlIllegalArgumentException("[" + v + "] out of [unsigned_long] range");
-        }
-        return v;
+        return longToUnsignedLong(v, false);
     }
 }

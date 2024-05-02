@@ -10,8 +10,9 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
+import org.elasticsearch.search.profile.Timer;
 
-import java.util.Objects;
+import static java.util.Objects.requireNonNull;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also
@@ -50,15 +51,15 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
         if (this.collectorResult != null) {
             throw new IllegalStateException("The collector result can only be set once.");
         }
-        this.collectorResult = Objects.requireNonNull(collectorResult);
+        this.collectorResult = requireNonNull(collectorResult);
     }
 
     /**
      * Begin timing the rewrite phase of a request.  All rewrites are accumulated together into a
      * single metric
      */
-    public void startRewriteTime() {
-        ((InternalQueryProfileTree) profileTree).startRewriteTime();
+    public Timer startRewriteTime() {
+        return ((InternalQueryProfileTree) profileTree).startRewriteTime();
     }
 
     /**
@@ -67,8 +68,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      *
      * @return cumulative rewrite time
      */
-    public long stopAndAddRewriteTime() {
-        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime();
+    public long stopAndAddRewriteTime(Timer rewriteTimer) {
+        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime(requireNonNull(rewriteTimer));
     }
 
     /**

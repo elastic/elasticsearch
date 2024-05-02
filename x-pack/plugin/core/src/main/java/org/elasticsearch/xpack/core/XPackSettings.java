@@ -160,6 +160,12 @@ public class XPackSettings {
         Property.NodeScope
     );
 
+    /** Optional setting to prevent startup if required providers are not discovered at runtime */
+    public static final Setting<List<String>> FIPS_REQUIRED_PROVIDERS = Setting.stringListSetting(
+        "xpack.security.fips_mode.required_providers",
+        Property.NodeScope
+    );
+
     /**
      * Setting for enabling the enrollment process, ie the enroll APIs are enabled, and the initial cluster node generates and displays
      * enrollment tokens (for Kibana and sometimes for ES nodes) when starting up for the first time.

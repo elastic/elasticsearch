@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
@@ -34,9 +36,11 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
     private final SearchUsageHolder searchUsageHolder;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder) {
+    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
         this.searchUsageHolder = searchUsageHolder;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -58,14 +62,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(
-                submit.getSearchRequest(),
-                request,
-                parser,
-                client.getNamedWriteableRegistry(),
-                setSize,
-                searchUsageHolder
-            )
+            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, clusterSupportsFeature, setSize, searchUsageHolder)
         );
 
         if (request.hasParam("wait_for_completion_timeout")) {
@@ -78,14 +75,13 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
         return channel -> {
-            RestChunkedToXContentListener<AsyncSearchResponse> listener = new RestChunkedToXContentListener<>(channel) {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, new RestRefCountedChunkedToXContentListener<>(channel) {
                 @Override
                 protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
                     return asyncSearchResponse.status();
                 }
-            };
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, listener);
+            });
         };
     }
 

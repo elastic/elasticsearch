@@ -17,6 +17,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -82,6 +82,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -128,6 +129,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final NodeClient client;
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
+
+    private final Executor shardCloseExecutor = r -> {
+        // ES-8334 TODO move this work onto a background thread
+        try {
+            assert ClusterApplierService.assertIsApplyingClusterState();
+            ClusterApplierService.clearIsApplyingClusterState();
+            r.run();
+        } finally {
+            ClusterApplierService.setIsApplyingClusterState();
+        }
+    };
 
     @Inject
     public IndicesClusterStateService(
@@ -235,7 +247,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indicesService.removeIndex(
                     indexService.getIndexSettings().getIndex(),
                     NO_LONGER_ASSIGNED,
-                    "cleaning index (disabled block persistence)"
+                    "cleaning index (disabled block persistence)",
+                    shardCloseExecutor,
+                    ActionListener.noop()
                 );
             }
             return;
@@ -320,7 +334,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexSettings indexSettings;
             if (indexService != null) {
                 indexSettings = indexService.getIndexSettings();
-                indicesService.removeIndex(index, DELETED, "index no longer part of the metadata");
+                indicesService.removeIndex(
+                    index,
+                    DELETED,
+                    "index no longer part of the metadata",
+                    shardCloseExecutor,
+                    ActionListener.noop()
+                );
             } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 final IndexMetadata metadata = previousState.metadata().index(index);
@@ -365,6 +385,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             logger.warn("[{}] failed to lock all shards for index - interrupted", index);
                         }
                     }
+
+                    @Override
+                    public String toString() {
+                        return "processPendingDeletes[" + index + "]";
+                    }
                 });
             }
         }
@@ -407,7 +432,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
-                indicesService.removeIndex(index, reason, "removing index (" + reason + ")");
+                indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, ActionListener.noop());
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
@@ -418,7 +443,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // we can just remove the shard without cleaning it locally, since we will clean it in IndicesStore
                         // once all shards are allocated
                         logger.debug("{} removing shard (not allocated)", shardId);
-                        indexService.removeShard(shardId.id(), "removing shard (not allocated)");
+                        indexService.removeShard(shardId.id(), "removing shard (not allocated)", shardCloseExecutor, ActionListener.noop());
                     } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
                         logger.debug(
                             "{} removing shard (stale allocation id, stale {}, new {})",
@@ -426,20 +451,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             currentRoutingEntry,
                             newShardRouting
                         );
-                        indexService.removeShard(shardId.id(), "removing shard (stale copy)");
+                        indexService.removeShard(shardId.id(), "removing shard (stale copy)", shardCloseExecutor, ActionListener.noop());
                     } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
                         // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
                         // is assigned to it. Batch cluster state processing or if shard fetching completes before the node gets a new
                         // cluster state may result in a new shard being initialized while having the same allocation id as the currently
                         // started shard.
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
-                        indexService.removeShard(shardId.id(), "removing shard (stale copy)");
+                        indexService.removeShard(shardId.id(), "removing shard (stale copy)", shardCloseExecutor, ActionListener.noop());
                     } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
                         assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
                         // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
                         // and assigning an initializing primary to this node
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
-                        indexService.removeShard(shardId.id(), "removing shard (stale copy)");
+                        indexService.removeShard(shardId.id(), "removing shard (stale copy)", shardCloseExecutor, ActionListener.noop());
                     }
                 }
             }
@@ -499,7 +524,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     failShardReason = "failed to create index";
                 } else {
                     failShardReason = "failed to update mapping for index";
-                    indicesService.removeIndex(index, FAILURE, "removing index (mapping update failed)");
+                    indicesService.removeIndex(
+                        index,
+                        FAILURE,
+                        "removing index (mapping update failed)",
+                        shardCloseExecutor,
+                        ActionListener.noop()
+                    );
                 }
                 for (ShardRouting shardRouting : entry.getValue()) {
                     sendFailShard(shardRouting, failShardReason, e, state);
@@ -547,7 +578,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     reason = "mapping update failed";
                     indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
-                    indicesService.removeIndex(index, FAILURE, "removing index (" + reason + ")");
+                    indicesService.removeIndex(
+                        index,
+                        FAILURE,
+                        "removing index (" + reason + ")",
+                        shardCloseExecutor,
+                        ActionListener.noop()
+                    );
 
                     // fail shards that would be created or updated by createOrUpdateShards
                     RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
@@ -600,7 +637,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                     @Override
                     public void onFailure(Exception e) {
-                        failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
+                        failAndRemoveShard(
+                            shardRouting,
+                            true,
+                            "failed to create shard",
+                            e,
+                            state,
+                            shardCloseExecutor,
+                            ActionListener.noop()
+                        );
                     }
                 }, () -> {
                     assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
@@ -610,7 +655,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception e) {
             assert pendingShardCreations.get(shardId) == null
                 || pendingShardCreations.get(shardId).clusterStateUUID().equals(state.stateUUID()) == false;
-            failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
+            failAndRemoveShard(shardRouting, true, "failed to create shard", e, state, shardCloseExecutor, ActionListener.noop());
         }
     }
 
@@ -651,7 +696,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
             if (e.getCause() instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
-                logger.warn(Strings.format("interrupted while creating shard [{}]", shardRouting), e);
+                logger.warn(format("interrupted while creating shard [%s]", shardRouting), e);
                 listener.onFailure(e);
                 return;
             }
@@ -767,7 +812,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexShardRoutingTable
             );
         } catch (Exception e) {
-            failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
+            failAndRemoveShard(
+                shardRouting,
+                true,
+                "failed updating shard routing entry",
+                e,
+                clusterState,
+                shardCloseExecutor,
+                ActionListener.noop()
+            );
             return;
         }
 
@@ -873,7 +926,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     // package-private for testing
     synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, Exception failure) {
-        failAndRemoveShard(shardRouting, sendShardFailure, "failed recovery", failure, clusterService.state());
+        failAndRemoveShard(
+            shardRouting,
+            sendShardFailure,
+            "failed recovery",
+            failure,
+            clusterService.state(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ActionListener.noop()
+        );
     }
 
     private void failAndRemoveShard(
@@ -881,14 +942,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         boolean sendShardFailure,
         String message,
         @Nullable Exception failure,
-        ClusterState state
+        ClusterState state,
+        Executor shardCloseExecutor,
+        ActionListener<Void> shardCloseListener
     ) {
-        try {
+        try (var listeners = new RefCountingListener(shardCloseListener)) {
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
             if (indexService != null) {
                 Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
                 if (shard != null && shard.routingEntry().isSameAllocation(shardRouting)) {
-                    indexService.removeShard(shardRouting.shardId().id(), message);
+                    indexService.removeShard(shardRouting.shardId().id(), message, shardCloseExecutor, listeners.acquire());
                 }
             }
         } catch (ShardNotFoundException e) {
@@ -940,7 +1003,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         true,
                         "shard failure, reason [" + shardFailure.reason() + "]",
                         shardFailure.cause(),
-                        clusterService.state()
+                        clusterService.state(),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* NB holding mutex while closing shard, ES-8334 TODO revisit this? */,
+                        ActionListener.noop()
                     );
                 }
             });
@@ -1031,7 +1096,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Removes shard with given id.
          */
-        void removeShard(int shardId, String message);
+        void removeShard(int shardId, String message, Executor closeExecutor, ActionListener<Void> closeListener);
     }
 
     public interface AllocatedIndices<T extends Shard, U extends AllocatedIndex<T>> extends Iterable<U> {
@@ -1060,18 +1125,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-         * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
+         * but does not deal with in-memory structures. For those call {@link #removeIndex}
          */
         void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index
          * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-         * @param index the index to remove
-         * @param reason the reason to remove the index
-         * @param extraInfo extra information that will be used for logging and reporting
+         *
+         * @param index                the index to remove
+         * @param reason               the reason to remove the index
+         * @param extraInfo            extra information that will be used for logging and reporting
+         * @param shardCloseExecutor   executor to use to close individual shards
+         * @param shardsClosedListener listener which is completed when all shards have been closed
          */
-        void removeIndex(Index index, IndexRemovalReason reason, String extraInfo);
+        void removeIndex(
+            Index index,
+            IndexRemovalReason reason,
+            String extraInfo,
+            Executor shardCloseExecutor,
+            ActionListener<Void> shardsClosedListener
+        );
 
         /**
          * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.

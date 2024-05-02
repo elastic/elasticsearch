@@ -32,14 +32,15 @@ import java.util.function.Function;
 
 public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRankRescorerBuilder> {
 
-    public static final String NAME = "learning_to_rank";
-    private static final ParseField MODEL_FIELD = new ParseField("model_id");
-    private static final ParseField PARAMS_FIELD = new ParseField("params");
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, false, Builder::new);
+    public static final ParseField NAME = new ParseField("learning_to_rank");
+    public static final ParseField MODEL_FIELD = new ParseField("model_id");
+    public static final ParseField PARAMS_FIELD = new ParseField("params");
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), false, Builder::new);
 
     static {
         PARSER.declareString(Builder::setModelId, MODEL_FIELD);
         PARSER.declareObject(Builder::setParams, (p, c) -> p.map(), PARAMS_FIELD);
+        PARSER.declareRequiredFieldSet(MODEL_FIELD.getPreferredName());
     }
 
     public static LearningToRankRescorerBuilder fromXContent(XContentParser parser, LearningToRankService learningToRankService) {
@@ -89,7 +90,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     public LearningToRankRescorerBuilder(StreamInput input, LearningToRankService learningToRankService) throws IOException {
         super(input);
         this.modelId = input.readString();
-        this.params = input.readMap();
+        this.params = input.readGenericMap();
         this.learningToRankConfig = (LearningToRankConfig) input.readOptionalNamedWriteable(InferenceConfig.class);
         this.learningToRankService = learningToRankService;
 
@@ -251,13 +252,18 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return NAME.getPreferredName();
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         // TODO: update transport version when released!
         return TransportVersion.current();
+    }
+
+    @Override
+    protected boolean isWindowSizeRequired() {
+        return true;
     }
 
     @Override
@@ -270,7 +276,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        builder.startObject(NAME.getPreferredName());
         builder.field(MODEL_FIELD.getPreferredName(), modelId);
         if (this.params != null) {
             builder.field(PARAMS_FIELD.getPreferredName(), this.params);

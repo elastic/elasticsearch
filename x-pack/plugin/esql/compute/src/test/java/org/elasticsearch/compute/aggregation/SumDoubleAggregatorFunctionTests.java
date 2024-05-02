@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -34,8 +33,8 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new SumDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
@@ -56,7 +55,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
             Driver d = new Driver(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(Double.MAX_VALUE - 1, 2)),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
@@ -77,7 +76,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
                     driverContext.blockFactory(),
                     DoubleStream.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
                 ),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
@@ -103,7 +102,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
             Driver d = new Driver(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(values)),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
@@ -125,7 +124,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
             Driver d = new Driver(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
@@ -144,7 +143,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
             Driver d = new Driver(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             )

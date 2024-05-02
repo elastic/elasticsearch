@@ -65,25 +65,23 @@ public class DfsProfilerIT extends ESIntegTestCase {
         int iters = between(5, 10);
         for (int i = 0; i < iters; i++) {
             QueryBuilder q = randomQueryBuilder(List.of(textField), List.of(numericField), numDocs, 3);
+            KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
+                vectorField,
+                new float[] { randomFloat(), randomFloat(), randomFloat() },
+                randomIntBetween(5, 10),
+                50,
+                randomBoolean() ? null : randomFloat()
+            );
+            if (randomBoolean()) {
+                knnSearchBuilder.addFilterQuery(q);
+            }
             logger.info("Query: {}", q);
             assertResponse(
                 prepareSearch().setQuery(q)
                     .setTrackTotalHits(true)
                     .setProfile(true)
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                    .setKnnSearch(
-                        randomList(
-                            2,
-                            5,
-                            () -> new KnnSearchBuilder(
-                                vectorField,
-                                new float[] { randomFloat(), randomFloat(), randomFloat() },
-                                randomIntBetween(5, 10),
-                                50,
-                                randomBoolean() ? null : randomFloat()
-                            )
-                        )
-                    ),
+                    .setKnnSearch(randomList(2, 5, () -> knnSearchBuilder)),
                 response -> {
                     assertNotNull("Profile response element should not be null", response.getProfileResults());
                     assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));

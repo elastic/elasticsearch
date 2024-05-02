@@ -13,10 +13,13 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -33,8 +36,12 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
-public class HuggingFaceServiceSettings implements ServiceSettings {
+public class HuggingFaceServiceSettings implements ServiceSettings, HuggingFaceRateLimitServiceSettings {
     public static final String NAME = "hugging_face_service_settings";
+
+    // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value here is only a guess
+    // 3000 requests per minute
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -43,18 +50,17 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-        return new HuggingFaceServiceSettings(uri, similarityMeasure, dims, maxInputTokens);
+        return new HuggingFaceServiceSettings(uri, similarityMeasure, dims, maxInputTokens, rateLimitSettings);
     }
 
     public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
         String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        if (parsedUrl == null) {
-            return null;
-        }
+
         return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
@@ -62,24 +68,28 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
+    private final RateLimitSettings rateLimitSettings;
 
     public HuggingFaceServiceSettings(URI uri) {
         this.uri = Objects.requireNonNull(uri);
         this.similarity = null;
         this.dimensions = null;
         this.maxInputTokens = null;
+        rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
     }
 
     public HuggingFaceServiceSettings(
         URI uri,
         @Nullable SimilarityMeasure similarityMeasure,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.uri = Objects.requireNonNull(uri);
         this.similarity = similarityMeasure;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
+        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public HuggingFaceServiceSettings(String url) {
@@ -88,7 +98,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     public HuggingFaceServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             similarity = in.readOptionalEnum(SimilarityMeasure.class);
             dimensions = in.readOptionalVInt();
             maxInputTokens = in.readOptionalVInt();
@@ -96,6 +106,12 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
             similarity = null;
             dimensions = null;
             maxInputTokens = null;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
         }
     }
 
@@ -112,8 +128,14 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        rateLimitSettings.toXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this;
     }
 
     @Override
@@ -123,33 +145,50 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HF_SERVICE_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
-            out.writeOptionalEnum(similarity);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
         }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
+    }
+
+    @Override
     public URI uri() {
         return uri;
     }
 
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }
 
     public Integer maxInputTokens() {
         return maxInputTokens;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     @Override
@@ -160,11 +199,12 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         return Objects.equals(uri, that.uri)
             && similarity == that.similarity
             && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens);
+            && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions, maxInputTokens);
+        return Objects.hash(uri, similarity, dimensions, maxInputTokens, rateLimitSettings);
     }
 }

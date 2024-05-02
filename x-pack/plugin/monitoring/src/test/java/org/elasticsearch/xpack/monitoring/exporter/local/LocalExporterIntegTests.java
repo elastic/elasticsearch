@@ -17,6 +17,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -126,47 +127,37 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 ensureYellowAndNoInitializingShards(".monitoring-*");
 
                 assertThat(
-                    prepareSearch(".monitoring-es-*").setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    prepareSearch(".monitoring-es-*").setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "index_recovery"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "index_recovery"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    prepareSearch(".monitoring-es-*").setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "index_stats"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "index_stats"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    prepareSearch(".monitoring-es-*").setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "indices_stats"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "indices_stats"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    prepareSearch(".monitoring-es-*").setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "shards"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "shards"))
+                    ),
                     greaterThan(0L)
                 );
 
@@ -182,7 +173,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                             aggregation.getBuckets().size()
                         );
                         for (String nodeName : internalCluster().getNodeNames()) {
-                            String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+                            String nodeId = getNodeId(nodeName);
                             Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
                             assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
                             assertTrue(bucket.getDocCount() >= 1L);
@@ -217,7 +208,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     response -> {
                         Terms aggregation = response.getAggregations().get("agg_nodes_ids");
                         for (String nodeName : internalCluster().getNodeNames()) {
-                            String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+                            String nodeId = getNodeId(nodeName);
                             Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
                             assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
                             assertTrue(bucket.getDocCount() >= 1L);

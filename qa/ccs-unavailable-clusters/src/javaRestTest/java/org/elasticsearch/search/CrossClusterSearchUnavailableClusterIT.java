@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -57,7 +56,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@SuppressWarnings("removal")
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -92,18 +90,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 TransportSearchAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
-                (request, channel, task) -> {
-                    InternalSearchResponse response = new InternalSearchResponse(
-                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                (request, channel, task) -> channel.sendResponse(
+                    new SearchResponse(
+                        SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                         InternalAggregations.EMPTY,
-                        null,
                         null,
                         false,
                         null,
-                        1
-                    );
-                    SearchResponse searchResponse = new SearchResponse(
-                        response,
+                        null,
+                        1,
                         null,
                         1,
                         1,
@@ -111,9 +106,8 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         100,
                         ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY
-                    );
-                    channel.sendResponse(searchResponse);
-                }
+                    )
+                )
             );
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,

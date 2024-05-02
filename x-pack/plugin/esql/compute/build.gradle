@@ -30,12 +30,14 @@ spotless {
   }
 }
 
-def prop(Type, type, TYPE, BYTES) {
+def prop(Type, type, TYPE, BYTES, Array, Hash) {
   return [
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
     "BYTES" : BYTES,
+    "Array" : Array,
+    "Hash" : Hash,
 
     "int" : type == "int" ? "true" : "",
     "long" : type == "long" ? "true" : "",
@@ -46,11 +48,11 @@ def prop(Type, type, TYPE, BYTES) {
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES")
-  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
-  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES")
+  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES", "IntArray", "LongHash")
+  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES", "LongArray", "LongHash")
+  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "", "BytesRefHash")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {
@@ -208,6 +210,28 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanArrayBlock.java"
   }
+  // BigArray block implementations
+  File bigArrayBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-BigArrayBlock.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntBigArrayBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongBigArrayBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleBigArrayBlock.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanBigArrayBlock.java"
+  }
   // vector blocks
   File vectorBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorBlock.java.st")
   template {
@@ -326,6 +350,33 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
   }
+  // block builders
+  File lookupInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Lookup.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntLookup.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongLookup.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleLookup.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefLookup.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanLookup.java"
+  }
   File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
   template {
     it.properties = intProperties
@@ -342,26 +393,86 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleArrayState.java"
   }
-  File multivalueDedupeInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/X-MultivalueDedupe.java.st")
+  File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesDoubleAggregator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesBytesRefAggregator.java"
+  }
+
+  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
+  }
+
+  File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")
   template {
     it.properties = intProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeInt.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeInt.java"
   }
   template {
     it.properties = longProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeLong.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeLong.java"
   }
   template {
     it.properties = doubleProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeDouble.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeDouble.java"
   }
   template {
     it.properties = bytesRefProperties
     it.inputFile =  multivalueDedupeInputFile
-    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeBytesRef.java"
+    it.outputFile = "org/elasticsearch/compute/operator/mvdedupe/MultivalueDedupeBytesRef.java"
+  }
+  File blockHashInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/blockhash/X-BlockHash.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/IntBlockHash.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/LongBlockHash.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/DoubleBlockHash.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  blockHashInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/blockhash/BytesRefBlockHash.java"
   }
   File keyExtractorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-KeyExtractor.java.st")
   template {

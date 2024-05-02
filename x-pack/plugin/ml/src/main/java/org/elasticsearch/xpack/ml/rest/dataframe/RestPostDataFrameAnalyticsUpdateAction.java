@@ -48,9 +48,11 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
         }
 
         String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
-        XContentParser parser = restRequest.contentParser();
-        UpdateDataFrameAnalyticsAction.Request updateRequest = UpdateDataFrameAnalyticsAction.Request.parseRequest(id, parser);
-        updateRequest.timeout(restRequest.paramAsTime("timeout", updateRequest.timeout()));
+        UpdateDataFrameAnalyticsAction.Request updateRequest;
+        try (XContentParser parser = restRequest.contentParser()) {
+            updateRequest = UpdateDataFrameAnalyticsAction.Request.parseRequest(id, parser);
+        }
+        updateRequest.ackTimeout(restRequest.paramAsTime("timeout", updateRequest.ackTimeout()));
 
         return channel -> client.execute(UpdateDataFrameAnalyticsAction.INSTANCE, updateRequest, new RestToXContentListener<>(channel));
     }

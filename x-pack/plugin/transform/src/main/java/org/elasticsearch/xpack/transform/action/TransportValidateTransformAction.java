@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
@@ -127,9 +128,9 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         // <4> Deduce destination index mappings
         ActionListener<Boolean> validateQueryListener = ActionListener.wrap(validateQueryResponse -> {
             if (request.isDeferValidation()) {
-                deduceMappingsListener.onResponse(null);
+                deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(client, config.getHeaders(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(client, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
             }
         }, listener::onFailure);
 
@@ -138,7 +139,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 validateQueryListener.onResponse(true);
             } else {
-                function.validateQuery(client, config.getHeaders(), config.getSource(), request.timeout(), validateQueryListener);
+                function.validateQuery(client, config.getHeaders(), config.getSource(), request.ackTimeout(), validateQueryListener);
             }
         }, listener::onFailure);
 

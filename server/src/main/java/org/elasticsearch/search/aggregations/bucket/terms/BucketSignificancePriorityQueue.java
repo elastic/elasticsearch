@@ -8,12 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 
-public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends PriorityQueue<B> {
+public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends ObjectArrayPriorityQueue<B> {
 
-    public BucketSignificancePriorityQueue(int size) {
-        super(size);
+    public BucketSignificancePriorityQueue(int size, BigArrays bigArrays) {
+        super(size, bigArrays);
     }
 
     @Override

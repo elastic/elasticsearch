@@ -27,14 +27,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -63,7 +65,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -75,10 +77,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
+
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 final class DefaultSearchContext extends SearchContext {
 
@@ -118,7 +124,7 @@ final class DefaultSearchContext extends SearchContext {
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
-    private RankShardContext rankShardContext;
+    private QueryPhaseRankShardContext queryPhaseRankShardContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -167,20 +173,13 @@ final class DefaultSearchContext extends SearchContext {
             this.indexShard = readerContext.indexShard();
 
             Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-            int maximumNumberOfSlices;
-            if (hasSyntheticSource(indexService)) {
-                // accessing synthetic source is not thread safe
-                maximumNumberOfSlices = 1;
-            } else {
-                maximumNumberOfSlices = determineMaximumNumberOfSlices(
-                    executor,
-                    request,
-                    resultsType,
-                    enableQueryPhaseParallelCollection,
-                    field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
-                );
-
-            }
+            int maximumNumberOfSlices = determineMaximumNumberOfSlices(
+                executor,
+                request,
+                resultsType,
+                enableQueryPhaseParallelCollection,
+                field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
+            );
             if (executor == null) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
@@ -210,7 +209,8 @@ final class DefaultSearchContext extends SearchContext {
                 searcher,
                 request::nowInMillis,
                 shardTarget.getClusterAlias(),
-                request.getRuntimeMappings()
+                request.getRuntimeMappings(),
+                request.source() == null ? null : request.source().size()
             );
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
@@ -220,14 +220,6 @@ final class DefaultSearchContext extends SearchContext {
                 close();
             }
         }
-    }
-
-    private static boolean hasSyntheticSource(IndexService indexService) {
-        DocumentMapper documentMapper = indexService.mapperService().documentMapper();
-        if (documentMapper != null) {
-            return documentMapper.sourceMapper().isSynthetic();
-        }
-        return false;
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {
@@ -316,7 +308,7 @@ final class DefaultSearchContext extends SearchContext {
             return;
         }
         long from = from() == -1 ? 0 : from();
-        long size = size() == -1 ? 10 : size();
+        long size = size() == -1 ? DEFAULT_SIZE : size();
         long resultWindow = from + size;
         int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 
@@ -489,7 +481,6 @@ final class DefaultSearchContext extends SearchContext {
         return this;
     }
 
-    @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
         // it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
         // parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
@@ -516,19 +507,18 @@ final class DefaultSearchContext extends SearchContext {
         return suggest;
     }
 
-    @Override
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
     }
 
     @Override
-    public RankShardContext rankShardContext() {
-        return rankShardContext;
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return queryPhaseRankShardContext;
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        this.rankShardContext = rankShardContext;
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        this.queryPhaseRankShardContext = queryPhaseRankShardContext;
     }
 
     @Override
@@ -621,7 +611,6 @@ final class DefaultSearchContext extends SearchContext {
         return timeout;
     }
 
-    @Override
     public void timeout(TimeValue timeout) {
         this.timeout = timeout;
     }
@@ -696,7 +685,6 @@ final class DefaultSearchContext extends SearchContext {
         return searchAfter;
     }
 
-    @Override
     public SearchContext collapse(CollapseContext collapse) {
         this.collapse = collapse;
         return this;
@@ -794,7 +782,6 @@ final class DefaultSearchContext extends SearchContext {
         return this.groupStats;
     }
 
-    @Override
     public void groupStats(List<String> groupStats) {
         this.groupStats = groupStats;
     }
@@ -906,8 +893,27 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            return IdLoader.createTsIdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
+            IndexRouting.ExtractFromSource indexRouting = null;
+            List<String> routingPaths = null;
+            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
+                indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+                routingPaths = indexService.getMetadata().getRoutingPaths();
+                for (String routingField : routingPaths) {
+                    if (routingField.contains("*")) {
+                        // In case the routing fields include path matches, find any matches and add them as distinct fields
+                        // to the routing path.
+                        Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
+                        for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
+                                matchingRoutingPaths.add(mapper.name());
+                            }
+                        }
+                        routingPaths = new ArrayList<>(matchingRoutingPaths);
+                        break;
+                    }
+                }
+            }
+            return IdLoader.createTsIdLoader(indexRouting, routingPaths);
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

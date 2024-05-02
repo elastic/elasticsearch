@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DesiredNode;
@@ -343,8 +342,8 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         Template t = new Template(Settings.builder().putNull(DataTier.TIER_PREFERENCE).build(), null, null);
         ComposableIndexTemplate ct = ComposableIndexTemplate.builder().indexPatterns(Collections.singletonList(index)).template(t).build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
         ).actionGet();
 
         indicesAdmin().prepareCreate(index).setWaitForActiveShards(0).get();
@@ -506,7 +505,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId)
             .put(NODE_NAME_SETTING.getKey(), externalId)
             .build();
-        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
+        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE);
     }
 
     private void updateDesiredNodes(DesiredNode... desiredNodes) {

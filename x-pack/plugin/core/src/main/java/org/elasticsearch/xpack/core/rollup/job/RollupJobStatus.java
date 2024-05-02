@@ -74,7 +74,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
 
     public RollupJobStatus(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
-        currentPosition = in.readBoolean() ? new TreeMap<>(in.readMap()) : null;
+        currentPosition = in.readBoolean() ? new TreeMap<>(in.readGenericMap()) : null;
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // 7.x nodes serialize `upgradedDocumentID` flag. We don't need it anymore, but
             // we need to pull it off the stream

@@ -92,9 +92,12 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLette
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -167,13 +170,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         };
         setDurability(shard, Translog.Durability.REQUEST);
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
         setDurability(shard, Translog.Durability.ASYNC);
         prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).get();
-        assertTrue(needsSync.test(translog));
+        assertThat(needsSync, trueWith(translog));
         setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "1").get();
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
         client().prepareDelete("test", "2").get();
@@ -185,7 +188,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 .add(client().prepareDelete("test", "1"))
                 .get()
         );
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
         assertNoFailures(
@@ -195,7 +198,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 .get()
         );
         setDurability(shard, Translog.Durability.REQUEST);
-        assertTrue(needsSync.test(translog));
+        assertThat(needsSync, trueWith(translog));
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {
@@ -543,7 +546,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        shard.close("simon says", false);
+        closeShardNoCheck(shard);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
         IndexingOperationListener listener = new IndexingOperationListener() {
@@ -581,7 +584,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         try {
             ExceptionsHelper.rethrowAndSuppress(failures);
         } finally {
-            newShard.close("just do it", randomBoolean());
+            closeShardNoCheck(newShard, randomBoolean());
         }
     }
 
@@ -631,14 +634,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
-        ShardRouting shardRouting = newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             existingShardRouting.shardId(),
             existingShardRouting.currentNodeId(),
-            null,
             existingShardRouting.primary(),
-            ShardRoutingState.INITIALIZING,
-            existingShardRouting.allocationId()
-        );
+            ShardRoutingState.INITIALIZING
+        ).withAllocationId(existingShardRouting.allocationId()).build();
         shardRouting = shardRouting.updateUnassigned(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
             RecoverySource.ExistingStoreRecoverySource.INSTANCE

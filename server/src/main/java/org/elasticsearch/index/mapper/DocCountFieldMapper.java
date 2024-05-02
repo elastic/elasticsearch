@@ -139,7 +139,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         return reader.postings(TERM);
     }
 
-    private class SyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    private static class SyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private PostingsEnum postings;
         private boolean hasValue;
 

@@ -5,7 +5,7 @@
 <titleabbrev>Aggregate functions</titleabbrev>
 ++++
 
-The <<esql-stats-by>> function supports these aggregate functions:
+The <<esql-stats-by>> command supports these aggregate functions:
 
 // tag::agg_list[]
 * <<esql-agg-avg>>
@@ -16,7 +16,9 @@ The <<esql-stats-by>> function supports these aggregate functions:
 * <<esql-agg-median-absolute-deviation>>
 * <<esql-agg-min>>
 * <<esql-agg-percentile>>
+* experimental:[] <<esql-agg-st-centroid>>
 * <<esql-agg-sum>>
+* <<esql-agg-values>>
 // end::agg_list[]
 
 include::avg.asciidoc[]
@@ -27,4 +29,6 @@ include::median.asciidoc[]
 include::median-absolute-deviation.asciidoc[]
 include::min.asciidoc[]
 include::percentile.asciidoc[]
+include::st_centroid_agg.asciidoc[]
 include::sum.asciidoc[]
+include::values.asciidoc[]

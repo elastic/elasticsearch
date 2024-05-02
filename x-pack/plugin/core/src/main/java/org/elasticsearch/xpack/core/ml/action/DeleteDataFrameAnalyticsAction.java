@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -28,7 +27,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
     public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-analytics-";
 
     private DeleteDataFrameAnalyticsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static final class Request extends AcknowledgedRequest<Request> {
@@ -49,7 +48,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         }
 
         public Request() {
-            timeout(DEFAULT_TIMEOUT);
+            ackTimeout(DEFAULT_TIMEOUT);
         }
 
         public Request(String id) {
@@ -70,11 +69,6 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public String getDescription() {
             return DELETION_TASK_DESCRIPTION_PREFIX + id;
         }
@@ -84,7 +78,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeleteDataFrameAnalyticsAction.Request request = (DeleteDataFrameAnalyticsAction.Request) o;
-            return Objects.equals(id, request.id) && force == request.force && Objects.equals(timeout, request.timeout);
+            return Objects.equals(id, request.id) && force == request.force && Objects.equals(ackTimeout(), request.ackTimeout());
         }
 
         @Override
@@ -96,7 +90,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, force, timeout);
+            return Objects.hash(id, force, ackTimeout());
         }
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -17,12 +18,14 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -37,6 +40,21 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
+    public static EsqlQueryRequest asyncSyncRequestOnLatestVersion() {
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
+        applyLatestVersion(request);
+        return request;
+    }
+
+    public static EsqlQueryRequest syncRequestOnLatestVersion() {
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        applyLatestVersion(request);
+        return request;
+    }
+
+    private static void applyLatestVersion(EsqlQueryRequest request) {
+        request.esqlVersion(EsqlTestUtils.latestEsqlVersionOrSnapshot());
+    }
 
     @After
     public void ensureExchangesAreReleased() throws Exception {
@@ -53,11 +71,25 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
             try {
                 assertBusy(() -> {
-                    logger.info("running tasks: {}", client().admin().cluster().prepareListTasks().get());
+                    logger.info(
+                        "running tasks: {}",
+                        client().admin()
+                            .cluster()
+                            .prepareListTasks()
+                            .get()
+                            .getTasks()
+                            .stream()
+                            .filter(
+                                // Skip the tasks we that'd get in the way while debugging
+                                t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
+                                    && false == t.action().contains(HealthNode.TASK_NAME)
+                            )
+                            .toList()
+                    );
                     assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
                 });
             } catch (Exception e) {
-                assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
+                throw new RuntimeException("failed waiting for breakers to clear", e);
             }
         }
     }
@@ -79,6 +111,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                 Setting.byteSizeSetting(
                     BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING,
                     ByteSizeValue.ofBytes(randomIntBetween(0, 16 * 1024)),
+                    Setting.Property.NodeScope
+                ),
+                Setting.byteSizeSetting(
+                    BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+                    ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes())),
                     Setting.Property.NodeScope
                 )
             );
@@ -117,9 +154,18 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        return run(esqlCommands, pragmas, filter, null);
+    }
+
+    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter, String version) {
+        EsqlQueryRequest request = syncRequestOnLatestVersion();
+        if (version != null) {
+            request.esqlVersion(version);
+        }
         request.query(esqlCommands);
-        request.pragmas(pragmas);
+        if (pragmas != null) {
+            request.pragmas(pragmas);
+        }
         if (filter != null) {
             request.filter(filter);
         }
@@ -163,6 +209,12 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                     default -> throw new AssertionError("unknown");
                 };
                 settings.put("page_size", pageSize);
+            }
+            if (randomBoolean()) {
+                settings.put("max_concurrent_shards_per_node", randomIntBetween(1, 10));
+            }
+            if (randomBoolean()) {
+                settings.put("node_level_reduction", randomBoolean());
             }
         }
         return new QueryPragmas(settings.build());

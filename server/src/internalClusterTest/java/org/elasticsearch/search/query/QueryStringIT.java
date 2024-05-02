@@ -186,7 +186,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         Exception exc = expectThrows(
             Exception.class,
-            () -> prepareSearch("test").setQuery(queryStringQuery("f4:\"eggplant parmesan\"").lenient(false)).get()
+            prepareSearch("test").setQuery(queryStringQuery("f4:\"eggplant parmesan\"").lenient(false))
         );
         IllegalStateException ise = (IllegalStateException) ExceptionsHelper.unwrap(exc, IllegalStateException.class);
         assertNotNull(ise);
@@ -194,7 +194,7 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     public void testBooleanStrictQuery() throws Exception {
-        Exception e = expectThrows(Exception.class, () -> prepareSearch("test").setQuery(queryStringQuery("foo").field("f_bool")).get());
+        Exception e = expectThrows(Exception.class, prepareSearch("test").setQuery(queryStringQuery("foo").field("f_bool")));
         assertThat(
             ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
             containsString("Can't parse boolean value [foo], expected [true] or [false]")
@@ -204,7 +204,7 @@ public class QueryStringIT extends ESIntegTestCase {
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         Exception e = expectThrows(
             Exception.class,
-            () -> prepareSearch("test").setQuery(queryStringQuery("f_date:[now-2D TO now]").lenient(false)).get()
+            prepareSearch("test").setQuery(queryStringQuery("f_date:[now-2D TO now]").lenient(false))
         );
         assertThat(e.getCause().getMessage(), containsString("unit [D] not supported for date math [-2D]"));
     }

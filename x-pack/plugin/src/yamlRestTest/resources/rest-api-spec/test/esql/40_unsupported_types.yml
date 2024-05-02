@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -109,9 +109,9 @@ setup:
 
 ---
 unsupported:
-  - skip:
-      version: " - 8.11.99"
-      reason: "Latest types supported in ESQL starting with 8.12.0"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:
       allowed_warnings_regex:
@@ -120,6 +120,7 @@ unsupported:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: unsupported }
@@ -142,7 +143,7 @@ unsupported:
   - match: { columns.9.name: geo_point_alias }
   - match: { columns.9.type: geo_point }
   - match: { columns.10.name: geo_shape }
-  - match: { columns.10.type: unsupported }
+  - match: { columns.10.type: geo_shape }
   - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
   - match: { columns.12.name: integer_range }
@@ -170,7 +171,7 @@ unsupported:
   - match: { columns.23.name: search_as_you_type._index_prefix }
   - match: { columns.23.type: unsupported }
   - match: { columns.24.name: shape }
-  - match: { columns.24.type: unsupported }
+  - match: { columns.24.type: cartesian_shape }
   - match: { columns.25.name: some_doc.bar }
   - match: { columns.25.type: long }
   - match: { columns.26.name: some_doc.foo }
@@ -189,23 +190,23 @@ unsupported:
   - match: { values.0.5: null }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
-  - match: { values.0.8: "POINT (9.999999990686774 11.999999997206032)" }
-  - match: { values.0.9: "POINT (9.999999990686774 11.999999997206032)" }
-  - match: { values.0.10: null }
+  - match: { values.0.8: "POINT (10.0 12.0)" }
+  - match: { values.0.9: "POINT (10.0 12.0)" }
+  - match: { values.0.10: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
   - match: { values.0.11: null }
   - match: { values.0.12: null }
   - match: { values.0.13: null }
   - match: { values.0.14: null }
   - match: { values.0.15: "foo bar baz" }
   - match: { values.0.16: Alice }
-  - match: { values.0.17: "POINT (-97.15447235107422 25.996152877807617)" }
+  - match: { values.0.17: "POINT (-97.15447 25.9961525)" }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }
   - match: { values.0.21: null }
   - match: { values.0.22: null }
   - match: { values.0.23: null }
-  - match: { values.0.24: null }
+  - match: { values.0.24: "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)" }
   - match: { values.0.25: 12 }
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
@@ -217,6 +218,7 @@ unsupported:
       esql.query:
         body:
           query: 'from test | limit 0'
+          version: 2024.04.01
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: unsupported }
   - match: { columns.1.name: binary }
@@ -238,7 +240,7 @@ unsupported:
   - match: { columns.9.name: geo_point_alias }
   - match: { columns.9.type: geo_point }
   - match: { columns.10.name: geo_shape }
-  - match: { columns.10.type: unsupported }
+  - match: { columns.10.type: geo_shape }
   - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
   - match: { columns.12.name: integer_range }
@@ -266,7 +268,7 @@ unsupported:
   - match: { columns.23.name: search_as_you_type._index_prefix }
   - match: { columns.23.type: unsupported }
   - match: { columns.24.name: shape }
-  - match: { columns.24.type: unsupported }
+  - match: { columns.24.type: cartesian_shape }
   - match: { columns.25.name: some_doc.bar }
   - match: { columns.25.type: long }
   - match: { columns.26.name: some_doc.foo }
@@ -282,16 +284,17 @@ unsupported:
   - do:
       esql.query:
         body:
-          query: 'from test | keep shape | limit 0'
-  - match: { columns.0.name: shape }
+          query: 'from test | keep histogram | limit 0'
+          version: 2024.04.01
+  - match: { columns.0.name: histogram }
   - match: { columns.0.type: unsupported }
   - length: { values: 0 }
 
 ---
 unsupported with sort:
-  - skip:
-      version: " - 8.11.99"
-      reason: "Latest types supported in ESQL starting with 8.12.0"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:
       allowed_warnings_regex:
@@ -300,6 +303,7 @@ unsupported with sort:
       esql.query:
         body:
           query: 'from test | sort some_doc.bar'
+          version: 2024.04.01
 
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: unsupported }
@@ -322,7 +326,7 @@ unsupported with sort:
   - match: { columns.9.name: geo_point_alias }
   - match: { columns.9.type: geo_point }
   - match: { columns.10.name: geo_shape }
-  - match: { columns.10.type: unsupported }
+  - match: { columns.10.type: geo_shape }
   - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
   - match: { columns.12.name: integer_range }
@@ -350,7 +354,7 @@ unsupported with sort:
   - match: { columns.23.name: search_as_you_type._index_prefix }
   - match: { columns.23.type: unsupported }
   - match: { columns.24.name: shape }
-  - match: { columns.24.type: unsupported }
+  - match: { columns.24.type: cartesian_shape }
   - match: { columns.25.name: some_doc.bar }
   - match: { columns.25.type: long }
   - match: { columns.26.name: some_doc.foo }
@@ -369,56 +373,24 @@ unsupported with sort:
   - match: { values.0.5: null }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
-  - match: { values.0.8: "POINT (9.999999990686774 11.999999997206032)" }
-  - match: { values.0.9: "POINT (9.999999990686774 11.999999997206032)" }
-  - match: { values.0.10: null }
+  - match: { values.0.8: "POINT (10.0 12.0)" }
+  - match: { values.0.9: "POINT (10.0 12.0)" }
+  - match: { values.0.10: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
   - match: { values.0.11: null }
   - match: { values.0.12: null }
   - match: { values.0.13: null }
   - match: { values.0.14: null }
   - match: { values.0.15: "foo bar baz" }
   - match: { values.0.16: Alice }
-  - match: { values.0.17: "POINT (-97.15447235107422 25.996152877807617)" }
+  - match: { values.0.17: "POINT (-97.15447 25.9961525)" }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }
   - match: { values.0.21: null }
   - match: { values.0.22: null }
   - match: { values.0.23: null }
-  - match: { values.0.24: null }
+  - match: { values.0.24: "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)" }
   - match: { values.0.25: 12 }
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
   - match: { values.0.28: 3 }
-
----
-spatial types unsupported in 8.11:
-  - skip:
-      version: " - 8.10.99, 8.12.0 - "
-      reason: "Elasticsearch 8.11 did not support any spatial types"
-
-  - do:
-      allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'from test | keep geo_point, geo_point_alias, point, geo_shape, shape'
-
-  - match: { columns.0.name: geo_point }
-  - match: { columns.0.type: unsupported }
-  - match: { columns.1.name: geo_point_alias }
-  - match: { columns.1.type: unsupported }
-  - match: { columns.2.name: point }
-  - match: { columns.2.type: unsupported }
-  - match: { columns.3.name: geo_shape }
-  - match: { columns.3.type: unsupported }
-  - match: { columns.4.name: shape }
-  - match: { columns.4.type: unsupported }
-
-  - length: { values: 1 }
-  - match: { values.0.0: null }
-  - match: { values.0.1: null }
-  - match: { values.0.2: null }
-  - match: { values.0.3: null }
-  - match: { values.0.4: null }

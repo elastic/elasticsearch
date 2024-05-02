@@ -11,12 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
@@ -60,7 +60,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final ThreadPool threadPool;
 
         public RollupJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
-            super(RollupField.TASK_NAME, ThreadPool.Names.GENERIC);
+            super(RollupField.TASK_NAME, threadPool.generic());
             this.client = client;
             this.schedulerEngine = schedulerEngine;
             this.threadPool = threadPool;
@@ -142,7 +142,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 job.getHeaders(),
                 ClientHelper.ROLLUP_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 request,
                 nextPhase
             );
@@ -164,10 +164,10 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             final RollupJobConfig jobConfig = job.getConfig();
-            final ActionListener<RefreshResponse> refreshResponseActionListener = new ActionListener<>() {
+            final ActionListener<BroadcastResponse> refreshResponseActionListener = new ActionListener<>() {
 
                 @Override
-                public void onResponse(RefreshResponse refreshResponse) {
+                public void onResponse(BroadcastResponse refreshResponse) {
                     logger.trace("refreshing rollup index {} successful for job {}", jobConfig.getRollupIndex(), jobConfig.getId());
                     listener.onResponse(null);
                 }

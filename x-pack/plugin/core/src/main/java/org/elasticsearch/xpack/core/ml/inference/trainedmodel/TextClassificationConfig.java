@@ -134,6 +134,40 @@ public class TextClassificationConfig implements NlpConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof TextClassificationConfigUpdate configUpdate) {
+            TextClassificationConfig.Builder builder = new TextClassificationConfig.Builder(this);
+            if (configUpdate.getNumTopClasses() != null) {
+                builder.setNumTopClasses(configUpdate.getNumTopClasses());
+            }
+            if (configUpdate.getClassificationLabels() != null) {
+                if (classificationLabels.size() != configUpdate.getClassificationLabels().size()) {
+                    throw ExceptionsHelper.badRequestException(
+                        "The number of [{}] the model is defined with [{}] does not match the number in the update [{}]",
+                        CLASSIFICATION_LABELS,
+                        classificationLabels.size(),
+                        configUpdate.getClassificationLabels().size()
+                    );
+                }
+                builder.setClassificationLabels(configUpdate.getClassificationLabels());
+            }
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.tokenizationUpdate != null) {
+                builder.setTokenization(configUpdate.tokenizationUpdate.apply(tokenization));
+            }
+
+            return builder.build();
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new TextClassificationConfig.Builder(this).setTokenization(updatedTokenization).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return MlConfigVersion.V_8_0_0;
     }

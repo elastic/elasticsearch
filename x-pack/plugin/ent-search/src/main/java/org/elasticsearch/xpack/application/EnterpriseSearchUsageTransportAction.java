@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,6 +41,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.List;
@@ -57,7 +56,6 @@ import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSe
 import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.TOTAL_RULE_COUNT;
 
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private static final Logger logger = LogManager.getLogger(EnterpriseSearchUsageTransportAction.class);
     private final XPackLicenseState licenseState;
     private final OriginSettingClient clientWithOrigin;
     private final IndicesAdminClient indicesAdminClient;
@@ -224,7 +222,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         List<QueryRulesetListItem> results = response.queryPage().results();
         IntSummaryStatistics ruleStats = results.stream().mapToInt(QueryRulesetListItem::ruleTotalCount).summaryStatistics();
 
-        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new HashMap<>();
+        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new EnumMap<>(QueryRuleCriteriaType.class);
         results.stream()
             .flatMap(result -> result.criteriaTypeToCountMap().entrySet().stream())
             .forEach(entry -> criteriaTypeCountMap.merge(entry.getKey(), entry.getValue(), Integer::sum));

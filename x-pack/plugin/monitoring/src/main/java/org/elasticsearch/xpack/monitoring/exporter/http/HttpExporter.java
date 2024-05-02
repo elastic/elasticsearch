@@ -929,16 +929,15 @@ public class HttpExporter extends Exporter {
         }
 
         if (migrationCoordinator.canInstall()) {
-            resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
+            resource.checkAndPublishIfDirty(client, listener.delegateFailureAndWrap((delegate, success) -> {
                 if (success) {
                     final String name = "xpack.monitoring.exporters." + config.name();
-
-                    listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
+                    delegate.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
                 } else {
                     // we're not ready yet, so keep waiting
-                    listener.onResponse(null);
+                    delegate.onResponse(null);
                 }
-            }, listener::onFailure));
+            }));
         } else {
             // we're migrating right now, so keep waiting
             listener.onResponse(null);

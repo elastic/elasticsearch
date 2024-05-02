@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -28,12 +27,12 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
     public static final String NAME = "cluster:admin/slm/get";
 
     protected GetSnapshotLifecycleAction() {
-        super(NAME, GetSnapshotLifecycleAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<GetSnapshotLifecycleAction.Request> {
 
-        private String[] lifecycleIds;
+        private final String[] lifecycleIds;
 
         public Request(String... lifecycleIds) {
             this.lifecycleIds = Objects.requireNonNull(lifecycleIds, "ids may not be null");
@@ -50,11 +49,6 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
 
         public String[] getLifecycleIds() {
             return this.lifecycleIds;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

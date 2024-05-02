@@ -8,48 +8,19 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
-import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
-public class CoordinatedInferenceIngestIT extends ESRestTestCase {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "true")
-        .plugin("org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin")
-        .user("x_pack_rest_user", "x-pack-test-password")
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
+public class CoordinatedInferenceIngestIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testIngestWithMultipleModelTypes() throws IOException {
@@ -60,10 +31,10 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
 
         putInferenceServiceModel(inferenceServiceModelId, TaskType.SPARSE_EMBEDDING);
         putBoostedTreeRegressionModel(boostedTreeModelId);
-        putPyTorchModel(pyTorchModelId);
-        putPyTorchModelDefinition(pyTorchModelId);
-        putPyTorchModelVocabulary(List.of("these", "are", "my", "words"), pyTorchModelId);
-        startDeployment(pyTorchModelId);
+        putPyTorchModelTrainedModels(pyTorchModelId);
+        putPyTorchModelDefinitionTrainedModels(pyTorchModelId);
+        putPyTorchModelVocabularyTrainedModels(List.of("these", "are", "my", "words"), pyTorchModelId);
+        startDeploymentTrainedModels(pyTorchModelId);
 
         String docs = """
             [
@@ -139,10 +110,10 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
 
         putInferenceServiceModel(inferenceServiceModelId, TaskType.SPARSE_EMBEDDING);
         putBoostedTreeRegressionModel(boostedTreeModelId);
-        putPyTorchModel(pyTorchModelId);
-        putPyTorchModelDefinition(pyTorchModelId);
-        putPyTorchModelVocabulary(List.of("these", "are", "my", "words"), pyTorchModelId);
-        startDeployment(pyTorchModelId);
+        putPyTorchModelTrainedModels(pyTorchModelId);
+        putPyTorchModelDefinitionTrainedModels(pyTorchModelId);
+        putPyTorchModelVocabularyTrainedModels(List.of("these", "are", "my", "words"), pyTorchModelId);
+        startDeploymentTrainedModels(pyTorchModelId);
 
         String docs = """
             [
@@ -189,9 +160,9 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
     public void testWithUndeployedPyTorchModel() throws IOException {
         var pyTorchModelId = "test-undeployed";
 
-        putPyTorchModel(pyTorchModelId);
-        putPyTorchModelDefinition(pyTorchModelId);
-        putPyTorchModelVocabulary(List.of("these", "are", "my", "words"), pyTorchModelId);
+        putPyTorchModelTrainedModels(pyTorchModelId);
+        putPyTorchModelDefinitionTrainedModels(pyTorchModelId);
+        putPyTorchModelVocabularyTrainedModels(List.of("these", "are", "my", "words"), pyTorchModelId);
 
         String docs = """
             [
@@ -230,36 +201,6 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         }
     }
 
-    private Map<String, Object> putInferenceServiceModel(String modelId, TaskType taskType) throws IOException {
-        String endpoint = org.elasticsearch.common.Strings.format("_inference/%s/%s", taskType, modelId);
-        var request = new Request("PUT", endpoint);
-        var modelConfig = ExampleModels.mockServiceModelConfig();
-        request.setJsonEntity(modelConfig);
-        var response = client().performRequest(request);
-        return entityAsMap(response);
-    }
-
-    private void putPyTorchModel(String modelId) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId);
-        var modelConfiguration = ExampleModels.pytorchPassThroughModelConfig();
-        request.setJsonEntity(modelConfiguration);
-        client().performRequest(request);
-    }
-
-    protected void putPyTorchModelVocabulary(List<String> vocabulary, String modelId) throws IOException {
-        List<String> vocabularyWithPad = new ArrayList<>();
-        vocabularyWithPad.add("[PAD]");
-        vocabularyWithPad.add("[UNK]");
-        vocabularyWithPad.addAll(vocabulary);
-        String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
-
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity(Strings.format("""
-            { "vocabulary": [%s] }
-            """, quotedWords));
-        client().performRequest(request);
-    }
-
     protected Map<String, Object> simulatePipeline(String pipelineDef, String docs) throws IOException {
         String simulate = Strings.format("""
             {
@@ -272,27 +213,6 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         return entityAsMap(client().performRequest(request));
     }
 
-    protected void putPyTorchModelDefinition(String modelId) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        String body = Strings.format(
-            """
-                {"total_definition_length":%s,"definition": "%s","total_parts": 1}""",
-            ExampleModels.RAW_PYTORCH_MODEL_SIZE,
-            ExampleModels.BASE_64_ENCODED_PYTORCH_MODEL
-        );
-        request.setJsonEntity(body);
-        client().performRequest(request);
-    }
-
-    protected void startDeployment(String modelId) throws IOException {
-        String endPoint = "/_ml/trained_models/"
-            + modelId
-            + "/deployment/_start?timeout=40s&wait_for=started&threads_per_allocation=1&number_of_allocations=1";
-
-        Request request = new Request("POST", endPoint);
-        client().performRequest(request);
-    }
-
     private void putBoostedTreeRegressionModel(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId);
         var modelConfiguration = ExampleModels.boostedTreeRegressionModel();
@@ -300,7 +220,7 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    public Map<String, Object> getModel(String modelId, TaskType taskType) throws IOException {
+    public Map<String, Object> getModelInference(String modelId, TaskType taskType) throws IOException {
         var endpoint = org.elasticsearch.common.Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("GET", endpoint);
         var reponse = client().performRequest(request);

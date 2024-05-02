@@ -13,22 +13,15 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant double value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
     private final double value;
 
-    private final DoubleBlock block;
-
-    public ConstantDoubleVector(double value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
+    ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
@@ -38,12 +31,12 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public DoubleBlock asBlock() {
-        return block;
+        return new DoubleVectorBlock(this);
     }
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new ConstantDoubleVector(value, positions.length);
+        return blockFactory().newConstantDoubleVector(value, positions.length);
     }
 
     @Override
@@ -76,14 +69,5 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

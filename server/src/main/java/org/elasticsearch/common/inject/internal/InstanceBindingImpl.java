@@ -59,8 +59,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override
@@ -74,8 +74,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new InstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, instance);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new InstanceBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, injectionPoints, instance);
     }
 
     @Override

@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -167,28 +167,23 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             }
         );
 
-        ActionListener<PutJobAction.Response> markAsDeletingListener = finalListener.delegateFailureAndWrap((delegate, response) -> {
-            if (request.isForce()) {
-                forceDeleteJob(parentTaskClient, request, state, delegate);
-            } else {
-                normalDeleteJob(parentTaskClient, request, state, delegate);
+        ActionListener<AcknowledgedResponse> datafeedDeleteListener = finalListener.<PutJobAction.Response>delegateFailureAndWrap(
+            (delegate, response) -> {
+                if (request.isForce()) {
+                    forceDeleteJob(parentTaskClient, request, state, delegate);
+                } else {
+                    normalDeleteJob(parentTaskClient, request, state, delegate);
+                }
             }
-        });
-
-        ActionListener<AcknowledgedResponse> datafeedDeleteListener = ActionListener.wrap(response -> {
+        ).delegateFailureAndWrap((delegate, response) -> {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
             cancelResetTaskIfExists(
                 request.getJobId(),
-                ActionListener.wrap(
-                    r -> jobConfigProvider.updateJobBlockReason(
-                        request.getJobId(),
-                        new Blocked(Blocked.Reason.DELETE, taskId),
-                        markAsDeletingListener
-                    ),
-                    finalListener::onFailure
+                delegate.delegateFailureAndWrap(
+                    (l, r) -> jobConfigProvider.updateJobBlockReason(request.getJobId(), new Blocked(Blocked.Reason.DELETE, taskId), l)
                 )
             );
-        }, finalListener::onFailure);
+        });
 
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             response -> deleteDatafeedIfNecessary(request, datafeedDeleteListener),
@@ -296,7 +291,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendRemoveRequest(jobTask.getId(), listener.safeMap(task -> true));
+            persistentTasksService.sendRemoveRequest(jobTask.getId(), null, listener.safeMap(task -> true));
         }
     }
 
@@ -327,7 +322,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 }
                 DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(datafeedIds.iterator().next());
                 deleteDatafeedRequest.setForce(deleteJobRequest.isForce());
-                deleteDatafeedRequest.timeout(deleteJobRequest.timeout());
+                deleteDatafeedRequest.ackTimeout(deleteJobRequest.ackTimeout());
                 ClientHelper.executeAsyncWithOrigin(
                     client,
                     ClientHelper.ML_ORIGIN,
@@ -366,7 +361,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
-                    CancelTasksAction.INSTANCE,
+                    TransportCancelTasksAction.TYPE,
                     cancelTasksRequest,
                     ActionListener.wrap(cancelTasksResponse -> listener.onResponse(true), e -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {

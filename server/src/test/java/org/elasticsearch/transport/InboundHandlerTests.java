@@ -9,8 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -23,7 +21,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -139,7 +136,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -198,7 +195,6 @@ public class InboundHandlerTests extends ESTestCase {
 
         TransportChannel transportChannel = channelCaptor.get();
         assertEquals(TransportVersion.current(), transportChannel.getVersion());
-        assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 
         String responseValue = randomAlphaOfLength(10);
@@ -234,19 +230,16 @@ public class InboundHandlerTests extends ESTestCase {
         // it.
 
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                EXPECTED_LOGGER_NAME,
-                Level.WARN,
-                "error processing handshake version"
-            )
-        );
-        final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(InboundHandler.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected message",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "error processing handshake version"
+                )
+            );
 
-        try {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.running(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
@@ -269,9 +262,6 @@ public class InboundHandlerTests extends ESTestCase {
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -283,12 +273,9 @@ public class InboundHandlerTests extends ESTestCase {
 
     public void testLogsSlowInboundProcessing() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try {
+        try (var ignored = mockAppender.capturing(InboundHandler.class)) {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockAppender.addExpectation(
@@ -340,9 +327,6 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
 
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

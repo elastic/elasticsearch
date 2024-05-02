@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,20 +20,26 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupeTests;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeTests;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
@@ -40,7 +47,9 @@ import java.util.TreeSet;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -134,13 +143,18 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         || types.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
                         || types.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
             );
+            /*
+             * Expected ordinals for checking lookup. Skipped if we have more than 5 groups because
+             * it'd be too expensive to calculate.
+             */
+            Map<List<Object>, Set<Integer>> expectedOrds = groups > 5 ? null : new HashMap<>();
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
                     randomBlocks[g] = BasicBlockTests.randomBlock(
                         types.get(g),
                         positionCount,
-                        randomBoolean(),
+                        types.get(g) == ElementType.NULL ? true : randomBoolean(),
                         1,
                         maxValuesPerPosition,
                         0,
@@ -157,6 +171,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
                     }
                     batchCount[0]++;
+                    if (expectedOrds != null) {
+                        recordExpectedOrds(expectedOrds, blocks, ordsAndKeys);
+                    }
                 }, blocks);
                 if (usingSingle) {
                     assertThat(batchCount[0], equalTo(1));
@@ -189,6 +206,12 @@ public class BlockHashRandomizedTests extends ESTestCase {
                     }
                     assertMap(keyList, keyMatcher);
                 }
+
+                if (blockHash instanceof LongLongBlockHash == false
+                    && blockHash instanceof BytesRefLongBlockHash == false
+                    && blockHash instanceof BytesRef3BlockHash == false) {
+                    assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
+                }
             } finally {
                 Releasables.closeExpectNoException(keyBlocks);
                 blockFactory.ensureAllBlocksAreReleased();
@@ -198,14 +221,120 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types) {
-        List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(types.size());
         for (int c = 0; c < types.size(); c++) {
-            specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
+            specs.add(new BlockHash.GroupSpec(c, types.get(c)));
         }
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
-            : BlockHash.build(specs, driverContext, emitBatchSize, true);
+            ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+            : BlockHash.build(specs, blockFactory, emitBatchSize, true);
+    }
+
+    private static final int LOOKUP_POSITIONS = 1_000;
+
+    private void assertLookup(
+        BlockFactory blockFactory,
+        Map<List<Object>, Set<Integer>> expectedOrds,
+        List<ElementType> types,
+        BlockHash blockHash,
+        Oracle oracle
+    ) {
+        Block.Builder[] builders = new Block.Builder[types.size()];
+        try {
+            for (int b = 0; b < builders.length; b++) {
+                builders[b] = types.get(b).newBlockBuilder(LOOKUP_POSITIONS, blockFactory);
+            }
+            for (int p = 0; p < LOOKUP_POSITIONS; p++) {
+                /*
+                 * Pick a random key, about half the time one that's present.
+                 * Note: if the universe of keys is small the randomKey method
+                 * is quite likely to spit out a key in the oracle. That's fine
+                 * so long as we have tests with a large universe too.
+                 */
+                List<Object> key = randomBoolean() ? randomKey(types) : randomFrom(oracle.keys);
+                for (int b = 0; b < builders.length; b++) {
+                    BlockTestUtils.append(builders[b], key.get(b));
+                }
+            }
+            Block[] keyBlocks = Block.Builder.buildAll(builders);
+            try {
+                for (Block block : keyBlocks) {
+                    assertThat(block.getPositionCount(), equalTo(LOOKUP_POSITIONS));
+                }
+                try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keyBlocks), ByteSizeValue.ofKb(between(1, 100)))) {
+                    int positionOffset = 0;
+                    while (lookup.hasNext()) {
+                        try (IntBlock ords = lookup.next()) {
+                            for (int p = 0; p < ords.getPositionCount(); p++) {
+                                List<Object> key = readKey(keyBlocks, positionOffset + p);
+                                if (oracle.keys.contains(key) == false) {
+                                    assertTrue(ords.isNull(p));
+                                    continue;
+                                }
+                                assertThat(ords.getValueCount(p), equalTo(1));
+                                if (expectedOrds != null) {
+                                    assertThat(ords.getInt(ords.getFirstValueIndex(p)), in(expectedOrds.get(key)));
+                                }
+                            }
+                            positionOffset += ords.getPositionCount();
+                        }
+                    }
+                    assertThat(positionOffset, equalTo(LOOKUP_POSITIONS));
+                }
+            } finally {
+                Releasables.closeExpectNoException(keyBlocks);
+            }
+
+        } finally {
+            Releasables.closeExpectNoException(builders);
+        }
+    }
+
+    private static List<Object> readKey(Block[] keyBlocks, int position) {
+        List<Object> key = new ArrayList<>(keyBlocks.length);
+        for (Block block : keyBlocks) {
+            assertThat(block.getValueCount(position), lessThan(2));
+            List<Object> v = BasicBlockTests.valuesAtPositions(block, position, position + 1).get(0);
+            key.add(v == null ? null : v.get(0));
+        }
+        return key;
+    }
+
+    private void recordExpectedOrds(
+        Map<List<Object>, Set<Integer>> expectedOrds,
+        Block[] keyBlocks,
+        BlockHashTests.OrdsAndKeys ordsAndKeys
+    ) {
+        long start = System.nanoTime();
+        for (int p = 0; p < ordsAndKeys.ords().getPositionCount(); p++) {
+            for (List<Object> key : readKeys(keyBlocks, p + ordsAndKeys.positionOffset())) {
+                Set<Integer> ords = expectedOrds.computeIfAbsent(key, k -> new TreeSet<>());
+                int firstOrd = ordsAndKeys.ords().getFirstValueIndex(p);
+                int endOrd = ordsAndKeys.ords().getValueCount(p) + firstOrd;
+                for (int i = firstOrd; i < endOrd; i++) {
+                    ords.add(ordsAndKeys.ords().getInt(i));
+                }
+            }
+        }
+        logger.info("finished collecting ords {} {}", expectedOrds.size(), TimeValue.timeValueNanos(System.nanoTime() - start));
+    }
+
+    private static List<List<Object>> readKeys(Block[] keyBlocks, int position) {
+        List<List<Object>> keys = new ArrayList<>();
+        keys.add(List.of());
+        for (Block block : keyBlocks) {
+            List<Object> values = BasicBlockTests.valuesAtPositions(block, position, position + 1).get(0);
+            List<List<Object>> newKeys = new ArrayList<>();
+            for (Object v : values == null ? Collections.singletonList(null) : values) {
+                for (List<Object> k : keys) {
+                    List<Object> newKey = new ArrayList<>(k);
+                    newKey.add(v);
+                    newKeys.add(newKey);
+                }
+            }
+            keys = newKeys;
+        }
+        return keys.stream().distinct().toList();
     }
 
     private static class KeyComparator implements Comparator<List<?>> {
@@ -237,10 +366,10 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private static class Oracle {
         private final NavigableSet<List<Object>> keys = new TreeSet<>(new KeyComparator());
 
-        private final boolean collectsNull;
+        private final boolean collectsNullLongs;
 
-        private Oracle(boolean collectsNull) {
-            this.collectsNull = collectsNull;
+        private Oracle(boolean collectsNullLongs) {
+            this.collectsNullLongs = collectsNullLongs;
         }
 
         void add(BasicBlockTests.RandomBlock[] randomBlocks) {
@@ -257,7 +386,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
             BasicBlockTests.RandomBlock block = randomBlocks[key.size()];
             List<Object> values = block.values().get(p);
             if (values == null) {
-                if (collectsNull) {
+                if (block.block().elementType() != ElementType.LONG || collectsNullLongs) {
                     List<Object> newKey = new ArrayList<>(key);
                     newKey.add(null);
                     add(randomBlocks, p, newKey);
@@ -277,5 +406,21 @@ public class BlockHashRandomizedTests extends ESTestCase {
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
         return breakerService;
+    }
+
+    private static List<Object> randomKey(List<ElementType> types) {
+        return types.stream().map(BlockHashRandomizedTests::randomKeyElement).toList();
+    }
+
+    private static Object randomKeyElement(ElementType type) {
+        return switch (type) {
+            case INT -> randomInt();
+            case LONG -> randomLong();
+            case DOUBLE -> randomDouble();
+            case BYTES_REF -> new BytesRef(randomAlphaOfLength(5));
+            case BOOLEAN -> randomBoolean();
+            case NULL -> null;
+            default -> throw new IllegalArgumentException("unsupported element type [" + type + "]");
+        };
     }
 }

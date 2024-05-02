@@ -7,10 +7,12 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a IntVector.
+ * Block view of a {@link IntVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
@@ -21,7 +23,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +37,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +49,18 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public IntBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        // TODO optimizations
+        return new IntLookup(this, positions, targetBlockSize);
+    }
+
+    @Override
+    public IntBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override
@@ -74,11 +87,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
-    }
-
-    @Override
     public void closeInternal() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
@@ -87,5 +95,10 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -111,9 +110,9 @@ public class IndexMetadataVerifier {
                 "The index "
                     + indexMetadata.getIndex()
                     + " has current compatibility version ["
-                    + indexMetadata.getCompatibilityVersion()
+                    + indexMetadata.getCompatibilityVersion().toReleaseVersion()
                     + "] but the minimum compatible version is ["
-                    + minimumIndexCompatibilityVersion
+                    + minimumIndexCompatibilityVersion.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
                     + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
@@ -183,8 +182,7 @@ public class IndexMetadataVerifier {
                     mapperRegistry,
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                    scriptService,
-                    () -> DocumentParsingObserver.EMPTY_INSTANCE
+                    scriptService
                 )
             ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

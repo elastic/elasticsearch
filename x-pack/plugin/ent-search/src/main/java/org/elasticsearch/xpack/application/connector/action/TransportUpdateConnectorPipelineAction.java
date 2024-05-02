@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
@@ -20,17 +19,12 @@ import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
 public class TransportUpdateConnectorPipelineAction extends HandledTransportAction<
     UpdateConnectorPipelineAction.Request,
-    UpdateConnectorPipelineAction.Response> {
+    ConnectorUpdateActionResponse> {
 
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportUpdateConnectorPipelineAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportUpdateConnectorPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             UpdateConnectorPipelineAction.NAME,
             transportService,
@@ -45,11 +39,8 @@ public class TransportUpdateConnectorPipelineAction extends HandledTransportActi
     protected void doExecute(
         Task task,
         UpdateConnectorPipelineAction.Request request,
-        ActionListener<UpdateConnectorPipelineAction.Response> listener
+        ActionListener<ConnectorUpdateActionResponse> listener
     ) {
-        connectorIndexService.updateConnectorPipeline(
-            request,
-            listener.map(r -> new UpdateConnectorPipelineAction.Response(r.getResult()))
-        );
+        connectorIndexService.updateConnectorPipeline(request, listener.map(r -> new ConnectorUpdateActionResponse(r.getResult())));
     }
 }

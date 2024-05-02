@@ -8,13 +8,13 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -23,15 +23,17 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -59,6 +61,11 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class EvalBenchmark {
+    private static final BlockFactory blockFactory = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
+
     private static final int BLOCK_LENGTH = 8 * 1024;
 
     static final DriverContext driverContext = new DriverContext(
@@ -77,7 +84,9 @@ public class EvalBenchmark {
         }
     }
 
-    @Param({ "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int", "mv_min", "mv_min_ascending" })
+    @Param(
+        { "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int", "mv_min", "mv_min_ascending", "rlike" }
+    )
     public String operation;
 
     private static Operator operator(String operation) {
@@ -129,6 +138,11 @@ public class EvalBenchmark {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext);
             }
+            case "rlike" -> {
+                FieldAttribute keywordField = keywordField();
+                RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
+                yield EvalMapper.toEvaluator(rlike, layout(keywordField)).get(driverContext);
+            }
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -139,6 +153,10 @@ public class EvalBenchmark {
 
     private static FieldAttribute intField() {
         return new FieldAttribute(Source.EMPTY, "int", new EsField("int", DataTypes.INTEGER, Map.of(), true));
+    }
+
+    private static FieldAttribute keywordField() {
+        return new FieldAttribute(Source.EMPTY, "keyword", new EsField("keyword", DataTypes.KEYWORD, Map.of(), true));
     }
 
     private static Layout layout(FieldAttribute... fields) {
@@ -200,6 +218,15 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "rlike" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    boolean expected = i % 2 == 1;
+                    if (v.getBoolean(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
             default -> throw new UnsupportedOperationException();
         }
     }
@@ -207,15 +234,15 @@ public class EvalBenchmark {
     private static Page page(String operation) {
         return switch (operation) {
             case "abs", "add", "date_trunc", "equal_to_const" -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i * 100_000);
                 }
                 yield new Page(builder.build());
             }
             case "long_equal_to_long" -> {
-                var lhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
-                var rhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     lhs.appendLong(i * 100_000);
                     rhs.appendLong(i * 100_000);
@@ -223,8 +250,8 @@ public class EvalBenchmark {
                 yield new Page(lhs.build(), rhs.build());
             }
             case "long_equal_to_int" -> {
-                var lhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
-                var rhs = IntBlock.newBlockBuilder(BLOCK_LENGTH);
+                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     lhs.appendLong(i * 100_000);
                     rhs.appendInt(i * 100_000);
@@ -232,7 +259,7 @@ public class EvalBenchmark {
                 yield new Page(lhs.build(), rhs.build());
             }
             case "mv_min", "mv_min_ascending" -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 if (operation.endsWith("ascending")) {
                     builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
                 }
@@ -244,6 +271,14 @@ public class EvalBenchmark {
                     builder.endPositionEntry();
                 }
                 yield new Page(builder.build());
+            }
+            case "rlike" -> {
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(values[i % 2]);
+                }
+                yield new Page(builder.build().asBlock());
             }
             default -> throw new UnsupportedOperationException();
         };

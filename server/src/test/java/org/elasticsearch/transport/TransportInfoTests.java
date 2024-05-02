@@ -70,7 +70,10 @@ public class TransportInfoTests extends ESTestCase {
         httpInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> transportMap = (Map<String, Object>) createParser(builder).map().get(TransportInfo.Fields.TRANSPORT);
+        Map<String, Object> transportMap;
+        try (var parser = createParser(builder)) {
+            transportMap = (Map<String, Object>) parser.map().get(TransportInfo.Fields.TRANSPORT);
+        }
         Map<String, Object> profilesMap = (Map<String, Object>) transportMap.get("profiles");
         assertEquals(expected, transportMap.get(TransportInfo.Fields.PUBLISH_ADDRESS));
         assertEquals(expected, ((Map<String, Object>) profilesMap.get("test_profile")).get(TransportInfo.Fields.PUBLISH_ADDRESS));

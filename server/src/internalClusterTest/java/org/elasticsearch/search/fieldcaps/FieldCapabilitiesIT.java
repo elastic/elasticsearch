@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -78,11 +79,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
@@ -426,10 +427,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // if all requested indices failed, we fail the request by throwing the exception
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareFieldCaps("index1-error", "index2-error")
-                .setFields("*")
-                .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
-                .get()
+            client().prepareFieldCaps("index1-error", "index2-error").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
         );
         assertEquals("I throw because I choose to.", ex.getMessage());
     }
@@ -499,7 +497,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         {
             final ElasticsearchException ex = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareFieldCaps("log-index-*").setFields("*").get()
+                client().prepareFieldCaps("log-index-*").setFields("*")
             );
             assertThat(ex.getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
         }
@@ -529,7 +527,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (randomBoolean()) {
-                    indexShard.close("test", randomBoolean());
+                    closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
                     final String[] nodeNames = internalCluster().getNodeNames();
@@ -812,8 +810,23 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
 
         @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> field -> field.equals("playlist") == false;
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.equals("playlist") == false;
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "not-playlist:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
         }
     }
 

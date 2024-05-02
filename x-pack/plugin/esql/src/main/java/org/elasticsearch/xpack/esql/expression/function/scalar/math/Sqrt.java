@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -18,16 +19,26 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
-    public Sqrt(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+public class Sqrt extends UnaryScalarFunction {
+    @FunctionInfo(returnType = "double", description = """
+        Returns the square root of a number. The input can be any numeric value, the return value is always a double.
+        Square roots of negative numbers and infinites are null.""", examples = @Example(file = "math", tag = "sqrt"))
+    public Sqrt(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression n
+    ) {
         super(source, n);
     }
 
@@ -70,7 +81,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "UnsignedLong")
     static double processUnsignedLong(long val) {
-        return Math.sqrt(NumericUtils.unsignedLongToDouble(val));
+        return Math.sqrt(unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
@@ -94,11 +105,6 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
     @Override
     public DataType dataType() {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Override

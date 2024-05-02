@@ -21,8 +21,4 @@ public enum TTestType {
         return TTestType.valueOf(name.toUpperCase(Locale.ROOT));
     }
 
-    public String value() {
-        return name().toLowerCase(Locale.ROOT);
-    }
-
 }

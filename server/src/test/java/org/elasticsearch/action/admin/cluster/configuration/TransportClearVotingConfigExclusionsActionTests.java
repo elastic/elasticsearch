@@ -122,7 +122,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             clearVotingConfigExclusionsRequest,
             expectSuccess(r -> {
                 assertNotNull(r);
@@ -140,7 +140,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         clearVotingConfigExclusionsRequest.setTimeout(TimeValue.timeValueMillis(100));
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             clearVotingConfigExclusionsRequest,
             expectError(e -> {
                 assertThat(
@@ -164,7 +164,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
 
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             new ClearVotingConfigExclusionsRequest(),
             expectSuccess(r -> {
                 assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
@@ -186,7 +186,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
 
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             new ClearVotingConfigExclusionsRequest(),
             expectError(e -> {
                 final Throwable rootCause = e.getRootCause();
@@ -218,7 +218,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 

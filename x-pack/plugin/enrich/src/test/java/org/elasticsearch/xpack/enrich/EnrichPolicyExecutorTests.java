@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -229,7 +229,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                         Thread.currentThread().interrupt();
                     }
 
-                    if (GetTaskAction.INSTANCE.equals(action)) {
+                    if (TransportGetTaskAction.TYPE.equals(action)) {
                         if (shouldGetTaskApiReturnTimeout.get() == false) {
                             // This is the second call to the Get Task API, so count down the latch to let the main test logic know.
                             secondGetTaskWasCalled.countDown();

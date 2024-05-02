@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -96,9 +97,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
+    private boolean lazy;
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
@@ -107,6 +110,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         dryRun = in.readBoolean();
         conditions = new RolloverConditions(in);
         createIndexRequest = new CreateIndexRequest(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+            lazy = in.readBoolean();
+        } else {
+            lazy = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
     }
 
     RolloverRequest() {}
@@ -131,6 +142,18 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
+        var failureStoreOptions = indicesOptions.failureStoreOptions();
+        if (failureStoreOptions.includeRegularIndices() && failureStoreOptions.includeFailureIndices()) {
+            validationException = addValidationError(
+                "rollover cannot be applied to both regular and failure indices at the same time",
+                validationException
+            );
+        }
+
+        if (failureStoreOptions.includeFailureIndices() && lazy) {
+            validationException = addValidationError("lazily rolling over a failure store is currently not supported", validationException);
+        }
+
         return validationException;
     }
 
@@ -142,6 +165,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         conditions.writeTo(out);
         createIndexRequest.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+            out.writeBoolean(lazy);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 
     @Override
@@ -151,7 +180,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return indicesOptions;
+    }
+
+    public void setIndicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
     }
 
     @Override
@@ -194,6 +227,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.conditions = conditions;
     }
 
+    /**
+     * Sets if an unconditional rollover should wait for a document to come before it gets executed
+     */
+    public void lazy(boolean lazy) {
+        this.lazy = lazy;
+    }
+
     public boolean isDryRun() {
         return dryRun;
     }
@@ -212,6 +252,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public String getNewIndexName() {
         return newIndexName;
+    }
+
+    public boolean isLazy() {
+        return lazy;
     }
 
     /**
@@ -257,14 +301,16 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         }
         RolloverRequest that = (RolloverRequest) o;
         return dryRun == that.dryRun
+            && lazy == that.lazy
             && Objects.equals(rolloverTarget, that.rolloverTarget)
             && Objects.equals(newIndexName, that.newIndexName)
             && Objects.equals(conditions, that.conditions)
-            && Objects.equals(createIndexRequest, that.createIndexRequest);
+            && Objects.equals(createIndexRequest, that.createIndexRequest)
+            && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest);
+        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy, indicesOptions);
     }
 }

@@ -22,10 +22,8 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,8 +88,10 @@ public class CoordinatorTests extends ESTestCase {
         // Replying a response and that should trigger another coordination round
         MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[5];
         for (int i = 0; i < 5; i++) {
+            emptyResponse.incRef();
             responseItems[i] = new MultiSearchResponse.Item(emptyResponse, null);
         }
+        emptyResponse.decRef();
         final MultiSearchResponse res1 = new MultiSearchResponse(responseItems, 1L);
         try {
             lookupFunction.capturedConsumers.get(0).accept(res1, null);
@@ -102,6 +102,7 @@ public class CoordinatorTests extends ESTestCase {
             // Replying last response, resulting in an empty queue and no outstanding requests.
             responseItems = new MultiSearchResponse.Item[5];
             for (int i = 0; i < 5; i++) {
+                emptyResponse.incRef();
                 responseItems[i] = new MultiSearchResponse.Item(emptyResponse, null);
             }
             var res2 = new MultiSearchResponse(responseItems, 1L);
@@ -318,7 +319,11 @@ public class CoordinatorTests extends ESTestCase {
         Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses = new HashMap<>();
 
         try {
-            MultiSearchResponse.Item item1 = new MultiSearchResponse.Item(emptySearchResponse(), null);
+            var empty = emptySearchResponse();
+            // use empty response 3 times below and we start out with ref-count 1
+            empty.incRef();
+            empty.incRef();
+            MultiSearchResponse.Item item1 = new MultiSearchResponse.Item(empty, null);
             itemsPerIndex.put("index1", List.of(new Tuple<>(0, null), new Tuple<>(1, null), new Tuple<>(2, null)));
             shardResponses.put(
                 "index1",
@@ -329,7 +334,11 @@ public class CoordinatorTests extends ESTestCase {
             itemsPerIndex.put("index2", List.of(new Tuple<>(3, null), new Tuple<>(4, null), new Tuple<>(5, null)));
             shardResponses.put("index2", new Tuple<>(null, failure));
 
-            MultiSearchResponse.Item item2 = new MultiSearchResponse.Item(emptySearchResponse(), null);
+            // use empty response 3 times below
+            empty.incRef();
+            empty.incRef();
+            empty.incRef();
+            MultiSearchResponse.Item item2 = new MultiSearchResponse.Item(empty, null);
             itemsPerIndex.put("index3", List.of(new Tuple<>(6, null), new Tuple<>(7, null), new Tuple<>(8, null)));
             shardResponses.put(
                 "index3",
@@ -362,16 +371,22 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     private static SearchResponse emptySearchResponse() {
-        InternalSearchResponse response = new InternalSearchResponse(
-            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
-            null,
             null,
             false,
             null,
-            1
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            100,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
         );
-        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 
     private class MockLookupFunction implements BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> {

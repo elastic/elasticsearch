@@ -8,15 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
  * A dense Vector of single values.
  */
-public interface Vector extends Accountable, Releasable {
+public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
-     * {@return Returns a Block view over this vector.}
+     * {@return Returns a new Block containing this vector.}
      */
     Block asBlock();
 
@@ -26,9 +27,6 @@ public interface Vector extends Accountable, Releasable {
      * @return the number of positions
      */
     int getPositionCount();
-
-    // TODO: improve implementation not to waste as much space
-    Vector getRow(int position);
 
     /**
      * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
@@ -65,6 +63,13 @@ public interface Vector extends Accountable, Releasable {
      */
     interface Builder extends Releasable {
         /**
+         * An estimate of the number of bytes the {@link Vector} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
+         */
+        long estimatedBytes();
+
+        /**
          * Builds the block. This method can be called multiple times.
          */
         Vector build();
@@ -74,4 +79,13 @@ public interface Vector extends Accountable, Releasable {
      * Whether this vector was released
      */
     boolean isReleased();
+
+    /**
+     * The serialization type of vectors: 0 and 1 replaces the boolean false/true in pre-8.14.
+     */
+    byte SERIALIZE_VECTOR_VALUES = 0;
+    byte SERIALIZE_VECTOR_CONSTANT = 1;
+    byte SERIALIZE_VECTOR_ARRAY = 2;
+    byte SERIALIZE_VECTOR_BIG_ARRAY = 3;
+    byte SERIALIZE_VECTOR_ORDINAL = 4;
 }

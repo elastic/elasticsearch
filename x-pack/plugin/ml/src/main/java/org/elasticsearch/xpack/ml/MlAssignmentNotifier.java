@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
@@ -298,6 +299,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             if (task.getExecutorNode() == null) {
                 final String taskName = task.getTaskName();
                 if (MlTasks.JOB_TASK_NAME.equals(taskName) || MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(taskName)) {
+                    // Ignore failed tasks - they don't need to be assigned to a node
+                    if (task.getState() == null || ((MlTaskState) task.getState()).isFailed()) {
+                        continue;
+                    }
                     final String mlId = ((MlTaskParams) task.getParams()).getMlId();
                     final TaskNameAndId key = new TaskNameAndId(taskName, mlId);
                     final UnassignedTimeAndReportTime previousInfo = oldUnassignedInfoByTask.get(key);

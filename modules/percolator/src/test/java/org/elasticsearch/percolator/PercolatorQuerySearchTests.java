@@ -10,6 +10,7 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -24,6 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -36,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -46,6 +49,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -333,6 +337,96 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             query = queryBuilder.toQuery(searchExecutionContext);
             assertThat(searcher.count(query), equalTo(3));
         }
+    }
+
+    public void testPercolateNamedQueries() {
+        String mapping = """
+            {
+              "dynamic" : "strict",
+              "properties" : {
+                "my_query" : { "type" : "percolator" },
+                "description" : { "type" : "text"},
+                "num_of_bedrooms" : { "type" : "integer"},
+                "type" : { "type" : "keyword"},
+                "price": { "type": "float"}
+              }
+            }
+            """;
+        indicesAdmin().prepareCreate("houses").setMapping(mapping).get();
+        String source = """
+            {
+              "my_query" : {
+                "bool": {
+                  "should": [
+                    { "match": { "description": { "query": "fireplace", "_name": "fireplace_query" } } },
+                    { "match": { "type": { "query": "detached", "_name": "detached_query" } } }
+                  ],
+                  "filter": {
+                    "match": {
+                      "num_of_bedrooms": {"query": 3, "_name": "3_bedrooms_query"}
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        prepareIndex("houses").setId("query_3_bedroom_detached_house_with_fireplace").setSource(source, XContentType.JSON).get();
+        indicesAdmin().prepareRefresh().get();
+
+        source = """
+            {
+              "my_query" : {
+                "bool": {
+                  "filter": [
+                    { "match": { "description": { "query": "swimming pool", "_name": "swimming_pool_query" } } },
+                    { "match": { "num_of_bedrooms": {"query": 3, "_name": "3_bedrooms_query"} } }
+                  ]
+                }
+              }
+            }
+            """;
+        prepareIndex("houses").setId("query_3_bedroom_house_with_swimming_pool").setSource(source, XContentType.JSON).get();
+        indicesAdmin().prepareRefresh().get();
+
+        BytesArray house1_doc = new BytesArray("""
+            {
+              "description": "house with a beautiful fireplace and swimming pool",
+              "num_of_bedrooms": 3,
+              "type": "detached",
+              "price": 1000000
+            }
+            """);
+
+        BytesArray house2_doc = new BytesArray("""
+            {
+              "description": "house has a wood burning fireplace",
+              "num_of_bedrooms": 3,
+              "type": "semi-detached",
+              "price": 500000
+            }
+            """);
+
+        QueryBuilder query = new PercolateQueryBuilder("my_query", List.of(house1_doc, house2_doc), XContentType.JSON);
+        assertResponse(client().prepareSearch("houses").setQuery(query), response -> {
+            assertEquals(2, response.getHits().getTotalHits().value);
+
+            SearchHit[] hits = response.getHits().getHits();
+            assertThat(hits[0].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));
+            assertThat(
+                hits[0].getFields().get("_percolator_document_slot_0_matched_queries").getValues(),
+                equalTo(Arrays.asList("fireplace_query", "detached_query", "3_bedrooms_query"))
+            );
+            assertThat(
+                hits[0].getFields().get("_percolator_document_slot_1_matched_queries").getValues(),
+                equalTo(Arrays.asList("fireplace_query", "3_bedrooms_query"))
+            );
+
+            assertThat(hits[1].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0)));
+            assertThat(
+                hits[1].getFields().get("_percolator_document_slot_0_matched_queries").getValues(),
+                equalTo(Arrays.asList("swimming_pool_query", "3_bedrooms_query"))
+            );
+        });
     }
 
 }

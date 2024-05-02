@@ -297,7 +297,7 @@ public class UpdateIT extends ESIntegTestCase {
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         DocumentMissingException ex = expectThrows(
             DocumentMissingException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript).get()
+            client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript)
         );
         assertEquals("[1]: document missing", ex.getMessage());
 
@@ -438,29 +438,26 @@ public class UpdateIT extends ESIntegTestCase {
         DocWriteResponse result = prepareIndex("test").setId("1").setSource("field", 1).get();
         expectThrows(
             VersionConflictEngineException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "1")
+            client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
                 .setIfSeqNo(result.getSeqNo() + 1)
                 .setIfPrimaryTerm(result.getPrimaryTerm())
-                .get()
         );
 
         expectThrows(
             VersionConflictEngineException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "1")
+            client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
                 .setIfSeqNo(result.getSeqNo())
                 .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
-                .get()
         );
 
         expectThrows(
             VersionConflictEngineException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "1")
+            client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
                 .setIfSeqNo(result.getSeqNo() + 1)
                 .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
-                .get()
         );
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1")

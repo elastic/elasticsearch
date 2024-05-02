@@ -73,17 +73,21 @@ public final class TransformScheduler {
      * Set to {@code false} after processing (doesn't matter whether successful or not).
      */
     private final AtomicBoolean isProcessingActive;
+
+    private final TimeValue minFrequency;
+
     /**
      * Stored the scheduled execution for future cancellation.
      */
     private Scheduler.Cancellable scheduledFuture;
 
-    public TransformScheduler(Clock clock, ThreadPool threadPool, Settings settings) {
+    public TransformScheduler(Clock clock, ThreadPool threadPool, Settings settings, TimeValue minFrequency) {
         this.clock = new MonotonicClock(Objects.requireNonNull(clock));
         this.threadPool = Objects.requireNonNull(threadPool);
         this.schedulerFrequency = Transform.SCHEDULER_FREQUENCY.get(settings);
         this.scheduledTasks = new TransformScheduledTaskQueue();
         this.isProcessingActive = new AtomicBoolean();
+        this.minFrequency = minFrequency;
     }
 
     /**
@@ -165,7 +169,7 @@ public final class TransformScheduler {
             }
             return new TransformScheduledTask(
                 task.getTransformId(),
-                task.getFrequency(),
+                getFrequency(task.getFrequency()),
                 currentTimeMillis,
                 task.getFailureCount(),
                 task.getListener()
@@ -198,7 +202,7 @@ public final class TransformScheduler {
         long currentTimeMillis = clock.millis();
         TransformScheduledTask transformScheduledTask = new TransformScheduledTask(
             transformId,
-            transformTaskParams.getFrequency(),
+            getFrequency(transformTaskParams.getFrequency()),
             null,  // this task has not been triggered yet
             0,  // this task has not failed yet
             currentTimeMillis,  // we schedule this task at current clock time so that it is processed ASAP
@@ -223,7 +227,7 @@ public final class TransformScheduler {
             transformId,
             task -> new TransformScheduledTask(
                 task.getTransformId(),
-                task.getFrequency(),
+                getFrequency(task.getFrequency()),
                 task.getLastTriggeredTimeMillis(),
                 failureCount,
                 task.getListener()
@@ -245,7 +249,7 @@ public final class TransformScheduler {
             transformId,
             task -> new TransformScheduledTask(
                 task.getTransformId(),
-                task.getFrequency(),
+                getFrequency(task.getFrequency()),
                 task.getLastTriggeredTimeMillis(),
                 task.getFailureCount(),
                 currentTimeMillis,  // we schedule this task at current clock time so that it is processed ASAP
@@ -272,5 +276,12 @@ public final class TransformScheduler {
      */
     List<TransformScheduledTask> getTransformScheduledTasks() {
         return scheduledTasks.listScheduledTasks();
+    }
+
+    private TimeValue getFrequency(TimeValue frequency) {
+        if (frequency == null) {
+            frequency = Transform.DEFAULT_TRANSFORM_FREQUENCY;
+        }
+        return frequency.compareTo(minFrequency) >= 0 ? frequency : minFrequency;
     }
 }

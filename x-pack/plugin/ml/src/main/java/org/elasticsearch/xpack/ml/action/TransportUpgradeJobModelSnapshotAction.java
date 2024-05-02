@@ -164,6 +164,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
                 params,
+                null,
                 waitForJobToStart
             );
         }, listener::onFailure);
@@ -223,6 +224,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             jobResultsProvider.getModelSnapshot(
                 request.getJobId(),
                 request.getSnapshotId(),
+                false,
                 getSnapshotHandler::onResponse,
                 getSnapshotHandler::onFailure
             );
@@ -289,18 +291,22 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         Exception exception,
         ActionListener<Response> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(t -> listener.onFailure(exception), e -> {
-            logger.error(
-                () -> format(
-                    "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
-                    persistentTask.getParams().getJobId(),
-                    persistentTask.getParams().getSnapshotId(),
-                    exception.getMessage()
-                ),
-                e
-            );
-            listener.onFailure(exception);
-        }));
+        persistentTasksService.sendRemoveRequest(
+            persistentTask.getId(),
+            null,
+            ActionListener.wrap(t -> listener.onFailure(exception), e -> {
+                logger.error(
+                    () -> format(
+                        "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
+                        persistentTask.getParams().getJobId(),
+                        persistentTask.getParams().getSnapshotId(),
+                        exception.getMessage()
+                    ),
+                    e
+                );
+                listener.onFailure(exception);
+            })
+        );
     }
 
 }

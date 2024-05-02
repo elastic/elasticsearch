@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -262,7 +261,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
@@ -521,7 +519,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         request.setNodes(testNodes[0].getNodeId());
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -605,14 +603,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Make sure that actions are still registered in the task manager on all nodes
         // Twice on the coordinating node and once on all other nodes.
-        assertEquals(4, listeners[0].getEvents().size());
-        assertEquals(2, listeners[0].getRegistrationEvents().size());
-        assertEquals(2, listeners[0].getUnregistrationEvents().size());
-        for (int i = 1; i < listeners.length; i++) {
-            assertEquals(2, listeners[i].getEvents().size());
-            assertEquals(1, listeners[i].getRegistrationEvents().size());
-            assertEquals(1, listeners[i].getUnregistrationEvents().size());
-        }
+        assertBusy(() -> {
+            assertEquals(2, listeners[0].getRegistrationEvents().size());
+            assertEquals(2, listeners[0].getUnregistrationEvents().size());
+            for (int i = 1; i < listeners.length; i++) {
+                assertEquals(1, listeners[i].getRegistrationEvents().size());
+                assertEquals(1, listeners[i].getUnregistrationEvents().size());
+            }
+        });
     }
 
     private List<String> getAllTaskDescriptions() {
@@ -697,7 +695,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         cancellationFuture.actionGet();
         logger.info("Parent task is now cancelled counting down task latch");
         taskLatch.countDown();
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
 
         // Release all node tasks and wait for response
         checkLatch.countDown();
@@ -775,7 +773,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.ensureUnreachable();
         }
 
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
 
         blockedActionLatch.countDown();
         NodesResponse responses = future.get(10, TimeUnit.SECONDS);
@@ -848,7 +846,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.ensureUnreachable();
         }
 
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
     }
 
     public void testTaskLevelActionFailures() throws Exception {

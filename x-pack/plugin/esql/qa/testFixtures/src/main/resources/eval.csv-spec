@@ -200,14 +200,16 @@ Chirstian.     |Chirstian.Koblick|Chirstian.KoblickChirstian.|Chirstian
 Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakKyoichi.   |Kyoichi
 ;
 
-roundArrays#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+roundArrays
+required_feature: esql.disable_nullable_opts
+
 row a = [1.2], b = [2.4, 7.9] | eval c = round(a), d = round(b), e = round([1.2]), f = round([1.2, 4.6]), g = round([1.14], 1), h = round([1.14], [1, 2]);
+warning:Line 1:56: evaluation of [round(b)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:56: java.lang.IllegalArgumentException: single-value function encountered multi-value
 warning:Line 1:88: evaluation of [round([1.2, 4.6])] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:88: java.lang.IllegalArgumentException: single-value function encountered multi-value
 warning:Line 1:133: evaluation of [round([1.14], [1, 2])] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:133: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:56: evaluation of [round(b)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:56: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 a:double | b:double   | c:double | d: double | e:double  | f:double  | g:double  | h:double 
 1.2      | [2.4, 7.9] | 1.0      | null      | 1.0       | null      | 1.1       | null
@@ -222,10 +224,28 @@ emp_no:integer  | foldable:keyword | folded_mv:keyword
 10002           | "foo,bar"        | [foo, bar]
 ;
 
+docsConcat
+// tag::docsConcat[]
+FROM employees
+| KEEP first_name, last_name
+| EVAL fullname = CONCAT(first_name, " ", last_name)
+// end::docsConcat[]
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::docsConcat-result[]
+first_name:keyword   |   last_name:keyword   |     fullname:keyword
+Alejandro      |McAlpine       |Alejandro McAlpine
+Amabile        |Gomatam        |Amabile Gomatam
+Anneke         |Preusig        |Anneke Preusig
+// end::docsConcat-result[]
+;
+
 docsGettingStartedEval
 // tag::gs-eval[]
 FROM sample_data
-| EVAL duration_ms = event_duration / 1000000.0
+| EVAL duration_ms = event_duration/1000000.0
 // end::gs-eval[]
 | LIMIT 0
 ;
@@ -236,10 +256,237 @@ FROM sample_data
 docsGettingStartedRound
 // tag::gs-round[]
 FROM sample_data
-| EVAL duration_ms = ROUND(event_duration / 1000000.0, 1)
+| EVAL duration_ms = ROUND(event_duration/1000000.0, 1)
 // end::gs-round[]
 | LIMIT 0
 ;
 
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
+;
+
+docsLength
+// tag::length[]
+FROM employees
+| KEEP first_name, last_name
+| EVAL fn_length = LENGTH(first_name)
+// end::length[]
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::length-result[]
+first_name:keyword   | last_name:keyword   | fn_length:integer
+Alejandro      |McAlpine       |9              
+Amabile        |Gomatam        |7              
+Anneke         |Preusig        |6
+// end::length-result[]
+;
+
+docsGettingStartedEvalNoColumnName
+// tag::gs-eval-no-column-name[]
+FROM sample_data
+| EVAL event_duration/1000000.0
+// end::gs-eval-no-column-name[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword |  event_duration/1000000.0:double
+;
+
+docsGettingStartedEvalStatsBackticks
+// tag::gs-eval-stats-backticks[]
+FROM sample_data
+| EVAL event_duration/1000000.0
+| STATS MEDIAN(`event_duration/1000000.0`)
+// end::gs-eval-stats-backticks[]
+;
+
+MEDIAN(`event_duration/1000000.0`):double
+2.764889
+;
+
+docsEval
+// tag::eval[]
+FROM employees
+| SORT emp_no
+| KEEP first_name, last_name, height
+| EVAL height_feet = height * 3.281, height_cm = height * 100
+// end::eval[]
+| LIMIT 3;
+
+// tag::eval-result[]
+first_name:keyword | last_name:keyword | height:double | height_feet:double | height_cm:double
+Georgi         |Facello        |2.03           |6.66043           |202.99999999999997
+Bezalel        |Simmel         |2.08           |6.82448           |208.0             
+Parto          |Bamford        |1.83           |6.004230000000001 |183.0  
+// end::eval-result[]
+;
+
+docsEvalReplace
+// tag::evalReplace[]
+FROM employees
+| SORT emp_no
+| KEEP first_name, last_name, height
+| EVAL height = height * 3.281
+// end::evalReplace[]
+| LIMIT 3;
+
+// tag::evalReplace-result[]
+first_name:keyword | last_name:keyword | height:double
+Georgi         |Facello        |6.66043           
+Bezalel        |Simmel         |6.82448           
+Parto          |Bamford        |6.004230000000001 
+// end::evalReplace-result[]
+;
+
+docsEvalUnnamedColumn#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+// tag::evalUnnamedColumn[]
+FROM employees
+| SORT emp_no
+| KEEP first_name, last_name, height
+| EVAL height * 3.281
+// end::evalUnnamedColumn[]
+| LIMIT 3;
+
+// tag::evalUnnamedColumn-result[]
+first_name:keyword | last_name:keyword | height:double | height * 3.281:double
+Georgi         |Facello        |2.03           |6.66043           
+Bezalel        |Simmel         |2.08           |6.82448           
+Parto          |Bamford        |1.83           |6.004230000000001
+// end::evalUnnamedColumn-result[]
+;
+
+docsEvalUnnamedColumnStats#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+// tag::evalUnnamedColumnStats[]
+FROM employees
+| EVAL height * 3.281
+| STATS avg_height_feet = AVG(`height * 3.281`)
+// end::evalUnnamedColumnStats[]
+;
+
+// tag::evalUnnamedColumnStats-result[]
+avg_height_feet:double
+5.801464200000001
+// end::evalUnnamedColumnStats-result[]
+;
+
+overwriteName#[skip:-8.13.0]
+FROM employees
+| SORT emp_no asc
+| EVAL full_name = concat(first_name, " ", last_name)
+| EVAL emp_no = concat(full_name, " ", to_string(emp_no))
+| KEEP full_name, emp_no
+| LIMIT 3;
+
+full_name:keyword | emp_no:keyword
+Georgi Facello    | Georgi Facello 10001
+Bezalel Simmel    | Bezalel Simmel 10002
+Parto Bamford     | Parto Bamford 10003
+;
+
+overwriteNameWhere#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL full_name = concat(first_name, " ", last_name)
+| EVAL emp_no = concat(full_name, " ", to_string(emp_no))
+| WHERE emp_no == "Bezalel Simmel 10002"
+| KEEP full_name, emp_no
+| LIMIT 3;
+
+full_name:keyword | emp_no:keyword
+Bezalel Simmel    | Bezalel Simmel 10002
+;
+
+overwriteNameAfterSort#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL emp_no = -emp_no
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:i
+-10001
+-10002
+-10003
+;
+
+overwriteNameAfterSortChained#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL x = emp_no, y = -emp_no, emp_no = y
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:i
+-10001
+-10002
+-10003
+;
+
+sortExpression1#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| SORT emp_no + salary ASC
+| EVAL emp_no = -emp_no
+| LIMIT 10
+| EVAL sum = -emp_no + salary
+| KEEP emp_no, salary, sum
+;
+
+  emp_no:i     |   salary:i    |      sum:i      
+-10015         |25324          |35339          
+-10035         |25945          |35980          
+-10092         |25976          |36068          
+-10048         |26436          |36484          
+-10057         |27215          |37272          
+-10084         |28035          |38119          
+-10026         |28336          |38362          
+-10068         |28941          |39009          
+-10060         |29175          |39235          
+-10042         |30404          |40446
+;
+
+sortConcat1#[skip:-8.13.99,reason:supported in 8.14]
+from employees
+| sort concat(left(last_name, 1), left(first_name, 1)), salary desc
+| keep first_name, last_name, salary
+| eval ll = left(last_name, 1), lf = left(first_name, 1)
+| limit 10
+;
+
+ first_name:keyword | last_name:keyword | salary:integer|ll:keyword|lf:keyword     
+Mona                |Azuma              |46595          |A         |M             
+Satosi              |Awdeh              |50249          |A         |S             
+Brendon             |Bernini            |33370          |B         |B             
+Breannda            |Billingsley        |29175          |B         |B             
+Cristinel           |Bouloucos          |58715          |B         |C             
+Charlene            |Brattka            |28941          |B         |C             
+Margareta           |Bierman            |41933          |B         |M             
+Mokhtar             |Bernatsky          |38992          |B         |M             
+Parto               |Bamford            |61805          |B         |P             
+Premal              |Baek               |52833          |B         |P
+;
+
+sortConcat2#[skip:-8.13.99,reason:supported in 8.14]
+from employees
+| eval ln = last_name, fn = first_name, concat = concat(left(last_name, 1), left(first_name, 1))
+| sort concat(left(ln, 1), left(fn, 1)), salary desc
+| keep f*, l*, salary
+| eval c = concat(left(last_name, 1), left(first_name, 1))
+| drop *name, lan*
+| limit 10
+;
+
+     fn:keyword     |     ln:keyword    | salary:integer|       c:keyword     
+Mona                |Azuma              |46595          |AM             
+Satosi              |Awdeh              |50249          |AS             
+Brendon             |Bernini            |33370          |BB             
+Breannda            |Billingsley        |29175          |BB             
+Cristinel           |Bouloucos          |58715          |BC             
+Charlene            |Brattka            |28941          |BC             
+Margareta           |Bierman            |41933          |BM             
+Mokhtar             |Bernatsky          |38992          |BM             
+Parto               |Bamford            |61805          |BP             
+Premal              |Baek               |52833          |BP
 ;

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
  */
-public abstract class AbstractMultivalueFunction extends UnaryScalarFunction implements EvaluatorMapper {
+public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
     }
@@ -41,11 +41,6 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     protected abstract TypeResolution resolveFieldType();
 
     @Override
-    public final Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
     public final ExpressionEvaluator.Factory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
@@ -54,8 +49,8 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
      * Base evaluator that can handle both nulls- and no-nulls-containing blocks.
      */
     public abstract static class AbstractEvaluator extends AbstractNullableEvaluator {
-        protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field) {
-            super(field);
+        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+            super(driverContext, field);
         }
 
         /**
@@ -102,9 +97,11 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
      * Base evaluator that can handle evaluator-checked exceptions; i.e. for expressions that can be evaluated to null.
      */
     public abstract static class AbstractNullableEvaluator implements EvalOperator.ExpressionEvaluator {
+        protected final DriverContext driverContext;
         protected final EvalOperator.ExpressionEvaluator field;
 
-        protected AbstractNullableEvaluator(EvalOperator.ExpressionEvaluator field) {
+        protected AbstractNullableEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+            this.driverContext = driverContext;
             this.field = field;
         }
 

@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -110,7 +110,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         // <4> Reset transform
         ActionListener<TransformUpdater.UpdateResult> updateTransformListener = ActionListener.wrap(
             unusedUpdateResult -> transformConfigManager.resetTransform(request.getId(), ActionListener.wrap(resetResponse -> {
-                logger.debug("[{}] reset transform", request.getId());
+                logger.info("[{}] reset transform", request.getId());
                 auditor.info(request.getId(), "Reset transform.");
                 listener.onResponse(AcknowledgedResponse.of(resetResponse));
             }, listener::onFailure)),
@@ -135,7 +135,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
-                    request.timeout(),
+                    request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener
                 );
@@ -154,7 +154,14 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             stopTransformActionListener.onResponse(null);
             return;
         }
-        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, false, null, true, false);
+        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(
+            request.getId(),
+            true,
+            request.isForce(),
+            null,
+            true,
+            false
+        );
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
     }
 
@@ -179,7 +186,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             }
             String destIndex = transformConfigAndVersionHolder.get().v1().getDestination().getIndex();
             DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
-            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteDestIndexRequest, finalListener);
+            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportDeleteIndexAction.TYPE, deleteDestIndexRequest, finalListener);
         }, listener::onFailure);
 
         // <2> Check if the destination index was created by transform

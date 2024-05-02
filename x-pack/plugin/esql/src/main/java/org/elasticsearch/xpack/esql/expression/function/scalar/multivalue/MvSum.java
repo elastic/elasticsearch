@@ -12,6 +12,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -28,7 +31,19 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
  * Reduce a multivalued field to a single valued field containing the sum of all values.
  */
 public class MvSum extends AbstractMultivalueFunction {
-    public MvSum(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Converts a multivalued field into a single valued field containing the sum of all of the values.",
+        examples = @Example(file = "math", tag = "mv_sum")
+    )
+    public MvSum(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Multivalue expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -45,7 +60,7 @@ public class MvSum extends AbstractMultivalueFunction {
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
                 ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
                 : new MvSumLongEvaluator.Factory(source(), fieldEval);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
 
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

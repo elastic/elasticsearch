@@ -11,6 +11,7 @@ package org.elasticsearch.search.nested;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -66,8 +67,9 @@ public class VectorNestedIT extends ESIntegTestCase {
         refresh();
 
         assertResponse(
-            prepareSearch("test").setKnnSearch(List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null)))
-                .setAllowPartialSearchResults(false),
+            prepareSearch("test").setKnnSearch(
+                List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null).innerHit(new InnerHitBuilder()))
+            ).setAllowPartialSearchResults(false),
             response -> assertThat(response.getHits().getHits().length, greaterThan(0))
         );
     }

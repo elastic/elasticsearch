@@ -1,5 +1,0 @@
-pr: 101423
-summary: Export circuit breaker trip count as a counter metric
-area: Aggregations
-type: enhancement
-issues: []

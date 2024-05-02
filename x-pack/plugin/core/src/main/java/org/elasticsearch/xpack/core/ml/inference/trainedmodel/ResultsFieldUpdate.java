@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,22 +31,6 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
 
     public ResultsFieldUpdate(StreamInput in) throws IOException {
         resultsField = in.readString();
-    }
-
-    @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof ClassificationConfig) {
-            ClassificationConfigUpdate update = new ClassificationConfigUpdate(null, resultsField, null, null, null);
-            return update.apply(originalConfig);
-        } else if (originalConfig instanceof RegressionConfig) {
-            RegressionConfigUpdate update = new RegressionConfigUpdate(resultsField, null);
-            return update.apply(originalConfig);
-        } else {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of unknown type [{}] can not be updated",
-                originalConfig.getName()
-            );
-        }
     }
 
     @Override

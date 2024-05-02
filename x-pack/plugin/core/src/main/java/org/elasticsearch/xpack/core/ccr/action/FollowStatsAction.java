@@ -42,7 +42,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
     public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 
     private FollowStatsAction() {
-        super(NAME, FollowStatsAction.StatsResponses::new);
+        super(NAME);
     }
 
     public static class StatsResponses extends BaseTasksResponse implements ChunkedToXContentObject {
@@ -92,7 +92,10 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
                     taskResponsesByIndex.entrySet().iterator(),
                     indexEntry -> Iterators.concat(
                         Iterators.<ToXContent>single(
-                            (builder, params) -> builder.startObject().field("index", indexEntry.getKey()).startArray("shards")
+                            (builder, params) -> builder.startObject()
+                                .field("index", indexEntry.getKey())
+                                .field("total_global_checkpoint_lag", calcFollowerToLeaderLaggingOps(indexEntry.getValue()))
+                                .startArray("shards")
                         ),
                         indexEntry.getValue().values().iterator(),
                         Iterators.single((builder, params) -> builder.endArray().endObject())
@@ -100,6 +103,14 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
                 ),
                 Iterators.single((builder, params) -> builder.endArray().endObject())
             );
+        }
+
+        private static long calcFollowerToLeaderLaggingOps(Map<Integer, StatsResponse> followShardTaskStats) {
+            return followShardTaskStats.values()
+                .stream()
+                .map(StatsResponse::status)
+                .mapToLong(s -> s.leaderGlobalCheckpoint() - s.followerGlobalCheckpoint())
+                .sum();
         }
 
         @Override

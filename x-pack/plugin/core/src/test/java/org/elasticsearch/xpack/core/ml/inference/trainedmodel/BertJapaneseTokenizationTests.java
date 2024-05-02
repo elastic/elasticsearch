@@ -63,6 +63,13 @@ public class BertJapaneseTokenizationTests extends AbstractBWCSerializationTestC
         return mutateForVersion(instance, version);
     }
 
+    public void testsBuildUpdatedTokenization() {
+        var update = new BertJapaneseTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1).buildWindowingTokenization(50, 20);
+        assertEquals(Tokenization.Truncate.NONE, update.getTruncate());
+        assertEquals(50, update.maxSequenceLength());
+        assertEquals(20, update.getSpan());
+    }
+
     public static BertJapaneseTokenization createRandom() {
         return new BertJapaneseTokenization(
             randomBoolean() ? null : randomBoolean(),

@@ -42,7 +42,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
     private StartDataFrameAnalyticsAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {

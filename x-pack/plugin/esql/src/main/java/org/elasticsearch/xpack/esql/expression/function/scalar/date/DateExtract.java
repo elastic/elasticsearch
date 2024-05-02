@@ -8,37 +8,65 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
-public class DateExtract extends ConfigurationFunction implements EvaluatorMapper {
+public class DateExtract extends EsqlConfigurationFunction {
 
     private ChronoField chronoField;
 
-    public DateExtract(Source source, Expression chronoFieldExp, Expression field, Configuration configuration) {
+    @FunctionInfo(
+        returnType = "long",
+        description = "Extracts parts of a date, like year, month, day, hour.",
+        examples = {
+            @Example(file = "date", tag = "dateExtract"),
+            @Example(
+                file = "date",
+                tag = "docsDateExtractBusinessHours",
+                description = "Find all events that occurred outside of business hours (before 9 AM or after 5PM), on any given date:"
+            ) }
+    )
+    public DateExtract(
+        Source source,
+        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
+        // used in the CSVTests and fixing it is not trivial
+        @Param(name = "datePart", type = { "keyword", "text" }, description = """
+            Part of the date to extract.\n
+            Can be: `aligned_day_of_week_in_month`, `aligned_day_of_week_in_year`, `aligned_week_of_month`, `aligned_week_of_year`,
+            `ampm_of_day`, `clock_hour_of_ampm`, `clock_hour_of_day`, `day_of_month`, `day_of_week`, `day_of_year`, `epoch_day`,
+            `era`, `hour_of_ampm`, `hour_of_day`, `instant_seconds`, `micro_of_day`, `micro_of_second`, `milli_of_day`,
+            `milli_of_second`, `minute_of_day`, `minute_of_hour`, `month_of_year`, `nano_of_day`, `nano_of_second`,
+            `offset_seconds`, `proleptic_month`, `second_of_day`, `second_of_minute`, `year`, or `year_of_era`.
+            Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
+            for a description of these values.\n
+            If `null`, the function returns `null`.""") Expression chronoFieldExp,
+        @Param(name = "date", type = "date", description = "Date expression. If `null`, the function returns `null`.") Expression field,
+        Configuration configuration
+    ) {
         super(source, List.of(chronoFieldExp, field), configuration);
     }
 
@@ -49,7 +77,7 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
             ChronoField chrono = chronoField();
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(0).fold();
-                throw new EsqlIllegalArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
+                throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
             return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
         }
@@ -58,15 +86,16 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     }
 
     private ChronoField chronoField() {
+        // chronoField's never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
+        // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {
             Expression field = children().get(0);
-            if (field.foldable() && field.dataType() == DataTypes.KEYWORD) {
-                try {
-                    BytesRef br = BytesRefs.toBytesRef(field.fold());
-                    chronoField = ChronoField.valueOf(br.utf8ToString().toUpperCase(Locale.ROOT));
-                } catch (Exception e) {
-                    return null;
+            try {
+                if (field.foldable() && EsqlDataTypes.isString(field.dataType())) {
+                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
                 }
+            } catch (Exception e) {
+                return null;
             }
         }
         return chronoField;
@@ -74,13 +103,12 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(long value, BytesRef chronoField, @Fixed ZoneId zone) {
-        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return Instant.ofEpochMilli(value).atZone(zone).getLong(chrono);
+        return chronoToLong(value, chronoField, zone);
     }
 
     @Evaluator(extraName = "Constant")
     static long process(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
-        return Instant.ofEpochMilli(value).atZone(zone).getLong(chronoField);
+        return chronoToLong(value, chronoField, zone);
     }
 
     @Override
@@ -99,11 +127,6 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
@@ -117,10 +140,4 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     public boolean foldable() {
         return children().get(0).foldable() && children().get(1).foldable();
     }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
 }

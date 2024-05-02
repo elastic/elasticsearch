@@ -40,6 +40,7 @@ import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
@@ -507,6 +508,81 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 }, manager);
                 assertTrue(contextIndexSearcher.timeExceeded());
                 assertThat(called[0], equalTo(true));
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        }
+    }
+
+    public void testTimeoutOnRewriteStandalone() throws IOException {
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            ThreadPoolExecutor executor = null;
+            try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                TestQuery testQuery = new TestQuery() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) {
+                        contextIndexSearcher.throwTimeExceededException();
+                        assert false;
+                        return null;
+                    }
+                };
+                Query rewrite = contextIndexSearcher.rewrite(testQuery);
+                assertThat(rewrite, instanceOf(MatchNoDocsQuery.class));
+                assertEquals("MatchNoDocsQuery(\"rewrite timed out\")", rewrite.toString());
+                assertTrue(contextIndexSearcher.timeExceeded());
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        }
+    }
+
+    public void testTimeoutOnRewriteDuringSearch() throws IOException {
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            ThreadPoolExecutor executor = null;
+            try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                TestQuery testQuery = new TestQuery() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) {
+                        contextIndexSearcher.throwTimeExceededException();
+                        assert false;
+                        return null;
+                    }
+                };
+                Integer hitCount = contextIndexSearcher.search(testQuery, new TotalHitCountCollectorManager());
+                assertEquals(0, hitCount.intValue());
+                assertTrue(contextIndexSearcher.timeExceeded());
             } finally {
                 if (executor != null) {
                     terminate(executor);

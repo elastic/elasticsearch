@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -20,20 +23,22 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -43,6 +48,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
@@ -67,6 +73,8 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
         assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
+        // alias map, collected during the first iteration for better error messages
+        AttributeMap<Expression> aliases = new AttributeMap<>();
 
         // quick verification for unresolved attributes
         plan.forEachUp(p -> {
@@ -80,20 +88,11 @@ public class Verifier {
             }
             // p is resolved, skip
             else if (p.resolved()) {
+                p.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
                 return;
             }
-            // handle aggregate first to disambiguate between missing fields or incorrect function declaration
-            if (p instanceof Aggregate aggregate) {
-                for (NamedExpression agg : aggregate.aggregates()) {
-                    if (agg instanceof Alias as) {
-                        var child = as.child();
-                        if (child instanceof UnresolvedAttribute u) {
-                            failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
-                        }
-                    }
-                }
-            }
-            p.forEachExpression(e -> {
+
+            Consumer<Expression> unresolvedExpressions = e -> {
                 // everything is fine, skip expression
                 if (e.resolved()) {
                     return;
@@ -115,7 +114,20 @@ public class Verifier {
                         failures.add(fail(ae, ae.typeResolved().message()));
                     }
                 });
-            });
+            };
+
+            // aggregates duplicate grouping inside aggs - to avoid potentially confusing messages, we only check the aggregates
+            if (p instanceof Aggregate agg) {
+                // do groupings first
+                var groupings = agg.groupings();
+                groupings.forEach(unresolvedExpressions);
+                // followed by just the aggregates (to avoid going through the groups again)
+                var aggs = agg.aggregates();
+                int size = aggs.size() - groupings.size();
+                aggs.subList(0, size).forEach(unresolvedExpressions);
+            } else {
+                p.forEachExpression(unresolvedExpressions);
+            }
         });
 
         // in case of failures bail-out as all other checks will be redundant
@@ -138,7 +150,9 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkForSortOnSpatialTypes(p, failures);
         });
+        checkRemoteEnrich(plan, failures);
 
         // gather metrics
         if (failures.isEmpty()) {
@@ -150,37 +164,123 @@ public class Verifier {
 
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Aggregate agg) {
-            agg.aggregates().forEach(e -> {
-                var exp = e instanceof Alias ? ((Alias) e).child() : e;
-                if (exp instanceof AggregateFunction aggFunc) {
-                    Expression field = aggFunc.field();
-
-                    // TODO: allow an expression?
-                    if ((field instanceof FieldAttribute
-                        || field instanceof MetadataAttribute
-                        || field instanceof ReferenceAttribute
-                        || field instanceof Literal) == false) {
-                        failures.add(
-                            fail(
-                                e,
-                                "aggregate function's field must be an attribute or literal; found ["
-                                    + field.sourceText()
-                                    + "] of type ["
-                                    + field.nodeName()
-                                    + "]"
-                            )
-                        );
+            List<Expression> groupings = agg.groupings();
+            AttributeSet groupRefs = new AttributeSet();
+            // check grouping
+            // The grouping can not be an aggregate function
+            groupings.forEach(e -> {
+                e.forEachUp(g -> {
+                    if (g instanceof AggregateFunction af) {
+                        failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
+                    } else if (g instanceof GroupingFunction gf) {
+                        gf.children()
+                            .forEach(
+                                c -> c.forEachDown(
+                                    GroupingFunction.class,
+                                    inner -> failures.add(
+                                        fail(
+                                            inner,
+                                            "cannot nest grouping functions; found [{}] inside [{}]",
+                                            inner.sourceText(),
+                                            gf.sourceText()
+                                        )
+                                    )
+                                )
+                            );
                     }
-                } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
-                    failures.add(
-                        fail(
-                            exp,
-                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
-                        )
-                    );
+                });
+                // keep the grouping attributes (common case)
+                Attribute attr = Expressions.attribute(e);
+                if (attr != null) {
+                    groupRefs.add(attr);
+                }
+                if (e instanceof FieldAttribute f && EsqlDataTypes.isCounterType(f.dataType())) {
+                    failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
                 }
             });
+
+            // check aggregates - accept only aggregate functions or expressions over grouping
+            // don't allow the group by itself to avoid duplicates in the output
+            // and since the groups are copied, only look at the declared aggregates
+            List<? extends NamedExpression> aggs = agg.aggregates();
+            aggs.subList(0, aggs.size() - groupings.size()).forEach(e -> {
+                var exp = Alias.unwrap(e);
+                if (exp.foldable()) {
+                    failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
+                }
+                // traverse the tree to find invalid matches
+                checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
+            });
+        } else {
+            p.forEachExpression(
+                GroupingFunction.class,
+                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
+            );
         }
+    }
+
+    // traverse the expression and look either for an agg function or a grouping match
+    // stop either when no children are left, the leafs are literals or a reference attribute is given
+    private static void checkInvalidNamedExpressionUsage(
+        Expression e,
+        List<Expression> groups,
+        AttributeSet groupRefs,
+        Set<Failure> failures,
+        int level
+    ) {
+        // found an aggregate, constant or a group, bail out
+        if (e instanceof AggregateFunction af) {
+            af.field().forEachDown(AggregateFunction.class, f -> {
+                failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+            });
+        } else if (e instanceof GroupingFunction gf) {
+            // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
+            // be verified (by check above in checkAggregate()), so do it explicitly here
+            if (groups.stream().anyMatch(ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+                failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+            } else if (level == 0) {
+                addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
+            }
+        } else if (e.foldable()) {
+            // don't do anything
+        } else if (groups.contains(e) || groupRefs.contains(e)) {
+            if (level == 0) {
+                addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
+            }
+        }
+        // if a reference is found, mark it as an error
+        else if (e instanceof NamedExpression ne) {
+            boolean foundInGrouping = false;
+            for (Expression g : groups) {
+                if (g.anyMatch(se -> se.semanticEquals(ne))) {
+                    foundInGrouping = true;
+                    failures.add(
+                        fail(
+                            e,
+                            "column [{}] cannot be used as an aggregate once declared in the STATS BY grouping key [{}]",
+                            ne.name(),
+                            g.sourceText()
+                        )
+                    );
+                    break;
+                }
+            }
+            if (foundInGrouping == false) {
+                failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+            }
+        }
+        // other keep on going
+        else {
+            for (Expression child : e.children()) {
+                checkInvalidNamedExpressionUsage(child, groups, groupRefs, failures, level + 1);
+            }
+        }
+    }
+
+    private static void addFailureOnGroupingUsedNakedInAggs(Set<Failure> failures, Expression e, String element) {
+        failures.add(
+            fail(e, "grouping {} [{}] cannot be used as an aggregate once declared in the STATS BY clause", element, e.sourceText())
+        );
     }
 
     private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {
@@ -214,12 +314,17 @@ public class Verifier {
     private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Eval eval) {
             eval.fields().forEach(field -> {
+                // check supported types
                 DataType dataType = field.dataType();
                 if (EsqlDataTypes.isRepresentable(dataType) == false) {
                     failures.add(
                         fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
                     );
                 }
+                // check no aggregate functions are used
+                field.forEachDown(AggregateFunction.class, af -> {
+                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                });
             });
         }
     }
@@ -279,7 +384,9 @@ public class Verifier {
         allowed.add(DataTypes.DATETIME);
         allowed.add(DataTypes.VERSION);
         allowed.add(EsqlDataTypes.GEO_POINT);
+        allowed.add(EsqlDataTypes.GEO_SHAPE);
         allowed.add(EsqlDataTypes.CARTESIAN_POINT);
+        allowed.add(EsqlDataTypes.CARTESIAN_SHAPE);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataTypes.BOOLEAN);
         }
@@ -348,5 +455,59 @@ public class Verifier {
             );
         }
         return null;
+    }
+
+    /**
+     * Makes sure that spatial types do not appear in sorting contexts.
+     */
+    private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof OrderBy ob) {
+            ob.forEachExpression(Attribute.class, attr -> {
+                DataType dataType = attr.dataType();
+                if (EsqlDataTypes.isSpatial(dataType)) {
+                    localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
+                }
+            });
+        }
+    }
+
+    /**
+     * Ensure that no remote enrich is allowed after a reduction or an enrich with coordinator mode.
+     * <p>
+     * TODO:
+     * For Limit and TopN, we can insert the same node after the remote enrich (also needs to move projections around)
+     * to eliminate this limitation. Otherwise, we force users to write queries that might not perform well.
+     * For example, `FROM test | ORDER @timestamp | LIMIT 10 | ENRICH _remote:` doesn't work.
+     * In that case, users have to write it as `FROM test | ENRICH _remote: | ORDER @timestamp | LIMIT 10`,
+     * which is equivalent to bringing all data to the coordinating cluster.
+     * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
+     * retaining the originating cluster and restructing pages for routing, which might be complicated.
+     */
+    private static void checkRemoteEnrich(LogicalPlan plan, Set<Failure> failures) {
+        boolean[] agg = { false };
+        boolean[] limit = { false };
+        boolean[] enrichCoord = { false };
+
+        plan.forEachUp(UnaryPlan.class, u -> {
+            if (u instanceof Limit) {
+                limit[0] = true; // TODO: Make Limit then enrich_remote work
+            }
+            if (u instanceof Aggregate) {
+                agg[0] = true;
+            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                enrichCoord[0] = true;
+            }
+            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
+                if (limit[0]) {
+                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LIMIT"));
+                }
+                if (agg[0]) {
+                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
+                }
+                if (enrichCoord[0]) {
+                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+                }
+            }
+        });
     }
 }

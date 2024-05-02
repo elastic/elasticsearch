@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction;
 import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction.Request;
 import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.List;
@@ -44,7 +44,6 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
             transportService,
             actionFilters,
             Request::new,
-            Response::new,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -96,6 +95,6 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
         TrainedModelDeploymentTask task,
         ActionListener<Response> listener
     ) {
-        task.clearCache(ActionListener.wrap(r -> listener.onResponse(new Response(true)), listener::onFailure));
+        task.clearCache(listener.delegateFailureAndWrap((l, r) -> l.onResponse(new Response(true))));
     }
 }

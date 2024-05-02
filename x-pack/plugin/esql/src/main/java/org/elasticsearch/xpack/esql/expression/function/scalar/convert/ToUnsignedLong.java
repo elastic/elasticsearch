@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,7 +21,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -30,9 +34,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public class ToUnsignedLong extends AbstractConvertFunction {
 
@@ -47,10 +48,31 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "unsigned_long")
+    @FunctionInfo(
+        returnType = "unsigned_long",
+        description = """
+            Converts an input value to an unsigned long value. If the input parameter is of a date type,
+            its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long.
+            Boolean *true* will be converted to unsigned long *1*, *false* to *0*.""",
+        examples = @Example(file = "ints", tag = "to_unsigned_long-str", explanation = """
+            Note that in this example, the last conversion of the string isn't possible.
+            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            The header will provide information on the source of the failure:
+
+            `"Line 1:133: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded."`
+
+            A following header will contain the failure reason and the offending value:
+
+            `"java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point,
+            + "nor \"e\" notation exponential mark."`""")
+    )
     public ToUnsignedLong(
         Source source,
-        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
     ) {
         super(source, field);
     }
@@ -77,27 +99,26 @@ public class ToUnsignedLong extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromBoolean")
     static long fromBoolean(boolean bool) {
-        return bool ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
+        return booleanToUnsignedLong(bool);
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class, NumberFormatException.class })
     static long fromKeyword(BytesRef in) {
-        String asString = in.utf8ToString();
-        return asLongUnsigned(safeToUnsignedLong(asString));
+        return stringToUnsignedLong(in.utf8ToString());
     }
 
-    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static long fromDouble(double dbl) {
-        return asLongUnsigned(safeToUnsignedLong(dbl));
+        return doubleToUnsignedLong(dbl);
     }
 
     @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class })
     static long fromLong(long lng) {
-        return asLongUnsigned(safeToUnsignedLong(lng));
+        return longToUnsignedLong(lng, false);
     }
 
     @ConvertEvaluator(extraName = "FromInt", warnExceptions = { InvalidArgumentException.class })
     static long fromInt(int i) {
-        return fromLong(i);
+        return intToUnsignedLong(i);
     }
 }

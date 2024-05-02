@@ -44,8 +44,8 @@ public final class LinkedProviderBindingImpl<T> extends BindingImpl<T> implement
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override
@@ -54,8 +54,8 @@ public final class LinkedProviderBindingImpl<T> extends BindingImpl<T> implement
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new LinkedProviderBindingImpl<>(getSource(), getKey(), scoping, providerKey);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new LinkedProviderBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, providerKey);
     }
 
     @Override

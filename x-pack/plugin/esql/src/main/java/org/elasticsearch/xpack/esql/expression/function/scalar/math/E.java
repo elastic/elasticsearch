@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -16,6 +18,11 @@ import java.util.List;
  * Function that emits Euler's number.
  */
 public class E extends DoubleConstantFunction {
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns {wikipedia}/E_(mathematical_constant)[Euler's number].",
+        examples = @Example(file = "math", tag = "e")
+    )
     public E(Source source) {
         super(source);
     }

@@ -56,7 +56,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
         origin = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.UPDATE_NON_DYNAMIC_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             reopen = in.readBoolean();
         }
     }
@@ -199,7 +199,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings.writeTo(out);
         out.writeBoolean(preserveExisting);
         out.writeString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.UPDATE_NON_DYNAMIC_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(reopen);
         }
     }
@@ -254,8 +254,8 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             return false;
         }
         UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-        return masterNodeTimeout.equals(that.masterNodeTimeout)
-            && timeout.equals(that.timeout)
+        return masterNodeTimeout().equals(that.masterNodeTimeout())
+            && ackTimeout().equals(that.ackTimeout())
             && Objects.equals(settings, that.settings)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(preserveExisting, that.preserveExisting)
@@ -265,7 +265,15 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, reopen, Arrays.hashCode(indices));
+        return Objects.hash(
+            masterNodeTimeout(),
+            ackTimeout(),
+            settings,
+            indicesOptions,
+            preserveExisting,
+            reopen,
+            Arrays.hashCode(indices)
+        );
     }
 
 }

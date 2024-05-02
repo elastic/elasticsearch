@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
@@ -64,59 +65,50 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         GetInferenceModelAction.Request request,
         ActionListener<GetInferenceModelAction.Response> listener
     ) {
-        boolean modelIdIsWildCard = Strings.isAllOrWildcard(request.getModelId());
+        boolean inferenceEntityIdIsWildCard = Strings.isAllOrWildcard(request.getInferenceEntityId());
 
-        if (request.getTaskType() == TaskType.ANY && modelIdIsWildCard) {
+        if (request.getTaskType() == TaskType.ANY && inferenceEntityIdIsWildCard) {
             getAllModels(listener);
-        } else if (modelIdIsWildCard) {
+        } else if (inferenceEntityIdIsWildCard) {
             getModelsByTaskType(request.getTaskType(), listener);
         } else {
-            getSingleModel(request.getModelId(), request.getTaskType(), listener);
+            getSingleModel(request.getInferenceEntityId(), request.getTaskType(), listener);
         }
     }
 
-    private void getSingleModel(String modelId, TaskType requestedTaskType, ActionListener<GetInferenceModelAction.Response> listener) {
-        modelRegistry.getModel(modelId, ActionListener.wrap(unparsedModel -> {
+    private void getSingleModel(
+        String inferenceEntityId,
+        TaskType requestedTaskType,
+        ActionListener<GetInferenceModelAction.Response> listener
+    ) {
+        modelRegistry.getModel(inferenceEntityId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unknown service [{}] for model [{}]. ",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        unparsedModel.service(),
-                        unparsedModel.modelId()
-                    )
-                );
+                delegate.onFailure(serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId()));
                 return;
             }
 
             if (requestedTaskType.isAnyOrSame(unparsedModel.taskType()) == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Requested task type [{}] does not match the model's task type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        requestedTaskType,
-                        unparsedModel.taskType()
-                    )
-                );
+                delegate.onFailure(InferenceExceptions.mismatchedTaskTypeException(requestedTaskType, unparsedModel.taskType()));
                 return;
             }
 
-            var model = service.get().parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
-            listener.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
-        }, listener::onFailure));
+            var model = service.get()
+                .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+            delegate.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
+        }));
     }
 
     private void getAllModels(ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getAllModels(
-            ActionListener.wrap(models -> executor.execute(ActionRunnable.supply(listener, () -> parseModels(models))), listener::onFailure)
+            listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }
 
     private void getModelsByTaskType(TaskType taskType, ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getModelsByTaskType(
             taskType,
-            ActionListener.wrap(models -> executor.execute(ActionRunnable.supply(listener, () -> parseModels(models))), listener::onFailure)
+            listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }
 
@@ -126,19 +118,23 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         for (var unparsedModel : unparsedModels) {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                throw new ElasticsearchStatusException(
-                    "Unknown service [{}] for model [{}]. ",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    unparsedModel.service(),
-                    unparsedModel.modelId()
-                );
+                throw serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId());
             }
             parsedModels.add(
                 service.get()
-                    .parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings())
+                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings())
                     .getConfigurations()
             );
         }
         return new GetInferenceModelAction.Response(parsedModels);
+    }
+
+    private ElasticsearchStatusException serviceNotFoundException(String service, String inferenceId) {
+        throw new ElasticsearchStatusException(
+            "Unknown service [{}] for inference endpoint [{}]. ",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            service,
+            inferenceId
+        );
     }
 }

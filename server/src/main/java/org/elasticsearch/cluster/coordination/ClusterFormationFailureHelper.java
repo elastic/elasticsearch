@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -140,6 +141,7 @@ public class ClusterFormationFailureHelper {
         VotingConfiguration lastCommittedConfiguration,
         List<TransportAddress> resolvedAddresses,
         List<DiscoveryNode> foundPeers,
+        Set<DiscoveryNode> mastersOfPeers,
         long currentTerm,
         boolean hasDiscoveredQuorum,
         StatusInfo statusInfo,
@@ -151,6 +153,7 @@ public class ClusterFormationFailureHelper {
             ClusterState clusterState,
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
+            Set<DiscoveryNode> mastersOfPeers,
             long currentTerm,
             ElectionStrategy electionStrategy,
             StatusInfo statusInfo,
@@ -166,6 +169,7 @@ public class ClusterFormationFailureHelper {
                 clusterState.getLastCommittedConfiguration(),
                 resolvedAddresses,
                 foundPeers,
+                mastersOfPeers,
                 currentTerm,
                 calculateHasDiscoveredQuorum(
                     foundPeers,
@@ -216,6 +220,9 @@ public class ClusterFormationFailureHelper {
                 new VotingConfiguration(in),
                 in.readCollectionAsImmutableList(TransportAddress::new),
                 in.readCollectionAsImmutableList(DiscoveryNode::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)
+                    ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
+                    : Set.of(),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),
@@ -250,12 +257,19 @@ public class ClusterFormationFailureHelper {
                 acceptedTerm
             );
 
-            final StringBuilder foundPeersDescription = new StringBuilder();
+            final StringBuilder foundPeersDescription = new StringBuilder("[");
             DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(foundPeers.iterator(), foundPeersDescription);
+            if (mastersOfPeers.isEmpty()) {
+                foundPeersDescription.append(']');
+            } else {
+                foundPeersDescription.append("] who claim current master to be [");
+                DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(mastersOfPeers.iterator(), foundPeersDescription);
+                foundPeersDescription.append(']');
+            }
 
             final String discoveryStateIgnoringQuorum = String.format(
                 Locale.ROOT,
-                "have discovered [%s]; %s",
+                "have discovered %s; %s",
                 foundPeersDescription,
                 discoveryWillContinueDescription
             );
@@ -291,7 +305,7 @@ public class ClusterFormationFailureHelper {
             if (lastCommittedConfiguration.equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet and this node was detached from its previous cluster, have discovered [%s]; %s",
+                    "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
                     foundPeersDescription,
                     discoveryWillContinueDescription
                 );
@@ -310,7 +324,7 @@ public class ClusterFormationFailureHelper {
 
             return String.format(
                 Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, %s [%s]; %s",
+                "master not discovered or elected yet, an election requires %s, %s %s; %s",
                 quorumDescription,
                 haveDiscoveredQuorum,
                 foundPeersDescription,
@@ -388,6 +402,9 @@ public class ClusterFormationFailureHelper {
             lastCommittedConfiguration.writeTo(out);
             out.writeCollection(resolvedAddresses);
             out.writeCollection(foundPeers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)) {
+                out.writeCollection(mastersOfPeers);
+            }
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

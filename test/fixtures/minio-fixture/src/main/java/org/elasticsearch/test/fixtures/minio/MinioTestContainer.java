@@ -8,12 +8,10 @@
 
 package org.elasticsearch.test.fixtures.minio;
 
-import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
-import org.junit.rules.TestRule;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
+public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final int servicePort = 9000;
     public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2021-03-01T04-20-55Z";
@@ -25,7 +23,7 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     public MinioTestContainer(boolean enabled) {
         super(
-            new ImageFromDockerfile().withDockerfileFromBuilder(
+            new ImageFromDockerfile("es-minio-testfixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
                     .env("MINIO_ACCESS_KEY", "s3_test_access_key")
                     .env("MINIO_SECRET_KEY", "s3_test_secret_key")
@@ -49,14 +47,5 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     public String getAddress() {
         return "http://127.0.0.1:" + getMappedPort(servicePort);
-    }
-
-    public void cache() {
-        try {
-            start();
-            stop();
-        } catch (RuntimeException e) {
-            logger().warn("Error while caching container images.", e);
-        }
     }
 }

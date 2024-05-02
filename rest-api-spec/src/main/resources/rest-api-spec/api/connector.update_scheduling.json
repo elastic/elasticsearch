@@ -1,7 +1,7 @@
 {
   "connector.update_scheduling": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-scheduling-api.html",
       "description": "Updates the scheduling field in the connector document."
     },
     "stability": "experimental",

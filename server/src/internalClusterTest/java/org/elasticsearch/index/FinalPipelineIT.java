@@ -73,7 +73,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            prepareIndex("index").setId("1").setSource(Map.of("field", "value"))
         );
         assertThat(
             e,
@@ -93,7 +93,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            prepareIndex("index").setId("1").setSource(Map.of("field", "value"))
         );
         assertThat(
             e,
@@ -224,10 +224,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> prepareIndex("index").setId("1")
-                .setSource(Map.of("dest", "index"))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get()
+            prepareIndex("index").setId("1").setSource(Map.of("dest", "index")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         );
         assertThat(
             exception.getMessage(),
@@ -242,7 +239,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         // this asserts that the final_pipeline was used, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            prepareIndex("index").setId("1").setSource(Map.of("field", "value"))
         );
         assertThat(e, hasToString(containsString("pipeline with id [final_pipeline] does not exist")));
     }
@@ -369,7 +366,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         // this asserts that the high_order_final_pipeline was selected, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            prepareIndex("index").setId("1").setSource(Map.of("field", "value"))
         );
         assertThat(e, hasToString(containsString("pipeline with id [high_order_final_pipeline] does not exist")));
     }

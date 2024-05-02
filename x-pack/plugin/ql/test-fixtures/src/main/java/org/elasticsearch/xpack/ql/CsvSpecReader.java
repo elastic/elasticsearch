@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ql;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
@@ -29,6 +31,7 @@ public final class CsvSpecReader {
         private final StringBuilder earlySchema = new StringBuilder();
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
+        private final List<String> requiredFeatures = new ArrayList<>();
         private CsvTestCase testCase;
 
         private CsvSpecParser() {}
@@ -40,6 +43,8 @@ public final class CsvSpecReader {
                 if (line.startsWith(SCHEMA_PREFIX)) {
                     assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
                     earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
+                } else if (line.toLowerCase(Locale.ROOT).startsWith("required_feature:")) {
+                    requiredFeatures.add(line.substring("required_feature:".length()).trim());
                 } else {
                     if (line.endsWith(";")) {
                         // pick up the query
@@ -47,6 +52,8 @@ public final class CsvSpecReader {
                         query.append(line.substring(0, line.length() - 1).trim());
                         testCase.query = query.toString();
                         testCase.earlySchema = earlySchema.toString();
+                        testCase.requiredFeatures = List.copyOf(requiredFeatures);
+                        requiredFeatures.clear();
                         earlySchema.setLength(0);
                         query.setLength(0);
                     }
@@ -60,9 +67,20 @@ public final class CsvSpecReader {
             // read the results
             else {
                 // read data
-                if (line.toLowerCase(Locale.ROOT).startsWith("warning:")) {
+                String lower = line.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("warning:")) {
+                    if (testCase.expectedWarningsRegex.isEmpty() == false) {
+                        throw new IllegalArgumentException("Cannot mix warnings and regex warnings in CSV SPEC files: [" + line + "]");
+                    }
                     testCase.expectedWarnings.add(line.substring("warning:".length()).trim());
-                } else if (line.toLowerCase(Locale.ROOT).startsWith("ignoreorder:")) {
+                } else if (lower.startsWith("warningregex:")) {
+                    if (testCase.expectedWarnings.isEmpty() == false) {
+                        throw new IllegalArgumentException("Cannot mix warnings and regex warnings in CSV SPEC files: [" + line + "]");
+                    }
+                    String regex = line.substring("warningregex:".length()).trim();
+                    testCase.expectedWarningsRegexString.add(regex);
+                    testCase.expectedWarningsRegex.add(warningRegexToPattern(regex));
+                } else if (lower.startsWith("ignoreorder:")) {
                     testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
                 } else if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();
@@ -81,12 +99,19 @@ public final class CsvSpecReader {
         }
     }
 
+    private static Pattern warningRegexToPattern(String regex) {
+        return Pattern.compile(".*" + regex + ".*");
+    }
+
     public static class CsvTestCase {
         public String query;
         public String earlySchema;
         public String expectedResults;
         private final List<String> expectedWarnings = new ArrayList<>();
+        private final List<String> expectedWarningsRegexString = new ArrayList<>();
+        private final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public boolean ignoreOrder;
+        public List<String> requiredFeatures = List.of();
 
         // The emulated-specific warnings must always trail the non-emulated ones, if these are present. Otherwise, the closing bracket
         // would need to be changed to a less common sequence (like `]#` maybe).
@@ -118,6 +143,23 @@ public final class CsvSpecReader {
                 }
             }
             return warnings;
+        }
+
+        /**
+         * Modifies the expected warnings.
+         * In some cases, we modify the query to run against multiple clusters. As a result, the line/column positions
+         * of the expected warnings no longer match the actual warnings. To enable reusing of spec tests, this method
+         * allows adjusting the expected warnings.
+         */
+        public void adjustExpectedWarnings(Function<String, String> updater) {
+            expectedWarnings.replaceAll(updater::apply);
+            expectedWarningsRegexString.replaceAll(updater::apply);
+            expectedWarningsRegex.clear();
+            expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+        }
+
+        public List<Pattern> expectedWarningsRegex() {
+            return expectedWarningsRegex;
         }
     }
 

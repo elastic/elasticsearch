@@ -25,7 +25,7 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     private final String resource;
     private final boolean preview;
 
-    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = TransportVersions.V_8_500_040;
+    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     /**
      * Constructs a request for reloading index search analyzers

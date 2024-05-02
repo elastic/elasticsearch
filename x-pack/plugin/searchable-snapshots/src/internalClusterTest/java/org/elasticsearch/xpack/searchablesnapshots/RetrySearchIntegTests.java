@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -32,7 +32,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -142,32 +142,28 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
-        final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
+        final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
         try {
-            SearchResponse resp = prepareSearch().setIndices(indexName)
-                .setPreference(null)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertNoFailures(resp);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
-            assertHitCount(resp, docCount);
-
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertHitCount(resp, docCount);
+            });
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
             for (String allocatedNode : allocatedNodes) {
                 internalCluster().restartNode(allocatedNode);
             }
             ensureGreen(indexName);
-            resp = prepareSearch().setIndices(indexName)
-                .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setPreference(null)
-                .setPreFilterShardSize(between(1, 10))
-                .setAllowPartialSearchResults(true)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertNoFailures(resp);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
-            assertHitCount(resp, docCount);
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPreFilterShardSize(between(1, 10))
+                    .setAllowPartialSearchResults(true)
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                resp -> {
+                    assertThat(resp.pointInTimeId(), equalTo(pitId));
+                    assertHitCount(resp, docCount);
+                }
+            );
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         }

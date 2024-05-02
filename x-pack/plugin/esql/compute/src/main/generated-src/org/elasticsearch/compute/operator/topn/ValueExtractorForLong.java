@@ -11,6 +11,10 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+/**
+ * Extracts non-sort-key values for top-n from their {@link LongBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class ValueExtractorForLong implements ValueExtractor {
     static ValueExtractorForLong extractorFor(TopNEncoder encoder, boolean inKey, LongBlock block) {
         LongVector vector = block.asVector();

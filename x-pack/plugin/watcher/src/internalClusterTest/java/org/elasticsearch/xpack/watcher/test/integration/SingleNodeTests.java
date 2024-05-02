@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -65,7 +65,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
         ensureGreen(HistoryStoreField.DATA_STREAM);
 
         assertBusy(() -> {
-            RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
+            BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
             assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
             assertResponse(
                 prepareSearch(".watcher-history*").setSize(0),

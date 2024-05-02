@@ -53,7 +53,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
     public static final String NAME = "indices:data/read/xpack/enrich/coordinate_lookups";
 
     private EnrichCoordinatorProxyAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME);
     }
 
     public static class TransportAction extends HandledTransportAction<SearchRequest, SearchResponse> {

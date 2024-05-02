@@ -673,6 +673,10 @@ public class Augmentation {
         return MessageDigests.toHexString(MessageDigests.sha256().digest(source.getBytes(StandardCharsets.UTF_8)));
     }
 
+    public static String sha512(String source) {
+        return MessageDigests.toHexString(MessageDigests.sha512().digest(source.getBytes(StandardCharsets.UTF_8)));
+    }
+
     public static final int UNLIMITED_PATTERN_FACTOR = 0;
     public static final int DISABLED_PATTERN_FACTOR = -1;
 

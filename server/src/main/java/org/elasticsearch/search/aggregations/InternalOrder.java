@@ -72,8 +72,8 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public Comparator<Bucket> comparator() {
             return (lhs, rhs) -> {
-                final SortValue l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
-                final SortValue r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
+                final SortValue l = path.resolveValue(lhs.getAggregations());
+                final SortValue r = path.resolveValue(rhs.getAggregations());
                 int compareResult = l.compareTo(r);
                 return order == SortOrder.ASC ? compareResult : -compareResult;
             };

@@ -32,6 +32,7 @@ import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 
 /**
  * {@code PublishableHttpResource} represents an {@link HttpResource} that is a single file or object that can be checked <em>and</em>
@@ -112,7 +113,7 @@ public abstract class PublishableHttpResource extends HttpResource {
             final Map<String, String> parameters = Maps.newMapWithExpectedSize(baseParameters.size() + 1);
 
             parameters.putAll(baseParameters);
-            parameters.put("master_timeout", masterTimeout.toString());
+            parameters.put(REST_MASTER_TIMEOUT_PARAM, masterTimeout.toString());
 
             this.defaultParameters = Collections.unmodifiableMap(parameters);
         } else {
@@ -137,14 +138,14 @@ public abstract class PublishableHttpResource extends HttpResource {
      */
     @Override
     protected final void doCheckAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
-        doCheck(client, ActionListener.wrap(exists -> {
+        doCheck(client, listener.delegateFailureAndWrap((l, exists) -> {
             if (exists) {
                 // it already exists, so we can skip publishing it
-                listener.onResponse(ResourcePublishResult.ready());
+                l.onResponse(ResourcePublishResult.ready());
             } else {
-                doPublish(client, listener);
+                doPublish(client, l);
             }
-        }, listener::onFailure));
+        }));
     }
 
     /**

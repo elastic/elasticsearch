@@ -133,7 +133,7 @@ public final class ExpressionTranslators {
             Expression field = e.field();
 
             if (field instanceof FieldAttribute fa) {
-                q = translateField(e, handler.nameOf(fa.exactAttribute()));
+                return handler.wrapFunctionQuery(e, fa, () -> translateField(e, handler.nameOf(fa.exactAttribute())));
             } else if (field instanceof MetadataAttribute ma) {
                 q = translateField(e, handler.nameOf(ma));
             } else {
@@ -198,10 +198,10 @@ public final class ExpressionTranslators {
         @Override
         protected Query asQuery(org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e, TranslatorHandler handler) {
             if (e instanceof And) {
-                return and(e.source(), toQuery(e.left(), handler), toQuery(e.right(), handler));
+                return and(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
             }
             if (e instanceof Or) {
-                return or(e.source(), toQuery(e.left(), handler), toQuery(e.right(), handler));
+                return or(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
             }
 
             return null;

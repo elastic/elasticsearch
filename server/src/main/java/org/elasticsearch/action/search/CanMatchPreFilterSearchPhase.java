@@ -482,24 +482,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
 
         @Override
-        public void incRef() {
-
-        }
-
-        @Override
-        public boolean tryIncRef() {
-            return false;
-        }
-
-        @Override
-        public boolean decRef() {
-            return false;
-        }
-
-        @Override
-        public boolean hasReferences() {
-            return false;
-        }
+        public void close() {}
     }
 
     private GroupShardsIterator<SearchShardIterator> getIterator(

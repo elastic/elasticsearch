@@ -137,6 +137,30 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         assertThat("Response was: " + response.getCheckpoints(), response.getCheckpoints(), is(anEmptyMap()));
     }
 
+    public void testGetCheckpointWithMissingIndex() throws Exception {
+        GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            new String[] { "test_index_missing" },
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
+            TimeValue.timeValueSeconds(5)
+        );
+
+        GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();
+        assertThat("Response was: " + response.getCheckpoints(), response.getCheckpoints(), is(anEmptyMap()));
+
+        request = new GetCheckpointAction.Request(
+            new String[] { "test_index_missing-*" },
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
+            TimeValue.timeValueSeconds(5)
+        );
+
+        response = client().execute(GetCheckpointAction.INSTANCE, request).get();
+        assertThat("Response was: " + response.getCheckpoints(), response.getCheckpoints(), is(anEmptyMap()));
+    }
+
     public void testGetCheckpointTimeoutExceeded() throws Exception {
         final String indexNamePrefix = "test_index-";
         final int indices = 100;

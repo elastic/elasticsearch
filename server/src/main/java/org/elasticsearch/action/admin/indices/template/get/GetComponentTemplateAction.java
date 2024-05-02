@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -35,7 +36,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     public static final String NAME = "cluster:admin/component_template/get";
 
     private GetComponentTemplateAction() {
-        super(NAME, GetComponentTemplateAction.Response::new);
+        super(NAME);
     }
 
     /**
@@ -57,7 +58,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 includeDefaults = in.readBoolean();
             } else {
                 includeDefaults = false;
@@ -68,7 +69,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -117,25 +118,36 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         private final Map<String, ComponentTemplate> componentTemplates;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
+        @Nullable
+        private final DataStreamGlobalRetention globalRetention;
 
         public Response(StreamInput in) throws IOException {
             super(in);
             componentTemplates = in.readMap(ComponentTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
                 rolloverConfiguration = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+            } else {
+                globalRetention = null;
+            }
         }
 
-        public Response(Map<String, ComponentTemplate> componentTemplates) {
-            this.componentTemplates = componentTemplates;
-            this.rolloverConfiguration = null;
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
+            this(componentTemplates, null, globalRetention);
         }
 
-        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
+        public Response(
+            Map<String, ComponentTemplate> componentTemplates,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention
+        ) {
             this.componentTemplates = componentTemplates;
             this.rolloverConfiguration = rolloverConfiguration;
+            this.globalRetention = globalRetention;
         }
 
         public Map<String, ComponentTemplate> getComponentTemplates() {
@@ -146,11 +158,18 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             return rolloverConfiguration;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeWriteable);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                out.writeOptionalWriteable(globalRetention);
             }
         }
 
@@ -160,12 +179,13 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
             return Objects.equals(componentTemplates, that.componentTemplates)
-                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
+                && Objects.equals(globalRetention, that.globalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(componentTemplates, rolloverConfiguration);
+            return Objects.hash(componentTemplates, rolloverConfiguration, globalRetention);
         }
 
         @Override

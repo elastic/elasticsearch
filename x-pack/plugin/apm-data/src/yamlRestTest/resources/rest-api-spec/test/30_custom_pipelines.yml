@@ -1,0 +1,138 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      # NOTE(axw) we use the `set` processor rather than `append` processor
+      # because the metrics data streams use synthetic source, so order of
+      # arrays is not preserved.
+      ingest.put_pipeline:
+        id: "global@custom"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "custom_pipelines",
+                  "value": "{{{custom_pipelines}}},{{{_ingest.pipeline}}}"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "metrics@custom"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "custom_pipelines",
+                  "value": "{{{custom_pipelines}}},{{{_ingest.pipeline}}}"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "metrics-apm@custom"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "custom_pipelines",
+                  "value": "{{{custom_pipelines}}},{{{_ingest.pipeline}}}"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "metrics-apm.app@custom"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "custom_pipelines",
+                  "value": "{{{custom_pipelines}}},{{{_ingest.pipeline}}}"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "traces@custom"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "custom_pipelines",
+                  "value": "{{{custom_pipelines}}},{{{_ingest.pipeline}}}"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "traces-apm@custom"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "custom_pipelines",
+                  "value": "{{{custom_pipelines}}},{{{_ingest.pipeline}}}"
+                }
+              }
+            ]
+          }
+
+---
+"Test metrics @custom ingest pipelines":
+  - do:
+      bulk:
+        index: metrics-apm.app.svc1-testing
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "metrics", "dataset": "apm.app.svc1", "namespace": "testing"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: metrics-apm.app.svc1-testing
+        body:
+          fields: ["custom_pipelines"]
+  - length: { hits.hits: 1 }
+  - match:
+      hits.hits.0._source.custom_pipelines: ",global@custom,metrics@custom,metrics-apm@custom,metrics-apm.app@custom"
+
+---
+"Test traces @custom ingest pipelines":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "traces", "dataset": "apm", "namespace": "testing"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+  - length: { hits.hits: 1 }
+  - match:
+      hits.hits.0._source.custom_pipelines: ",global@custom,traces@custom,traces-apm@custom"

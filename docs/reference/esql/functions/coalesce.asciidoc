@@ -2,13 +2,12 @@
 [[esql-coalesce]]
 === `COALESCE`
 
-Returns the first non-null value.
+*Syntax*
 
-[source.merge.styled,esql]
+[source,esql]
 ----
-include::{esql-specs}/null.csv-spec[tag=coalesce]
+COALESCE(expression1 [, ..., expressionN])
 ----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/null.csv-spec[tag=coalesce-result]
-|===
+include::parameters/coalesce.asciidoc[]
+include::description/coalesce.asciidoc[]
+include::examples/coalesce.asciidoc[]

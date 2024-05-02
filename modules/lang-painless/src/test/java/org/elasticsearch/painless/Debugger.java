@@ -19,14 +19,17 @@ import org.objectweb.asm.util.Textifier;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.HashMap;
 import java.util.List;
+
+import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
 
 /** quick and dirty tools for debugging */
 final class Debugger {
 
     /** compiles source to bytecode, and returns debugging output */
     static String toString(final String source) {
-        return toString(PainlessTestScript.class, source, new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        return toString(PainlessTestScript.class, source, new CompilerSettings(), PAINLESS_BASE_WHITELIST);
     }
 
     /** compiles to bytecode, and returns debugging output */
@@ -35,12 +38,8 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists)).compile(
-                "<debugging>",
-                source,
-                settings,
-                textifier
-            );
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>()))
+                .compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));
@@ -65,15 +64,8 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists)).compile(
-                "<debugging>",
-                source,
-                settings,
-                textifier,
-                semanticPhaseVisitor,
-                irPhaseVisitor,
-                asmPhaseVisitor
-            );
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>()))
+                .compile("<debugging>", source, settings, textifier, semanticPhaseVisitor, irPhaseVisitor, asmPhaseVisitor);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));
@@ -94,7 +86,7 @@ final class Debugger {
             PainlessTestScript.class,
             source,
             new CompilerSettings(),
-            PainlessPlugin.BASE_WHITELISTS,
+            PAINLESS_BASE_WHITELIST,
             semanticPhaseVisitor,
             irPhaseVisitor,
             asmPhaseVisitor

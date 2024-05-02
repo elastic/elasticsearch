@@ -9,14 +9,16 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.rest.RestRequest.RESPONSE_RESTRICTED;
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -159,12 +161,12 @@ public class RestUtilsTests extends ESTestCase {
 
     public void testReservedParameters() {
         Map<String, String> params = new HashMap<>();
-        String uri = "something?" + RESPONSE_RESTRICTED + "=value";
+        String uri = "something?" + PATH_RESTRICTED + "=value";
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params)
         );
-        assertEquals(exception.getMessage(), "parameter [" + RESPONSE_RESTRICTED + "] is reserved and may not set");
+        assertEquals(exception.getMessage(), "parameter [" + PATH_RESTRICTED + "] is reserved and may not set");
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {
@@ -184,5 +186,20 @@ public class RestUtilsTests extends ESTestCase {
                 is(expectMatch)
             );
         }
+    }
+
+    public void testGetMasterNodeTimeout() {
+        assertEquals(
+            TimeValue.timeValueSeconds(30),
+            RestUtils.getMasterNodeTimeout(new FakeRestRequest.Builder(xContentRegistry()).build())
+        );
+
+        final var timeout = randomTimeValue();
+        assertEquals(
+            timeout,
+            RestUtils.getMasterNodeTimeout(
+                new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("master_timeout", timeout.getStringRep())).build()
+            )
+        );
     }
 }

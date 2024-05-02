@@ -11,11 +11,12 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -25,25 +26,43 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
-public class Round extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
 
-    public Round(Source source, Expression field, Expression decimals) {
+    // @TODO: add support for "integer", "long", "unsigned_long" once tests are fixed
+    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
+        Rounds a number to the specified number of decimal places.
+        Defaults to 0, which returns the nearest integer. If the
+        precision is a negative number, rounds to the number of digits left
+        of the decimal point.""", examples = @Example(file = "docs", tag = "round"))
+    public Round(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "The numeric value to round. If `null`, the function returns `null`."
+        ) Expression field,
+        @Param(
+            optional = true,
+            name = "decimals",
+            type = { "integer" },  // TODO long is supported here too
+            description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
+        ) Expression decimals
+    ) {
         super(source, decimals != null ? Arrays.asList(field, decimals) : Arrays.asList(field));
         this.field = field;
         this.decimals = decimals;
@@ -68,11 +87,6 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         return field.foldable() && (decimals == null || decimals.foldable());
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(extraName = "DoubleNoDecimals")
     static double process(double val) {
         return Maths.round(val, 0).doubleValue();
@@ -93,10 +107,9 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {
             BigInteger rounded = Maths.round(bi, decimals);
-            BigInteger unsignedLong = asUnsignedLong(rounded);
-            return asLongUnsigned(unsignedLong);
+            return bigIntegerToUnsignedLong(rounded);
         } else {
-            return asLongUnsigned(Maths.round(ul.longValue(), decimals));
+            return longToUnsignedLong(Maths.round(ul.longValue(), decimals), false);
         }
     }
 
@@ -129,11 +142,6 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType fieldType = dataType();
         if (fieldType == DataTypes.DOUBLE) {
@@ -162,19 +170,5 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         }
         var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
         return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, decimals);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        Round other = (Round) obj;
-        return Objects.equals(other.field, field) && Objects.equals(other.decimals, decimals);
     }
 }

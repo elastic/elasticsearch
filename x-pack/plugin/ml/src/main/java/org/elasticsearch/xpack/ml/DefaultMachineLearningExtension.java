@@ -52,6 +52,11 @@ public class DefaultMachineLearningExtension implements MachineLearningExtension
     }
 
     @Override
+    public boolean isLearningToRankEnabled() {
+        return true;
+    }
+
+    @Override
     public String[] getAnalyticsDestIndexAllowedSettings() {
         return ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
     }

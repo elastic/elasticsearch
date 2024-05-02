@@ -16,17 +16,30 @@ import java.lang.annotation.Target;
  * Implement an evaluator for a function reducing multivalued fields into a
  * single valued field from a static {@code process} method.
  * <p>
- *     Annotated methods can have two "shapes": pairwise processing and
- *     accumulator processing. Pairwise is <strong>generally</strong>
- *     simpler and looks like {@code int process(int current, int next)}.
- *     Use it when the result is a primitive. Accumulator processing is
- *     a bit more complex and looks like {@code void process(State state, int v)}
- *     and it useful when you need to accumulate more data than fits
- *     in a primitive result. Think Kahan summation.
+ *     Annotated methods can have three "shapes":
+ * </p>
+ * <ul>
+ *     <li>pairwise processing</li>
+ *     <li>accumulator processing</li>
+ *     <li>position at a time processing</li>
+ * </ul>
+ * <p>
+ *     Pairwise processing is <strong>generally</strong> simpler and looks
+ *     like {@code int process(int current, int next)}. Use it when the result
+ *     is a primitive.</p>
+ * <p>
+ *     Accumulator processing is a bit more complex and looks like
+ *     {@code void process(State state, int v)} and it useful when you need to
+ *     accumulate more data than fits in a primitive result. Think Kahan summation.
  * </p>
  * <p>
- *     Both method shapes support at {@code finish = "finish_method"} parameter
- *     on the annotation which is used to, well, "finish" processing after
+ *     Position at a time processing just hands the block, start index, and end index
+ *     to the processor and is useful when none of the others fit. It looks like
+ *     {@code long process(LongBlock block, int start, int end)}.
+ * </p>
+ * <p>
+ *     Pairwise and accumulator processing support a {@code finish = "finish_method"}
+ *     parameter on the annotation which is used to, well, "finish" processing after
  *     all values have been received. Again, think reading the sum from the
  *     Kahan summation. Or doing the division for an "average" operation.
  *     This method is required for accumulator processing.

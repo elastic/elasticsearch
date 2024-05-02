@@ -1,0 +1,76 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      cluster.put_component_template:
+        name: "metrics@custom"
+        body:
+          template:
+            mappings:
+              properties:
+                custom_field1:
+                  type: keyword
+                  meta:
+                    source: metrics@custom
+                custom_field2:
+                  type: keyword
+                  meta:
+                    source: metrics@custom
+
+  - do:
+      cluster.put_component_template:
+        name: "metrics-apm.app@custom"
+        body:
+          template:
+            mappings:
+              properties:
+                custom_field2:
+                  type: keyword
+                  meta:
+                    source: metrics-apm.app@custom
+                custom_field3:
+                  type: keyword
+                  meta:
+                    source: metrics-apm.app@custom
+
+---
+"Test metrics @custom component templates":
+  - do:
+      indices.create_data_stream:
+        name: metrics-apm.app.svc1-testing
+  - do:
+      # Wait for cluster state changes to be applied before
+      # querying field mappings.
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      indices.get_field_mapping:
+        index: metrics-apm.app.svc1-testing
+        fields: custom_field*
+  - set: {_arbitrary_key_: index}
+  - match:
+      $body.$index.mappings:
+        custom_field1:
+          full_name: custom_field1
+          mapping:
+            custom_field1:
+              type: keyword
+              meta:
+                source: metrics@custom
+        custom_field2:
+          full_name: custom_field2
+          mapping:
+            custom_field2:
+              type: keyword
+              meta:
+                source: metrics-apm.app@custom
+        custom_field3:
+          full_name: custom_field3
+          mapping:
+            custom_field3:
+              type: keyword
+              meta:
+                source: metrics-apm.app@custom

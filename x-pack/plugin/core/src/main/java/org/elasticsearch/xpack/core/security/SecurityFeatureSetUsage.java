@@ -52,31 +52,31 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        realmsUsage = in.readMap();
-        rolesStoreUsage = in.readMap();
-        sslUsage = in.readMap();
+        realmsUsage = in.readGenericMap();
+        rolesStoreUsage = in.readGenericMap();
+        sslUsage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            tokenServiceUsage = in.readMap();
-            apiKeyServiceUsage = in.readMap();
+            tokenServiceUsage = in.readGenericMap();
+            apiKeyServiceUsage = in.readGenericMap();
         }
-        auditUsage = in.readMap();
-        ipFilterUsage = in.readMap();
-        anonymousUsage = in.readMap();
-        roleMappingStoreUsage = in.readMap();
+        auditUsage = in.readGenericMap();
+        ipFilterUsage = in.readGenericMap();
+        anonymousUsage = in.readGenericMap();
+        roleMappingStoreUsage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            fips140Usage = in.readMap();
+            fips140Usage = in.readGenericMap();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            operatorPrivilegesUsage = in.readMap();
+            operatorPrivilegesUsage = in.readGenericMap();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            domainsUsage = in.readMap();
+            domainsUsage = in.readGenericMap();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            userProfileUsage = in.readMap();
+            userProfileUsage = in.readGenericMap();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            remoteClusterServerUsage = in.readMap();
+            remoteClusterServerUsage = in.readGenericMap();
         }
     }
 

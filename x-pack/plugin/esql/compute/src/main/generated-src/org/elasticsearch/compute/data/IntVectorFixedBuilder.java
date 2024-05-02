@@ -27,7 +27,7 @@ final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
 
     IntVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes, false);
+        blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
         this.values = new int[size];
     }
@@ -44,6 +44,11 @@ final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
             : IntArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Integer.BYTES
             );
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
     }
 
     @Override
@@ -70,7 +75,7 @@ final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
             nextIndex = -1;
-            blockFactory.adjustBreaker(-preAdjustedBytes, false);
+            blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 

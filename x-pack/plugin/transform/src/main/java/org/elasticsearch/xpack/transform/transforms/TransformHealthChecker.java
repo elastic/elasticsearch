@@ -38,7 +38,8 @@ public final class TransformHealthChecker {
         PRIVILEGES_CHECK_FAILED("Privileges check failed"),
         TRANSFORM_TASK_FAILED("Transform task state is [failed]"),
         TRANSFORM_INDEXER_FAILED("Transform indexer failed"),
-        TRANSFORM_INTERNAL_STATE_UPDATE_FAILED("Task encountered failures updating internal state");
+        TRANSFORM_INTERNAL_STATE_UPDATE_FAILED("Task encountered failures updating internal state"),
+        TRANSFORM_STARTUP_FAILED("Transform task is automatically retrying its startup process");
 
         private final String issue;
 
@@ -88,8 +89,7 @@ public final class TransformHealthChecker {
     public static TransformHealth checkTransform(TransformTask transformTask, @Nullable AuthorizationState authState) {
         // quick check
         if (TransformTaskState.FAILED.equals(transformTask.getState().getTaskState()) == false
-            && transformTask.getContext().getFailureCount() == 0
-            && transformTask.getContext().getStatePersistenceFailureCount() == 0
+            && transformTask.getContext().doesNotHaveFailures()
             && AuthorizationState.isNullOrGreen(authState)) {
             return TransformHealth.GREEN;
         }
@@ -141,6 +141,24 @@ public final class TransformHealthChecker {
                     transformContext.getLastStatePersistenceFailure().getMessage(),
                     transformContext.getStatePersistenceFailureCount(),
                     transformContext.getLastStatePersistenceFailureStartTime()
+                )
+            );
+        }
+
+        if (transformContext.getStartUpFailureCount() != 0) {
+            if (HealthStatus.RED.equals(maxStatus) == false) {
+                maxStatus = HealthStatus.YELLOW;
+            }
+
+            var lastFailure = transformContext.getStartUpFailure();
+            var lastFailureMessage = lastFailure instanceof ElasticsearchException elasticsearchException
+                ? elasticsearchException.getDetailedMessage()
+                : lastFailure.getMessage();
+            issues.add(
+                IssueType.TRANSFORM_STARTUP_FAILED.newIssue(
+                    lastFailureMessage,
+                    transformContext.getStartUpFailureCount(),
+                    transformContext.getStartUpFailureTime()
                 )
             );
         }

@@ -8,8 +8,8 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -49,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -113,7 +114,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
 
         if (randomBoolean()) {
-            var request = new PutComposableIndexTemplateAction.Request("id");
+            var request = new TransportPutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of("k8s*"))
@@ -121,13 +122,13 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
             );
-            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+            client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
         } else {
             var putComponentTemplateRequest = new PutComponentTemplateAction.Request("1");
             putComponentTemplateRequest.componentTemplate(new ComponentTemplate(new Template(null, mapping, null), null, null));
             client().execute(PutComponentTemplateAction.INSTANCE, putComponentTemplateRequest).actionGet();
 
-            var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
+            var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
             putTemplateRequest.indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of("k8s*"))
@@ -136,7 +137,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
             );
-            client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet();
+            client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
         }
 
         // index doc
@@ -238,7 +239,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
               }
             }""";
         {
-            var request = new PutComposableIndexTemplateAction.Request("id");
+            var request = new TransportPutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of("k8s*"))
@@ -254,19 +255,19 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             );
             var e = expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+                () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
             );
             assertThat(
                 e.getCause().getCause().getMessage(),
                 equalTo(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    "All fields that match routing_path must be configured with [time_series_dimension: true] "
                         + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                         + "without the [script] parameter. [metricset] was not a dimension."
                 )
             );
         }
         {
-            var request = new PutComposableIndexTemplateAction.Request("id");
+            var request = new TransportPutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of("k8s*"))
@@ -282,13 +283,13 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             );
             var e = expectThrows(
                 InvalidIndexTemplateException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+                () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
             );
             assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
         }
     }
 
-    public void testInvalidTsdbTemplatesNoKeywordFieldType() throws Exception {
+    public void testTsdbTemplatesNoKeywordFieldType() throws Exception {
         var mappingTemplate = """
             {
               "_doc":{
@@ -300,7 +301,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               }
             }""";
-        var request = new PutComposableIndexTemplateAction.Request("id");
+        var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
@@ -314,18 +315,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
-        );
-        assertThat(
-            e.getCause().getCause().getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. [metricset] was [long]."
-            )
-        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     public void testInvalidTsdbTemplatesMissingSettings() throws Exception {
@@ -340,7 +330,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               }
             }""";
-        var request = new PutComposableIndexTemplateAction.Request("id");
+        var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
@@ -356,7 +346,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
+            () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
         );
         assertThat(e.getCause().getMessage(), equalTo("[index.routing_path] requires [index.mode=time_series]"));
     }
@@ -366,7 +356,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
         {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build();
-            var request = new PutComposableIndexTemplateAction.Request("id1");
+            var request = new TransportPutComposableIndexTemplateAction.Request("id1");
             request.indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of("pattern-1"))
@@ -374,13 +364,13 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
             );
-            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+            client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
             var indexRequest = new IndexRequest("pattern-1").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             client().index(indexRequest).actionGet();
         }
         {
-            var request = new PutComposableIndexTemplateAction.Request("id2");
+            var request = new TransportPutComposableIndexTemplateAction.Request("id2");
             request.indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of("pattern-2"))
@@ -388,7 +378,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
             );
-            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+            client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
             var indexRequest = new IndexRequest("pattern-2").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             client().index(indexRequest).actionGet();
@@ -400,11 +390,12 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var searchRequest = new SearchRequest("pattern-*");
             searchRequest.setPreFilterShardSize(1);
             searchRequest.source(matchingRange);
-            var searchResponse = client().search(searchRequest).actionGet();
-            ElasticsearchAssertions.assertHitCount(searchResponse, 2);
-            assertThat(searchResponse.getTotalShards(), equalTo(2));
-            assertThat(searchResponse.getSkippedShards(), equalTo(0));
-            assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            assertResponse(client().search(searchRequest), searchResponse -> {
+                ElasticsearchAssertions.assertHitCount(searchResponse, 2);
+                assertThat(searchResponse.getTotalShards(), equalTo(2));
+                assertThat(searchResponse.getSkippedShards(), equalTo(0));
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            });
         }
         {
             var nonMatchingRange = new SearchSourceBuilder().query(
@@ -414,17 +405,18 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var searchRequest = new SearchRequest("pattern-*");
             searchRequest.setPreFilterShardSize(1);
             searchRequest.source(nonMatchingRange);
-            var searchResponse = client().search(searchRequest).actionGet();
-            ElasticsearchAssertions.assertNoSearchHits(searchResponse);
-            assertThat(searchResponse.getTotalShards(), equalTo(2));
-            assertThat(searchResponse.getSkippedShards(), equalTo(1));
-            assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            assertResponse(client().search(searchRequest), searchResponse -> {
+                ElasticsearchAssertions.assertNoSearchHits(searchResponse);
+                assertThat(searchResponse.getTotalShards(), equalTo(2));
+                assertThat(searchResponse.getSkippedShards(), equalTo(1));
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            });
         }
     }
 
     public void testTrimId() throws Exception {
         String dataStreamName = "k8s";
-        var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
@@ -444,7 +436,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
 
         // index some data
         int numBulkRequests = 32;
@@ -476,7 +468,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         // Pre check whether _id stored field uses diskspace:
         var diskUsageResponse = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         var map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
@@ -518,7 +510,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         // Check the _id stored field uses no disk space:
         diskUsageResponse = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
@@ -536,17 +528,19 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
 
         // Check the search api can synthesize _id
+        final String idxName = indexName;
         var searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().trackTotalHits(true);
-        var searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
-        String id = searchResponse.getHits().getHits()[0].getId();
-        assertThat(id, notNullValue());
+        assertResponse(client().search(searchRequest), searchResponse -> {
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
+            String id = searchResponse.getHits().getHits()[0].getId();
+            assertThat(id, notNullValue());
 
-        // Check that the _id is gettable:
-        var getResponse = client().get(new GetRequest(indexName).id(id)).actionGet();
-        assertThat(getResponse.isExists(), is(true));
-        assertThat(getResponse.getId(), equalTo(id));
+            // Check that the _id is gettable:
+            var getResponse = client().get(new GetRequest(idxName).id(id)).actionGet();
+            assertThat(getResponse.isExists(), is(true));
+            assertThat(getResponse.getId(), equalTo(id));
+        });
     }
 
     static String formatInstant(Instant instant) {

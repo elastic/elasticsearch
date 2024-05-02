@@ -199,6 +199,43 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof ZeroShotClassificationConfigUpdate configUpdate) {
+            if ((configUpdate.getLabels() == null || configUpdate.getLabels().isEmpty())
+                && (this.labels == null || this.labels.isEmpty())) {
+                throw ExceptionsHelper.badRequestException(
+                    "stored configuration has no [{}] defined, supplied inference_config update must supply [{}]",
+                    LABELS.getPreferredName(),
+                    LABELS.getPreferredName()
+                );
+            }
+
+            return new ZeroShotClassificationConfig(
+                classificationLabels,
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                hypothesisTemplate,
+                Optional.ofNullable(configUpdate.getMultiLabel()).orElse(isMultiLabel),
+                Optional.ofNullable(configUpdate.getLabels()).orElse(labels),
+                Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField)
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new ZeroShotClassificationConfig(
+                classificationLabels,
+                vocabularyConfig,
+                updatedTokenization,
+                hypothesisTemplate,
+                isMultiLabel,
+                labels,
+                resultsField
+            );
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return MlConfigVersion.V_8_0_0;
     }

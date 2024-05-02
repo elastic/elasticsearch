@@ -7,24 +7,39 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
@@ -37,11 +52,10 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.addAll(super.nodePlugins(clusterAlias));
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPlugin.class);
         plugins.add(InternalExchangePlugin.class);
-        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), EsqlPlugin.class);
+        return plugins;
     }
 
     public static class InternalExchangePlugin extends Plugin {
@@ -57,61 +71,171 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testUnsupported() {
-        int numDocs = between(1, 10);
-        for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
-            Client client = client(cluster);
-            assertAcked(
-                client.admin()
-                    .indices()
-                    .prepareCreate("events")
-                    .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)))
-                    .setMapping("tag", "type=keyword", "v", "type=long")
-            );
-            for (int i = 0; i < numDocs; i++) {
-                client.prepareIndex("events").setSource("tag", cluster, "v", i).get();
-            }
-            client.admin().indices().prepareRefresh("events").get();
-        }
-        var emptyQueries = List.of(
-            "from *:* | LIMIT 0",
-            "from *,*:* | LIMIT 0",
-            "from *:events* | LIMIT 0",
-            "from events,*:events* | LIMIT 0"
+    @Before
+    public void populateLocalIndices() {
+        Client localClient = client(LOCAL_CLUSTER);
+        assertAcked(
+            localClient.admin()
+                .indices()
+                .prepareCreate("logs-1")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)))
+                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
         );
-        for (String q : emptyQueries) {
-            try (EsqlQueryResponse resp = runQuery(q)) {
-                assertThat(resp.columns(), hasSize(2));
-                assertFalse(resp.values().hasNext());
-            }
+        for (int i = 0; i < 10; i++) {
+            localClient.prepareIndex("logs-1").setSource("id", "local-" + i, "tag", "local", "v", i).get();
         }
-        var remotePatterns = List.of("*:*", "*, *:*", "*:events*", "events, *:events*");
-        for (String pattern : remotePatterns) {
-            var query = "FROM " + pattern + " | LIMIT " + between(1, 100);
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> runQuery(query).close());
-            assertThat(error.getMessage(), equalTo("ES|QL does not yet support querying remote indices [" + pattern + "]"));
+        localClient.admin().indices().prepareRefresh("logs-1").get();
+    }
+
+    @Before
+    public void populateRemoteIndices() {
+        Client remoteClient = client(REMOTE_CLUSTER);
+        assertAcked(
+            remoteClient.admin()
+                .indices()
+                .prepareCreate("logs-2")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)))
+                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
+        );
+        for (int i = 0; i < 10; i++) {
+            remoteClient.prepareIndex("logs-2").setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
         }
-        int limit = between(1, numDocs);
-        var localQueries = List.of("from events* | LIMIT " + limit, "from * | LIMIT " + limit);
-        for (String q : localQueries) {
-            try (EsqlQueryResponse resp = runQuery(q)) {
-                assertThat(resp.columns(), hasSize(2));
-                int rows = 0;
-                Iterator<Iterator<Object>> values = resp.values();
-                while (values.hasNext()) {
-                    values.next();
-                    ++rows;
-                }
-                assertThat(rows, equalTo(limit));
-            }
+        remoteClient.admin().indices().prepareRefresh("logs-2").get();
+    }
+
+    public void testSimple() {
+        try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats sum (v)")) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0), equalTo(List.of(330L)));
+        }
+        try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats count(*) by tag | sort tag | keep tag")) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertThat(values.get(0), equalTo(List.of("local")));
+            assertThat(values.get(1), equalTo(List.of("remote")));
         }
     }
 
+    public void testMetadataIndex() {
+        try (EsqlQueryResponse resp = runQuery("FROM logs*,*:logs* METADATA _index | stats sum(v) by _index | sort _index")) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.get(0), equalTo(List.of(285L, "cluster-a:logs-2")));
+            assertThat(values.get(1), equalTo(List.of(45L, "logs-1")));
+        }
+    }
+
+    void waitForNoInitializingShards(Client client, TimeValue timeout, String... indices) {
+        ClusterHealthResponse resp = client.admin()
+            .cluster()
+            .prepareHealth(indices)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setTimeout(timeout)
+            .get();
+        assertFalse(Strings.toString(resp, true, true), resp.isTimedOut());
+    }
+
+    public void testProfile() {
+        assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
+        // uses shard partitioning as segments can be merged during these queries
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
+        // Use single replicas for the target indices, to make sure we hit the same set of target nodes
+        client(LOCAL_CLUSTER).admin()
+            .indices()
+            .prepareUpdateSettings("logs-1")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
+            .get();
+        waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), "logs-1");
+        client(REMOTE_CLUSTER).admin()
+            .indices()
+            .prepareUpdateSettings("logs-2")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
+            .get();
+        waitForNoInitializingShards(client(REMOTE_CLUSTER), TimeValue.timeValueSeconds(30), "logs-2");
+        final int localOnlyProfiles;
+        {
+            EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+            request.query("FROM logs* | stats sum(v)");
+            request.pragmas(pragmas);
+            request.profile(true);
+            try (EsqlQueryResponse resp = runQuery(request)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values.get(0), equalTo(List.of(45L)));
+                assertNotNull(resp.profile());
+                List<DriverProfile> drivers = resp.profile().drivers();
+                assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one coordinator and at least one data
+                localOnlyProfiles = drivers.size();
+            }
+        }
+        final int remoteOnlyProfiles;
+        {
+            EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+            request.query("FROM *:logs* | stats sum(v)");
+            request.pragmas(pragmas);
+            request.profile(true);
+            try (EsqlQueryResponse resp = runQuery(request)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values.get(0), equalTo(List.of(285L)));
+                assertNotNull(resp.profile());
+                List<DriverProfile> drivers = resp.profile().drivers();
+                assertThat(drivers.size(), greaterThanOrEqualTo(3)); // two coordinators and at least one data
+                remoteOnlyProfiles = drivers.size();
+            }
+        }
+        final int allProfiles;
+        {
+            EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+            request.query("FROM logs*,*:logs* | stats total = sum(v)");
+            request.pragmas(pragmas);
+            request.profile(true);
+            try (EsqlQueryResponse resp = runQuery(request)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values.get(0), equalTo(List.of(330L)));
+                assertNotNull(resp.profile());
+                List<DriverProfile> drivers = resp.profile().drivers();
+                assertThat(drivers.size(), greaterThanOrEqualTo(4)); // two coordinators and at least two data
+                allProfiles = drivers.size();
+            }
+        }
+        assertThat(allProfiles, equalTo(localOnlyProfiles + remoteOnlyProfiles - 1));
+    }
+
+    public void testWarnings() throws Exception {
+        EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+        request.query("FROM logs*,*:logs* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
+        PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
+        InternalTestCluster cluster = cluster(LOCAL_CLUSTER);
+        String node = randomFrom(cluster.getNodeNames());
+        CountDownLatch latch = new CountDownLatch(1);
+        cluster.client(node).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(resp -> {
+            TransportService ts = cluster.getInstance(TransportService.class, node);
+            Map<String, List<String>> responseHeaders = ts.getThreadPool().getThreadContext().getResponseHeaders();
+            List<String> warnings = responseHeaders.getOrDefault("Warning", List.of())
+                .stream()
+                .filter(w -> w.contains("is not an IP string literal"))
+                .toList();
+            assertThat(warnings.size(), greaterThanOrEqualTo(20));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.get(0).get(0), equalTo(330L));
+            assertNull(values.get(0).get(1));
+            latch.countDown();
+        }, e -> {
+            latch.countDown();
+            throw new AssertionError(e);
+        }));
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
+    }
+
     protected EsqlQueryResponse runQuery(String query) {
-        logger.info("--> query [{}]", query);
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
+        return runQuery(request);
+    }
+
+    protected EsqlQueryResponse runQuery(EsqlQueryRequest request) {
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 }

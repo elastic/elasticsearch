@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -179,10 +180,10 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
                     newConnection,
                     clusterAlias,
-                    actualProfile.getTransportProfile()
+                    connectionManager.getCredentialsManager()
                 ),
                 actualProfile.getHandshakeTimeout(),
-                cn -> true,
+                Predicates.always(),
                 listener.map(resp -> {
                     ClusterName remote = resp.getClusterName();
                     if (remoteClusterName.compareAndSet(null, remote)) {

@@ -294,11 +294,14 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      */
     public Map<String, Object> asMap(NamedXContentRegistry xContentRegistry) throws IOException {
         String strRep = Strings.toString(this);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-            strRep
-        );
-        return parser.mapOrdered();
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                strRep
+            )
+        ) {
+            return parser.mapOrdered();
+        }
     }
 
     @Override

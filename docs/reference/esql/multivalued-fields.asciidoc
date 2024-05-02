@@ -17,7 +17,8 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | LIMIT 2"
+  "query": "FROM mv | LIMIT 2",
+  "version": "2024.04.01"
 }
 ----
 
@@ -65,7 +66,8 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | LIMIT 2"
+  "query": "FROM mv | LIMIT 2",
+  "version": "2024.04.01"
 }
 ----
 
@@ -106,7 +108,8 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | LIMIT 2"
+  "query": "FROM mv | LIMIT 2",
+  "version": "2024.04.01"
 }
 ----
 
@@ -148,7 +151,8 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | EVAL b=TO_STRING(b) | LIMIT 2"
+  "query": "FROM mv | EVAL b=TO_STRING(b) | LIMIT 2",
+  "version": "2024.04.01"
 }
 ----
 
@@ -186,7 +190,8 @@ POST /mv/_bulk?refresh
 ----
 POST /_query
 {
-  "query": "FROM mv | EVAL b + 2, a + b | LIMIT 4"
+  "query": "FROM mv | EVAL b + 2, a + b | LIMIT 4",
+  "version": "2024.04.01"
 }
 ----
 // TEST[continued]
@@ -201,8 +206,8 @@ POST /_query
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
-    { "name": "b+2", "type": "long"},
-    { "name": "a+b", "type": "long"}
+    { "name": "b + 2", "type": "long"},
+    { "name": "a + b", "type": "long"}
   ],
   "values": [
     [1, [1, 2], null, null],
@@ -225,7 +230,8 @@ Work around this limitation by converting the field to single value with one of:
 ----
 POST /_query
 {
-  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b | LIMIT 4"
+  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b | LIMIT 4",
+  "version": "2024.04.01"
 }
 ----
 // TEST[continued]
@@ -236,8 +242,8 @@ POST /_query
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
-    { "name": "b+2", "type": "long"},
-    { "name": "a+b", "type": "long"}
+    { "name": "b + 2", "type": "long"},
+    { "name": "a + b", "type": "long"}
   ],
   "values": [
     [1, 1, 3, 2],

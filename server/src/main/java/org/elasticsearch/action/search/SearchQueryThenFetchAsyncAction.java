@@ -13,6 +13,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -37,17 +38,18 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private volatile BottomSortValuesCollector bottomSortCollector;
 
     SearchQueryThenFetchAsyncAction(
-        final Logger logger,
-        final SearchTransportService searchTransportService,
-        final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-        final Map<String, AliasFilter> aliasFilter,
-        final Map<String, Float> concreteIndexBoosts,
-        final Executor executor,
-        final SearchPhaseResults<SearchPhaseResult> resultConsumer,
-        final SearchRequest request,
-        final ActionListener<SearchResponse> listener,
-        final GroupShardsIterator<SearchShardIterator> shardsIts,
-        final TransportSearchAction.SearchTimeProvider timeProvider,
+        Logger logger,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchTransportService searchTransportService,
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Executor executor,
+        SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        SearchRequest request,
+        ActionListener<SearchResponse> listener,
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
         SearchResponse.Clusters clusters
@@ -55,6 +57,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         super(
             "query",
             logger,
+            namedWriteableRegistry,
             searchTransportService,
             nodeIdToConnection,
             aliasFilter,
@@ -119,7 +122,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-        return new FetchSearchPhase(results, null, this);
+        return new RankFeaturePhase(results, null, this);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

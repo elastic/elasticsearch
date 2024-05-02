@@ -120,10 +120,10 @@ public final class TimeSeriesRateAggregator extends NumericMetricsAggregator.Sin
                     startTimes = bigArrays().grow(startTimes, bucket + 1);
                     endTimes = bigArrays().grow(endTimes, bucket + 1);
                     resetCompensations = bigArrays().grow(resetCompensations, bucket + 1);
-                    if (currentTsid != aggCtx.getTsidOrd()) {
+                    if (currentTsid != aggCtx.getTsidHashOrd()) {
                         // if we're on a new tsid then we need to calculate the last bucket
                         calculateLastBucket();
-                        currentTsid = aggCtx.getTsidOrd();
+                        currentTsid = aggCtx.getTsidHashOrd();
                     } else {
                         // if we're in a new bucket but in the same tsid then we update the
                         // timestamp and last value before we calculate the last bucket

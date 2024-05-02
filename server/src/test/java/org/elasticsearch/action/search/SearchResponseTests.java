@@ -25,22 +25,17 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregationsTests;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,25 +54,13 @@ public class SearchResponseTests extends ESTestCase {
 
     private static final NamedXContentRegistry xContentRegistry;
     static {
-        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(InternalAggregationTestCase.getDefaultNamedXContents());
-        namedXContents.addAll(SuggestTests.getDefaultNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(SuggestTests.getDefaultNamedXContents());
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
         new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
     );
-    private AggregationsTests aggregationsTests = new AggregationsTests();
-
-    @Before
-    public void init() throws Exception {
-        aggregationsTests.init();
-    }
-
-    @After
-    public void cleanUp() throws Exception {
-        aggregationsTests.cleanUp();
-    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -107,42 +90,47 @@ public class SearchResponseTests extends ESTestCase {
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, totalShards);
-        InternalSearchResponse internalSearchResponse;
-        if (minimal == false) {
-            SearchHits hits = SearchHitsTests.createTestItem(true, true);
-            InternalAggregations aggregations = aggregationsTests.createTestInstance();
-            Suggest suggest = SuggestTests.createTestItem();
-            SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
-            internalSearchResponse = new InternalSearchResponse(
-                hits,
-                aggregations,
-                suggest,
-                profileResults,
-                timedOut,
-                terminatedEarly,
-                numReducePhases
-            );
-        } else {
-            internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-        }
-
         SearchResponse.Clusters clusters;
         if (minimal) {
             clusters = randomSimpleClusters();
         } else {
             clusters = randomClusters();
         }
-
-        return new SearchResponse(
-            internalSearchResponse,
-            null,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardSearchFailures,
-            clusters
-        );
+        if (minimal == false) {
+            SearchHits hits = SearchHitsTests.createTestItem(true, true);
+            try {
+                Suggest suggest = SuggestTests.createTestItem();
+                SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
+                return new SearchResponse(
+                    hits,
+                    null,
+                    suggest,
+                    timedOut,
+                    terminatedEarly,
+                    profileResults,
+                    numReducePhases,
+                    null,
+                    totalShards,
+                    successfulShards,
+                    skippedShards,
+                    tookInMillis,
+                    shardSearchFailures,
+                    clusters
+                );
+            } finally {
+                hits.decRef();
+            }
+        } else {
+            return SearchResponseUtils.emptyWithTotalHits(
+                null,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardSearchFailures,
+                clusters
+            );
+        }
     }
 
     /**
@@ -311,7 +299,7 @@ public class SearchResponseTests extends ESTestCase {
             mutated = originalBytes;
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 assertToXContentEquivalent(
                     originalBytes,
@@ -348,7 +336,7 @@ public class SearchResponseTests extends ESTestCase {
             response.decRef();
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 for (int i = 0; i < parsed.getShardFailures().length; i++) {
                     ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
@@ -379,17 +367,16 @@ public class SearchResponseTests extends ESTestCase {
         SearchHit hit = new SearchHit(1, "id1");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
+        var sHits = new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f);
         {
             SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(
-                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
-                    null,
-                    null,
-                    null,
-                    false,
-                    null,
-                    1
-                ),
+                sHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
                 null,
                 0,
                 0,
@@ -425,15 +412,13 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(
-                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
-                    null,
-                    null,
-                    null,
-                    false,
-                    null,
-                    1
-                ),
+                sHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
                 null,
                 0,
                 0,
@@ -477,15 +462,13 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(
-                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
-                    null,
-                    null,
-                    null,
-                    false,
-                    null,
-                    1
-                ),
+                sHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
                 null,
                 20,
                 9,
@@ -621,6 +604,7 @@ public class SearchResponseTests extends ESTestCase {
                 response.decRef();
             }
         }
+        sHits.decRef();
     }
 
     public void testSerialization() throws IOException {
@@ -654,8 +638,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContentEmptyClusters() throws IOException {
-        SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             null,
             1,
             1,

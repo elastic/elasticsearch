@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -89,7 +88,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        CancellableTask downloadTask = createDownloadTask(request);
+        ModelDownloadTask downloadTask = createDownloadTask(request);
 
         try {
             ParentTaskAssigningClient parentTaskAssigningClient = getParentTaskAssigningClient(downloadTask);
@@ -106,6 +105,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         } catch (Exception e) {
             taskManager.unregister(downloadTask);
             listener.onFailure(e);
+            return;
         }
 
         if (request.isWaitForCompletion() == false) {
@@ -141,6 +141,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         try {
             final long relativeStartNanos = System.nanoTime();
 
+            logAndWriteNotificationAtInfo(auditClient, modelId, "starting model import");
+
             modelImporter.doImport();
 
             final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
@@ -173,8 +175,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         }
     }
 
-    private CancellableTask createDownloadTask(Request request) {
-        return (CancellableTask) taskManager.register(MODEL_IMPORT_TASK_TYPE, MODEL_IMPORT_TASK_ACTION, new TaskAwareRequest() {
+    private ModelDownloadTask createDownloadTask(Request request) {
+        return (ModelDownloadTask) taskManager.register(MODEL_IMPORT_TASK_TYPE, MODEL_IMPORT_TASK_ACTION, new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {
                 request.setParentTask(taskId);
@@ -191,8 +193,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             }
 
             @Override
-            public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new CancellableTask(id, type, action, downloadModelTaskDescription(request.getModelId()), parentTaskId, headers);
+            public ModelDownloadTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new ModelDownloadTask(id, type, action, downloadModelTaskDescription(request.getModelId()), parentTaskId, headers);
             }
         }, false);
     }

@@ -22,4 +22,4 @@ touch .output.log
 rm -Rf "$WORKSPACE"
 ln -s "$PWD" "$WORKSPACE"
 
-.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests

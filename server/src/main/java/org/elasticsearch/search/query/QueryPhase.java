@@ -37,7 +37,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankSearchContext;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -59,7 +59,7 @@ public class QueryPhase {
     private QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        if (searchContext.rankShardContext() == null) {
+        if (searchContext.queryPhaseRankShardContext() == null) {
             executeQuery(searchContext);
         } else {
             executeRank(searchContext);
@@ -67,7 +67,7 @@ public class QueryPhase {
     }
 
     static void executeRank(SearchContext searchContext) throws QueryPhaseExecutionException {
-        RankShardContext rankShardContext = searchContext.rankShardContext();
+        QueryPhaseRankShardContext queryPhaseRankShardContext = searchContext.queryPhaseRankShardContext();
         QuerySearchResult querySearchResult = searchContext.queryResult();
 
         // run the combined boolean query total hits or aggregations
@@ -89,12 +89,18 @@ public class QueryPhase {
         int nodeQueueSize = querySearchResult.nodeQueueSize();
 
         // run each of the rank queries
-        for (Query rankQuery : rankShardContext.queries()) {
+        for (Query rankQuery : queryPhaseRankShardContext.queries()) {
             // if a search timeout occurs, exit with partial results
             if (searchTimedOut) {
                 break;
             }
-            try (RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize())) {
+            try (
+                RankSearchContext rankSearchContext = new RankSearchContext(
+                    searchContext,
+                    rankQuery,
+                    queryPhaseRankShardContext.rankWindowSize()
+                )
+            ) {
                 QueryPhase.addCollectorsAndSearch(rankSearchContext);
                 QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
                 rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
@@ -104,7 +110,7 @@ public class QueryPhase {
             }
         }
 
-        querySearchResult.setRankShardResult(rankShardContext.combine(rrfRankResults));
+        querySearchResult.setRankShardResult(queryPhaseRankShardContext.combineQueryPhaseResults(rrfRankResults));
 
         // record values relevant to all queries
         querySearchResult.searchTimedOut(searchTimedOut);
@@ -210,7 +216,7 @@ public class QueryPhase {
             if (searcher.timeExceeded()) {
                 assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
                 if (searchContext.request().allowPartialSearchResults() == false) {
-                    throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
+                    throw new SearchTimeoutException(searchContext.shardTarget(), "Time exceeded");
                 }
                 queryResult.searchTimedOut(true);
             }

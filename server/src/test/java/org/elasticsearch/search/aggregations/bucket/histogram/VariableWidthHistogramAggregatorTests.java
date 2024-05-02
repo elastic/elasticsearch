@@ -11,10 +11,14 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -603,7 +607,10 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         final Consumer<InternalVariableWidthHistogram> verify
     ) throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
+            config.setMergePolicy(new LogDocMergePolicy());
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 indexSampleData(dataset, indexWriter, multipleSegments);
             }
 

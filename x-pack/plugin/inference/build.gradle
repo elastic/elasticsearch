@@ -6,6 +6,13 @@
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'inference', 'index'
+  }
+}
 
 esplugin {
   name 'x-pack-inference'
@@ -24,4 +31,11 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:reindex')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
 }

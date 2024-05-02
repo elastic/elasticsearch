@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -40,10 +41,41 @@ public class ToDatetime extends AbstractConvertFunction {
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
-    @FunctionInfo(returnType = "date")
+    @FunctionInfo(
+        returnType = "date",
+        description = """
+            Converts an input value to a date value.
+            A string will only be successfully converted if it's respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`.
+            To convert dates in other formats, use <<esql-date_parse>>.""",
+        examples = {
+            @Example(file = "date", tag = "to_datetime-str", explanation = """
+                Note that in this example, the last value in the source multi-valued field has not been converted.
+                The reason being that if the date format is not respected, the conversion will result in a *null* value.
+                When this happens a _Warning_ header is added to the response.
+                The header will provide information on the source of the failure:
+
+                `"Line 1:112: evaluation of [TO_DATETIME(string)] failed, treating result as null. "Only first 20 failures recorded."`
+
+                A following header will contain the failure reason and the offending value:
+
+                `"java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00]
+                with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"`
+                """),
+            @Example(
+                description = """
+                    If the input parameter is of a numeric type,
+                    its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch]. For example:""",
+                file = "date",
+                tag = "to_datetime-int"
+            ) }
+    )
     public ToDatetime(
         Source source,
-        @Param(name = "v", type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(
+            name = "field",
+            type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
     ) {
         super(source, field);
     }
@@ -70,6 +102,6 @@ public class ToDatetime extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        return DateParse.process(in, DateParse.DEFAULT_FORMATTER);
+        return dateTimeToLong(in.utf8ToString());
     }
 }

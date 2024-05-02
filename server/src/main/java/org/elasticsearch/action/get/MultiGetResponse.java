@@ -15,30 +15,20 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiGetResponse.class);
 
-    private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
-    private static final ParseField ID = new ParseField("_id");
-    private static final ParseField ERROR = new ParseField("error");
-    private static final ParseField DOCS = new ParseField("docs");
+    static final ParseField INDEX = new ParseField("_index");
+    static final ParseField ID = new ParseField("_id");
+    static final ParseField DOCS = new ParseField("docs");
 
     /**
      * Represents a failure.
@@ -119,11 +109,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         this.responses = responses;
     }
 
-    MultiGetResponse(StreamInput in) throws IOException {
-        super(in);
-        responses = in.readArray(MultiGetItemResponse::new, MultiGetItemResponse[]::new);
-    }
-
     public MultiGetItemResponse[] getResponses() {
         return this.responses;
     }
@@ -149,80 +134,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    public static MultiGetResponse fromXContent(XContentParser parser) throws IOException {
-        String currentFieldName = null;
-        List<MultiGetItemResponse> items = new ArrayList<>();
-        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-            switch (token) {
-                case FIELD_NAME:
-                    currentFieldName = parser.currentName();
-                    break;
-                case START_ARRAY:
-                    if (DOCS.getPreferredName().equals(currentFieldName)) {
-                        for (token = parser.nextToken(); token != Token.END_ARRAY; token = parser.nextToken()) {
-                            if (token == Token.START_OBJECT) {
-                                items.add(parseItem(parser));
-                            }
-                        }
-                    }
-                    break;
-                default:
-                    // If unknown tokens are encounter then these should be ignored, because
-                    // this is parsing logic on the client side.
-                    break;
-            }
-        }
-        return new MultiGetResponse(items.toArray(new MultiGetItemResponse[0]));
-    }
-
-    private static MultiGetItemResponse parseItem(XContentParser parser) throws IOException {
-        String currentFieldName = null;
-        String index = null;
-        String id = null;
-        ElasticsearchException exception = null;
-        GetResult getResult = null;
-        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-            switch (token) {
-                case FIELD_NAME:
-                    currentFieldName = parser.currentName();
-                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
-                        && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
-                        && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                        getResult = GetResult.fromXContentEmbedded(parser, index, id);
-                    }
-                    break;
-                case VALUE_STRING:
-                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                        index = parser.text();
-                    } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
-                    } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                        id = parser.text();
-                    }
-                    break;
-                case START_OBJECT:
-                    if (ERROR.match(currentFieldName, parser.getDeprecationHandler())) {
-                        exception = ElasticsearchException.fromXContent(parser);
-                    }
-                    break;
-                default:
-                    // If unknown tokens are encounter then these should be ignored, because
-                    // this is parsing logic on the client side.
-                    break;
-            }
-            if (getResult != null) {
-                break;
-            }
-        }
-
-        if (exception != null) {
-            return new MultiGetItemResponse(null, new Failure(index, id, exception));
-        } else {
-            GetResponse getResponse = new GetResponse(getResult);
-            return new MultiGetItemResponse(getResponse, null);
-        }
     }
 
     @Override

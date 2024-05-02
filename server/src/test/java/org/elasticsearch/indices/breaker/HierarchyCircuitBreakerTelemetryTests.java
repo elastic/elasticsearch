@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING;
@@ -49,53 +50,8 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
 
     public static class TestCircuitBreakerTelemetryPlugin extends TestTelemetryPlugin {
         protected final MeterRegistry meter = new RecordingMeterRegistry() {
-            private final LongCounter inFlightRequests = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.ES_BREAKER_PARENT_TRIP_COUNT_TOTAL,
-                recorder
-            ) {
-                @Override
-                public void incrementBy(long inc) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void incrementBy(long inc, Map<String, Object> attributes) {
-                    throw new UnsupportedOperationException();
-                }
-            };
-
-            private final LongCounter fielddata = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL,
-                recorder
-            ) {
-                @Override
-                public void incrementBy(long inc) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void incrementBy(long inc, Map<String, Object> attributes) {
-                    throw new UnsupportedOperationException();
-                }
-            };
-
-            private final LongCounter request = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL,
-                recorder
-            ) {
-                @Override
-                public void incrementBy(long inc) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void incrementBy(long inc, Map<String, Object> attributes) {
-                    throw new UnsupportedOperationException();
-                }
-            };
-
-            private final LongCounter parent = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.ES_BREAKER_PARENT_TRIP_COUNT_TOTAL,
+            private final LongCounter tripCount = new RecordingInstruments.RecordingLongCounter(
+                CircuitBreakerMetrics.ES_BREAKER_TRIP_COUNT_TOTAL,
                 recorder
             ) {
                 @Override
@@ -111,14 +67,8 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
 
             @Override
             protected LongCounter buildLongCounter(String name, String description, String unit) {
-                if (name.equals(inFlightRequests.getName())) {
-                    return inFlightRequests;
-                } else if (name.equals(request.getName())) {
-                    return request;
-                } else if (name.equals(fielddata.getName())) {
-                    return fielddata;
-                } else if (name.equals(parent.getName())) {
-                    return parent;
+                if (name.equals(tripCount.getName())) {
+                    return tripCount;
                 }
                 throw new IllegalArgumentException("Unknown counter metric name [" + name + "]");
             }
@@ -136,15 +86,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             }
 
             private void assertCircuitBreakerName(final String name) {
-                assertThat(
-                    name,
-                    Matchers.oneOf(
-                        CircuitBreakerMetrics.ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL,
-                        CircuitBreakerMetrics.ES_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL,
-                        CircuitBreakerMetrics.ES_BREAKER_PARENT_TRIP_COUNT_TOTAL,
-                        CircuitBreakerMetrics.ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL
-                    )
-                );
+                assertThat(name, Matchers.oneOf(CircuitBreakerMetrics.ES_BREAKER_TRIP_COUNT_TOTAL));
             }
         };
     }
@@ -193,6 +135,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             final Measurement measurement = allMeasurements.get(0);
             assertThat(1L, Matchers.equalTo(measurement.getLong()));
             assertThat(1L, Matchers.equalTo(measurement.value()));
+            assertThat(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests"), Matchers.equalTo(measurement.attributes()));
             assertThat(true, Matchers.equalTo(measurement.isLong()));
             return;
         }
@@ -205,13 +148,9 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             .toList()
             .get(0);
         return Measurement.combine(
-            Stream.of(
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL)
-                    .stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL).stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL).stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_PARENT_TRIP_COUNT_TOTAL).stream()
-            ).flatMap(Function.identity()).toList()
+            Stream.of(dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_TRIP_COUNT_TOTAL).stream())
+                .flatMap(Function.identity())
+                .toList()
         );
     }
 

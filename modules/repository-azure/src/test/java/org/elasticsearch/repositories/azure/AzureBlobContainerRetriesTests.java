@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -133,8 +134,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
                         final int rangeStart = getRangeStart(exchange);
                         assertThat(rangeStart, lessThan(bytes.length));
                         final Optional<Integer> rangeEnd = getRangeEnd(exchange);
-                        assertThat(rangeEnd.isPresent(), is(true));
-                        assertThat(rangeEnd.get(), greaterThanOrEqualTo(rangeStart));
+                        assertThat(rangeEnd, isPresentWith(greaterThanOrEqualTo(rangeStart)));
                         final int length = (rangeEnd.get() - rangeStart) + 1;
                         assertThat(length, lessThanOrEqualTo(bytes.length - rangeStart));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");

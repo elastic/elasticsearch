@@ -9,10 +9,12 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -21,6 +23,7 @@ import org.elasticsearch.search.ccs.CrossClusterSearchIT;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.hamcrest.MatcherAssert;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -74,11 +77,15 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         final Client localClient = client(LOCAL_CLUSTER);
         final Client remoteClient = client(REMOTE_CLUSTER);
         int localNumDocs = randomIntBetween(10, 50);
-        assertAcked(localClient.admin().indices().prepareCreate("local_test"));
+        assertAcked(
+            localClient.admin().indices().prepareCreate("local_test").setSettings(Settings.builder().put("index.number_of_shards", 3))
+        );
         indexDocs(localClient, "local_test", localNumDocs);
 
         int remoteNumDocs = randomIntBetween(10, 50);
-        assertAcked(remoteClient.admin().indices().prepareCreate("remote_test"));
+        assertAcked(
+            remoteClient.admin().indices().prepareCreate("remote_test").setSettings(Settings.builder().put("index.number_of_shards", 3))
+        );
         indexDocs(remoteClient, "remote_test", remoteNumDocs);
         boolean includeLocalIndex = randomBoolean();
         List<String> indices = new ArrayList<>();
@@ -86,7 +93,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             indices.add(randomFrom("*", "local_*", "local_test"));
         }
         indices.add(randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test"));
-        String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
         try {
             if (randomBoolean()) {
                 localClient.prepareIndex("local_test").setId("local_new").setSource().get();
@@ -107,19 +114,120 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
 
                     SearchResponse.Clusters clusters = resp.getClusters();
                     int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);
-                    assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
-                    assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(expectedNumClusters));
-                    assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                    MatcherAssert.assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
+                    MatcherAssert.assertThat(
+                        clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                        equalTo(expectedNumClusters)
+                    );
+                    MatcherAssert.assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
 
                     if (includeLocalIndex) {
                         SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                         assertNotNull(localCluster);
-                        assertOneSuccessfulShard(localCluster);
+                        assertAllSuccessfulShards(localCluster, 3, 0);
                     }
 
                     SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
                     assertNotNull(remoteCluster);
-                    assertOneSuccessfulShard(remoteCluster);
+                    assertAllSuccessfulShards(remoteCluster, 3, 0);
+                }
+            );
+        } finally {
+            closePointInTime(pitId);
+        }
+    }
+
+    public void testOpenPITWithIndexFilter() {
+        final Client localClient = client(LOCAL_CLUSTER);
+        final Client remoteClient = client(REMOTE_CLUSTER);
+
+        assertAcked(
+            localClient.admin().indices().prepareCreate("local_test").setSettings(Settings.builder().put("index.number_of_shards", 3))
+        );
+        localClient.prepareIndex("local_test").setId("1").setSource("value", "1", "@timestamp", "2024-03-01").get();
+        localClient.prepareIndex("local_test").setId("2").setSource("value", "2", "@timestamp", "2023-12-01").get();
+        localClient.admin().indices().prepareRefresh("local_test").get();
+
+        assertAcked(
+            remoteClient.admin().indices().prepareCreate("remote_test").setSettings(Settings.builder().put("index.number_of_shards", 3))
+        );
+        remoteClient.prepareIndex("remote_test").setId("1").setSource("value", "1", "@timestamp", "2024-01-01").get();
+        remoteClient.prepareIndex("remote_test").setId("2").setSource("value", "2", "@timestamp", "2023-12-01").get();
+        remoteClient.admin().indices().prepareRefresh("remote_test").get();
+
+        List<String> indices = new ArrayList<>();
+        indices.add(randomFrom("*", "local_*", "local_test"));
+        indices.add(randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test"));
+
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices.toArray(new String[0]));
+        request.keepAlive(TimeValue.timeValueMinutes(2));
+        request.indexFilter(new RangeQueryBuilder("@timestamp").gte("2023-12-15"));
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        BytesReference pitId = response.getPointInTimeId();
+
+        if (randomBoolean()) {
+            localClient.prepareIndex("local_test").setId("local_new").setSource().get();
+            localClient.admin().indices().prepareRefresh().get();
+        }
+        if (randomBoolean()) {
+            remoteClient.prepareIndex("remote_test").setId("remote_new").setSource().get();
+            remoteClient.admin().indices().prepareRefresh().get();
+        }
+
+        try {
+            assertNoFailuresAndResponse(
+                localClient.prepareSearch()
+                    .setPreference(null)
+                    .setQuery(new MatchAllQueryBuilder())
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                resp -> {
+                    assertHitCount(resp, 2);
+
+                    SearchResponse.Clusters clusters = resp.getClusters();
+                    int expectedNumClusters = 2;
+                    MatcherAssert.assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
+                    MatcherAssert.assertThat(
+                        clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                        equalTo(expectedNumClusters)
+                    );
+                    MatcherAssert.assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+
+                    // both indices (local and remote) have shards, but there is a single shard left after can match
+                    SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                    assertNotNull(localCluster);
+                    assertAllSuccessfulShards(localCluster, 1, 0);
+                    SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+                    assertNotNull(remoteCluster);
+                    assertAllSuccessfulShards(remoteCluster, 1, 0);
+                }
+            );
+
+            assertNoFailuresAndResponse(
+                localClient.prepareSearch()
+                    .setPreference(null)
+                    // test the scenario where search also runs can match and filters additional shards out
+                    .setPreFilterShardSize(1)
+                    .setQuery(new RangeQueryBuilder("@timestamp").gte("2024-02-01"))
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                resp -> {
+                    assertHitCount(resp, 1);
+
+                    SearchResponse.Clusters clusters = resp.getClusters();
+                    int expectedNumClusters = 2;
+                    MatcherAssert.assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
+                    MatcherAssert.assertThat(
+                        clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                        equalTo(expectedNumClusters)
+                    );
+                    MatcherAssert.assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+
+                    // both indices (local and remote) have shards, but there is a single shard left after can match
+                    SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                    assertNotNull(localCluster);
+                    assertAllSuccessfulShards(localCluster, 1, 0);
+                    SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+                    assertNotNull(remoteCluster);
+                    assertAllSuccessfulShards(remoteCluster, 1, 1);
                 }
             );
         } finally {
@@ -145,7 +253,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             indices.add(randomFrom("*", "local_*", "local_test"));
         }
         indices.add(randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test"));
-        String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
         try {
             if (randomBoolean()) {
                 localClient.prepareIndex("local_test").setId("local_new").setSource().get();
@@ -180,16 +288,6 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    private static void assertOneSuccessfulShard(SearchResponse.Cluster cluster) {
-        assertThat(cluster.getTotalShards(), equalTo(1));
-        assertThat(cluster.getSuccessfulShards(), equalTo(1));
-        assertThat(cluster.getFailedShards(), equalTo(0));
-        assertThat(cluster.getFailures().size(), equalTo(0));
-        assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertFalse(cluster.isTimedOut());
-    }
-
     private static void assertOneFailedShard(SearchResponse.Cluster cluster, int totalShards) {
         assertThat(cluster.getSuccessfulShards(), equalTo(totalShards - 1));
         assertThat(cluster.getFailedShards(), equalTo(1));
@@ -200,13 +298,24 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         assertFalse(cluster.isTimedOut());
     }
 
-    private String openPointInTime(String[] indices, TimeValue keepAlive) {
+    private static void assertAllSuccessfulShards(SearchResponse.Cluster cluster, int numShards, int skippedShards) {
+        assertThat(cluster.getTotalShards(), equalTo(numShards));
+        assertThat(cluster.getSkippedShards(), equalTo(skippedShards));
+        assertThat(cluster.getSuccessfulShards(), equalTo(numShards));
+        assertThat(cluster.getFailedShards(), equalTo(0));
+        assertThat(cluster.getFailures().size(), equalTo(0));
+        assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertFalse(cluster.isTimedOut());
+    }
+
+    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
-    private void closePointInTime(String readerId) {
+    private void closePointInTime(BytesReference readerId) {
         client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

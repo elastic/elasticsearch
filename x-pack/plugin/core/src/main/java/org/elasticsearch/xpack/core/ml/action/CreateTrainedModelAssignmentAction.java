@@ -29,7 +29,7 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
     public static final String NAME = "cluster:internal/xpack/ml/model_allocation/create";
 
     private CreateTrainedModelAssignmentAction() {
-        super(NAME, CreateTrainedModelAssignmentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

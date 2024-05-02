@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -44,6 +45,7 @@ import java.util.Optional;
  */
 public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/mapping/put");
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
@@ -62,7 +64,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final SystemIndices systemIndices
     ) {
         super(
-            PutMappingAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -110,7 +112,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
 
-            performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+            performMappingUpdate(concreteIndices, request, listener, metadataMappingService, false);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(request.indices() + "]"), ex);
             throw ex;
@@ -145,7 +147,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         Index[] concreteIndices,
         PutMappingRequest request,
         ActionListener<AcknowledgedResponse> listener,
-        MetadataMappingService metadataMappingService
+        MetadataMappingService metadataMappingService,
+        boolean autoUpdate
     ) {
         final ActionListener<AcknowledgedResponse> wrappedListener = listener.delegateResponse((l, e) -> {
             logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(concreteIndices) + "]", e);
@@ -154,8 +157,9 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final PutMappingClusterStateUpdateRequest updateRequest;
         try {
             updateRequest = new PutMappingClusterStateUpdateRequest(request.source()).indices(concreteIndices)
-                .ackTimeout(request.timeout())
-                .masterNodeTimeout(request.masterNodeTimeout());
+                .ackTimeout(request.ackTimeout())
+                .masterNodeTimeout(request.masterNodeTimeout())
+                .autoUpdate(autoUpdate);
         } catch (IOException e) {
             wrappedListener.onFailure(e);
             return;

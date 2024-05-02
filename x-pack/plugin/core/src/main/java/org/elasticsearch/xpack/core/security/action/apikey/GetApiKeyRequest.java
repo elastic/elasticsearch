@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
@@ -26,8 +24,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class GetApiKeyRequest extends ActionRequest {
 
-    static TransportVersion API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION = TransportVersions.V_8_500_054;
-
     private final String realmName;
     private final String userName;
     private final String apiKeyId;
@@ -35,29 +31,7 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final boolean ownedByAuthenticatedUser;
     private final boolean withLimitedBy;
     private final boolean activeOnly;
-
-    public GetApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        realmName = textOrNull(in.readOptionalString());
-        userName = textOrNull(in.readOptionalString());
-        apiKeyId = textOrNull(in.readOptionalString());
-        apiKeyName = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            ownedByAuthenticatedUser = in.readOptionalBoolean();
-        } else {
-            ownedByAuthenticatedUser = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            withLimitedBy = in.readBoolean();
-        } else {
-            withLimitedBy = false;
-        }
-        if (in.getTransportVersion().onOrAfter(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION)) {
-            activeOnly = in.readBoolean();
-        } else {
-            activeOnly = false;
-        }
-    }
+    private final boolean withProfileUid;
 
     private GetApiKeyRequest(
         @Nullable String realmName,
@@ -66,7 +40,8 @@ public final class GetApiKeyRequest extends ActionRequest {
         @Nullable String apiKeyName,
         boolean ownedByAuthenticatedUser,
         boolean withLimitedBy,
-        boolean activeOnly
+        boolean activeOnly,
+        boolean withProfileUid
     ) {
         this.realmName = textOrNull(realmName);
         this.userName = textOrNull(userName);
@@ -75,6 +50,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
         this.withLimitedBy = withLimitedBy;
         this.activeOnly = activeOnly;
+        this.withProfileUid = withProfileUid;
     }
 
     private static String textOrNull(@Nullable String arg) {
@@ -109,6 +85,10 @@ public final class GetApiKeyRequest extends ActionRequest {
         return activeOnly;
     }
 
+    public boolean withProfileUid() {
+        return withProfileUid;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -136,20 +116,7 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalString(realmName);
-        out.writeOptionalString(userName);
-        out.writeOptionalString(apiKeyId);
-        out.writeOptionalString(apiKeyName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            out.writeOptionalBoolean(ownedByAuthenticatedUser);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeBoolean(withLimitedBy);
-        }
-        if (out.getTransportVersion().onOrAfter(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION)) {
-            out.writeBoolean(activeOnly);
-        }
+        TransportAction.localOnly();
     }
 
     @Override
@@ -167,12 +134,13 @@ public final class GetApiKeyRequest extends ActionRequest {
             && Objects.equals(apiKeyId, that.apiKeyId)
             && Objects.equals(apiKeyName, that.apiKeyName)
             && withLimitedBy == that.withLimitedBy
-            && activeOnly == that.activeOnly;
+            && activeOnly == that.activeOnly
+            && withProfileUid == that.withProfileUid;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly);
+        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly, withProfileUid);
     }
 
     public static Builder builder() {
@@ -187,6 +155,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         private boolean ownedByAuthenticatedUser = false;
         private boolean withLimitedBy = false;
         private boolean activeOnly = false;
+        private boolean withProfileUid = false;
 
         public Builder realmName(String realmName) {
             this.realmName = realmName;
@@ -231,8 +200,22 @@ public final class GetApiKeyRequest extends ActionRequest {
             return this;
         }
 
+        public Builder withProfileUid(boolean withProfileUid) {
+            this.withProfileUid = withProfileUid;
+            return this;
+        }
+
         public GetApiKeyRequest build() {
-            return new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly);
+            return new GetApiKeyRequest(
+                realmName,
+                userName,
+                apiKeyId,
+                apiKeyName,
+                ownedByAuthenticatedUser,
+                withLimitedBy,
+                activeOnly,
+                withProfileUid
+            );
         }
     }
 }

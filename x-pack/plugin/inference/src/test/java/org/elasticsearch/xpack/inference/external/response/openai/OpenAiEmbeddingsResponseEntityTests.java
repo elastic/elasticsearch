@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +45,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -81,6 +83,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -120,6 +123,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -152,6 +156,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -187,6 +192,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -218,6 +224,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -250,6 +257,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -278,6 +286,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -308,6 +317,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -315,6 +325,65 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         assertThat(
             thrownException.getMessage(),
             is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
+        );
+    }
+
+    public void testFieldsInDifferentOrderServer() throws IOException {
+        // The fields of the objects in the data array are reordered
+        String response = """
+            {
+                "created": 1711530064,
+                "object": "list",
+                "id": "6667830b-716b-4796-9a61-33b67b5cc81d",
+                "model": "mxbai-embed-large-v1",
+                "data": [
+                    {
+                        "embedding": [
+                            -0.9,
+                            0.5,
+                            0.3
+                        ],
+                        "index": 0,
+                        "object": "embedding"
+                    },
+                    {
+                        "index": 0,
+                        "embedding": [
+                            0.1,
+                            0.5
+                        ],
+                        "object": "embedding"
+                    },
+                    {
+                        "object": "embedding",
+                        "index": 0,
+                        "embedding": [
+                            0.5,
+                            0.5
+                        ]
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0
+                }
+            }""";
+
+        TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), response.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.embeddings(),
+            is(
+                List.of(
+                    new TextEmbeddingResults.Embedding(List.of(-0.9F, 0.5F, 0.3F)),
+                    new TextEmbeddingResults.Embedding(List.of(0.1F, 0.5F)),
+                    new TextEmbeddingResults.Embedding(List.of(0.5F, 0.5F))
+                )
+            )
         );
     }
 }

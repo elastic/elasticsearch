@@ -9,11 +9,9 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,14 +60,6 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         SamplingContext samplingContext
     ) {
         assertThat(sampled.getMedianAbsoluteDeviation(), equalTo(reduced.getMedianAbsoluteDeviation()));
-    }
-
-    @Override
-    protected void assertFromXContent(InternalMedianAbsoluteDeviation internalMAD, ParsedAggregation parsedAggregation) throws IOException {
-        assertTrue(parsedAggregation instanceof ParsedMedianAbsoluteDeviation);
-        ParsedMedianAbsoluteDeviation parsedMAD = (ParsedMedianAbsoluteDeviation) parsedAggregation;
-        // Double.compare handles NaN, which we use for no result
-        assertEquals(internalMAD.getMedianAbsoluteDeviation(), parsedMAD.getMedianAbsoluteDeviation(), 0);
     }
 
     @Override

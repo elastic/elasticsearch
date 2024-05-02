@@ -10,12 +10,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -44,7 +44,7 @@ public class WatcherPluginTests extends ESTestCase {
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
         assertThat(executorBuilders, hasSize(0));
         assertThat(watcher.getActions(), hasSize(2));
-        assertThat(watcher.getRestHandlers(settings, null, null, null, null, null, null), hasSize(0));
+        assertThat(watcher.getRestHandlers(settings, null, null, null, null, null, null, null, null), hasSize(0));
 
         // ensure index module is not called, even if watches index is tried
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);
@@ -68,7 +68,7 @@ public class WatcherPluginTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(),
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);

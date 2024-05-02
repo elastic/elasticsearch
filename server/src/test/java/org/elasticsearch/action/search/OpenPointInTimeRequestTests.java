@@ -96,7 +96,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
     }
 
     public void testUseDefaultConcurrentForOldVersion() throws Exception {
-        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_500_020);
+        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_9_X);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_0_0, previousVersion);
             output.setTransportVersion(version);

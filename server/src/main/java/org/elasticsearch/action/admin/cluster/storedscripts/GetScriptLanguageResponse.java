@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.ScriptLanguagesInfo;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,10 +34,6 @@ public class GetScriptLanguageResponse extends ActionResponse implements ToXCont
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         info.writeTo(out);
-    }
-
-    public static GetScriptLanguageResponse fromXContent(XContentParser parser) throws IOException {
-        return new GetScriptLanguageResponse(ScriptLanguagesInfo.fromXContent(parser));
     }
 
     @Override

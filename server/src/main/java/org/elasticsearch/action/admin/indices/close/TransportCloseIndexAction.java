@@ -41,7 +41,7 @@ import java.util.Collections;
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
     public static final String NAME = "indices:admin/close";
-    public static final ActionType<CloseIndexResponse> TYPE = new ActionType<>(NAME, CloseIndexResponse::new);
+    public static final ActionType<CloseIndexResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
     private final MetadataIndexStateService indexStateService;
@@ -120,7 +120,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
         }
 
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
-            request.timeout()
+            request.ackTimeout()
         ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
         indexStateService.closeIndices(closeRequest, listener.delegateResponse((delegatedListener, t) -> {
             logger.debug(() -> "failed to close indices [" + Arrays.toString(concreteIndices) + "]", t);

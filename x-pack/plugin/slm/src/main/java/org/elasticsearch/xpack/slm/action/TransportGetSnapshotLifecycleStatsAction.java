@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,7 +26,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 
 public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNodeAction<
-    GetSnapshotLifecycleStatsAction.Request,
+    AcknowledgedRequest.Plain,
     GetSnapshotLifecycleStatsAction.Response> {
 
     @Inject
@@ -42,7 +43,7 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNod
             clusterService,
             threadPool,
             actionFilters,
-            GetSnapshotLifecycleStatsAction.Request::new,
+            AcknowledgedRequest.Plain::new,
             indexNameExpressionResolver,
             GetSnapshotLifecycleStatsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -52,7 +53,7 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNod
     @Override
     protected void masterOperation(
         Task task,
-        GetSnapshotLifecycleStatsAction.Request request,
+        AcknowledgedRequest.Plain request,
         ClusterState state,
         ActionListener<GetSnapshotLifecycleStatsAction.Response> listener
     ) {
@@ -65,7 +66,7 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNod
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetSnapshotLifecycleStatsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(AcknowledgedRequest.Plain request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

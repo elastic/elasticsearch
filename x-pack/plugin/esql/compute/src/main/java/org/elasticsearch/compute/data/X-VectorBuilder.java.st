@@ -97,7 +97,7 @@ $if(BytesRef)$
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(vector.ramBytesUsed(), false);
+            blockFactory.adjustBreaker(vector.ramBytesUsed());
             Releasables.closeExpectNoException(values);
         } else {
             vector = new $Type$ArrayVector(values, valueCount, blockFactory);
@@ -109,7 +109,7 @@ $if(BytesRef)$
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed());
         }
         values = null;
 $else$

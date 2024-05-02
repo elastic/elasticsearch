@@ -36,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -60,7 +61,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -321,8 +321,11 @@ public class Reindexer {
             if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
                 // we need to convert
                 try (
-                    InputStream stream = doc.getSource().streamInput();
-                    XContentParser parser = sourceXContentType.xContent().createParser(XContentParserConfiguration.EMPTY, stream);
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        doc.getSource(),
+                        sourceXContentType
+                    );
                     XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
                 ) {
                     parser.nextToken();

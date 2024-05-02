@@ -33,6 +33,14 @@ Which, if `still_hired` is a boolean field, can be simplified to:
 include::{esql-specs}/docs.csv-spec[tag=whereBoolean]
 ----
 
+Use date math to retrieve data from a specific time range. For example, to 
+retrieve the last hour of logs:
+
+[source,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsNowWhere]
+----
+
 `WHERE` supports various <<esql-functions,functions>>. For example the
 <<esql-length>> function:
 

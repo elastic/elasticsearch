@@ -226,10 +226,11 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
-            for (int j = 0; j < 4; j++)
+            for (int j = 0; j < 4; j++) {
                 indexWriter.addDocument(
                     List.of(new NumericDocValuesField("value", i + 1), new TextField("text", "test" + j, Field.Store.NO))
                 );
+            }
         }
         indexWriter.close();
 

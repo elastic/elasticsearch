@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
@@ -119,45 +118,6 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof ZeroShotClassificationConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        ZeroShotClassificationConfig zeroShotConfig = (ZeroShotClassificationConfig) originalConfig;
-        if ((labels == null || labels.isEmpty()) && (zeroShotConfig.getLabels() == null || zeroShotConfig.getLabels().isEmpty())) {
-            throw ExceptionsHelper.badRequestException(
-                "stored configuration has no [{}] defined, supplied inference_config update must supply [{}]",
-                LABELS.getPreferredName(),
-                LABELS.getPreferredName()
-            );
-        }
-        if (isNoop(zeroShotConfig)) {
-            return originalConfig;
-        }
-        return new ZeroShotClassificationConfig(
-            zeroShotConfig.getClassificationLabels(),
-            zeroShotConfig.getVocabularyConfig(),
-            tokenizationUpdate == null ? zeroShotConfig.getTokenization() : tokenizationUpdate.apply(zeroShotConfig.getTokenization()),
-            zeroShotConfig.getHypothesisTemplate(),
-            Optional.ofNullable(isMultiLabel).orElse(zeroShotConfig.isMultiLabel()),
-            Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels().orElse(null)),
-            Optional.ofNullable(resultsField).orElse(zeroShotConfig.getResultsField())
-        );
-    }
-
-    boolean isNoop(ZeroShotClassificationConfig originalConfig) {
-        return (labels == null || labels.equals(originalConfig.getLabels().orElse(null)))
-            && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()))
-            && (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
-            && super.isNoop();
     }
 
     @Override

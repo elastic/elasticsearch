@@ -12,10 +12,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
@@ -50,7 +50,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         for (int i = 0; i < 100; i++) {
             index(client(), Integer.toString(i), "test", i);
         }
-        RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
+        BroadcastResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(test.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.numPrimaries));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));

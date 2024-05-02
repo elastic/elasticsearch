@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.IntArray;
 
 import java.util.Arrays;
 
@@ -67,55 +68,6 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     @Override
     public IntBlockBuilder endPositionEntry() {
         super.endPositionEntry();
-        return this;
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public IntBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((IntBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public IntBlockBuilder appendAllValuesToCurrentPosition(IntBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        final IntVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendInt(vector.getInt(p));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendInt(block.getInt(i++));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
         return this;
     }
 
@@ -179,6 +131,29 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         return this;
     }
 
+    private IntBlock buildBigArraysBlock() {
+        final IntBlock theBlock;
+        final IntArray array = blockFactory.bigArrays().newIntArray(valueCount, false);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
+        if (isDense() && singleValued()) {
+            theBlock = new IntBigArrayVector(array, positionCount, blockFactory).asBlock();
+        } else {
+            theBlock = new IntBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+        }
+        /*
+        * Update the breaker with the actual bytes used.
+        * We pass false below even though we've used the bytes. That's weird,
+        * but if we break here we will throw away the used memory, letting
+        * it be deallocated. The exception will bubble up and the builder will
+        * still technically be open, meaning the calling code should close it
+        * which will return all used memory to the breaker.
+        */
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+        return theBlock;
+    }
+
     @Override
     public IntBlock build() {
         try {
@@ -186,22 +161,19 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             IntBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
-                }
-                if (isDense() && singleValued()) {
-                    theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
-                } else {
-                    theBlock = blockFactory.newIntArrayBlock(
-                        values,
-                        positionCount,
-                        firstValueIndexes,
-                        nullsMask,
-                        mvOrdering,
-                        estimatedBytes
-                    );
-                }
+                theBlock = blockFactory.newIntArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
             }
             built();
             return theBlock;

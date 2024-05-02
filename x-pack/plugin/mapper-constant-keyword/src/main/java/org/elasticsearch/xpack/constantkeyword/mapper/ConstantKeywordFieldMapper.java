@@ -21,6 +21,8 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -60,6 +63,8 @@ import java.util.stream.Stream;
  * A {@link FieldMapper} that assigns every document the same value.
  */
 public class ConstantKeywordFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ConstantKeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "constant_keyword";
 
@@ -97,9 +102,16 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.MAPPINGS,
+                    CONTENT_TYPE + "_multifields",
+                    "Adding multifields to [" + CONTENT_TYPE + "] mappers has no effect and will be forbidden in future"
+                );
+            }
             return new ConstantKeywordFieldMapper(
-                name,
-                new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
+                name(),
+                new ConstantKeywordFieldType(context.buildFullName(name()), value.getValue(), meta.getValue())
             );
         }
     }
@@ -308,9 +320,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            Builder update = new Builder(simpleName());
-            update.value.setValue(value);
-            context.addDynamicMapper(fieldType().name(), update);
+            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
+            Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
+            boolean dynamicMapperAdded = context.addDynamicMapper(update);
+            // the mapper is already part of the mapping, we're just updating it with the new value
+            assert dynamicMapperAdded;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["

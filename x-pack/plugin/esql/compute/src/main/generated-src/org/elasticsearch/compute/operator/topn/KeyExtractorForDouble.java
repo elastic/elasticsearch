@@ -11,20 +11,26 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+import java.util.Locale;
+
+/**
+ * Extracts sort keys for top-n from their {@link DoubleBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class KeyExtractorForDouble implements KeyExtractor {
     static KeyExtractorForDouble extractorFor(TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, DoubleBlock block) {
         DoubleVector v = block.asVector();
         if (v != null) {
-            return new KeyExtractorForDouble.ForVector(encoder, nul, nonNul, v);
+            return new KeyExtractorForDouble.FromVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
             return block.mvSortedAscending()
-                ? new KeyExtractorForDouble.MinForAscending(encoder, nul, nonNul, block)
-                : new KeyExtractorForDouble.MinForUnordered(encoder, nul, nonNul, block);
+                ? new KeyExtractorForDouble.MinFromAscendingBlock(encoder, nul, nonNul, block)
+                : new KeyExtractorForDouble.MinFromUnorderedBlock(encoder, nul, nonNul, block);
         }
         return block.mvSortedAscending()
-            ? new KeyExtractorForDouble.MaxForAscending(encoder, nul, nonNul, block)
-            : new KeyExtractorForDouble.MaxForUnordered(encoder, nul, nonNul, block);
+            ? new KeyExtractorForDouble.MaxFromAscendingBlock(encoder, nul, nonNul, block)
+            : new KeyExtractorForDouble.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
     private final byte nul;
@@ -47,10 +53,15 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         return 1;
     }
 
-    static class ForVector extends KeyExtractorForDouble {
+    @Override
+    public final String toString() {
+        return String.format(Locale.ROOT, "KeyExtractorForDouble%s(%s, %s)", getClass().getSimpleName(), nul, nonNul);
+    }
+
+    static class FromVector extends KeyExtractorForDouble {
         private final DoubleVector vector;
 
-        ForVector(TopNEncoder encoder, byte nul, byte nonNul, DoubleVector vector) {
+        FromVector(TopNEncoder encoder, byte nul, byte nonNul, DoubleVector vector) {
             super(encoder, nul, nonNul);
             this.vector = vector;
         }
@@ -61,10 +72,10 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
     }
 
-    static class MinForAscending extends KeyExtractorForDouble {
+    static class MinFromAscendingBlock extends KeyExtractorForDouble {
         private final DoubleBlock block;
 
-        MinForAscending(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
+        MinFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
@@ -78,10 +89,10 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
     }
 
-    static class MaxForAscending extends KeyExtractorForDouble {
+    static class MaxFromAscendingBlock extends KeyExtractorForDouble {
         private final DoubleBlock block;
 
-        MaxForAscending(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
+        MaxFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
@@ -95,10 +106,10 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
     }
 
-    static class MinForUnordered extends KeyExtractorForDouble {
+    static class MinFromUnorderedBlock extends KeyExtractorForDouble {
         private final DoubleBlock block;
 
-        MinForUnordered(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
+        MinFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
@@ -119,10 +130,10 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
     }
 
-    static class MaxForUnordered extends KeyExtractorForDouble {
+    static class MaxFromUnorderedBlock extends KeyExtractorForDouble {
         private final DoubleBlock block;
 
-        MaxForUnordered(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
+        MaxFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }

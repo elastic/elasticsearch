@@ -8,6 +8,12 @@ Also see <<breaking-changes-8.11,Breaking changes in 8.11>>.
 === Known issues
 include::8.10.3.asciidoc[tag=no-preventive-gc-issue]
 
+[float]
+[[security-updates-8.11.2]]
+=== Security updates
+
+* The 8.11.2 patch release contains a fix for a potential security vulnerability. https://discuss.elastic.co/c/announcements/security-announcements/31[Please see our security advisory for more details].
+
 [[bug-8.11.2]]
 [float]
 === Bug fixes

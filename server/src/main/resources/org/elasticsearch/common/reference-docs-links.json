@@ -4,7 +4,7 @@
   "UNSTABLE_CLUSTER_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html",
   "LAGGING_NODE_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#_diagnosing_lagging_nodes_2",
   "SHARD_LOCK_TROUBLESHOOTING": "troubleshooting-unstable-cluster.html#_diagnosing_shardlockobtainfailedexception_failures_2",
-  "CONCURRENT_REPOSITORY_WRITERS": "add-repository.html",
+  "CONCURRENT_REPOSITORY_WRITERS": "diagnosing-corrupted-repositories.html",
   "ARCHIVE_INDICES": "archive-indices.html",
   "HTTP_TRACER": "modules-network.html#http-rest-request-tracer",
   "LOGGING": "logging.html",
@@ -29,5 +29,8 @@
   "BOOTSTRAP_CHECK_ROLE_MAPPINGS": "bootstrap-checks-xpack.html#_role_mappings_check",
   "BOOTSTRAP_CHECK_TLS": "bootstrap-checks-xpack.html#bootstrap-checks-tls",
   "BOOTSTRAP_CHECK_TOKEN_SSL": "bootstrap-checks-xpack.html#_token_ssl_check",
-  "BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP": "security-minimal-setup.html"
+  "BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP": "security-minimal-setup.html",
+  "CONTACT_SUPPORT": "troubleshooting.html#troubleshooting-contact-support",
+  "UNASSIGNED_SHARDS": "red-yellow-cluster-status.html",
+  "EXECUTABLE_JNA_TMPDIR": "executable-jna-tmpdir.html"
 }

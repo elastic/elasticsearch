@@ -26,7 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.StartILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 public class TransportStartILMAction extends AcknowledgedTransportMasterNodeAction<StartILMRequest> {
 
@@ -39,7 +39,7 @@ public class TransportStartILMAction extends AcknowledgedTransportMasterNodeActi
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            StartILMAction.NAME,
+            ILMActions.START.name(),
             transportService,
             clusterService,
             threadPool,

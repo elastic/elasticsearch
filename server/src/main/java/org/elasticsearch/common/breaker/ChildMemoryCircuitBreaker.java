@@ -14,6 +14,7 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.telemetry.metric.LongCounter;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
@@ -31,6 +32,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final HierarchyCircuitBreakerService parent;
     private final String name;
     private final LongCounter trippedCountMeter;
+
+    public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -68,7 +71,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        this.trippedCountMeter.increment();
+        this.trippedCountMeter.incrementBy(1L, Collections.singletonMap(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name));
         final String message = "["
             + this.name
             + "] Data too large, data for ["
@@ -195,7 +198,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void addWithoutBreaking(long bytes) {
         long u = used.addAndGet(bytes);
-        logger.trace(() -> format("[%s] Adjusted breaker by [%s] bytes, now [%s]", this.name, bytes, u));
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u);
+        }
         assert u >= 0 : "Used bytes: [" + u + "] must be >= 0";
     }
 

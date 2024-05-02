@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -30,7 +29,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
     public static final String NAME = "indices:admin/ilm/remove_policy";
 
     protected RemoveIndexLifecyclePolicyAction() {
-        super(NAME, RemoveIndexLifecyclePolicyAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -48,7 +47,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES_FIELD);
         }
 
-        private List<String> failedIndexes;
+        private final List<String> failedIndexes;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -140,11 +139,6 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
 
         public IndicesOptions indicesOptions() {
             return indicesOptions;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

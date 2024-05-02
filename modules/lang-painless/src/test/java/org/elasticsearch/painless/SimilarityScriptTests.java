@@ -42,8 +42,8 @@ public class SimilarityScriptTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(SimilarityScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(SimilarityWeightScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(SimilarityScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(SimilarityWeightScript.CONTEXT, PAINLESS_BASE_WHITELIST);
         return contexts;
     }
 
@@ -54,7 +54,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
             SimilarityScript.CONTEXT,
             Collections.emptyMap()
         );
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory::newInstance, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory, true);
         try (Directory dir = new ByteBuffersDirectory()) {
             IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
@@ -103,7 +103,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
             SimilarityScript.CONTEXT,
             Collections.emptyMap()
         );
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory::newInstance, "foobaz", factory::newInstance, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory, "foobaz", factory, true);
         try (Directory dir = new ByteBuffersDirectory()) {
             IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 

@@ -13,6 +13,7 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -97,15 +98,17 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             }
         }, reader -> {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader();
-            assertTrue(loader.requiredStoredFields().isEmpty());
+            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
                     String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
-                    int doc = (int) JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source).map().get("doc");
-                    assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
+                    try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source)) {
+                        int doc = (int) parser.map().get("doc");
+                        assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
+                    }
                 }
             }
         });
@@ -127,7 +130,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             }
         }, reader -> {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader();
-            assertTrue(loader.requiredStoredFields().isEmpty());
+            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);

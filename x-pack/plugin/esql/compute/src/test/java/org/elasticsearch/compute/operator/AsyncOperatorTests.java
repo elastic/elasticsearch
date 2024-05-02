@@ -43,6 +43,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
@@ -76,7 +78,7 @@ public class AsyncOperatorTests extends ESTestCase {
         final DriverContext driverContext;
         if (randomBoolean()) {
             localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
-            BlockFactory localFactory = new BlockFactory(localBreaker, globalBlockFactory.bigArrays());
+            BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
         } else {
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
@@ -213,7 +215,7 @@ public class AsyncOperatorTests extends ESTestCase {
         final DriverContext driverContext;
         if (randomBoolean()) {
             localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
-            BlockFactory localFactory = new BlockFactory(localBreaker, globalBlockFactory.bigArrays());
+            BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
         } else {
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
@@ -267,6 +269,57 @@ public class AsyncOperatorTests extends ESTestCase {
         } else {
             assertTrue(asyncOperator.isFinished());
             assertNull(asyncOperator.getOutput());
+        }
+    }
+
+    public void testIsFinished() {
+        int iters = iterations(10, 10_000);
+        BlockFactory blockFactory = blockFactory();
+        for (int i = 0; i < iters; i++) {
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            AsyncOperator asyncOperator = new AsyncOperator(driverContext, between(1, 10)) {
+                @Override
+                protected void performAsync(Page inputPage, ActionListener<Page> listener) {
+                    ActionRunnable<Page> command = new ActionRunnable<>(listener) {
+                        @Override
+                        protected void doRun() {
+                            try {
+                                barrier.await(10, TimeUnit.SECONDS);
+                            } catch (Exception e) {
+                                throw new AssertionError(e);
+                            }
+                            listener.onFailure(new ElasticsearchException("simulated"));
+                        }
+                    };
+                    threadPool.executor(ESQL_TEST_EXECUTOR).execute(command);
+                }
+
+                @Override
+                protected void doClose() {
+
+                }
+            };
+            asyncOperator.addInput(new Page(blockFactory.newConstantIntBlockWith(randomInt(), between(1, 10))));
+            asyncOperator.finish();
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+            int numChecks = between(10, 100);
+            while (--numChecks >= 0) {
+                try {
+                    assertFalse("must not finished or failed", asyncOperator.isFinished());
+                } catch (ElasticsearchException e) {
+                    assertThat(e.getMessage(), equalTo("simulated"));
+                    break;
+                }
+            }
+            driverContext.finish();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            driverContext.waitForAsyncActions(future);
+            future.actionGet(30, TimeUnit.SECONDS);
         }
     }
 

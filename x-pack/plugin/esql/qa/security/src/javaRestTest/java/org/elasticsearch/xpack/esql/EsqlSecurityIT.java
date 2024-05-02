@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.http.HttpStatus;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -17,19 +18,47 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlSecurityIT extends ESRestTestCase {
+    static String ESQL_VERSION = "2024.04.01.🚀";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test-admin", "x-pack-test-password", "test-admin", true)
+        .user("user1", "x-pack-test-password", "user1", false)
+        .user("user2", "x-pack-test-password", "user2", false)
+        .user("user3", "x-pack-test-password", "user3", false)
+        .user("user4", "x-pack-test-password", "user4", false)
+        .user("user5", "x-pack-test-password", "user5", false)
+        .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {
@@ -39,7 +68,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     private void indexDocument(String index, int id, double value, String org) throws IOException {
         Request indexDoc = new Request("PUT", index + "/_doc/" + id);
-        indexDoc.setJsonEntity("{\"value\":" + value + ",\"org\":\"" + org + "\"}");
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.field("value", value);
+        builder.field("org", org);
+        builder.field("partial", org + value);
+        indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
         client().performRequest(indexDoc);
     }
 
@@ -62,6 +95,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("index-user2", 1, 32.0, "marketing");
         indexDocument("index-user2", 2, 40.0, "sales");
         refresh("index-user2");
+
+        createIndex("indexpartial", Settings.EMPTY, mapping);
+        indexDocument("indexpartial", 1, 32.0, "marketing");
+        indexDocument("indexpartial", 2, 40.0, "sales");
+        refresh("indexpartial");
     }
 
     public void testAllowedIndices() throws Exception {
@@ -90,7 +128,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
-    public void testUnauthorizedIndices() {
+    public void testUnauthorizedIndices() throws IOException {
         ResponseException error;
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
@@ -99,12 +137,75 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
-    public void testDLS() throws Exception {
+    public void testDocumentLevelSecurity() throws Exception {
         Response resp = runESQLCommand("user3", "from index | stats sum=sum(value)");
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    public void testFieldLevelSecurityAllow() throws Exception {
+        Response resp = runESQLCommand("fls_user", "FROM index* | SORT value | LIMIT 1");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "partial").entry("type", "text"),
+                        matchesMap().entry("name", "value").entry("type", "double")
+                    )
+                )
+                .entry("values", List.of(List.of("sales10.0", 10.0)))
+        );
+    }
+
+    public void testFieldLevelSecurityAllowPartial() throws Exception {
+        Request request = new Request("GET", "/index*/_field_caps");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "fls_user"));
+        request.addParameter("error_trace", "true");
+        request.addParameter("pretty", "true");
+        request.addParameter("fields", "*");
+
+        request = new Request("GET", "/index*/_search");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "fls_user"));
+        request.addParameter("error_trace", "true");
+        request.addParameter("pretty", "true");
+
+        Response resp = runESQLCommand("fls_user", "FROM index* | SORT partial | LIMIT 1");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "partial").entry("type", "text"),
+                        matchesMap().entry("name", "value").entry("type", "double")
+                    )
+                )
+                .entry("values", List.of(List.of("engineering20.0", 20.0)))
+        );
+    }
+
+    public void testFieldLevelSecuritySpellingMistake() throws Exception {
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index* | SORT parial | LIMIT 1")
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [parial]"));
+    }
+
+    public void testFieldLevelSecurityNotAllowed() throws Exception {
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index* | SORT org DESC | LIMIT 1")
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
     }
 
     public void testRowCommand() throws Exception {
@@ -247,41 +348,52 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(new Request("DELETE", "_enrich/policy/songs"));
     }
 
-    private Response runESQLCommand(String user, String command) throws IOException {
+    protected Response runESQLCommand(String user, String command) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
         }
-        Settings pragmas = Settings.EMPTY;
-        if (Build.current().isSnapshot()) {
-            Settings.Builder settings = Settings.builder();
-            if (randomBoolean()) {
-                settings.put("page_size", between(1, 5));
-            }
-            if (randomBoolean()) {
-                settings.put("exchange_buffer_size", between(1, 2));
-            }
-            if (randomBoolean()) {
-                settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
-            }
-            if (randomBoolean()) {
-                settings.put("enrich_max_workers", between(1, 5));
-            }
-            pragmas = settings.build();
-        }
-        XContentBuilder query = JsonXContent.contentBuilder();
-        query.startObject();
-        query.field("query", command);
-        if (pragmas != Settings.EMPTY) {
-            query.startObject("pragma");
-            query.value(pragmas);
-            query.endObject();
-        }
-        query.endObject();
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("version", ESQL_VERSION);
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
         Request request = new Request("POST", "_query");
-        request.setJsonEntity("{\"query\":\"" + command + "\"}");
+        request.setJsonEntity(Strings.toString(json));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.addParameter("error_trace", "true");
         return client().performRequest(request);
     }
 
+    static void addRandomPragmas(XContentBuilder builder) throws IOException {
+        if (Build.current().isSnapshot()) {
+            Settings pragmas = randomPragmas();
+            if (pragmas != Settings.EMPTY) {
+                builder.startObject("pragma");
+                builder.value(pragmas);
+                builder.endObject();
+            }
+        }
+    }
+
+    static Settings randomPragmas() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put("page_size", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("exchange_buffer_size", between(1, 2));
+        }
+        if (randomBoolean()) {
+            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+        }
+        if (randomBoolean()) {
+            settings.put("enrich_max_workers", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
+        }
+        return settings.build();
+    }
 }

@@ -6,8 +6,8 @@
 
 Removes matches which overlap with another span query or which are
 within x tokens before (controlled by the parameter `pre`) or y tokens
-after (controlled by the parameter `post`) another SpanQuery. The span not
-query maps to Lucene `SpanNotQuery`. Here is an example:
+after (controlled by the parameter `post`) another SpanQuery.
+Here is an example:
 
 [source,console]
 --------------------------------------------------

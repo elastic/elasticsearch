@@ -14,6 +14,6 @@ public class AuthenticateAction extends ActionType<AuthenticateResponse> {
     public static final AuthenticateAction INSTANCE = new AuthenticateAction();
 
     public AuthenticateAction() {
-        super(NAME, AuthenticateResponse::new);
+        super(NAME);
     }
 }

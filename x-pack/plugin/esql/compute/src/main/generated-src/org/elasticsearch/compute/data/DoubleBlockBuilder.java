@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.DoubleArray;
 
 import java.util.Arrays;
 
@@ -67,55 +68,6 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
     @Override
     public DoubleBlockBuilder endPositionEntry() {
         super.endPositionEntry();
-        return this;
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public DoubleBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((DoubleBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public DoubleBlockBuilder appendAllValuesToCurrentPosition(DoubleBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        final DoubleVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendDouble(vector.getDouble(p));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendDouble(block.getDouble(i++));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
         return this;
     }
 
@@ -179,6 +131,29 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         return this;
     }
 
+    private DoubleBlock buildBigArraysBlock() {
+        final DoubleBlock theBlock;
+        final DoubleArray array = blockFactory.bigArrays().newDoubleArray(valueCount, false);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
+        if (isDense() && singleValued()) {
+            theBlock = new DoubleBigArrayVector(array, positionCount, blockFactory).asBlock();
+        } else {
+            theBlock = new DoubleBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+        }
+        /*
+        * Update the breaker with the actual bytes used.
+        * We pass false below even though we've used the bytes. That's weird,
+        * but if we break here we will throw away the used memory, letting
+        * it be deallocated. The exception will bubble up and the builder will
+        * still technically be open, meaning the calling code should close it
+        * which will return all used memory to the breaker.
+        */
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+        return theBlock;
+    }
+
     @Override
     public DoubleBlock build() {
         try {
@@ -186,22 +161,19 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
             DoubleBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
-                }
-                if (isDense() && singleValued()) {
-                    theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
-                } else {
-                    theBlock = blockFactory.newDoubleArrayBlock(
-                        values,
-                        positionCount,
-                        firstValueIndexes,
-                        nullsMask,
-                        mvOrdering,
-                        estimatedBytes
-                    );
-                }
+                theBlock = blockFactory.newDoubleArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
             }
             built();
             return theBlock;

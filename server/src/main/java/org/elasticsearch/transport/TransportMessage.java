@@ -51,6 +51,13 @@ public abstract class TransportMessage implements Writeable, RefCounted {
         return true;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * Note that the lifetime of an outbound {@link TransportMessage} lasts at least until it has been fully sent over the network, and it
+     * may be closed on a network thread in a context in which there's a risk of stack overflows if on close it calls back into the network
+     * layer in a manner that might end up nesting too deeply. When in doubt, dispatch any further work onto a separate thread.
+     */
     @Override
     public boolean decRef() {
         // noop, override to manage the life-cycle of resources held by a transport message

@@ -57,10 +57,10 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public MachineLearningFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.jobsUsage = in.readMap();
-        this.datafeedsUsage = in.readMap();
-        this.analyticsUsage = in.readMap();
-        this.inferenceUsage = in.readMap();
+        this.jobsUsage = in.readGenericMap();
+        this.datafeedsUsage = in.readGenericMap();
+        this.analyticsUsage = in.readGenericMap();
+        this.inferenceUsage = in.readGenericMap();
         this.nodeCount = in.readInt();
     }
 

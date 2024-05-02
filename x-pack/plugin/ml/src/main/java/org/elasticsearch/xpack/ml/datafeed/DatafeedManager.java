@@ -20,7 +20,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -100,7 +99,6 @@ public final class DatafeedManager {
     public void putDatafeed(
         PutDatafeedAction.Request request,
         ClusterState state,
-        XPackLicenseState licenseState,
         SecurityContext securityContext,
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
@@ -123,9 +121,8 @@ public final class DatafeedManager {
                 final RoleDescriptor.IndicesPrivileges.Builder indicesPrivilegesBuilder = RoleDescriptor.IndicesPrivileges.builder()
                     .indices(indices);
 
-                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                    r -> handlePrivsResponse(username, request, r, state, threadPool, listener),
-                    listener::onFailure
+                ActionListener<HasPrivilegesResponse> privResponseListener = listener.delegateFailureAndWrap(
+                    (l, r) -> handlePrivsResponse(username, request, r, state, threadPool, l)
                 );
 
                 ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
@@ -175,15 +172,14 @@ public final class DatafeedManager {
             request.getDatafeedId(),
             request.allowNoMatch(),
             parentTaskId,
-            ActionListener.wrap(
-                datafeedBuilders -> listener.onResponse(
+            listener.delegateFailureAndWrap(
+                (l, datafeedBuilders) -> l.onResponse(
                     new QueryPage<>(
                         datafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList()),
                         datafeedBuilders.size(),
                         DatafeedConfig.RESULTS_FIELD
                     )
-                ),
-                listener::onFailure
+                )
             )
         );
     }
@@ -224,10 +220,7 @@ public final class DatafeedManager {
                 request.getUpdate(),
                 headers,
                 jobConfigProvider::validateDatafeedJob,
-                ActionListener.wrap(
-                    updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, updatedConfig) -> l.onResponse(new PutDatafeedAction.Response(updatedConfig)))
             );
         });
 
@@ -256,19 +249,18 @@ public final class DatafeedManager {
 
         String datafeedId = request.getDatafeedId();
 
-        datafeedConfigProvider.getDatafeedConfig(datafeedId, null, ActionListener.wrap(datafeedConfigBuilder -> {
+        datafeedConfigProvider.getDatafeedConfig(datafeedId, null, listener.delegateFailureAndWrap((delegate, datafeedConfigBuilder) -> {
             String jobId = datafeedConfigBuilder.build().getJobId();
             JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
             jobDataDeleter.deleteDatafeedTimingStats(
-                ActionListener.wrap(
-                    unused1 -> datafeedConfigProvider.deleteDatafeedConfig(
+                delegate.delegateFailureAndWrap(
+                    (l, unused1) -> datafeedConfigProvider.deleteDatafeedConfig(
                         datafeedId,
-                        ActionListener.wrap(unused2 -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
-                    ),
-                    listener::onFailure
+                        l.delegateFailureAndWrap((ll, unused2) -> ll.onResponse(AcknowledgedResponse.TRUE))
+                    )
                 )
             );
-        }, listener::onFailure));
+        }));
 
     }
 
@@ -318,7 +310,7 @@ public final class DatafeedManager {
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),
             headers,
-            ActionListener.wrap(response -> listener.onResponse(new PutDatafeedAction.Response(response.v1())), listener::onFailure)
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(new PutDatafeedAction.Response(response.v1())))
         );
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {
@@ -347,16 +339,19 @@ public final class DatafeedManager {
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(datafeedIds -> {
-            if (datafeedIds.isEmpty()) {
-                listener.onResponse(Boolean.TRUE);
-            } else {
-                listener.onFailure(
-                    ExceptionsHelper.conflictStatusException(
-                        "A datafeed [" + datafeedIds.iterator().next() + "] already exists for job [" + jobId + "]"
-                    )
-                );
-            }
-        }, listener::onFailure));
+        datafeedConfigProvider.findDatafeedIdsForJobIds(
+            Collections.singletonList(jobId),
+            listener.delegateFailureAndWrap((delegate, datafeedIds) -> {
+                if (datafeedIds.isEmpty()) {
+                    delegate.onResponse(Boolean.TRUE);
+                } else {
+                    delegate.onFailure(
+                        ExceptionsHelper.conflictStatusException(
+                            "A datafeed [" + datafeedIds.iterator().next() + "] already exists for job [" + jobId + "]"
+                        )
+                    );
+                }
+            })
+        );
     }
 }

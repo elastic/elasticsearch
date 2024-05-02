@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.function.Function;
@@ -26,6 +27,33 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  * Expressions that have a mapping to an {@link ExpressionEvaluator}.
  */
 public interface EvaluatorMapper {
+    /**
+     * <p>
+     * Note for implementors:
+     * If you are implementing this function, you should call the passed-in
+     * lambda on your children, after doing any other manipulation (casting,
+     * etc.) necessary.
+     * </p>
+     * <p>
+     * Note for Callers:
+     * If you are attempting to call this method, and you have an
+     * {@link Expression} and a {@link org.elasticsearch.xpack.esql.planner.Layout},
+     * you likely want to call {@link org.elasticsearch.xpack.esql.evaluator.EvalMapper#toEvaluator(Expression, Layout)}
+     * instead.  On the other hand, if you already have something that
+     * looks like the parameter for this method, you should call this method
+     * with that function.
+     * </p>
+     * <p>
+     * Build an {@link ExpressionEvaluator.Factory} for the tree of
+     * expressions rooted at this node. This is only guaranteed to return
+     * a sensible evaluator if this node has a valid type. If this node
+     * is a subclass of {@link Expression} then "valid type" means that
+     * {@link Expression#typeResolved} returns a non-error resolution.
+     * If {@linkplain Expression#typeResolved} returns an error then
+     * this method may throw. Or return an evaluator that produces
+     * garbage. Or return an evaluator that throws when run.
+     * </p>
+     */
     ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator);
 
     /**

@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -30,7 +31,9 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -43,9 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -78,8 +83,10 @@ public class IndicesModuleTests extends ESTestCase {
         IdFieldMapper.NAME,
         RoutingFieldMapper.NAME,
         TimeSeriesIdFieldMapper.NAME,
+        TimeSeriesRoutingHashFieldMapper.NAME,
         IndexFieldMapper.NAME,
         SourceFieldMapper.NAME,
+        IgnoredSourceFieldMapper.NAME,
         NestedPathFieldMapper.NAME,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,
@@ -239,39 +246,43 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testGetFieldFilter() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {
         }, new MapperPlugin() {
             @Override
-            public Function<String, Predicate<String>> getFieldFilter() {
-                return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
+            public Function<String, FieldPredicate> getFieldFilter() {
+                return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;
             }
         }, new MapperPlugin() {
             @Override
-            public Function<String, Predicate<String>> getFieldFilter() {
-                return index -> field -> field.equals("hidden_field") == false;
+            public Function<String, FieldPredicate> getFieldFilter() {
+                return index -> HIDDEN_FIELD;
             }
         }, new MapperPlugin() {
             @Override
-            public Function<String, Predicate<String>> getFieldFilter() {
-                return index -> index.equals("filtered") ? field -> field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+            public Function<String, FieldPredicate> getFieldFilter() {
+                return index -> index.equals("filtered") ? ONLY_VISIBLE : FieldPredicate.ACCEPT_ALL;
             }
         });
 
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        Function<String, Predicate<String>> fieldFilter = mapperRegistry.getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = mapperRegistry.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
 
-        assertFalse(fieldFilter.apply("hidden_index").test(randomAlphaOfLengthBetween(3, 5)));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test(randomAlphaOfLengthBetween(3, 5)));
+        assertThat(fieldFilter.apply("hidden_index"), falseWith(randomAlphaOfLengthBetween(3, 5)));
+        assertThat(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)), trueWith(randomAlphaOfLengthBetween(3, 5)));
 
-        assertFalse(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test("hidden_field"));
-        assertFalse(fieldFilter.apply("filtered").test(randomAlphaOfLengthBetween(3, 5)));
-        assertFalse(fieldFilter.apply("filtered").test("hidden_field"));
-        assertTrue(fieldFilter.apply("filtered").test("visible"));
-        assertFalse(fieldFilter.apply("hidden_index").test("visible"));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test("visible"));
-        assertFalse(fieldFilter.apply("hidden_index").test("hidden_field"));
+        assertThat(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)), falseWith("hidden_field"));
+        assertThat(fieldFilter.apply("filtered"), falseWith(randomAlphaOfLengthBetween(3, 5)));
+        assertThat(fieldFilter.apply("filtered"), falseWith("hidden_field"));
+        assertThat(fieldFilter.apply("filtered"), trueWith("visible"));
+        assertThat(fieldFilter.apply("hidden_index"), falseWith("visible"));
+        assertThat(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)), trueWith("visible"));
+        assertThat(fieldFilter.apply("hidden_index"), falseWith("hidden_field"));
+
+        assertThat(fieldFilter.apply("filtered").modifyHash("hash"), equalTo("only-visible:hide-field:hash"));
+        assertThat(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).modifyHash("hash"), equalTo("hide-field:hash"));
+        assertThat(fieldFilter.apply("hidden_index").modifyHash("hash"), equalTo("hide-field:hidden:hash"));
     }
 
     public void testDefaultFieldFilterIsNoOp() {
@@ -282,7 +293,7 @@ public class IndicesModuleTests extends ESTestCase {
             });
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
-        Function<String, Predicate<String>> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
         assertSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
     }
 
@@ -290,21 +301,72 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
         }, new MapperPlugin() {
             @Override
-            public Function<String, Predicate<String>> getFieldFilter() {
-                return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
+            public Function<String, FieldPredicate> getFieldFilter() {
+                return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;
             }
         }, new MapperPlugin() {
             @Override
-            public Function<String, Predicate<String>> getFieldFilter() {
-                return index -> index.equals("filtered") ? field -> field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+            public Function<String, FieldPredicate> getFieldFilter() {
+                return index -> index.equals("filtered") ? ONLY_VISIBLE : FieldPredicate.ACCEPT_ALL;
             }
         });
 
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        Function<String, Predicate<String>> fieldFilter = mapperRegistry.getFieldFilter();
-        assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 7)));
-        assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("hidden_index"));
-        assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("filtered"));
+        Function<String, FieldPredicate> fieldFilter = mapperRegistry.getFieldFilter();
+        assertSame(FieldPredicate.ACCEPT_ALL, fieldFilter.apply(randomAlphaOfLengthBetween(3, 7)));
+        assertNotSame(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("hidden_index"));
+        assertNotSame(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("filtered"));
     }
+
+    private static final FieldPredicate HIDDEN_INDEX = new FieldPredicate() {
+        @Override
+        public boolean test(String field) {
+            return false;
+        }
+
+        @Override
+        public String modifyHash(String hash) {
+            return "hidden:" + hash;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+    };
+
+    private static final FieldPredicate HIDDEN_FIELD = new FieldPredicate() {
+        @Override
+        public boolean test(String field) {
+            return false == field.equals("hidden_field");
+        }
+
+        @Override
+        public String modifyHash(String hash) {
+            return "hide-field:" + hash;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+    };
+
+    private static final FieldPredicate ONLY_VISIBLE = new FieldPredicate() {
+        @Override
+        public boolean test(String field) {
+            return field.equals("visible");
+        }
+
+        @Override
+        public String modifyHash(String hash) {
+            return "only-visible:" + hash;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+    };
 }

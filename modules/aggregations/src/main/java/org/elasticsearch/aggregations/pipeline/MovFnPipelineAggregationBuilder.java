@@ -191,25 +191,6 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         return builder;
     }
 
-    /**
-     * Used for serialization testing, since pipeline aggs serialize themselves as a named object but are parsed
-     * as a regular object with the name passed in.
-     */
-    static MovFnPipelineAggregationBuilder parse(XContentParser parser) throws IOException {
-        parser.nextToken();
-        if (parser.currentToken().equals(XContentParser.Token.START_OBJECT)) {
-            parser.nextToken();
-            if (parser.currentToken().equals(XContentParser.Token.FIELD_NAME)) {
-                String aggName = parser.currentName();
-                parser.nextToken(); // "moving_fn"
-                parser.nextToken(); // start_object
-                return PARSER.apply(parser, aggName);
-            }
-        }
-
-        throw new IllegalStateException("Expected aggregation name but none found");
-    }
-
     @Override
     protected boolean overrideBucketsPath() {
         return true;

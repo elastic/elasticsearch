@@ -27,7 +27,7 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
 
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes, false);
+        blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
         this.values = new boolean[size];
     }
@@ -44,6 +44,11 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
             : BooleanArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Byte.BYTES
             );
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
     }
 
     @Override
@@ -70,7 +75,7 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
             nextIndex = -1;
-            blockFactory.adjustBreaker(-preAdjustedBytes, false);
+            blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 

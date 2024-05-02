@@ -108,7 +108,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.id = in.readString();
         this.type = QueryRuleType.queryRuleType(in.readString());
         this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
-        this.actions = in.readMap();
+        this.actions = in.readGenericMap();
 
         validate();
     }

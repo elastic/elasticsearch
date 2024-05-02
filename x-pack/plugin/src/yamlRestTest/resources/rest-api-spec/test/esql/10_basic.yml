@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index:  test
@@ -118,6 +118,7 @@ setup:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
 
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}
@@ -139,6 +140,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort count | limit 1'
+          version: 2024.04.01
 
   - match: {columns.1.name: "count"}
   - match: {columns.1.type: "long"}
@@ -151,6 +153,7 @@ setup:
         body:
           query: 'from test | keep data | sort data | limit 2'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "data"}
   - match: {columns.0.type: "long"}
@@ -162,6 +165,7 @@ setup:
       esql.query:
         body:
           query: 'from test | eval x = count + 7 | sort x | limit 1'
+          version: 2024.04.01
 
   - match: {columns.0.name: "color"}
   - match: {columns.1.name: "count"}
@@ -179,6 +183,7 @@ setup:
       esql.query:
         body:
           query: 'from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | keep data, x, y, z, time | limit 2'
+          version: 2024.04.01
 
   - match: {columns.0.name: "data"}
   - match: {columns.0.type: "long"}
@@ -209,6 +214,7 @@ setup:
         body:
           query: 'from test | sort time | limit 2 | keep count'
           columnar: true
+          version: 2024.04.01
 
   - length: {columns: 1}
   - match: {columns.0.name: "count"}
@@ -222,6 +228,7 @@ setup:
         body:
           query: 'from test | sort time desc | limit 2 | keep count'
           columnar: true
+          version: 2024.04.01
 
   - length: {columns: 1}
   - match: {columns.0.name: "count"}
@@ -235,6 +242,7 @@ setup:
         body:
           query: 'from test | sort time | limit 2 | keep count | eval x = count + 1'
           columnar: true
+          version: 2024.04.01
 
   - length: {columns: 2}
   - match: {columns.0.name: "count"}
@@ -252,6 +260,7 @@ setup:
         body:
           query: 'from test | sort time | limit 2 | keep count | eval x = count + 1 | keep x'
           columnar: true
+          version: 2024.04.01
 
   - length: {columns: 1}
   - match: {columns.0.name: "x"}
@@ -265,6 +274,7 @@ setup:
       esql.query:
         body:
           query: 'from test | limit 10 | sort time | limit 1'
+          version: 2024.04.01
 
   - length: {columns: 6}
   - length: {values: 1}
@@ -278,6 +288,7 @@ setup:
         body:
           query: 'row a = ? | eval b = ?, c = 1 + ?'
           params: ["foo", 15, 10]
+          version: 2024.04.01
 
   - length: {columns: 3}
   - match: {columns.0.name: "a"}
@@ -297,6 +308,7 @@ setup:
         body:
           query: 'from test | where color == ? and count == ? and time == ? | keep data, count, color'
           params: ["green", 44, 1674835275193]
+          version: 2024.04.01
 
   - length: {columns: 3}
   - match: {columns.0.name: "data"}
@@ -315,6 +327,7 @@ setup:
         body:
           query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit 3'
           params: [{"value": 1, "type": "keyword"}, {"value": 2, "type": "double"}, null, true, 123, {"value": 123, "type": "long"}]
+          version: 2024.04.01
 
   - length: {columns: 6}
   - match: {columns.0.name: "x"}

@@ -16,12 +16,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -33,11 +35,31 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.profiling.action.GetFlamegraphAction;
+import org.elasticsearch.xpack.profiling.action.GetStackTracesAction;
+import org.elasticsearch.xpack.profiling.action.GetStatusAction;
+import org.elasticsearch.xpack.profiling.action.GetTopNFunctionsAction;
+import org.elasticsearch.xpack.profiling.action.ProfilingInfoTransportAction;
+import org.elasticsearch.xpack.profiling.action.ProfilingLicenseChecker;
+import org.elasticsearch.xpack.profiling.action.ProfilingUsageTransportAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetFlamegraphAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetStackTracesAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetStatusAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetTopNFunctionsAction;
+import org.elasticsearch.xpack.profiling.persistence.IndexStateResolver;
+import org.elasticsearch.xpack.profiling.persistence.ProfilingDataStreamManager;
+import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexManager;
+import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexTemplateRegistry;
+import org.elasticsearch.xpack.profiling.rest.RestGetFlamegraphAction;
+import org.elasticsearch.xpack.profiling.rest.RestGetStackTracesAction;
+import org.elasticsearch.xpack.profiling.rest.RestGetStatusAction;
+import org.elasticsearch.xpack.profiling.rest.RestGetTopNFunctionsAction;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class ProfilingPlugin extends Plugin implements ActionPlugin {
@@ -86,22 +108,16 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
-        InstanceTypeService instanceTypeService = createInstanceTypeService();
         if (enabled) {
             registry.get().initialize();
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
-            instanceTypeService.load();
         }
-        return List.of(createLicenseChecker(), instanceTypeService);
+        return List.of(createLicenseChecker());
     }
 
     protected ProfilingLicenseChecker createLicenseChecker() {
         return new ProfilingLicenseChecker(XPackPlugin::getSharedLicenseState);
-    }
-
-    protected InstanceTypeService createInstanceTypeService() {
-        return new InstanceTypeService();
     }
 
     public void updateCheckOutdatedIndices(boolean newValue) {
@@ -123,18 +139,21 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<DiscoveryNodes> nodesInCluster
+        final Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestGetStatusAction());
         if (enabled) {
             handlers.add(new RestGetStackTracesAction());
             handlers.add(new RestGetFlamegraphAction());
+            handlers.add(new RestGetTopNFunctionsAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -169,6 +188,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         return List.of(
             new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
             new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
+            new ActionHandler<>(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
             new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)

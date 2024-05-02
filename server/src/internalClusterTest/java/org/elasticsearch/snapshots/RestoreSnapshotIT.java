@@ -9,9 +9,8 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -20,7 +19,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
@@ -55,7 +53,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -166,7 +163,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     )
     public void testRestoreLogging() throws IllegalAccessException {
         final MockLogAppender mockLogAppender = new MockLogAppender();
-        try {
+        try (var ignored = mockLogAppender.capturing(RestoreService.class)) {
             String indexName = "testindex";
             String repoName = "test-restore-snapshot-repo";
             String snapshotName = "test-restore-snapshot";
@@ -174,9 +171,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             logger.info("Path [{}]", absolutePath);
             String restoredIndexName = indexName + "-restored";
             String expectedValue = "expected";
-
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.PatternSeenEventExpectation(
@@ -215,9 +209,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             ensureGreen(restoredIndexName);
             assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 
@@ -694,30 +685,26 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .build();
 
         logger.info("--> try restoring while changing the number of shards - should fail");
-        assertRequestBuilderThrows(
-            client.admin()
-                .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
-                .setIgnoreIndexSettings("index.analysis.*")
-                .setIndexSettings(newIncorrectIndexSettings)
-                .setWaitForCompletion(true),
-            SnapshotRestoreException.class
-        );
+        ActionRequestBuilder<?, ?> builder1 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIgnoreIndexSettings("index.analysis.*")
+            .setIndexSettings(newIncorrectIndexSettings)
+            .setWaitForCompletion(true);
+        expectThrows(SnapshotRestoreException.class, builder1);
 
         logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
         Settings newIncorrectReplicasIndexSettings = Settings.builder()
             .put(newIndexSettings)
             .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
             .build();
-        assertRequestBuilderThrows(
-            client.admin()
-                .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
-                .setIgnoreIndexSettings("index.analysis.*")
-                .setIndexSettings(newIncorrectReplicasIndexSettings)
-                .setWaitForCompletion(true),
-            IllegalArgumentException.class
-        );
+        ActionRequestBuilder<?, ?> builder = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIgnoreIndexSettings("index.analysis.*")
+            .setIndexSettings(newIncorrectReplicasIndexSettings)
+            .setWaitForCompletion(true);
+        expectThrows(IllegalArgumentException.class, builder);
 
         logger.info("--> restore index with correct settings from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -872,11 +859,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "snapshot-0", Collections.singletonList("test-index"));
         final SnapshotRestoreException restoreError = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+            clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                 .setIndexSettings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false))
                 .setRenamePattern("test-index")
                 .setRenameReplacement("new-index")
-                .get()
         );
         assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
     }
@@ -889,15 +875,15 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
         final SnapshotRestoreException snapshotRestoreException = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(repoName, oldSnapshot).get()
+            clusterAdmin().prepareRestoreSnapshot(repoName, oldSnapshot)
         );
         assertThat(
             snapshotRestoreException.getMessage(),
             containsString(
                 "the snapshot was created with Elasticsearch version ["
-                    + oldVersion
+                    + oldVersion.toReleaseVersion()
                     + "] which is below the current versions minimum index compatibility version ["
-                    + IndexVersions.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "]"
             )
         );
@@ -912,14 +898,13 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         createSnapshot(repoName, snapshotName, List.of(indexName));
         index(indexName, "some_id", Map.of("foo", "bar"));
         assertAcked(indicesAdmin().prepareClose(indexName).get());
+
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
-        );
-        mockAppender.start();
-        final Logger logger = LogManager.getLogger(FileRestoreContext.class);
-        Loggers.addAppender(logger, mockAppender);
-        try {
+        try (var ignored = mockAppender.capturing(FileRestoreContext.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
+            );
+
             final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
                 .setIndices(indexName)
                 .setRestoreGlobalState(false)
@@ -927,9 +912,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get();
             assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
         }
     }
 }

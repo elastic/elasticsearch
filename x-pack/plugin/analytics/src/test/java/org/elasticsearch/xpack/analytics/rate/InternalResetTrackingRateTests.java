@@ -8,17 +8,11 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -141,22 +135,6 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
         return new BuilderAndToReduce<>(mock(RateAggregationBuilder.class), internalRates);
     }
 
-    @Override
-    protected void assertFromXContent(InternalResetTrackingRate aggregation, ParsedAggregation parsedAggregation) throws IOException {
-
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(InternalResetTrackingRate.NAME), (p, c) -> {
-                assumeTrue("There is no ParsedRate yet", false);
-                return null;
-            })
-        );
-    }
-
     public void testIncludes() {
         InternalResetTrackingRate big = new InternalResetTrackingRate(
             "n",
@@ -213,7 +191,7 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
             rate(5, 15, 4000, 5000, 0, dateTimeUnit),
             rate(0, 10, 5000, 6000, 0, dateTimeUnit)  // cross-boundary reset
         );
-        InternalAggregation reduced = rates.get(0).reduce(rates, null);
+        InternalAggregation reduced = InternalAggregationTestCase.reduce(rates, null);
         assertThat(reduced, instanceOf(Rate.class));
         assertThat(((Rate) reduced).getValue(), equalTo(operand));
     }

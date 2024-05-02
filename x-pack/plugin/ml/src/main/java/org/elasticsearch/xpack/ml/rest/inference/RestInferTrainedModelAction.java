@@ -47,7 +47,10 @@ public class RestInferTrainedModelAction extends BaseRestHandler {
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        InferModelAction.Request.Builder request = InferModelAction.Request.parseRequest(modelId, restRequest.contentParser());
+        InferModelAction.Request.Builder request;
+        try (var parser = restRequest.contentParser()) {
+            request = InferModelAction.Request.parseRequest(modelId, parser);
+        }
 
         if (restRequest.hasParam(InferModelAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(

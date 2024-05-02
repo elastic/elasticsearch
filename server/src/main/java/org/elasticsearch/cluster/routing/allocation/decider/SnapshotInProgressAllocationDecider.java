@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -99,6 +100,18 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                 if (Objects.equals(shardRouting.currentNodeId(), shardSnapshotStatus.nodeId()) == false) {
                     // this shard snapshot is allocated to a different node
                     continue;
+                }
+
+                if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                    // this shard snapshot is paused pending the removal of its assigned node
+                    final var nodeShutdown = allocation.metadata().nodeShutdowns().get(shardRouting.currentNodeId());
+                    if (nodeShutdown != null && nodeShutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+                        // NB we check metadata().nodeShutdowns() too because if the node was marked for removal and then that mark was
+                        // removed then the shard can still be PAUSED_FOR_NODE_REMOVAL while there are other shards on the node which
+                        // haven't finished pausing yet. In that case the shard is about to go back into INIT state again, so we should keep
+                        // it where it is.
+                        continue;
+                    }
                 }
 
                 return allocation.decision(

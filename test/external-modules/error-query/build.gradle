@@ -6,6 +6,13 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+
+tasks.named('yamlRestTest').configure {
+  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
+}
+
 esplugin {
   description 'A test module that exposes a way to simulate search shard failures and warnings'
   classname 'org.elasticsearch.test.errorquery.ErrorQueryPlugin'

@@ -95,15 +95,15 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
         return threadPool.absoluteTimeInMillis();
     }
 
-    void runIfNoRecentLeader(Runnable runnable) {
+    void checkLeaderHeartbeatAndRun(Runnable noRecentLeaderRunnable, Consumer<Heartbeat> recentLeaderHeartbeatConsumer) {
         heartbeatStore.readLatestHeartbeat(new ActionListener<>() {
             @Override
             public void onResponse(Heartbeat heartBeat) {
                 if (heartBeat == null
                     || maxTimeSinceLastHeartbeat.millis() <= heartBeat.timeSinceLastHeartbeatInMillis(absoluteTimeInMillis())) {
-                    runnable.run();
+                    noRecentLeaderRunnable.run();
                 } else {
-                    logger.trace("runIfNoRecentLeader: found recent leader [{}]", heartBeat);
+                    recentLeaderHeartbeatConsumer.accept(heartBeat);
                 }
             }
 

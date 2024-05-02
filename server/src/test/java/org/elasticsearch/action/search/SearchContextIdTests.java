@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -64,7 +65,7 @@ public class SearchContextIdTests extends ESTestCase {
                 aliasFilters.put(result.getSearchShardTarget().getShardId().getIndex().getUUID(), aliasFilter);
             }
         }
-        final String id = SearchContextId.encode(queryResults.asList(), aliasFilters, version);
+        final BytesReference id = SearchContextId.encode(queryResults.asList(), aliasFilters, version);
         final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, id);
         assertThat(context.shards().keySet(), hasSize(3));
         assertThat(context.aliasFilter(), equalTo(aliasFilters));
@@ -85,5 +86,11 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(node3.getNode(), equalTo("node_3"));
         assertThat(node3.getSearchContextId().getId(), equalTo(42L));
         assertThat(node3.getSearchContextId().getSessionId(), equalTo("c"));
+
+        final String[] indices = SearchContextId.decodeIndices(id);
+        assertThat(indices.length, equalTo(3));
+        assertThat(indices[0], equalTo("cluster_x:idx"));
+        assertThat(indices[1], equalTo("cluster_y:idy"));
+        assertThat(indices[2], equalTo("idy"));
     }
 }

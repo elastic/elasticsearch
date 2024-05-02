@@ -37,7 +37,7 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
         IndexStats indexStats = indicesStats.getIndex("test-idx");
         long totalSizeInBytes = 0;
         for (ShardStats shard : indexStats.getShards()) {
-            totalSizeInBytes += shard.getStats().getStore().getSizeInBytes();
+            totalSizeInBytes += shard.getStats().getStore().sizeInBytes();
         }
         logger.info("--> total shards size: {} bytes", totalSizeInBytes);
 

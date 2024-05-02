@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -17,10 +18,13 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -30,10 +34,13 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -87,7 +95,31 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            false
+            indexShard::get
+        );
+    }
+
+    public GetResult get(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource,
+        MultiEngineGet mget
+    ) throws IOException {
+        return get(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            forceSyntheticSource,
+            mget::get
         );
     }
 
@@ -101,7 +133,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        boolean translogOnly
+        Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
         try {
@@ -116,7 +148,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 ifPrimaryTerm,
                 fetchSourceContext,
                 forceSyntheticSource,
-                translogOnly
+                engineGetOperator
             );
 
             if (getResult != null && getResult.isExists()) {
@@ -149,7 +181,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            true
+            indexShard::getFromTranslog
         );
     }
 
@@ -164,7 +196,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifPrimaryTerm,
             FetchSourceContext.FETCH_SOURCE,
             false,
-            false
+            indexShard::get
         );
     }
 
@@ -225,14 +257,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        boolean translogOnly
+        Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
         var engineGet = new Engine.Get(realtime, realtime, id).version(version)
             .versionType(versionType)
             .setIfSeqNo(ifSeqNo)
             .setIfPrimaryTerm(ifPrimaryTerm);
-        try (Engine.GetResult get = translogOnly ? indexShard.getFromTranslog(engineGet) : indexShard.get(engineGet)) {
+        try (Engine.GetResult get = engineGetOperator.apply(engineGet)) {
             if (get == null) {
                 return null;
             }
@@ -282,6 +314,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         // put stored fields into result objects
+        final IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
         if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
             Set<String> needed = new HashSet<>();
             if (storedFields != null) {
@@ -294,6 +327,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 if (false == needed.contains(entry.getKey())) {
                     continue;
                 }
+                if (IgnoredFieldMapper.NAME.equals(entry.getKey())
+                    && indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+                    continue;
+                }
                 MappedFieldType ft = mapperService.fieldType(entry.getKey());
                 if (ft == null) {
                     continue;   // user asked for a non-existent field, ignore it
@@ -304,6 +341,21 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 } else {
                     documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
                 }
+            }
+        }
+
+        // NOTE: when _ignored is requested via `stored_fields` we need to load it from doc values instead of loading it from stored fields.
+        // The _ignored field used to be stored, but as a result of supporting aggregations on it, it moved from using a stored field to
+        // using doc values.
+        if (indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+            && storedFields != null
+            && Arrays.asList(storedFields).contains(IgnoredFieldMapper.NAME)) {
+            final DocumentField ignoredDocumentField = loadIgnoredMetadataField(docIdAndVersion);
+            if (ignoredDocumentField != null) {
+                if (metadataFields == null) {
+                    metadataFields = new HashMap<>();
+                }
+                metadataFields.put(IgnoredFieldMapper.NAME, ignoredDocumentField);
             }
         }
 
@@ -329,6 +381,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             documentFields,
             metadataFields
         );
+    }
+
+    private static DocumentField loadIgnoredMetadataField(final DocIdAndVersion docIdAndVersion) throws IOException {
+        final SortedSetDocValues ignoredDocValues = docIdAndVersion.reader.getContext()
+            .reader()
+            .getSortedSetDocValues(IgnoredFieldMapper.NAME);
+        if (ignoredDocValues == null
+            || ignoredDocValues.advanceExact(docIdAndVersion.docId) == false
+            || ignoredDocValues.docValueCount() <= 0) {
+            return null;
+        }
+        final List<Object> ignoredValues = new ArrayList<>(ignoredDocValues.docValueCount());
+        for (int i = 0; i < ignoredDocValues.docValueCount(); i++) {
+            ignoredValues.add(ignoredDocValues.lookupOrd(ignoredDocValues.nextOrd()).utf8ToString());
+        }
+        return new DocumentField(IgnoredFieldMapper.NAME, ignoredValues);
     }
 
     private static StoredFieldLoader buildStoredFieldLoader(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {

@@ -15,10 +15,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
@@ -68,7 +70,7 @@ public class OpenAiEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static TextEmbeddingResults fromResponse(HttpResult response) throws IOException {
+    public static TextEmbeddingResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -94,11 +96,8 @@ public class OpenAiEmbeddingsResponseEntity {
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
 
         List<Float> embeddingValues = XContentParserUtils.parseList(parser, OpenAiEmbeddingsResponseEntity::parseEmbeddingList);
-
-        // the parser is currently sitting at an ARRAY_END so go to the next token
-        parser.nextToken();
-        // if there are additional fields within this object, lets skip them, so we can begin parsing the next embedding array
-        parser.skipChildren();
+        // parse and discard the rest of the object
+        consumeUntilObjectEnd(parser);
 
         return new TextEmbeddingResults.Embedding(embeddingValues);
     }

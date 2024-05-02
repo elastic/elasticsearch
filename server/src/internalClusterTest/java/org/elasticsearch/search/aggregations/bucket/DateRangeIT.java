@@ -762,9 +762,8 @@ public class DateRangeIT extends ESIntegTestCase {
         // providing numeric input without format should throw an exception
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> prepareSearch(indexName).setSize(0)
+            prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000))
-                .get()
         );
         assertThat(e.getDetailedMessage(), containsString("failed to parse date field [1000000] with format [strict_hour_minute_second]"));
     }

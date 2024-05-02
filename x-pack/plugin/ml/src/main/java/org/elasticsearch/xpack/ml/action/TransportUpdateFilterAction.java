@@ -18,15 +18,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -42,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -60,8 +57,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
-        JobManager jobManager,
-        ClusterService clusterService
+        JobManager jobManager
     ) {
         super(
             UpdateFilterAction.NAME,
@@ -167,11 +163,12 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, listener.delegateFailure((l, getDocResponse) -> {
             try {
                 if (getDocResponse.isExists()) {
-                    BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                     try (
-                        InputStream stream = docSource.streamInput();
-                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                            getDocResponse.getSourceAsBytesRef(),
+                            XContentType.JSON
+                        )
                     ) {
                         MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
                         l.onResponse(new FilterWithSeqNo(filter, getDocResponse));

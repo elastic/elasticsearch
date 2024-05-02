@@ -22,8 +22,7 @@ public class RowOperator extends LocalSourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            // We aren't yet ready to use the read block factory
-            return new RowOperator(BlockFactory.getNonBreakingInstance(), objects);
+            return new RowOperator(driverContext.blockFactory(), objects);
         }
 
         @Override

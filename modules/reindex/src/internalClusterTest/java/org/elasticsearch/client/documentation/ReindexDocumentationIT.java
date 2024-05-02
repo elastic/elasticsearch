@@ -9,6 +9,7 @@
 package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
@@ -259,7 +260,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
     /**
      * Similar to what CancelTests does: blocks some operations to be able to catch some tasks in running state
-     * @see CancelTests#testCancel(String, AbstractBulkByScrollRequestBuilder, CancelTests.CancelAssertion, Matcher)
+     * @see CancelTests#testCancel(ActionType, AbstractBulkByScrollRequestBuilder, CancelTests.CancelAssertion, Matcher)
      */
     private ReindexRequestBuilder reindexAndPartiallyBlock() throws Exception {
         final Client client = client();

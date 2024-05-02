@@ -54,6 +54,9 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String ENT_SEARCH_GENERIC_PIPELINE_NAME = "ent-search-generic-ingestion";
     public static final String ENT_SEARCH_GENERIC_PIPELINE_FILE = "generic_ingestion_pipeline";
 
+    public static final String SEARCH_DEFAULT_PIPELINE_NAME = "search-default-ingestion";
+    public static final String SEARCH_DEFAULT_PIPELINE_FILE = "search_default_pipeline";
+
     // Resource config
     public static final String ROOT_RESOURCE_PATH = "/entsearch/";
     public static final String ROOT_TEMPLATE_RESOURCE_PATH = ROOT_RESOURCE_PATH + "connector/";
@@ -98,11 +101,8 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
             )
         )) {
 
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
+                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -116,6 +116,12 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
             new JsonIngestPipelineConfig(
                 ENT_SEARCH_GENERIC_PIPELINE_NAME,
                 ROOT_RESOURCE_PATH + ENT_SEARCH_GENERIC_PIPELINE_FILE + ".json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new JsonIngestPipelineConfig(
+                SEARCH_DEFAULT_PIPELINE_NAME,
+                ROOT_RESOURCE_PATH + SEARCH_DEFAULT_PIPELINE_FILE + ".json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
             )

@@ -43,15 +43,15 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -507,103 +507,67 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             test_2,
             other_0.getTargetRelocatingShard()
         );
-        if (other_0.primary()) {
-            assertEquals(10100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
-            assertEquals(10090L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
-        } else {
-            assertEquals(100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
-            assertEquals(90L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
-        }
+        assertEquals(10100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
+        assertEquals(10090L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
     }
 
     public void testTakesIntoAccountExpectedSizeForInitializingSearchableSnapshots() {
-        String mainIndexName = "test";
-        Index index = new Index(mainIndexName, "1234");
-        String anotherIndexName = "another_index";
-        Index anotherIndex = new Index(anotherIndexName, "5678");
-        Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder(mainIndexName)
-                    .settings(
-                        settings(IndexVersion.current()).put("index.uuid", "1234")
-                            .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
-                    )
-                    .numberOfShards(3)
-                    .numberOfReplicas(1)
-            )
-            .put(
-                IndexMetadata.builder(anotherIndexName)
-                    .settings(settings(IndexVersion.current()).put("index.uuid", "5678"))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-            )
-            .build();
-        String nodeId = "node1";
-        String anotherNodeId = "another_node";
 
-        List<ShardRouting> shards = new ArrayList<>();
-        int anotherNodeShardCounter = 0;
-        int nodeShardCounter = 0;
-        Map<String, Long> initializingShardSizes = new HashMap<>();
-        for (int i = 1; i <= 3; i++) {
-            int expectedSize = 10 * i;
-            shards.add(createShard(index, nodeId, nodeShardCounter++, expectedSize));
-            if (randomBoolean()) {
-                ShardRouting initializingShard = ShardRoutingHelper.initialize(
-                    ShardRouting.newUnassigned(
-                        new ShardId(index, nodeShardCounter++),
-                        true,
-                        EmptyStoreRecoverySource.INSTANCE,
-                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-                        ShardRouting.Role.DEFAULT
-                    ),
-                    nodeId
-                );
-                initializingShardSizes.put(ClusterInfo.shardIdentifierFromRouting(initializingShard), randomLongBetween(10, 50));
-                shards.add(initializingShard);
-            }
-            // randomly add shards for non-searchable snapshot index
-            if (randomBoolean()) {
-                for (int j = 0; j < randomIntBetween(1, 5); j++) {
-                    shards.add(createShard(anotherIndex, anotherNodeId, anotherNodeShardCounter++, expectedSize));
-                }
-            }
+        var searchableSnapshotIndex = IndexMetadata.builder("searchable_snapshot")
+            .settings(indexSettings(IndexVersion.current(), 3, 0).put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE))
+            .build();
+        var regularIndex = IndexMetadata.builder("regular_index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+
+        String nodeId = "node1";
+        var knownShardSizes = new HashMap<String, Long>();
+        long unaccountedSearchableSnapshotSizes = 0;
+        long relocatingShardsSizes = 0;
+
+        var searchableSnapshotIndexRoutingTableBuilder = IndexRoutingTable.builder(searchableSnapshotIndex.getIndex());
+        for (int i = 0; i < searchableSnapshotIndex.getNumberOfShards(); i++) {
+            long expectedSize = randomLongBetween(10, 50);
+            // a searchable snapshot shard without corresponding entry in cluster info
+            ShardRouting startedShardWithExpectedSize = shardRoutingBuilder(
+                new ShardId(searchableSnapshotIndex.getIndex(), i),
+                nodeId,
+                true,
+                ShardRoutingState.STARTED
+            ).withExpectedShardSize(expectedSize).build();
+            searchableSnapshotIndexRoutingTableBuilder.addShard(startedShardWithExpectedSize);
+            unaccountedSearchableSnapshotSizes += expectedSize;
+        }
+        var regularIndexRoutingTableBuilder = IndexRoutingTable.builder(regularIndex.getIndex());
+        for (int i = 0; i < searchableSnapshotIndex.getNumberOfShards(); i++) {
+            var shardSize = randomLongBetween(10, 50);
+            // a shard relocating to this node
+            ShardRouting initializingShard = shardRoutingBuilder(
+                new ShardId(regularIndex.getIndex(), i),
+                nodeId,
+                true,
+                ShardRoutingState.INITIALIZING
+            ).withRecoverySource(PeerRecoverySource.INSTANCE).build();
+            regularIndexRoutingTableBuilder.addShard(initializingShard);
+            knownShardSizes.put(shardIdentifierFromRouting(initializingShard), shardSize);
+            relocatingShardsSizes += shardSize;
         }
 
-        DiscoveryNode node = DiscoveryNodeUtils.builder(nodeId).roles(emptySet()).build();
-        DiscoveryNode anotherNode = DiscoveryNodeUtils.builder(anotherNodeId).roles(emptySet()).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        shards.stream()
-                            .filter(s -> s.getIndexName().equals(mainIndexName))
-                            .reduce(IndexRoutingTable.builder(index), IndexRoutingTable.Builder::addShard, (a, b) -> a)
-                    )
-                    .add(
-                        shards.stream()
-                            .filter(s -> s.getIndexName().equals(anotherIndexName))
-                            .reduce(IndexRoutingTable.builder(anotherIndex), IndexRoutingTable.Builder::addShard, (a, b) -> a)
-                    )
-                    .build()
-            )
-            .nodes(DiscoveryNodes.builder().add(node).add(anotherNode).build())
+            .metadata(Metadata.builder().put(searchableSnapshotIndex, false).put(regularIndex, false))
+            .routingTable(RoutingTable.builder().add(searchableSnapshotIndexRoutingTableBuilder).add(regularIndexRoutingTableBuilder))
+            .nodes(DiscoveryNodes.builder().add(newNode(nodeId)).build())
             .build();
+
         RoutingAllocation allocation = new RoutingAllocation(
             null,
             clusterState,
-            new DevNullClusterInfo(Map.of(), Map.of(), initializingShardSizes),
+            new DevNullClusterInfo(Map.of(), Map.of(), knownShardSizes),
             null,
             0
         );
-        long sizeOfUnaccountedShards = sizeOfUnaccountedShards(
-            allocation,
-            RoutingNodesHelper.routingNode(nodeId, node, shards.toArray(ShardRouting[]::new)),
-            false,
-            "/dev/null"
+        assertEquals(
+            unaccountedSearchableSnapshotSizes + relocatingShardsSizes,
+            sizeOfUnaccountedShards(allocation, clusterState.getRoutingNodes().node(nodeId), false, "/dev/null")
         );
-        assertEquals(60L + initializingShardSizes.values().stream().mapToLong(Long::longValue).sum(), sizeOfUnaccountedShards);
     }
 
     private ShardRouting createShard(Index index, String nodeId, int i, int expectedSize) {
@@ -625,6 +589,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             subtractShardsMovingAway,
             dataPath,
             allocation.clusterInfo(),
+            allocation.snapshotShardSizeInfo(),
             allocation.metadata(),
             allocation.routingTable(),
             allocation.unaccountedSearchableSnapshotSize(node)

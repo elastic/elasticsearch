@@ -11,11 +11,9 @@ import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.NXYSignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -102,10 +100,6 @@ public class PValueScore extends NXYSignificanceHeuristic {
         }
         builder.endObject();
         return builder;
-    }
-
-    public static SignificanceHeuristic parse(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
     }
 
     /**
@@ -200,28 +194,4 @@ public class PValueScore extends NXYSignificanceHeuristic {
         return Math.max(0.05 * value + 0.5, 1.0);
     }
 
-    public static class PValueScoreBuilder extends NXYBuilder {
-        private final long normalizeAbove;
-
-        public PValueScoreBuilder(boolean backgroundIsSuperset, Long normalizeAbove) {
-            super(true, backgroundIsSuperset);
-            this.normalizeAbove = normalizeAbove == null ? 0L : normalizeAbove;
-            if (normalizeAbove != null && normalizeAbove <= 0) {
-                throw new IllegalArgumentException(
-                    "[" + NORMALIZE_ABOVE.getPreferredName() + "] must be a positive value, provided [" + normalizeAbove + "]"
-                );
-            }
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME);
-            builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
-            if (normalizeAbove > 0) {
-                builder.field(NORMALIZE_ABOVE.getPreferredName(), normalizeAbove);
-            }
-            builder.endObject();
-            return builder;
-        }
-    }
 }

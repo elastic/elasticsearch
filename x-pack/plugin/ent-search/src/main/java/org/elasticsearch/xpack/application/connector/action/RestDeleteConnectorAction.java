@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
@@ -18,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteConnectorAction extends BaseRestHandler {
 
     @Override
@@ -32,7 +35,11 @@ public class RestDeleteConnectorAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(restRequest.param("connector_id"));
+
+        String connectorId = restRequest.param("connector_id");
+        boolean shouldDeleteSyncJobs = restRequest.paramAsBoolean("delete_sync_jobs", false);
+
+        DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(connectorId, shouldDeleteSyncJobs);
         return channel -> client.execute(DeleteConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

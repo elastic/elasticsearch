@@ -15,9 +15,10 @@ import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.N
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class PreserveAllAllocationsTests extends ESTestCase {
 
@@ -89,12 +90,12 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2))
                 .assignModelToNode(deployment1, node1, 2)
                 .build();
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 2)));
-            assertThat(plan.assignments(deployment2).isEmpty(), is(true));
+            assertThat(plan.assignments(deployment1), isPresentWith(Map.of(node1, 2)));
+            assertThat(plan.assignments(deployment2), isEmpty());
 
             plan = preserveAllAllocations.mergePreservedAllocations(plan);
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 3)));
-            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node1, 1, node2, 2)));
+            assertThat(plan.assignments(deployment1), isPresentWith(Map.of(node1, 3)));
+            assertThat(plan.assignments(deployment2), isPresentWith(Map.of(node1, 1, node2, 2)));
 
             // Node 1 already had deployments 1 and 2 assigned to it so adding more allocation doesn't change memory usage.
             assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(0L));
@@ -174,12 +175,12 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2))
                 .assignModelToNode(deployment1, node1, 2)
                 .build();
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 2)));
-            assertThat(plan.assignments(deployment2).isEmpty(), is(true));
+            assertThat(plan.assignments(deployment1), isPresentWith(Map.of(node1, 2)));
+            assertThat(plan.assignments(deployment2), isEmpty());
 
             plan = preserveAllAllocations.mergePreservedAllocations(plan);
-            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 3)));
-            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node1, 1, node2, 2)));
+            assertThat(plan.assignments(deployment1), isPresentWith(Map.of(node1, 3)));
+            assertThat(plan.assignments(deployment2), isPresentWith(Map.of(node1, 1, node2, 2)));
 
             // 1000 - ((30 + 300 + 3*10) + (50 + 300 + 10)) = 280 : deployments use 720 MB on the node 1
             assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(ByteSizeValue.ofMb(280).getBytes()));
@@ -198,11 +199,10 @@ public class PreserveAllAllocationsTests extends ESTestCase {
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node), List.of(deployment));
 
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node), List.of(deployment)).build();
-        assertThat(plan.assignments(deployment).isEmpty(), is(true));
+        assertThat(plan.assignments(deployment), isEmpty());
 
         plan = preserveAllAllocations.mergePreservedAllocations(plan);
-        assertThat(plan.assignments(deployment).isPresent(), is(true));
-        assertThat(plan.assignments(deployment).get(), equalTo(Map.of(node, 2)));
+        assertThat(plan.assignments(deployment), isPresentWith(Map.of(node, 2)));
         assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(ByteSizeValue.ofMb(100).getBytes()));
         assertThat(plan.getRemainingNodeCores("n_1"), equalTo(0));
     }

@@ -45,7 +45,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      */
     protected AbstractPipelineAggregationBuilder(StreamInput in, String type) throws IOException {
         this(in.readString(), type, in.readStringArray());
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
     }
 
     @Override

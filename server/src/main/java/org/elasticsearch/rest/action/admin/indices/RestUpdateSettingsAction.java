@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateSettingsAction extends BaseRestHandler {
@@ -42,12 +43,14 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
-        updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
+        updateSettingsRequest.ackTimeout(request.paramAsTime("timeout", updateSettingsRequest.ackTimeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
-        updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
+        updateSettingsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
         updateSettingsRequest.reopen(request.paramAsBoolean("reopen", false));
-        updateSettingsRequest.fromXContent(request.contentParser());
+        try (var parser = request.contentParser()) {
+            updateSettingsRequest.fromXContent(parser);
+        }
 
         return channel -> client.admin().indices().updateSettings(updateSettingsRequest, new RestToXContentListener<>(channel));
     }

@@ -44,13 +44,18 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REMOVE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -505,15 +510,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * The unassigned meta is kept when a shard goes to INITIALIZING, but cleared when it moves to STARTED.
      */
     public void testStateTransitionMetaHandling() {
-        ShardRouting shard = TestShardRouting.newShardRouting(
-            "test",
-            1,
-            null,
-            null,
-            true,
-            ShardRoutingState.UNASSIGNED,
+        ShardRouting shard = shardRoutingBuilder("test", 1, null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-        );
+        ).build();
         assertThat(shard.unassignedInfo(), notNullValue());
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));
@@ -634,7 +633,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         int numberOfShutdowns = randomIntBetween(1, 15);
         for (int i = 0; i <= numberOfShutdowns; i++) {
             final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
-            final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final String targetNodeName = type == REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
             shutdowns = shutdowns.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
@@ -642,11 +641,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setType(type)
                     .setTargetNodeName(targetNodeName)
-                    .setGracePeriod(
-                        type == SingleNodeShutdownMetadata.Type.SIGTERM
-                            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                            : null
-                    )
+                    .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                     .build()
             );
         }
@@ -657,10 +652,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that delay calculation is not impacted when the node the shard was last assigned to was registered for removal.
      */
     public void testRemainingDelayCalculationWhenNodeIsShuttingDownForRemoval() {
-        for (SingleNodeShutdownMetadata.Type type : List.of(
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            SingleNodeShutdownMetadata.Type.SIGTERM
-        )) {
+        for (SingleNodeShutdownMetadata.Type type : List.of(REMOVE, SIGTERM)) {
             String lastNodeId = "bogusNodeId";
             NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()
@@ -668,11 +660,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setType(type)
-                    .setGracePeriod(
-                        type == SingleNodeShutdownMetadata.Type.SIGTERM
-                            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                            : null
-                    )
+                    .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                     .build()
             );
 
@@ -731,9 +719,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         String lastNodeId = "bogusNodeId";
 
         // Generate a random time value - but don't use nanos as extremely small values of nanos can break assertion calculations
-        final TimeValue shutdownDelay = TimeValue.parseTimeValue(
-            randomTimeValue(100, 1000, "d", "h", "ms", "s", "m", "micros"),
-            this.getTestName()
+        final TimeValue shutdownDelay = randomTimeValue(
+            100,
+            1000,
+            randomValueOtherThan(TimeUnit.NANOSECONDS, () -> randomFrom(TimeUnit.values()))
         );
         NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
@@ -748,7 +737,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         // We want an index level delay that's less than the shutdown delay to avoid picking the index-level delay because it's larger
         final TimeValue indexLevelDelay = randomValueOtherThanMany(
             tv -> shutdownDelay.compareTo(tv) < 0,
-            () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m", "micros"), this.getTestName())
+            () -> randomTimeValue(1, 1000, randomValueOtherThan(TimeUnit.NANOSECONDS, () -> randomFrom(TimeUnit.values())))
         );
 
         logger.info("index level delay: {}, shutdown delay: {}", indexLevelDelay, shutdownDelay);

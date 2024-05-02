@@ -130,9 +130,13 @@ final class ModelLoaderUtils {
 
     // visible for testing
     static VocabularyParts parseVocabParts(InputStream vocabInputStream) throws IOException {
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(XContentParserConfiguration.EMPTY, Streams.limitStream(vocabInputStream, VOCABULARY_SIZE_LIMIT.getBytes()));
-        Map<String, List<Object>> vocabParts = sourceParser.map(HashMap::new, XContentParser::list);
+        Map<String, List<Object>> vocabParts;
+        try (
+            XContentParser sourceParser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, Streams.limitStream(vocabInputStream, VOCABULARY_SIZE_LIMIT.getBytes()))
+        ) {
+            vocabParts = sourceParser.map(HashMap::new, XContentParser::list);
+        }
 
         List<String> vocabulary = vocabParts.containsKey(VOCABULARY)
             ? vocabParts.get(VOCABULARY).stream().map(Object::toString).collect(Collectors.toList())

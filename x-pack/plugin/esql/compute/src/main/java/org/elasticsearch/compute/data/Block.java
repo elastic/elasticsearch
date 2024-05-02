@@ -10,8 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -36,6 +38,11 @@ import java.util.List;
  * the same block at the same time.
  */
 public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, RefCounted, Releasable {
+    /**
+     * The maximum number of values that can be added to one position via lookup.
+     * TODO maybe make this everywhere?
+     */
+    long MAX_LOOKUP = 100_000;
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -107,13 +114,39 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean mayHaveMultivaluedFields();
 
     /**
-     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
-     * The new block may hold a reference to this block, increasing this block's reference count.
+     * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
      * TODO: pass BlockFactory
      */
     Block filter(int... positions);
+
+    /**
+     * Builds an Iterator of new {@link Block}s with the same {@link #elementType}
+     * as this Block whose values are copied from positions in this Block. It has the
+     * same number of {@link #getPositionCount() positions} as the {@code positions}
+     * parameter.
+     * <p>
+     *     For example, this this block contained {@code [a, b, [b, c]]}
+     *     and were called with the block {@code [0, 1, 1, [1, 2]]} then the
+     *     result would be {@code [a, b, b, [b, b, c]]}.
+     * </p>
+     * <p>
+     *     This process produces {@code count(this) * count(positions)} values per
+     *     positions which could be quite quite large. Instead of returning a single
+     *     Block, this returns an Iterator of Blocks containing all of the promised
+     *     values.
+     * </p>
+     * <p>
+     *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
+     *     inside the {@link Page}. Close it to release those references.
+     * </p>
+     * <p>
+     *     This block is built using the same {@link BlockFactory} as was used to
+     *     build the {@code positions} parameter.
+     * </p>
+     */
+    ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * How are multivalued fields ordered?
@@ -122,7 +155,8 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     enum MvOrdering {
         UNORDERED(false, false),
         DEDUPLICATED_UNORDERD(true, false),
-        DEDUPLICATED_AND_SORTED_ASCENDING(true, true);
+        DEDUPLICATED_AND_SORTED_ASCENDING(true, true),
+        SORTED_ASCENDING(false, true);
 
         private final boolean deduplicated;
         private final boolean sortedAscending;
@@ -160,25 +194,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantNullBlock}
-     */
-    // Eventually, this should use the GLOBAL breaking instance
-    @Deprecated
-    static Block constantNullBlock(int positions) {
-        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * {@return a constant null block with the given number of positions}.
-     * @deprecated use {@link BlockFactory#newConstantNullBlock}
-     */
-    @Deprecated
-    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantNullBlock(positions);
-    }
-
-    /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
@@ -204,12 +219,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         Builder endPositionEntry();
 
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          */
@@ -224,6 +233,13 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
          * at runtime.
          */
         Builder mvOrdering(Block.MvOrdering mvOrdering);
+
+        /**
+         * An estimate of the number of bytes the {@link Block} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
+         */
+        long estimatedBytes();
 
         /**
          * Builds the block. This method can be called multiple times.
@@ -259,4 +275,13 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             ConstantNullBlock.ENTRY
         );
     }
+
+    /**
+     * Serialization type for blocks: 0 and 1 replace false/true used in pre-8.14
+     */
+    byte SERIALIZE_BLOCK_VALUES = 0;
+    byte SERIALIZE_BLOCK_VECTOR = 1;
+    byte SERIALIZE_BLOCK_ARRAY = 2;
+    byte SERIALIZE_BLOCK_BIG_ARRAY = 3;
+    byte SERIALIZE_BLOCK_ORDINAL = 3;
 }

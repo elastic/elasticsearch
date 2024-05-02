@@ -204,7 +204,9 @@ public class StableApiWrappers {
                     }
                     return (T) constructor.newInstance(parameters);
                 } else {
-                    throw new IllegalStateException("Missing @Inject annotation for constructor with settings.");
+                    throw new IllegalStateException(
+                        "Missing @" + Inject.class.getCanonicalName() + " annotation for constructor with settings."
+                    );
                 }
             }
 

@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 
 public class IndicesStoreTests extends ESTestCase {
     private static final ShardRoutingState[] NOT_STARTED_STATES;
@@ -66,7 +67,9 @@ public class IndicesStoreTests extends ESTestCase {
             String currentNodeId = state == ShardRoutingState.UNASSIGNED ? null : randomAlphaOfLength(10);
             String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAlphaOfLength(10) : null;
             routingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, currentNodeId, relocatingNodeId, j == 0, state, unassignedInfo)
+                shardRoutingBuilder(shardId, currentNodeId, j == 0, state).withRelocatingNodeId(relocatingNodeId)
+                    .withUnassignedInfo(unassignedInfo)
+                    .build()
             );
         }
         assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));

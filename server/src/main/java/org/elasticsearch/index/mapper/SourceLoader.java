@@ -17,9 +17,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -79,12 +82,16 @@ public interface SourceLoader {
      * Load {@code _source} from doc values.
      */
     class Synthetic implements SourceLoader {
-        private final SyntheticFieldLoader loader;
-        private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
+        private final Supplier<SyntheticFieldLoader> syntheticFieldLoaderLeafSupplier;
+        private final Set<String> requiredStoredFields;
 
         public Synthetic(Mapping mapping) {
-            loader = mapping.syntheticFieldLoader();
-            storedFieldLoaders = Map.copyOf(loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            this.syntheticFieldLoaderLeafSupplier = mapping::syntheticFieldLoader;
+            this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
+                .storedFieldLoaders()
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+            this.requiredStoredFields.add(IgnoredSourceFieldMapper.NAME);
         }
 
         @Override
@@ -94,28 +101,50 @@ public interface SourceLoader {
 
         @Override
         public Set<String> requiredStoredFields() {
-            return storedFieldLoaders.keySet();
+            return requiredStoredFields;
         }
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return new SyntheticLeaf(loader.docValuesLoader(reader, docIdsInLeaf));
+            SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
+            return new SyntheticLeaf(loader, loader.docValuesLoader(reader, docIdsInLeaf));
         }
 
-        private class SyntheticLeaf implements Leaf {
+        private static class SyntheticLeaf implements Leaf {
+            private final SyntheticFieldLoader loader;
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
+            private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
 
-            private SyntheticLeaf(SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+            private SyntheticLeaf(SyntheticFieldLoader loader, SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+                this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
+                this.storedFieldLoaders = Map.copyOf(
+                    loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                );
             }
 
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
+                // Maps the names of existing objects to lists of ignored fields they contain.
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
+
                 for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
                     SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
                     if (loader != null) {
                         loader.load(e.getValue());
                     }
+                    if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
+                        for (Object value : e.getValue()) {
+                            if (objectsWithIgnoredFields == null) {
+                                objectsWithIgnoredFields = new HashMap<>();
+                            }
+                            IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
+                        }
+                    }
+                }
+                if (objectsWithIgnoredFields != null) {
+                    loader.setIgnoredValues(objectsWithIgnoredFields);
                 }
                 if (docValuesLoader != null) {
                     docValuesLoader.advanceToDoc(docId);
@@ -212,6 +241,10 @@ public interface SourceLoader {
          * Write values for this document.
          */
         void write(XContentBuilder b) throws IOException;
+
+        default boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            return false;
+        }
 
         /**
          * Sync for stored field values.

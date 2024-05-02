@@ -9,12 +9,10 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -35,10 +33,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final MockLogAppender mockLogAppender = new MockLogAppender();
 
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
-
+        try (var ignored = mockLogAppender.capturing(SnapshotsService.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "[does-not-exist]",
@@ -68,7 +63,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
             final SnapshotMissingException e = expectThrows(
                 SnapshotMissingException.class,
-                () -> startDeleteSnapshot("test-repo", "does-not-exist").actionGet()
+                startDeleteSnapshot("test-repo", "does-not-exist")
             );
             assertThat(e.getMessage(), containsString("[test-repo:does-not-exist] is missing"));
             assertThat(startDeleteSnapshot("test-repo", "test-snapshot").actionGet().isAcknowledged(), is(true));
@@ -76,8 +71,6 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             awaitNoMoreRunningOperations(); // ensure background file deletion is completed
             mockLogAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
-            mockLogAppender.stop();
             deleteRepository("test-repo");
         }
     }
@@ -89,9 +82,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final MockLogAppender mockLogAppender = new MockLogAppender();
 
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
+        try (var ignored = mockLogAppender.capturing(SnapshotsService.class)) {
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
@@ -106,7 +97,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 // Failure when listing root blobs
                 final MockRepository mockRepository = getRepositoryOnMaster("test-repo");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
-                final Exception e = expectThrows(Exception.class, () -> startDeleteSnapshot("test-repo", "test-snapshot").actionGet());
+                final Exception e = expectThrows(Exception.class, startDeleteSnapshot("test-repo", "test-snapshot"));
                 assertThat(e.getCause().getMessage(), containsString("Random IOException"));
             } else {
                 // Failure when finalizing on index-N file
@@ -115,14 +106,12 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 deleteFuture = startDeleteSnapshot("test-repo", "test-snapshot");
                 waitForBlock(internalCluster().getMasterName(), "test-repo");
                 unblockNode("test-repo", internalCluster().getMasterName());
-                final Exception e = expectThrows(Exception.class, deleteFuture::actionGet);
+                final Exception e = expectThrows(Exception.class, deleteFuture);
                 assertThat(e.getCause().getMessage(), containsString("exception after block"));
             }
 
             mockLogAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);
-            mockLogAppender.stop();
             deleteRepository("test-repo");
         }
     }

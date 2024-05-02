@@ -17,8 +17,8 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -112,7 +112,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
-@SuppressWarnings("removal")
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
@@ -199,7 +198,7 @@ public class CCSDuelIT extends ESRestTestCase {
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 
-        RefreshResponse refreshResponse = refresh(INDEX_NAME);
+        BroadcastResponse refreshResponse = refresh(INDEX_NAME);
         ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 

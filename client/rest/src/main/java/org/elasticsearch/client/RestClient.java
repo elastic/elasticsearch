@@ -159,10 +159,10 @@ public class RestClient implements Closeable {
     public static RestClientBuilder builder(String cloudId) {
         // there is an optional first portion of the cloudId that is a human readable string, but it is not used.
         if (cloudId.contains(":")) {
-            if (cloudId.indexOf(":") == cloudId.length() - 1) {
+            if (cloudId.indexOf(':') == cloudId.length() - 1) {
                 throw new IllegalStateException("cloudId " + cloudId + " must begin with a human readable identifier followed by a colon");
             }
-            cloudId = cloudId.substring(cloudId.indexOf(":") + 1);
+            cloudId = cloudId.substring(cloudId.indexOf(':') + 1);
         }
 
         String decoded = new String(Base64.getDecoder().decode(cloudId), UTF_8);

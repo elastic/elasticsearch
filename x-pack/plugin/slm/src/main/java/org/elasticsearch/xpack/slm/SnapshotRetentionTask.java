@@ -184,8 +184,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         ActionListener<Map<String, List<Tuple<SnapshotId, String>>>> listener
     ) {
         client.execute(
-            SLMGetExpiredSnapshotsAction.INSTANCE,
-            new SLMGetExpiredSnapshotsAction.Request(repositories, policies),
+            TransportSLMGetExpiredSnapshotsAction.INSTANCE,
+            new TransportSLMGetExpiredSnapshotsAction.Request(repositories, policies),
             listener.delegateFailureAndWrap((l, m) -> l.onResponse(m.snapshotsToDelete()))
         );
     }

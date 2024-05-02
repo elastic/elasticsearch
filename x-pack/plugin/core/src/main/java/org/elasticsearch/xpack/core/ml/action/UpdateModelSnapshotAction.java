@@ -32,7 +32,7 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";
 
     private UpdateModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

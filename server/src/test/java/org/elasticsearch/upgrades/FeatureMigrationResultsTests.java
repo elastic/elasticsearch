@@ -8,16 +8,63 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+
+    private static final ConstructingObjectParser<SingleFeatureMigrationResult, Void> SINGLE_FEATURE_RESULT_PARSER =
+        new ConstructingObjectParser<>(
+            "feature_migration_status",
+            a -> new SingleFeatureMigrationResult((boolean) a[0], (String) a[1], (Exception) a[2])
+        );
+
+    static {
+        SINGLE_FEATURE_RESULT_PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SingleFeatureMigrationResult.SUCCESS_FIELD);
+        SINGLE_FEATURE_RESULT_PARSER.declareString(
+            ConstructingObjectParser.optionalConstructorArg(),
+            SingleFeatureMigrationResult.FAILED_INDEX_NAME_FIELD
+        );
+        SINGLE_FEATURE_RESULT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            SingleFeatureMigrationResult.EXCEPTION_FIELD
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<FeatureMigrationResults, Void> PARSER = new ConstructingObjectParser<>(
+        FeatureMigrationResults.TYPE,
+        a -> {
+            final Map<String, SingleFeatureMigrationResult> statuses = ((List<Tuple<String, SingleFeatureMigrationResult>>) a[0]).stream()
+                .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+            return new FeatureMigrationResults(statuses);
+        }
+    );
+
+    static {
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> new Tuple<>(n, SINGLE_FEATURE_RESULT_PARSER.apply(p, c)),
+            v -> {
+                throw new IllegalArgumentException(
+                    "ordered " + FeatureMigrationResults.RESULTS_FIELD.getPreferredName() + " are not supported"
+                );
+            },
+            FeatureMigrationResults.RESULTS_FIELD
+        );
+    }
 
     @Override
     protected FeatureMigrationResults createTestInstance() {
@@ -60,7 +107,7 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
 
     @Override
     protected FeatureMigrationResults doParseInstance(XContentParser parser) throws IOException {
-        return FeatureMigrationResults.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

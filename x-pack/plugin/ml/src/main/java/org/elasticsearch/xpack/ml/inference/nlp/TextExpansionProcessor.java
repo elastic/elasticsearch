@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -37,7 +38,7 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         Map<Integer, String> sanitized = new HashMap<>();
         for (int i = 0; i < inputVocab.size(); i++) {
             if (inputVocab.get(i).contains(".")) {
-                sanitized.put(i, inputVocab.get(i).replaceAll("\\.", "__"));
+                sanitized.put(i, inputVocab.get(i).replace(".", "__"));
             }
         }
         return sanitized;
@@ -53,46 +54,50 @@ public class TextExpansionProcessor extends NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        return (tokenization, pyTorchResult) -> processResult(tokenization, pyTorchResult, replacementVocab, config.getResultsField());
+        return (tokenization, pyTorchResult, chunkResults) -> processResult(
+            tokenization,
+            pyTorchResult,
+            replacementVocab,
+            config.getResultsField(),
+            chunkResults
+        );
     }
 
     static InferenceResults processResult(
         TokenizationResult tokenization,
         PyTorchInferenceResult pyTorchResult,
         Map<Integer, String> replacementVocab,
-        String resultsField
+        String resultsField,
+        boolean chunkResults
     ) {
-        List<TextExpansionResults.WeightedToken> weightedTokens;
-        if (pyTorchResult.getInferenceResult()[0].length == 1) {
-            weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][0], tokenization, replacementVocab);
-        } else {
-            weightedTokens = multipleSparseVectorsToTokenWeights(pyTorchResult.getInferenceResult()[0], tokenization, replacementVocab);
-        }
+        if (chunkResults) {
+            var chunkedResults = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
 
-        weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
+            for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
+                int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
+                int lastIndex = tokenization.getTokenization(i).tokens().get(0).size() - 1;
+                int endOffset = tokenization.getTokenization(i).tokens().get(0).get(lastIndex).endOffset();
+                String matchedText = tokenization.getTokenization(i).input().get(0).substring(startOffset, endOffset);
 
-        return new TextExpansionResults(
-            Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
-            weightedTokens,
-            tokenization.anyTruncated()
-        );
-    }
-
-    static List<TextExpansionResults.WeightedToken> multipleSparseVectorsToTokenWeights(
-        double[][] vector,
-        TokenizationResult tokenization,
-        Map<Integer, String> replacementVocab
-    ) {
-        // reduce to a single 1d array choosing the max value
-        // in each column and placing that in the first row
-        for (int i = 1; i < vector.length; i++) {
-            for (int tokenId = 0; tokenId < vector[i].length; tokenId++) {
-                if (vector[i][tokenId] > vector[0][tokenId]) {
-                    vector[0][tokenId] = vector[i][tokenId];
-                }
+                var weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][i], tokenization, replacementVocab);
+                weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
+                chunkedResults.add(new ChunkedTextExpansionResults.ChunkedResult(matchedText, weightedTokens));
             }
+
+            return new ChunkedTextExpansionResults(
+                Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
+                chunkedResults,
+                tokenization.anyTruncated()
+            );
+        } else {
+            var weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][0], tokenization, replacementVocab);
+            weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
+            return new TextExpansionResults(
+                Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
+                weightedTokens,
+                tokenization.anyTruncated()
+            );
         }
-        return sparseVectorToTokenWeights(vector[0], tokenization, replacementVocab);
     }
 
     static List<TextExpansionResults.WeightedToken> sparseVectorToTokenWeights(

@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -318,21 +319,17 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
     }
 
     private long numberOfEntriesInCache() {
-        var res = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .setTrackTotalHits(true)
-            .setSize(0)
-            .get();
-        try {
-            return res.getHits().getTotalHits().value;
-        } finally {
-            res.decRef();
-        }
+        return SearchResponseUtils.getTotalHitsValue(
+            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .setTrackTotalHits(true)
+                .setSize(0)
+        );
     }
 
     private void refreshSystemIndex(boolean failIfNotExist) {
         try {
-            final RefreshResponse refreshResponse = systemClient().admin()
+            final BroadcastResponse refreshResponse = systemClient().admin()
                 .indices()
                 .prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setIndicesOptions(failIfNotExist ? RefreshRequest.DEFAULT_INDICES_OPTIONS : IndicesOptions.LENIENT_EXPAND_OPEN)

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
@@ -133,6 +135,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamFactoryRetention.emptyFactoryRetention()
+    );
 
     @Before
     public void setupServices() {
@@ -178,7 +183,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -283,20 +289,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder(clusterState.metadata());
         DataStream dataStream = builder.dataStream(dataStreamName);
         builder.put(
-            new DataStream(
-                dataStreamName,
-                dataStream.getIndices(),
-                dataStream.getGeneration() + 1,
-                dataStream.getMetadata(),
-                dataStream.isHidden(),
-                dataStream.isReplicated(),
-                dataStream.isSystem(),
-                dataStream.isAllowCustomRouting(),
-                dataStream.getIndexMode(),
-                DataStreamLifecycle.newBuilder().dataRetention(0L).build(),
-                dataStream.isFailureStore(),
-                dataStream.getFailureIndices()
-            )
+            dataStream.copy()
+                .setName(dataStreamName)
+                .setGeneration(dataStream.getGeneration() + 1)
+                .setLifecycle(DataStreamLifecycle.newBuilder().dataRetention(0L).build())
+                .build()
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
 
@@ -578,7 +575,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         // We want this test method to get fake force merge responses, because this is what triggers a cluster state update
         clientDelegate = (action, request, listener) -> {
             if (action.name().equals("indices:admin/forcemerge")) {
-                listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
+                listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
             }
         };
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -748,7 +745,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
                     listener.onResponse(
-                        new ForceMergeResponse(
+                        new BroadcastResponse(
                             5,
                             5,
                             1,
@@ -779,7 +776,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
-                    listener.onResponse(new ForceMergeResponse(5, 4, 0, List.of()));
+                    listener.onResponse(new BroadcastResponse(5, 4, 0, List.of()));
                     forceMergeFailedCount.incrementAndGet();
                 }
             };
@@ -800,7 +797,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             // For the final data stream lifecycle run, we let forcemerge run normally
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
-                    listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
+                    listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
                 }
             };
             dataStreamLifecycleService.run(clusterService.state());
@@ -900,7 +897,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         setState(clusterService, state);
         clientDelegate = (action, request, listener) -> {
             if (action.name().equals("indices:admin/forcemerge")) {
-                listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
+                listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
             }
         };
         for (int i = 0; i < 100; i++) {
@@ -1410,7 +1407,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));
@@ -1507,7 +1505,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
         return RolloverConditions.newBuilder()

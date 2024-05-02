@@ -8,6 +8,8 @@
 
 package org.elasticsearch.http;
 
+import io.netty.handler.codec.http.HttpMethod;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -18,6 +20,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
 import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.test.XContentTestUtils.createJsonMapView;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,7 +112,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         importRequest.addParameter("accept_data_loss", "true");
         // Ensure this parameter is accepted
         importRequest.addParameter("timeout", "20s");
-        importRequest.addParameter("master_timeout", "20s");
+        importRequest.addParameter(REST_MASTER_TIMEOUT_PARAM, "20s");
         final Response importResponse = restClient.performRequest(importRequest);
         assertThat(importResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
 
@@ -144,7 +148,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         deleteRequest.addParameter("accept_data_loss", "true");
         // Ensure these parameters is accepted
         deleteRequest.addParameter("timeout", "20s");
-        deleteRequest.addParameter("master_timeout", "20s");
+        deleteRequest.addParameter(REST_MASTER_TIMEOUT_PARAM, "20s");
         final Response deleteResponse = restClient.performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
 
@@ -213,22 +217,12 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assert indices.length > 0;
 
         for (String index : indices) {
-            String indexSettings = """
-                {
-                  "settings": {
-                    "index": {
-                      "number_of_shards": 1,
-                      "number_of_replicas": 2,
-                      "routing": {
-                        "allocation": {
-                          "total_shards_per_node": 1
-                        }
-                      }
-                    }
-                  }
-                }""";
-            Request request = new Request("PUT", "/" + index);
-            request.setJsonEntity(indexSettings);
+            final var request = ESRestTestCase.newXContentRequest(HttpMethod.PUT, "/" + index, (builder, params) -> {
+                builder.startObject("settings").startObject("index");
+                builder.field("number_of_shards", 1).field("number_of_replicas", 2);
+                builder.startObject("routing").startObject("allocation").field("total_shards_per_node", 1).endObject().endObject();
+                return builder.endObject().endObject();
+            });
             assertOK(getRestClient().performRequest(request));
         }
         ensureGreen(indices);

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.basic;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -55,7 +55,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
             createIndex("test");
         }
         prepareIndex("test").setId(id).setSource("field", "test").get();
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
+        BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
         // at least one shard should be successful when refreshing
         assertThat(refreshResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 

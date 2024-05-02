@@ -9,9 +9,10 @@
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,7 +36,15 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
-            assertThat(clusterAdmin().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId(), nullValue());
+            assertThat(
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getState()
+                    .nodes()
+                    .getMasterNodeId(),
+                nullValue()
+            );
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
@@ -56,7 +65,15 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().stopCurrentMasterNode();
 
         try {
-            assertThat(clusterAdmin().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId(), nullValue());
+            assertThat(
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getState()
+                    .nodes()
+                    .getMasterNodeId(),
+                nullValue()
+            );
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
@@ -81,7 +98,15 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
-            assertThat(clusterAdmin().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId(), nullValue());
+            assertThat(
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getState()
+                    .nodes()
+                    .getMasterNodeId(),
+                nullValue()
+            );
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
@@ -104,16 +129,12 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             equalTo(masterNodeName)
         );
         assertThat(
-            internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
-            equalTo(masterNodeName)
-        );
-        assertThat(
             internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );
 
         logger.info("--> closing master node (1)");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
+        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
         // removing the master from the voting configuration immediately triggers the master to step down
         assertBusy(() -> {
             assertThat(

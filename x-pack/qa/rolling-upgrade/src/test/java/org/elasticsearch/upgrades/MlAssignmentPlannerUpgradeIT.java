@@ -16,6 +16,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (isOriginalClusterVersionAtLeast(Version.V_8_11_0)) {
+                if (clusterHasFeature(RestTestLegacyFeatures.ML_NEW_MEMORY_FORMAT)) {
                     assertNewMemoryFormat("new_memory_format");
                 } else {
                     assertOldMemoryFormat("new_memory_format");
@@ -102,7 +103,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (isOriginalClusterVersionAtLeast(Version.V_8_11_0)) {
+                if (clusterHasFeature(RestTestLegacyFeatures.ML_NEW_MEMORY_FORMAT)) {
                     assertNewMemoryFormat("new_memory_format");
                 } else {
                     assertOldMemoryFormat("new_memory_format");
@@ -141,7 +142,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
         // There was a change in the MEMORY_OVERHEAD value in 8.3.0, see #86416
-        long memoryOverheadMb = Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_8_2_1) ? 240 : 270;
+        long memoryOverheadMb = clusterHasFeature(RestTestLegacyFeatures.ML_MEMORY_OVERHEAD_FIXED) ? 240 : 270;
         var response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.connector.configuration;
 import java.util.Locale;
 
 public enum ConfigurationDisplayType {
+    TEXT,
     TEXTBOX,
     TEXTAREA,
     NUMERIC,
@@ -27,6 +28,6 @@ public enum ConfigurationDisplayType {
                 return displayType;
             }
         }
-        throw new IllegalArgumentException("Unknown DisplayType: " + type);
+        throw new IllegalArgumentException("Unknown " + ConfigurationDisplayType.class.getSimpleName() + " [" + type + "].");
     }
 }

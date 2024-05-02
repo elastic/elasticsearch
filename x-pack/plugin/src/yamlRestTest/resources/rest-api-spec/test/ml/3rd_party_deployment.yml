@@ -218,10 +218,6 @@ setup:
 
 ---
 "Test start deployment fails while model download in progress":
-  - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/103153"
-
   - do:
       ml.put_trained_model:
         model_id: .elser_model_2
@@ -231,10 +227,13 @@ setup:
           	"field_names": ["text_field"]
             }
           }
+  # Set a low timeout so the test doesn't actually wait
+  # for the model download to complete
   - do:
       catch: /Model download task is currently running\. Wait for trained model \[.elser_model_2\] download task to complete then try again/
       ml.start_trained_model_deployment:
         model_id: .elser_model_2
+        timeout: 1s
   - do:
       ml.delete_trained_model:
         model_id: .elser_model_2
@@ -689,7 +688,7 @@ setup:
   - match: { assignment.assignment_state: started }
 
   - do:
-      catch: /Cannot create model \[test_model_deployment\] the id is the same as an current model deployment/
+      catch: /Cannot create model \[test_model_deployment\] the model id is the same as the deployment id of a current model deployment/
       ml.put_trained_model:
         model_id: test_model_deployment
         body: >

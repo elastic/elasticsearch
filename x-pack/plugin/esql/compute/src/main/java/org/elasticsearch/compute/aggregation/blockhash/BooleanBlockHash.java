@@ -7,20 +7,22 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
+import org.elasticsearch.core.ReleasableIterator;
 
-import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
-import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.NULL_ORD;
-import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.TRUE_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
+import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
 
 /**
  * Maps a {@link BooleanBlock} column to group ids. Assigns group
@@ -30,8 +32,8 @@ final class BooleanBlockHash extends BlockHash {
     private final int channel;
     private final boolean[] everSeen = new boolean[TRUE_ORD + 1];
 
-    BooleanBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    BooleanBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
     }
 
@@ -51,8 +53,8 @@ final class BooleanBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntBlock groupIds = add(booleanVector).asBlock()) {
-                    addInput.add(0, groupIds.asVector());
+                try (IntVector groupIds = add(booleanVector)) {
+                    addInput.add(0, groupIds);
                 }
             }
         }
@@ -70,6 +72,40 @@ final class BooleanBlockHash extends BlockHash {
 
     private IntBlock add(BooleanBlock block) {
         return new MultivalueDedupeBoolean(block).hash(blockFactory, everSeen);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
+        }
+        BooleanBlock castBlock = page.getBlock(channel);
+        BooleanVector vector = castBlock.asVector();
+        if (vector == null) {
+            return ReleasableIterator.single(lookup(castBlock));
+        }
+        return ReleasableIterator.single(lookup(vector));
+    }
+
+    private IntBlock lookup(BooleanVector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                boolean v = vector.getBoolean(i);
+                int ord = v ? TRUE_ORD : FALSE_ORD;
+                if (everSeen[ord]) {
+                    builder.appendInt(ord);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup(BooleanBlock block) {
+        return new MultivalueDedupeBoolean(block).hash(blockFactory, new boolean[TRUE_ORD + 1]);
     }
 
     @Override
@@ -100,6 +136,7 @@ final class BooleanBlockHash extends BlockHash {
         }
     }
 
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         BitArray seen = new BitArray(everSeen.length, bigArrays);
         for (int i = 0; i < everSeen.length; i++) {

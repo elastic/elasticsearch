@@ -10,9 +10,9 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -64,7 +64,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 );
             }
         } else {
-            expectThrows(RepositoryException.class, responseFuture::actionGet);
+            expectThrows(RepositoryException.class, responseFuture);
         }
 
         disableRepoConsistencyCheck("This test checks an empty repository");
@@ -346,7 +346,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
         }
 
-        client().execute(GetShardSnapshotAction.INSTANCE, request, future);
+        client().execute(TransportGetShardSnapshotAction.TYPE, request, future);
         return future;
     }
 }

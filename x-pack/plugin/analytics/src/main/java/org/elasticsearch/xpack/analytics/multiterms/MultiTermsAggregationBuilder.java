@@ -189,13 +189,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         return this;
     }
 
-    /**
-     * Gets the field to use for this aggregation.
-     */
-    public List<MultiValuesSourceFieldConfig> terms() {
-        return terms;
-    }
-
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MultiTermsAggregationBuilder(this, factoriesBuilder, metadata);
@@ -213,13 +206,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         out.writeOptionalWriteable(collectMode);
         bucketCountThresholds.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-    }
-
-    /**
-     * Get whether doc count error will be return for individual terms
-     */
-    public boolean showTermDocCountError() {
-        return showTermDocCountError;
     }
 
     /**
@@ -243,13 +229,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     /**
-     * Returns the number of term buckets currently configured
-     */
-    public int size() {
-        return bucketCountThresholds.getRequiredSize();
-    }
-
-    /**
      * Sets the shard_size - indicating the number of term buckets each shard
      * will return to the coordinating node (the node that coordinates the
      * search execution). The higher the shard size is, the more accurate the
@@ -261,13 +240,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         }
         bucketCountThresholds.setShardSize(shardSize);
         return this;
-    }
-
-    /**
-     * Returns the number of term buckets per shard that are currently configured
-     */
-    public int shardSize() {
-        return bucketCountThresholds.getShardSize();
     }
 
     /**
@@ -285,13 +257,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     /**
-     * Returns the minimum document count required per term
-     */
-    public long minDocCount() {
-        return bucketCountThresholds.getMinDocCount();
-    }
-
-    /**
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */
@@ -303,13 +268,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
-    }
-
-    /**
-     * Returns the minimum document count required per term, per shard
-     */
-    public long shardMinDocCount() {
-        return bucketCountThresholds.getShardMinDocCount();
     }
 
     /**
@@ -342,13 +300,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     /**
-     * Gets the order in which the buckets will be returned.
-     */
-    public BucketOrder order() {
-        return order;
-    }
-
-    /**
      * Expert: set the collection mode.
      */
     public MultiTermsAggregationBuilder collectMode(Aggregator.SubAggCollectionMode collectMode) {
@@ -357,13 +308,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         }
         this.collectMode = collectMode;
         return this;
-    }
-
-    /**
-     * Expert: get the collection mode.
-     */
-    public Aggregator.SubAggCollectionMode collectMode() {
-        return collectMode;
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -196,57 +197,85 @@ public class FilteredBlockTests extends ESTestCase {
     public void testFilterToStringSimple() {
         BitSet nulls = BitSet.valueOf(new byte[] { 0x08 });  // any non-empty bitset, that does not affect the filter, should suffice
 
-        var boolVector = new BooleanArrayVector(new boolean[] { true, false, false, true }, 4);
-        var boolBlock = new BooleanArrayBlock(
+        var boolVector = blockFactory.newBooleanArrayVector(new boolean[] { true, false, false, true }, 4);
+        var boolBlock = blockFactory.newBooleanArrayBlock(
             new boolean[] { true, false, false, true },
             4,
             null,
             nulls,
             randomFrom(Block.MvOrdering.values())
         );
-        for (Object obj : List.of(boolVector.filter(0, 2), boolVector.asBlock().filter(0, 2), boolBlock.filter(0, 2))) {
+        for (Releasable obj : List.of(boolVector.filter(0, 2), boolVector.asBlock().filter(0, 2), boolBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[true, false]"));
             assertThat(s, containsString("positions=2"));
+            Releasables.close(obj);
         }
+        Releasables.close(boolVector, boolBlock);
 
-        var intVector = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4);
-        var intBlock = new IntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
-        for (Object obj : List.of(intVector.filter(0, 2), intVector.asBlock().filter(0, 2), intBlock.filter(0, 2))) {
+        var intVector = blockFactory.newIntArrayVector(new int[] { 10, 20, 30, 40 }, 4);
+        var intBlock = blockFactory.newIntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
+        for (Releasable obj : List.of(intVector.filter(0, 2), intVector.asBlock().filter(0, 2), intBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[10, 30]"));
             assertThat(s, containsString("positions=2"));
+            Releasables.close(obj);
         }
+        Releasables.close(intVector, intBlock);
 
-        var longVector = new LongArrayVector(new long[] { 100L, 200L, 300L, 400L }, 4);
-        var longBlock = new LongArrayBlock(new long[] { 100L, 200L, 300L, 400L }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
-        for (Object obj : List.of(longVector.filter(0, 2), longVector.asBlock().filter(0, 2), longBlock.filter(0, 2))) {
+        var longVector = blockFactory.newLongArrayVector(new long[] { 100L, 200L, 300L, 400L }, 4);
+        var longBlock = blockFactory.newLongArrayBlock(
+            new long[] { 100L, 200L, 300L, 400L },
+            4,
+            null,
+            nulls,
+            randomFrom(Block.MvOrdering.values())
+        );
+        for (Releasable obj : List.of(longVector.filter(0, 2), longVector.asBlock().filter(0, 2), longBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[100, 300]"));
             assertThat(s, containsString("positions=2"));
+            Releasables.close(obj);
         }
 
-        var doubleVector = new DoubleArrayVector(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4);
-        var doubleBlock = new DoubleArrayBlock(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
-        for (Object obj : List.of(doubleVector.filter(0, 2), doubleVector.asBlock().filter(0, 2), doubleBlock.filter(0, 2))) {
+        Releasables.close(longVector, longBlock);
+
+        var doubleVector = blockFactory.newDoubleArrayVector(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4);
+        var doubleBlock = blockFactory.newDoubleArrayBlock(
+            new double[] { 1.1, 2.2, 3.3, 4.4 },
+            4,
+            null,
+            nulls,
+            randomFrom(Block.MvOrdering.values())
+        );
+        for (Releasable obj : List.of(doubleVector.filter(0, 2), doubleVector.asBlock().filter(0, 2), doubleBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[1.1, 3.3]"));
             assertThat(s, containsString("positions=2"));
+            Releasables.close(obj);
         }
 
+        Releasables.close(doubleVector, doubleBlock);
+
         assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("3c").toString().equals("[33 63]");
-        try (var bytesRefArray = arrayOf("1a", "2b", "3c", "4d")) {
-            var bytesRefVector = new BytesRefArrayVector(bytesRefArray, 4);
-            var bytesRefBlock = new BytesRefArrayBlock(bytesRefArray, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
-            for (Object obj : List.of(bytesRefVector.filter(0, 2), bytesRefVector.asBlock().filter(0, 2), bytesRefBlock.filter(0, 2))) {
-                assertThat(
-                    obj.toString(),
-                    either(equalTo("BytesRefArrayVector[positions=2]")).or(
-                        equalTo("BytesRefVectorBlock[vector=BytesRefArrayVector[positions=2]]")
-                    )
-                );
-            }
+        var bytesRefVector = blockFactory.newBytesRefArrayVector(arrayOf("1a", "2b", "3c", "4d"), 4);
+        var bytesRefBlock = blockFactory.newBytesRefArrayBlock(
+            arrayOf("1a", "2b", "3c", "4d"),
+            4,
+            null,
+            nulls,
+            randomFrom(Block.MvOrdering.values())
+        );
+        for (Releasable obj : List.of(bytesRefVector.filter(0, 2), bytesRefVector.asBlock().filter(0, 2), bytesRefBlock.filter(0, 2))) {
+            assertThat(
+                obj.toString(),
+                either(equalTo("BytesRefArrayVector[positions=2]")).or(
+                    equalTo("BytesRefVectorBlock[vector=BytesRefArrayVector[positions=2]]")
+                )
+            );
+            Releasables.close(obj);
         }
+        Releasables.close(bytesRefVector, bytesRefBlock);
     }
 
     public void testFilterToStringMultiValue() {
@@ -259,7 +288,10 @@ public class FilteredBlockTests extends ESTestCase {
             var filter = block.filter(0, 1);
             assertThat(
                 filter.toString(),
-                containsString("BooleanArrayBlock[positions=2, mvOrdering=UNORDERED, values=[true, true, false, false]]")
+                containsString(
+                    "BooleanArrayBlock[positions=2, mvOrdering=UNORDERED, "
+                        + "vector=BooleanArrayVector[positions=4, values=[true, true, false, false]]]"
+                )
             );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
@@ -271,7 +303,12 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendInt(90).appendInt(1000).endPositionEntry();
             var block = builder.build();
             var filter = block.filter(0, 1);
-            assertThat(filter.toString(), containsString("IntArrayBlock[positions=2, mvOrdering=UNORDERED, values=[0, 10, 20, 50]]"));
+            assertThat(
+                filter.toString(),
+                containsString(
+                    "IntArrayBlock[positions=2, mvOrdering=UNORDERED, vector=IntArrayVector[positions=4, values=[0, 10, 20, 50]]]"
+                )
+            );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
         }
@@ -282,7 +319,12 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendLong(90).appendLong(1000).endPositionEntry();
             var block = builder.build();
             var filter = block.filter(0, 1);
-            assertThat(filter.toString(), containsString("LongArrayBlock[positions=2, mvOrdering=UNORDERED, values=[0, 10, 20, 50]]"));
+            assertThat(
+                filter.toString(),
+                containsString(
+                    "LongArrayBlock[positions=2, mvOrdering=UNORDERED, vector=LongArrayVector[positions=4, values=[0, 10, 20, 50]]]"
+                )
+            );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
         }
@@ -295,7 +337,10 @@ public class FilteredBlockTests extends ESTestCase {
             var filter = block.filter(0, 1);
             assertThat(
                 filter.toString(),
-                containsString("DoubleArrayBlock[positions=2, mvOrdering=UNORDERED, values=[0.0, 10.0, 0.002, 1.0E9]]")
+                containsString(
+                    "DoubleArrayBlock[positions=2, mvOrdering=UNORDERED, "
+                        + "vector=DoubleArrayVector[positions=4, values=[0.0, 10.0, 0.002, 1.0E9]]]"
+                )
             );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
@@ -309,7 +354,10 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendBytesRef(new BytesRef("pig")).appendBytesRef(new BytesRef("chicken")).endPositionEntry();
             var block = builder.build();
             var filter = block.filter(0, 1);
-            assertThat(filter.toString(), containsString("BytesRefArrayBlock[positions=2, mvOrdering=UNORDERED, values=4]"));
+            assertThat(
+                filter.toString(),
+                containsString("BytesRefArrayBlock[positions=2, mvOrdering=UNORDERED, vector=BytesRefArrayVector[positions=4]]")
+            );
             assertThat(filter.getPositionCount(), equalTo(2));
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);

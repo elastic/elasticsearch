@@ -255,8 +255,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 : "expected channels size to be == " + connectionProfile.getNumConnections() + " but was: [" + channels.size() + "]";
             typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
-                for (TransportRequestOptions.Type type : handle.getTypes())
+                for (TransportRequestOptions.Type type : handle.getTypes()) {
                     typeMapping.put(type, handle);
+                }
             }
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
@@ -750,19 +751,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             } else if (e instanceof HeaderValidationException headerValidationException) {
                 Header header = headerValidationException.header;
                 if (channel.isOpen()) {
-                    try {
-                        outboundHandler.sendErrorResponse(
-                            header.getVersion(),
-                            channel,
-                            header.getRequestId(),
-                            header.getActionName(),
-                            ResponseStatsConsumer.NONE,
-                            headerValidationException.validationException
-                        );
-                    } catch (IOException inner) {
-                        inner.addSuppressed(headerValidationException.validationException);
-                        logger.warn(() -> "Failed to send error message back to client for validation failure", inner);
-                    }
+                    outboundHandler.sendErrorResponse(
+                        header.getVersion(),
+                        channel,
+                        header.getRequestId(),
+                        header.getActionName(),
+                        ResponseStatsConsumer.NONE,
+                        headerValidationException.validationException
+                    );
                 }
             } else {
                 logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);

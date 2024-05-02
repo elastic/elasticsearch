@@ -242,7 +242,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
             // Set search.allow_expensive_queries to "false" => assert failure
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> prepareSearch("test-index").setQuery(scriptQuery(script)).get()
+                prepareSearch("test-index").setQuery(scriptQuery(script))
             );
             assertEquals(
                 "[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",

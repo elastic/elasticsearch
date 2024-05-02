@@ -13,12 +13,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
@@ -29,7 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LeftTests extends AbstractScalarFunctionTestCase {
+public class LeftTests extends AbstractFunctionTestCase {
     public LeftTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -38,7 +37,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        suppliers.add(new TestCaseSupplier("empty string", () -> {
+        suppliers.add(new TestCaseSupplier("empty string", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             int length = between(-64, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -51,7 +50,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("ascii", () -> {
+        suppliers.add(new TestCaseSupplier("ascii", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
@@ -64,7 +63,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii longer than string", () -> {
+        suppliers.add(new TestCaseSupplier("ascii longer than string", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
@@ -77,7 +76,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(text))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii zero length", () -> {
+        suppliers.add(new TestCaseSupplier("ascii zero length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -89,7 +88,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii negative length", () -> {
+        suppliers.add(new TestCaseSupplier("ascii negative length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
@@ -103,7 +102,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("unicode", () -> {
+        suppliers.add(new TestCaseSupplier("unicode", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
@@ -116,7 +115,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode longer than string", () -> {
+        suppliers.add(new TestCaseSupplier("unicode longer than string", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
@@ -129,7 +128,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(text))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode zero length", () -> {
+        suppliers.add(new TestCaseSupplier("unicode zero length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -141,7 +140,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode negative length", () -> {
+        suppliers.add(new TestCaseSupplier("unicode negative length", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
@@ -154,8 +153,21 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
+        suppliers.add(new TestCaseSupplier("ascii as text input", List.of(DataTypes.TEXT, DataTypes.INTEGER), () -> {
+            String text = randomAlphaOfLengthBetween(1, 64);
+            int length = between(1, text.length());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                ),
+                "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
+            );
+        }));
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     private static String unicodeLeftSubstring(String str, int length) {
@@ -172,16 +184,6 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Left(source, args.get(0), args.get(1));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(integers()));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
     }
 
     public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {

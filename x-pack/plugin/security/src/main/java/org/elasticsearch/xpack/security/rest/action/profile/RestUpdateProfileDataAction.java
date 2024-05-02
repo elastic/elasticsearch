@@ -63,7 +63,10 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
         final long ifPrimaryTerm = request.paramAsLong("if_primary_term", -1);
         final long ifSeqNo = request.paramAsLong("if_seq_no", -1);
         final RefreshPolicy refreshPolicy = RefreshPolicy.parse(request.param("refresh", "wait_for"));
-        final Payload payload = PARSER.parse(request.contentParser(), null);
+        final Payload payload;
+        try (var parser = request.contentParser()) {
+            payload = PARSER.parse(parser, null);
+        }
 
         final UpdateProfileDataRequest updateProfileDataRequest = new UpdateProfileDataRequest(
             uid,

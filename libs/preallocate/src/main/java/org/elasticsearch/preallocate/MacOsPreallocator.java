@@ -17,11 +17,15 @@ import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.List;
 
-final class MacOsPreallocator implements Preallocator {
+final class MacOsPreallocator extends AbstractPosixPreallocator {
+
+    MacOsPreallocator() {
+        super(new PosixConstants(144, 96, 512));
+    }
 
     @Override
     public boolean useNative() {
-        return Natives.NATIVES_AVAILABLE;
+        return Natives.NATIVES_AVAILABLE && super.useNative();
     }
 
     @Override
@@ -45,11 +49,6 @@ final class MacOsPreallocator implements Preallocator {
             return Native.getLastError();
         }
         return 0;
-    }
-
-    @Override
-    public String error(final int errno) {
-        return Natives.strerror(errno);
     }
 
     private static class Natives {
@@ -99,9 +98,6 @@ final class MacOsPreallocator implements Preallocator {
         static native int fcntl(int fd, int cmd, Fcntl.FStore fst);
 
         static native int ftruncate(int fd, NativeLong length);
-
-        static native String strerror(int errno);
-
     }
 
 }

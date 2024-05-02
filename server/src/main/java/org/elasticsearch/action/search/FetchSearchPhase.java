@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
@@ -31,21 +30,27 @@ import java.util.function.BiFunction;
 final class FetchSearchPhase extends SearchPhase {
     private final ArraySearchPhaseResults<FetchSearchResult> fetchResults;
     private final AtomicArray<SearchPhaseResult> queryResults;
-    private final BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
-    private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
+    private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
 
-    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
+    FetchSearchPhase(
+        SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        AggregatedDfs aggregatedDfs,
+        SearchPhaseContext context,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+    ) {
         this(
             resultConsumer,
             aggregatedDfs,
             context,
+            reducedQueryPhase,
             (response, queryPhaseResults) -> new ExpandSearchPhase(
                 context,
-                response,
+                response.hits,
                 () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
             )
         );
@@ -55,7 +60,8 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
-        BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super("fetch");
         if (context.getNumShards() != resultConsumer.getNumShards()) {
@@ -67,24 +73,22 @@ final class FetchSearchPhase extends SearchPhase {
             );
         }
         this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
-        context.addReleasable(fetchResults::decRef);
+        context.addReleasable(fetchResults);
         this.queryResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
-        this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();
+        this.reducedQueryPhase = reducedQueryPhase;
     }
 
     @Override
     public void run() {
         context.execute(new AbstractRunnable() {
+
             @Override
-            protected void doRun() throws Exception {
-                // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
-                // off immediately instead of forking when we send back the response to the user since there we only need
-                // to merge together the fetched results which is a linear operation.
+            protected void doRun() {
                 innerRun();
             }
 
@@ -95,9 +99,8 @@ final class FetchSearchPhase extends SearchPhase {
         });
     }
 
-    private void innerRun() throws Exception {
+    private void innerRun() {
         final int numShards = context.getNumShards();
-        final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
         final boolean queryAndFetchOptimization = queryResults.length() == 1
@@ -230,11 +233,9 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
-        final InternalSearchResponse internalResponse = SearchPhaseController.merge(
-            context.getRequest().scroll() != null,
-            reducedQueryPhase,
-            fetchResultsArr
-        );
-        context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, queryResults));
+        var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
+        context.addReleasable(resp::decRef);
+        fetchResults.close();
+        context.executeNextPhase(this, nextPhaseFactory.apply(resp, queryResults));
     }
 }

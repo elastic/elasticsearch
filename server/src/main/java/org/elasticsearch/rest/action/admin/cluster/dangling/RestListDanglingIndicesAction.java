@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster.dangling;
 
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -32,9 +33,10 @@ public class RestListDanglingIndicesAction extends BaseRestHandler {
 
     @Override
     public BaseRestHandler.RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        final ListDanglingIndicesRequest danglingIndicesRequest = new ListDanglingIndicesRequest();
-        return channel -> client.admin()
-            .cluster()
-            .listDanglingIndices(danglingIndicesRequest, new RestActions.NodesResponseRestListener<>(channel));
+        return channel -> client.execute(
+            TransportListDanglingIndicesAction.TYPE,
+            new ListDanglingIndicesRequest(),
+            new RestActions.NodesResponseRestListener<>(channel)
+        );
     }
 }

@@ -1,0 +1,5 @@
+pr: 106636
+summary: "ESQL: Add OPTIONS clause to FROM command"
+area: ES|QL
+type: enhancement
+issues: []

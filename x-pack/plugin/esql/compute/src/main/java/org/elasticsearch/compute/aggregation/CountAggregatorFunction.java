@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -20,7 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import java.util.List;
 
 public class CountAggregatorFunction implements AggregatorFunction {
-    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> channels) {
+    public static AggregatorFunctionSupplier supplier(List<Integer> channels) {
         return new AggregatorFunctionSupplier() {
             @Override
             public AggregatorFunction aggregator(DriverContext driverContext) {

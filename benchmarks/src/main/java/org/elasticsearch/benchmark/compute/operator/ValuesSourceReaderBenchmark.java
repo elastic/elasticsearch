@@ -22,13 +22,16 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -40,6 +43,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -78,6 +82,11 @@ public class ValuesSourceReaderBenchmark {
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
+    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;
+    private static final BlockFactory blockFactory = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
@@ -89,8 +98,12 @@ public class ValuesSourceReaderBenchmark {
                     for (String name : ValuesSourceReaderBenchmark.class.getField("name").getAnnotationsByType(Param.class)[0].value()) {
                         benchmark.layout = layout;
                         benchmark.name = name;
-                        benchmark.setupPages();
-                        benchmark.benchmark();
+                        try {
+                            benchmark.setupPages();
+                            benchmark.benchmark();
+                        } catch (Exception e) {
+                            throw new AssertionError("error initializing [" + layout + "/" + name + "]", e);
+                        }
                     }
                 }
             } finally {
@@ -104,11 +117,11 @@ public class ValuesSourceReaderBenchmark {
     private static List<ValuesSourceReaderOperator.FieldInfo> fields(String name) {
         return switch (name) {
             case "3_stored_keywords" -> List.of(
-                new ValuesSourceReaderOperator.FieldInfo("keyword_1", List.of(blockLoader("stored_keyword_1"))),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_2", List.of(blockLoader("stored_keyword_2"))),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_3", List.of(blockLoader("stored_keyword_3")))
+                new ValuesSourceReaderOperator.FieldInfo("keyword_1", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_1")),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_2", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_2")),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_3", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_3"))
             );
-            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader(name))));
+            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType(name), shardIdx -> blockLoader(name)));
         };
     }
 
@@ -118,29 +131,38 @@ public class ValuesSourceReaderBenchmark {
         STORED;
     }
 
-    private static BlockLoader blockLoader(String name) {
-        Where where = Where.DOC_VALUES;
-        if (name.startsWith("stored_")) {
-            name = name.substring("stored_".length());
-            where = Where.STORED;
-        } else if (name.startsWith("source_")) {
-            name = name.substring("source_".length());
-            where = Where.SOURCE;
-        }
+    private static ElementType elementType(String name) {
+        name = WhereAndBaseName.fromName(name).name;
         switch (name) {
             case "long":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.LONG);
+                return ElementType.LONG;
             case "int":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.INTEGER);
+                return ElementType.INT;
             case "double":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.DOUBLE);
-            case "keyword":
-                name = "keyword_1";
+                return ElementType.DOUBLE;
         }
         if (name.startsWith("keyword")) {
+            return ElementType.BYTES_REF;
+        }
+        throw new UnsupportedOperationException("no element type for [" + name + "]");
+    }
+
+    private static BlockLoader blockLoader(String name) {
+        WhereAndBaseName w = WhereAndBaseName.fromName(name);
+        switch (w.name) {
+            case "long":
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.LONG);
+            case "int":
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.INTEGER);
+            case "double":
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.DOUBLE);
+            case "keyword":
+                w = new WhereAndBaseName(w.where, "keyword_1");
+        }
+        if (w.name.startsWith("keyword")) {
             boolean syntheticSource = false;
             FieldType ft = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-            switch (where) {
+            switch (w.where) {
                 case DOC_VALUES:
                     break;
                 case SOURCE:
@@ -154,7 +176,7 @@ public class ValuesSourceReaderBenchmark {
             }
             ft.freeze();
             return new KeywordFieldMapper.KeywordFieldType(
-                name,
+                w.name,
                 ft,
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
@@ -165,6 +187,11 @@ public class ValuesSourceReaderBenchmark {
                 @Override
                 public String indexName() {
                     return "benchmark";
+                }
+
+                @Override
+                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                    return MappedFieldType.FieldExtractPreference.NONE;
                 }
 
                 @Override
@@ -181,15 +208,31 @@ public class ValuesSourceReaderBenchmark {
                 public String parentField(String field) {
                     throw new UnsupportedOperationException();
                 }
+
+                @Override
+                public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                    return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+                }
             });
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
     }
 
-    private static BlockLoader numericBlockLoader(String name, Where where, NumberFieldMapper.NumberType numberType) {
+    private record WhereAndBaseName(Where where, String name) {
+        static WhereAndBaseName fromName(String name) {
+            if (name.startsWith("stored_")) {
+                return new WhereAndBaseName(Where.STORED, name.substring("stored_".length()));
+            } else if (name.startsWith("source_")) {
+                return new WhereAndBaseName(Where.SOURCE, name.substring("source_".length()));
+            }
+            return new WhereAndBaseName(Where.DOC_VALUES, name);
+        }
+    }
+
+    private static BlockLoader numericBlockLoader(WhereAndBaseName w, NumberFieldMapper.NumberType numberType) {
         boolean stored = false;
         boolean docValues = true;
-        switch (where) {
+        switch (w.where) {
             case DOC_VALUES:
                 break;
             case SOURCE:
@@ -200,7 +243,7 @@ public class ValuesSourceReaderBenchmark {
                 throw new UnsupportedOperationException();
         }
         return new NumberFieldMapper.NumberFieldType(
-            name,
+            w.name,
             numberType,
             true,
             stored,
@@ -241,7 +284,7 @@ public class ValuesSourceReaderBenchmark {
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
-            BlockFactory.getNonBreakingInstance(),
+            blockFactory,
             fields(name),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");
@@ -374,7 +417,7 @@ public class ValuesSourceReaderBenchmark {
         pages = new ArrayList<>();
         switch (layout) {
             case "in_order" -> {
-                IntVector.Builder docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                 for (LeafReaderContext ctx : reader.leaves()) {
                     int begin = 0;
                     while (begin < ctx.reader().maxDoc()) {
@@ -385,14 +428,14 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    IntBlock.newConstantBlockWith(0, end - begin).asVector(),
-                                    IntBlock.newConstantBlockWith(ctx.ord, end - begin).asVector(),
+                                    blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
+                                    blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
                                     true
                                 ).asBlock()
                             )
                         );
-                        docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                        docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                         begin = end;
                     }
                 }
@@ -403,8 +446,8 @@ public class ValuesSourceReaderBenchmark {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     docItrs.add(new ItrAndOrd(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx.ord));
                 }
-                IntVector.Builder docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
-                IntVector.Builder leafs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                 int size = 0;
                 while (docItrs.isEmpty() == false) {
                     Iterator<ItrAndOrd> itrItr = docItrs.iterator();
@@ -420,12 +463,11 @@ public class ValuesSourceReaderBenchmark {
                         if (size >= BLOCK_LENGTH) {
                             pages.add(
                                 new Page(
-                                    new DocVector(IntBlock.newConstantBlockWith(0, size).asVector(), leafs.build(), docs.build(), null)
-                                        .asBlock()
+                                    new DocVector(blockFactory.newConstantIntVector(0, size), leafs.build(), docs.build(), null).asBlock()
                                 )
                             );
-                            docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
-                            leafs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                            docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                            leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                             size = 0;
                         }
                     }
@@ -434,7 +476,7 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
-                                IntBlock.newConstantBlockWith(0, size).asVector(),
+                                blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
                                 null
@@ -460,9 +502,9 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    IntBlock.newConstantBlockWith(0, 1).asVector(),
-                                    IntBlock.newConstantBlockWith(next.ord, 1).asVector(),
-                                    IntBlock.newConstantBlockWith(next.itr.nextInt(), 1).asVector(),
+                                    blockFactory.newConstantIntVector(0, 1),
+                                    blockFactory.newConstantIntVector(next.ord, 1),
+                                    blockFactory.newConstantIntVector(next.itr.nextInt(), 1),
                                     true
                                 ).asBlock()
                             )

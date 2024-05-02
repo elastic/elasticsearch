@@ -23,14 +23,13 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
 public class DocValuesForUtilTests extends LuceneTestCase {
-    private final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
-    private static final ForUtil forUtil = new ForUtil();
 
     public void testEncodeDecode() throws IOException {
         final int iterations = RandomNumbers.randomIntBetween(random(), 50, 1000);
@@ -104,14 +103,14 @@ public class DocValuesForUtilTests extends LuceneTestCase {
             // Encode
             DataOutput dataOutput = new ByteArrayDataOutput(dataOutputBuffer);
             long[] encodeBuffer = Arrays.copyOf(values, values.length);
-            forUtil.encode(encodeBuffer, bitsPerValue, dataOutput);
+            ForUtil.encode(encodeBuffer, bitsPerValue, dataOutput);
 
             // Prepare for decoding
             DataInput dataInput = new ByteArrayDataInput(dataInputBuffer);
             System.arraycopy(dataOutputBuffer, 0, dataInputBuffer, 0, dataOutputBuffer.length);
 
             // Decode
-            forUtil.decode(bitsPerValue, dataInput, decodeBuffer);
+            ForUtil.decode(bitsPerValue, dataInput, decodeBuffer);
 
             assertArrayEquals(decodeBuffer, values);
         }

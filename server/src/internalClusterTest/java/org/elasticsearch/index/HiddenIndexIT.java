@@ -117,10 +117,9 @@ public class HiddenIndexIT extends ESIntegTestCase {
     public void testGlobalTemplateCannotMakeIndexHidden() {
         InvalidIndexTemplateException invalidIndexTemplateException = expectThrows(
             InvalidIndexTemplateException.class,
-            () -> indicesAdmin().preparePutTemplate("a_global_template")
+            indicesAdmin().preparePutTemplate("a_global_template")
                 .setPatterns(List.of("*"))
                 .setSettings(Settings.builder().put("index.hidden", randomBoolean()).build())
-                .get()
         );
         assertThat(invalidIndexTemplateException.getMessage(), containsString("global templates may not specify the setting index.hidden"));
     }

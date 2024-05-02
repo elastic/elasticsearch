@@ -6,6 +6,9 @@
  * Side Public License, v 1.
  */
 
+import java.lang.management.ManagementFactory;
+import java.time.LocalDateTime;
+
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
@@ -98,7 +101,8 @@ buildScan {
       def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
-      def jobName = (System.getenv('BUILDKITE_LABEL') ?: '').replaceAll(/[^a-zA-Z0-9_\-]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
+      def jobLabel = System.getenv('BUILDKITE_LABEL') ?: ''
+      def jobName = safeName(jobLabel)
 
       tag 'CI'
       link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
@@ -111,6 +115,18 @@ buildScan {
 
       value 'Job Name', jobName
       tag jobName
+      if (jobLabel.contains("/")) {
+        jobLabel.split("/").collect {safeName(it) }.each {matrix ->
+          tag matrix
+        }
+      }
+
+      def uptime = ManagementFactory.getRuntimeMXBean().getUptime() / 1000;
+      def metricsStartTime = LocalDateTime.now().minusSeconds(uptime.longValue()).minusMinutes(15).toString()
+      def metricsEndTime = LocalDateTime.now().plusMinutes(15).toString()
+
+      link 'Agent Metrics', "https://es-buildkite-agents.elastic.dev/app/metrics/detail/host/${System.getenv('BUILDKITE_AGENT_NAME')}?_a=(time:(from:%27${metricsStartTime}Z%27,interval:%3E%3D1m,to:%27${metricsEndTime}Z%27))"
+      link 'Agent Logs', "https://es-buildkite-agents.elastic.dev/app/logs/stream?logFilter=(filters:!(),query:(language:kuery,query:%27host.name:%20${System.getenv('BUILDKITE_AGENT_NAME')}%27),timeRange:(from:%27${metricsStartTime}Z%27,to:%27${metricsEndTime}Z%27))"
 
       if (branch) {
         tag branch
@@ -160,4 +176,8 @@ buildScan {
       tag 'LOCAL'
     }
   }
+}
+
+static def safeName(String string) {
+  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

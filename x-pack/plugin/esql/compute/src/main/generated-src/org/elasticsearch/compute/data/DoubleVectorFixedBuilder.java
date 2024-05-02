@@ -27,7 +27,7 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
 
     DoubleVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes, false);
+        blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
         this.values = new double[size];
     }
@@ -44,6 +44,11 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
             : DoubleArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Double.BYTES
             );
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
     }
 
     @Override
@@ -70,7 +75,7 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
             nextIndex = -1;
-            blockFactory.adjustBreaker(-preAdjustedBytes, false);
+            blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 

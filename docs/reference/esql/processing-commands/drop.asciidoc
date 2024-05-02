@@ -22,7 +22,7 @@ The `DROP` processing command removes one or more columns.
 
 [source,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=dropheight]
+include::{esql-specs}/drop.csv-spec[tag=height]
 ----
 
 Rather than specify each column by name, you can use wildcards to drop all
@@ -30,5 +30,5 @@ columns with a name that matches a pattern:
 
 [source,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=dropheightwithwildcard]
+include::{esql-specs}/drop.csv-spec[tag=heightWithWildcard]
 ----

@@ -36,7 +36,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
      * used just for its symbol.
      * The rest of the methods should not be triggered hence the UOE.
      */
-    enum OperationSymbol implements BinaryArithmeticOperation {
+    public enum OperationSymbol implements BinaryArithmeticOperation {
         ADD("+"),
         SUB("-"),
         MUL("*"),

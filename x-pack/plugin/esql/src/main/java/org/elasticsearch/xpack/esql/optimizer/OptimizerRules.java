@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
@@ -76,16 +77,16 @@ import java.util.function.BiFunction;
 
 import static java.lang.Math.signum;
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineOr;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.ADD;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.DIV;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MOD;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MUL;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.SUB;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 class OptimizerRules {
@@ -658,24 +659,23 @@ class OptimizerRules {
 
         private Expression simplifyBinaryComparison(EsqlBinaryComparison comparison) {
             EsqlArithmeticOperation operation = (EsqlArithmeticOperation) comparison.left();
-            // Use symbol comp: SQL operations aren't available in this package (as dependencies)
-            String opSymbol = operation.symbol();
+            BinaryArithmeticOperation function = operation.function();
             // Modulo can't be simplified.
-            if (opSymbol.equals(MOD.symbol())) {
+            if (function.equals(MOD)) {
                 return comparison;
             }
             OperationSimplifier simplification = null;
-            if (isMulOrDiv(opSymbol)) {
+            if (isMulOrDiv(function)) {
                 simplification = new MulDivSimplifier(comparison);
-            } else if (opSymbol.equals(ADD.symbol()) || opSymbol.equals(SUB.symbol())) {
+            } else if (function.equals(ADD) || function.equals(SUB)) {
                 simplification = new AddSubSimplifier(comparison);
             }
 
             return (simplification == null || simplification.isUnsafe(typesCompatible)) ? comparison : simplification.apply();
         }
 
-        private static boolean isMulOrDiv(String opSymbol) {
-            return opSymbol.equals(MUL.symbol()) || opSymbol.equals(DIV.symbol());
+        private static boolean isMulOrDiv(BinaryArithmeticOperation op) {
+            return op.equals(MUL) || op.equals(DIV);
         }
 
         private static Expression foldNegation(EsqlBinaryComparison bc) {
@@ -769,8 +769,7 @@ class OptimizerRules {
             }
         }
 
-        private static class AddSubSimplifier extends
-            SimplifyComparisonsArithmetics.OperationSimplifier {
+        private static class AddSubSimplifier extends SimplifyComparisonsArithmetics.OperationSimplifier {
 
             AddSubSimplifier(EsqlBinaryComparison comparison) {
                 super(comparison);
@@ -783,8 +782,8 @@ class OptimizerRules {
                     return true;
                 }
 
-                if (operation.symbol().equals(SUB.symbol()) && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
-                    // if next simplification step would fail on overflow anyways, skip the optimisation already
+                if (operation.function().equals(SUB) && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
+                    // if next simplification step would fail on overflow anyway, skip the optimisation already
                     return tryFolding(new Sub(EMPTY, opLeft, bcLiteral)) == null;
                 }
 
@@ -792,15 +791,14 @@ class OptimizerRules {
             }
         }
 
-        private static class MulDivSimplifier extends
-            SimplifyComparisonsArithmetics.OperationSimplifier {
+        private static class MulDivSimplifier extends SimplifyComparisonsArithmetics.OperationSimplifier {
 
             private final boolean isDiv; // and not MUL.
             private final int opRightSign; // sign of the right operand in: (left) (op) (right) (comp) (literal)
 
             MulDivSimplifier(EsqlBinaryComparison comparison) {
                 super(comparison);
-                isDiv = operation.symbol().equals(DIV.symbol());
+                isDiv = operation.function().equals(DIV);
                 opRightSign = sign(opRight);
             }
 
@@ -835,8 +833,8 @@ class OptimizerRules {
                     sign = sign(((Literal) obj).value());
                 } else if (obj instanceof Neg) {
                     sign = -sign(((Neg) obj).field());
-                } else if (obj instanceof ArithmeticOperation operation) {
-                    if (isMulOrDiv(operation.symbol())) {
+                } else if (obj instanceof EsqlArithmeticOperation operation) {
+                    if (isMulOrDiv(operation.function())) {
                         sign = sign(operation.left()) * sign(operation.right());
                     }
                 }

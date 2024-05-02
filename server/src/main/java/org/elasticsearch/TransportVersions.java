@@ -187,7 +187,8 @@ public class TransportVersions {
     public static final TransportVersion BINARY_PIT_ID = def(8_646_00_0);
     public static final TransportVersion SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE = def(8_647_00_0);
     public static final TransportVersion ESQL_REQUEST_TABLES = def(8_648_00_0);
-    public static final TransportVersion INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT = def(8_649_00_0);
+    public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = def(8_649_00_0);
+    public static final TransportVersion INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT = def(8_650_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

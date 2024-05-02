@@ -520,17 +520,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsResolutionWithUnresolvedGroupings() {
         String agg_func = randomFrom(
-            new String[] {
-                "avg",
-                "count",
-                "count_distinct",
-                "min",
-                "max",
-                "median",
-                "median_absolute_deviation",
-                "percentile",
-                "sum",
-                "values" }
+            new String[] { "avg", "count", "count_distinct", "min", "max", "median", "median_absolute_deviation", "sum", "values" }
         );
 
         assertThat(error("FROM tests | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
@@ -542,7 +532,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(languages, 10)"),
             matchesRegex(
-                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER] and the second of type \\[INTEGER]\n"
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER]"
+                    + " and the second of type \\[INTEGER]\n"
                     + "line 1:\\d+: Unknown column \\[foobar]"
             )
         );

@@ -7,6 +7,23 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -20,6 +37,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternCo
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -56,24 +74,6 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-
-import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
-import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -161,20 +161,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
-        var identifiers = ctx.qualifiedNamePattern();
-        List<NamedExpression> removals = new ArrayList<>(identifiers.size());
+        List<Order> orders = visitList(this, ctx.orderExpression(), Order.class);
+        Source source = source(ctx);
+    return input -> new DedupBy(source, input, orders);
 
-        for (QualifiedNamePatternContext patternContext : identifiers) {
-            NamedExpression ne = visitQualifiedNamePattern(patternContext);
-            if (ne instanceof UnresolvedStar) {
-                var src = ne.source();
-                throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
-            }
-            removals.add(ne);
-        }
+        // var identifiers = ctx.qualifiedNamePattern();
+        // List<NamedExpression> removals = new ArrayList<>(identifiers.size());
 
-        Source src = source(ctx);
-        return child -> new DedupBy(src, child, removals);
+        // for (QualifiedNamePatternContext patternContext : identifiers) {
+        //     NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        //     if (ne instanceof UnresolvedStar) {
+        //         var src = ne.source();
+        //         throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
+        //     }
+        //     removals.add(ne);
+        // }
+
+        // Source src = source(ctx);
+        // return child -> new DedupBy(src, child, removals);
     }
 
     @Override

@@ -14,47 +14,57 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.compute.operator.HashLookupOperator;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 
+// public class DedupOperator extends HashLookupOperator {
+//     public DedupOperator(BlockFactory blockFactory, HashLookupOperator.Key[] keys, int[] blockMapping) {
+//         super(blockFactory, keys, blockMapping);
+//     }
+// }
+
 public class DedupOperator implements Operator {
-    /**
-     * Total number of position that are emitted by this operator.
-     */
-    private final int limit;
-
-    /**
-     * Remaining number of positions that will be emitted by this operator.
-     */
-    private int limitRemaining;
-
-    /**
-     * Count of pages that have been processed by this operator.
-     */
-    private int pagesProcessed;
+    private final int[] fields;
 
     private Page lastInput;
 
     private boolean finished;
 
-    public DedupOperator(int limit1) {
-        this.limit = this.limitRemaining = limit1;
+    private HashSet<Integer> seenKeys = new HashSet<Integer>();
+
+    /**
+     * Count of pages that have been processed by this operator.
+     */
+    private int pagesIn;
+    private int pagesOut;
+
+    public DedupOperator(List<Integer> fields) {
+        this.fields = fields.stream().mapToInt(Integer::intValue).toArray();;        
     }
 
-    public record DedupOperatorFactory(int limit) implements OperatorFactory {
+    public record DedupOperatorFactory(List<Integer> fields) implements OperatorFactory {
 
         @Override
         public DedupOperator get(DriverContext driverContext) {
-            return new DedupOperator(limit);
+            System.out.println(describe());
+            return new DedupOperator(fields);
         }
 
         @Override
         public String describe() {
-            return "DedupOperator[limit = " + limit + "]";
+            if (fields.size() < 10) {
+                return "DedupOperator[fields = " + fields + "]";
+            }
+            return "DedupOperator[fields = [size: " + fields.size() + "]]";
         }
     }
 
@@ -67,6 +77,8 @@ public class DedupOperator implements Operator {
     public void addInput(Page page) {
         assert lastInput == null : "has pending input page";
         lastInput = page;
+        // this.expandingBlock = prev.getBlock(channel);
+        pagesIn++;
     }
 
     @Override
@@ -85,45 +97,83 @@ public class DedupOperator implements Operator {
             return null;
         }
 
+        pagesOut++;
         Page result;
-        if (lastInput.getPositionCount() <= limitRemaining) {
-            result = lastInput;
-            limitRemaining -= lastInput.getPositionCount();
-        } else {
-            int[] filter = new int[limitRemaining];
-            for (int i = 0; i < limitRemaining; i++) {
-                filter[i] = i;
-            }
-            Block[] blocks = new Block[lastInput.getBlockCount()];
-            boolean success = false;
-            try {
-                for (int b = 0; b < blocks.length; b++) {
-                    blocks[b] = lastInput.getBlock(b).filter(filter);
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(blocks));
-                } else {
-                    lastInput.releaseBlocks();
-                }
-                lastInput = null;
-            }
-            result = new Page(blocks);
-            limitRemaining = 0;
-        }
-        if (limitRemaining == 0) {
-            finished = true;
-        }
-        lastInput = null;
-        pagesProcessed++;
 
+        // positions -> rows
+        // valueCount -> number of values in given field
+        // 
+
+        // Go over all rows and check if the row is a duplicate
+        for (int p = 0; p < lastInput.getPositionCount(); p++) {
+            
+            
+            // if (test.isNull(p) || test.getValueCount(p) != 1) {
+            //     // Null is like false
+            //     // And, for now, multivalued results are like false too
+            //     continue;
+            // }
+            // if (test.getBoolean(test.getFirstValueIndex(p))) {
+            //     positions[rowCount++] = p;
+            // }
+        }
+
+        // if (rowCount == 0) {
+        //     page.releaseBlocks();
+        //     return null;
+        // }
+        // if (rowCount == page.getPositionCount()) {
+        //     return page;
+        // }
+        // positions = Arrays.copyOf(positions, rowCount);
+
+        // Block[] filteredBlocks = new Block[page.getBlockCount()];
+        // boolean success = false;
+        // try {
+        //     for (int i = 0; i < page.getBlockCount(); i++) {
+        //         filteredBlocks[i] = page.getBlock(i).filter(positions);
+        //     }
+        //     success = true;
+        // } finally {
+        //     page.releaseBlocks();
+        //     if (success == false) {
+        //         Releasables.closeExpectNoException(filteredBlocks);
+        //     }
+        // }
+        // return new Page(filteredBlocks);
+
+        // lastInput.getPositionCount() - number of rows
+        // int[] filter = new int[limitRemaining];
+        // for (int i = 0; i < limitRemaining; i++) {
+        //     filter[i] = i;
+        // }
+        
+        Block[] blocks = new Block[lastInput.getBlockCount()];
+        boolean success = false;
+        try {
+            for (int b = 0; b < blocks.length; b++) {
+                System.out.println(lastInput.getBlock(b).getFirstValueIndex(fields[0]));
+                System.out.println(lastInput.getBlock(b).getClass());
+                blocks[b] = lastInput.getBlock(b).filter(fields);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(blocks));
+            } else {
+                lastInput.releaseBlocks();
+            }
+            lastInput = null;
+        }
+        result = new Page(blocks);
+        lastInput = null;
+        
         return result;
     }
 
     @Override
     public Status status() {
-        return new Status(limit, limitRemaining, pagesProcessed);
+        return new Status(pagesIn);
     }
 
     @Override
@@ -135,7 +185,10 @@ public class DedupOperator implements Operator {
 
     @Override
     public String toString() {
-        return "DedupOperator[limit = " + limitRemaining + "/" + limit + "]";
+        if (fields.length < 10) {
+            return "DedupOperator[fields = " + Arrays.toString(fields) + "]";
+        }
+        return "DedupOperator[fields = [size: " + fields.length + "]]";
     }
 
     public static class Status implements Operator.Status {
@@ -146,56 +199,26 @@ public class DedupOperator implements Operator {
         );
 
         /**
-         * Total number of position that are emitted by this operator.
-         */
-        private final int limit;
-
-        /**
-         * Remaining number of positions that will be emitted by this operator.
-         */
-        private final int limitRemaining;
-
-        /**
          * Count of pages that have been processed by this operator.
          */
         private final int pagesProcessed;
 
-        protected Status(int limit, int limitRemaining, int pagesProcessed) {
-            this.limit = limit;
-            this.limitRemaining = limitRemaining;
+        protected Status(int pagesProcessed) {
             this.pagesProcessed = pagesProcessed;
         }
 
         protected Status(StreamInput in) throws IOException {
-            limit = in.readVInt();
-            limitRemaining = in.readVInt();
             pagesProcessed = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(limit);
-            out.writeVInt(limitRemaining);
             out.writeVInt(pagesProcessed);
         }
 
         @Override
         public String getWriteableName() {
             return ENTRY.name;
-        }
-
-        /**
-         * Total number of position that are emitted by this operator.
-         */
-        public int limit() {
-            return limit;
-        }
-
-        /**
-         * Count of pages that have been processed by this operator.
-         */
-        public int limitRemaining() {
-            return limitRemaining;
         }
 
         /**
@@ -208,8 +231,6 @@ public class DedupOperator implements Operator {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("limit", limit);
-            builder.field("limit_remaining", limitRemaining);
             builder.field("pages_processed", pagesProcessed);
             return builder.endObject();
         }
@@ -219,12 +240,12 @@ public class DedupOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return limit == status.limit && limitRemaining == status.limitRemaining && pagesProcessed == status.pagesProcessed;
+            return pagesProcessed == status.pagesProcessed;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(limit, limitRemaining, pagesProcessed);
+            return Objects.hash(pagesProcessed);
         }
 
         @Override

@@ -225,7 +225,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        boolean dedup 
     ) implements OperatorFactory {
         public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -244,7 +245,8 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize
+                maxPageSize,
+                dedup
             );
         }
 
@@ -267,6 +269,7 @@ public class TopNOperator implements Operator, Accountable {
     private final Queue inputQueue;
 
     private final int maxPageSize;
+    private final boolean dedup;
 
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
@@ -285,7 +288,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize, 
+        boolean dedup
     ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
@@ -294,6 +298,19 @@ public class TopNOperator implements Operator, Accountable {
         this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.inputQueue = new Queue(topCount);
+        this.dedup = dedup;
+    }
+
+    public TopNOperator(
+        BlockFactory blockFactory,
+        CircuitBreaker breaker,
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<SortOrder> sortOrders,
+        int maxPageSize
+    ) {
+        this(blockFactory, breaker, topCount, elementTypes, encoders, sortOrders, maxPageSize, false);
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -394,7 +411,15 @@ public class TopNOperator implements Operator, Accountable {
         boolean success = false;
         try {
             while (inputQueue.size() > 0) {
-                list.add(inputQueue.pop());
+                Row row = inputQueue.pop();
+                
+                if (this.dedup && list.size() > 0 && compareRows(list.get(list.size() - 1), row) == 0) {
+                    // row = list.set(list.size()-1, row);
+                    row.close();
+                    continue;
+                }
+
+                list.add(row);
             }
             Collections.reverse(list);
 

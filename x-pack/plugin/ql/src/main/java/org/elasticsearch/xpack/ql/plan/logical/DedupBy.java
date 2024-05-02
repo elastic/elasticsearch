@@ -6,46 +6,45 @@
  */
 package org.elasticsearch.xpack.ql.plan.logical;
 
+import java.util.List;
+import java.util.Objects;
+
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.List;
-import java.util.Objects;
-
 public class DedupBy extends UnaryPlan {
 
-    private final List<? extends NamedExpression> fields;
+    private final List<Order> order;
 
-    public DedupBy(Source source, LogicalPlan child, List<? extends NamedExpression> fields) {
+    public DedupBy(Source source, LogicalPlan child, List<Order> order) {
         super(source, child);
-        this.fields = fields;
+        this.order = order;
     }
 
     @Override
     protected NodeInfo<DedupBy> info() {
-        return NodeInfo.create(this, DedupBy::new, child(), fields);
+        return NodeInfo.create(this, DedupBy::new, child(), order);
     }
 
     @Override
     public DedupBy replaceChild(LogicalPlan newChild) {
-        return new DedupBy(source(), newChild, fields);
+        return new DedupBy(source(), newChild, order);
     }
 
-    public List<? extends NamedExpression> fields() {
-        return fields;
+    public List<Order> order() {
+        return order;
     }
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(fields);
+        return Resolvables.resolved(order);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fields, child());
+        return Objects.hash(order, child());
     }
 
     @Override
@@ -59,6 +58,6 @@ public class DedupBy extends UnaryPlan {
         }
 
         DedupBy other = (DedupBy) obj;
-        return Objects.equals(fields, other.fields) && Objects.equals(child(), other.child());
+        return Objects.equals(order, other.order) && Objects.equals(child(), other.child());
     }
 }

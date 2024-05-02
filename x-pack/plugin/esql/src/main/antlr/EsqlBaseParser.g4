@@ -182,7 +182,7 @@ limitCommand
     ;
 
 dedupCommand
-    : DEDUP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    : DEDUP orderExpression (COMMA orderExpression)*
     ;
 
 sortCommand

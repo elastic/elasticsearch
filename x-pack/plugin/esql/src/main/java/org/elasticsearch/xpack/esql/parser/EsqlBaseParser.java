@@ -3379,11 +3379,11 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class DedupCommandContext extends ParserRuleContext {
     public TerminalNode DEDUP() { return getToken(EsqlBaseParser.DEDUP, 0); }
-    public List<QualifiedNamePatternContext> qualifiedNamePattern() {
-      return getRuleContexts(QualifiedNamePatternContext.class);
+    public List<OrderExpressionContext> orderExpression() {
+      return getRuleContexts(OrderExpressionContext.class);
     }
-    public QualifiedNamePatternContext qualifiedNamePattern(int i) {
-      return getRuleContext(QualifiedNamePatternContext.class,i);
+    public OrderExpressionContext orderExpression(int i) {
+      return getRuleContext(OrderExpressionContext.class,i);
     }
     public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
     public TerminalNode COMMA(int i) {
@@ -3419,7 +3419,7 @@ public class EsqlBaseParser extends Parser {
       setState(415);
       match(DEDUP);
       setState(416);
-      qualifiedNamePattern();
+      orderExpression();
       setState(421);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,37,_ctx);
@@ -3430,7 +3430,7 @@ public class EsqlBaseParser extends Parser {
           setState(417);
           match(COMMA);
           setState(418);
-          qualifiedNamePattern();
+          orderExpression();
           }
           } 
         }
@@ -5259,22 +5259,22 @@ public class EsqlBaseParser extends Parser {
     "\u0000\u0000\u019a\u018f\u0001\u0000\u0000\u0000\u019b;\u0001\u0000\u0000"+
     "\u0000\u019c\u019d\u0005\n\u0000\u0000\u019d\u019e\u0005\u001d\u0000\u0000"+
     "\u019e=\u0001\u0000\u0000\u0000\u019f\u01a0\u0005\u0010\u0000\u0000\u01a0"+
-    "\u01a5\u00034\u001a\u0000\u01a1\u01a2\u0005$\u0000\u0000\u01a2\u01a4\u0003"+
-    "4\u001a\u0000\u01a3\u01a1\u0001\u0000\u0000\u0000\u01a4\u01a7\u0001\u0000"+
-    "\u0000\u0000\u01a5\u01a3\u0001\u0000\u0000\u0000\u01a5\u01a6\u0001\u0000"+
-    "\u0000\u0000\u01a6?\u0001\u0000\u0000\u0000\u01a7\u01a5\u0001\u0000\u0000"+
-    "\u0000\u01a8\u01a9\u0005\u0011\u0000\u0000\u01a9\u01ae\u0003B!\u0000\u01aa"+
-    "\u01ab\u0005$\u0000\u0000\u01ab\u01ad\u0003B!\u0000\u01ac\u01aa\u0001"+
-    "\u0000\u0000\u0000\u01ad\u01b0\u0001\u0000\u0000\u0000\u01ae\u01ac\u0001"+
-    "\u0000\u0000\u0000\u01ae\u01af\u0001\u0000\u0000\u0000\u01afA\u0001\u0000"+
-    "\u0000\u0000\u01b0\u01ae\u0001\u0000\u0000\u0000\u01b1\u01b3\u0003\n\u0005"+
-    "\u0000\u01b2\u01b4\u0007\u0004\u0000\u0000\u01b3\u01b2\u0001\u0000\u0000"+
-    "\u0000\u01b3\u01b4\u0001\u0000\u0000\u0000\u01b4\u01b7\u0001\u0000\u0000"+
-    "\u0000\u01b5\u01b6\u00050\u0000\u0000\u01b6\u01b8\u0007\u0005\u0000\u0000"+
-    "\u01b7\u01b5\u0001\u0000\u0000\u0000\u01b7\u01b8\u0001\u0000\u0000\u0000"+
-    "\u01b8C\u0001\u0000\u0000\u0000\u01b9\u01ba\u0005\t\u0000\u0000\u01ba"+
-    "\u01bf\u00034\u001a\u0000\u01bb\u01bc\u0005$\u0000\u0000\u01bc\u01be\u0003"+
-    "4\u001a\u0000\u01bd\u01bb\u0001\u0000\u0000\u0000\u01be\u01c1\u0001\u0000"+
+    "\u01a5\u0003B!\u0000\u01a1\u01a2\u0005$\u0000\u0000\u01a2\u01a4\u0003"+
+    "B!\u0000\u01a3\u01a1\u0001\u0000\u0000\u0000\u01a4\u01a7\u0001\u0000\u0000"+
+    "\u0000\u01a5\u01a3\u0001\u0000\u0000\u0000\u01a5\u01a6\u0001\u0000\u0000"+
+    "\u0000\u01a6?\u0001\u0000\u0000\u0000\u01a7\u01a5\u0001\u0000\u0000\u0000"+
+    "\u01a8\u01a9\u0005\u0011\u0000\u0000\u01a9\u01ae\u0003B!\u0000\u01aa\u01ab"+
+    "\u0005$\u0000\u0000\u01ab\u01ad\u0003B!\u0000\u01ac\u01aa\u0001\u0000"+
+    "\u0000\u0000\u01ad\u01b0\u0001\u0000\u0000\u0000\u01ae\u01ac\u0001\u0000"+
+    "\u0000\u0000\u01ae\u01af\u0001\u0000\u0000\u0000\u01afA\u0001\u0000\u0000"+
+    "\u0000\u01b0\u01ae\u0001\u0000\u0000\u0000\u01b1\u01b3\u0003\n\u0005\u0000"+
+    "\u01b2\u01b4\u0007\u0004\u0000\u0000\u01b3\u01b2\u0001\u0000\u0000\u0000"+
+    "\u01b3\u01b4\u0001\u0000\u0000\u0000\u01b4\u01b7\u0001\u0000\u0000\u0000"+
+    "\u01b5\u01b6\u00050\u0000\u0000\u01b6\u01b8\u0007\u0005\u0000\u0000\u01b7"+
+    "\u01b5\u0001\u0000\u0000\u0000\u01b7\u01b8\u0001\u0000\u0000\u0000\u01b8"+
+    "C\u0001\u0000\u0000\u0000\u01b9\u01ba\u0005\t\u0000\u0000\u01ba\u01bf"+
+    "\u00034\u001a\u0000\u01bb\u01bc\u0005$\u0000\u0000\u01bc\u01be\u00034"+
+    "\u001a\u0000\u01bd\u01bb\u0001\u0000\u0000\u0000\u01be\u01c1\u0001\u0000"+
     "\u0000\u0000\u01bf\u01bd\u0001\u0000\u0000\u0000\u01bf\u01c0\u0001\u0000"+
     "\u0000\u0000\u01c0E\u0001\u0000\u0000\u0000\u01c1\u01bf\u0001\u0000\u0000"+
     "\u0000\u01c2\u01c3\u0005\u0002\u0000\u0000\u01c3\u01c8\u00034\u001a\u0000"+

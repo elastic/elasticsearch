@@ -294,7 +294,7 @@ public class ComputeService {
         var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
             ? dataNodePlan
             : dataNodePlan.transformUp(FragmentExec.class, f -> {
-                PhysicalPlan reductionNode = PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan);
+                PhysicalPlan reductionNode = PlannerUtils.dataNodeReductionPlan(configuration, f.fragment(), dataNodePlan);
                 return reductionNode == null ? f : f.withReducer(reductionNode);
             });
 

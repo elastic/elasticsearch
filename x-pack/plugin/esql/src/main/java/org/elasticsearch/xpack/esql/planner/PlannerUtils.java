@@ -84,7 +84,7 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static PhysicalPlan dataNodeReductionPlan(LogicalPlan plan, PhysicalPlan unused) {
+    public static PhysicalPlan dataNodeReductionPlan(EsqlConfiguration configuration, LogicalPlan plan, PhysicalPlan unused) {
         var pipelineBreakers = plan.collectFirstChildren(Mapper::isPipelineBreaker);
 
         if (pipelineBreakers.isEmpty() == false) {
@@ -94,7 +94,7 @@ public class PlannerUtils {
             } else if (pipelineBreaker instanceof Limit limit) {
                 return new LimitExec(limit.source(), unused, limit.limit());
             } else if (pipelineBreaker instanceof DedupBy dedup) {
-                return new DedupExec(dedup.source(), unused, dedup.fields());
+                return new DedupExec(dedup.source(), unused, dedup.order(), configuration.resultTruncationMaxSize(), 2000);
             } else if (pipelineBreaker instanceof OrderBy order) {
                 return new OrderExec(order.source(), unused, order.order());
             } else if (pipelineBreaker instanceof Aggregate aggregate) {

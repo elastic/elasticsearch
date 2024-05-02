@@ -233,7 +233,7 @@ public class Mapper {
 
     private PhysicalPlan map(DedupBy d, PhysicalPlan child) {
         child = addExchangeForFragment(d, child);
-        return new DedupExec(d.source(), child, d.fields());
+        return new DedupExec(d.source(), child, d.order(), 10000, null);
     }
 
     private PhysicalPlan map(TopN topN, PhysicalPlan child) {

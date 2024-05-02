@@ -706,14 +706,18 @@ public final class PlanNamedTypes {
         return new DedupExec(
             in.readSource(),
             in.readPhysicalPlanNode(),
-            readNamedExpressions(in)
+            in.readCollectionAsList(readerFromPlanReader(PlanNamedTypes::readOrder)),
+            in.readInt(),
+            in.readOptionalVInt()
         );
     }
 
     static void writeDedupExec(PlanStreamOutput out, DedupExec dedupExec) throws IOException {
         out.writeNoSource();
         out.writePhysicalPlanNode(dedupExec.child());
-        writeNamedExpressions(out, dedupExec.fields());
+        out.writeCollection(dedupExec.order(), writerFromPlanWriter(PlanNamedTypes::writeOrder));
+        out.writeInt(dedupExec.limit());
+        out.writeOptionalVInt(dedupExec.estimatedRowSize());
     }
 
     static OrderExec readOrderExec(PlanStreamInput in) throws IOException {
@@ -958,14 +962,14 @@ public final class PlanNamedTypes {
         return new DedupBy(
             in.readSource(),
             in.readLogicalPlanNode(),
-            readNamedExpressions(in)
+            in.readCollectionAsList(readerFromPlanReader(PlanNamedTypes::readOrder))
         );
     }
 
     static void writeDedupBy(PlanStreamOutput out, DedupBy dedup) throws IOException {
         out.writeNoSource();
         out.writeLogicalPlanNode(dedup.child());
-        writeNamedExpressions(out, dedup.fields());
+        out.writeCollection(dedup.order(), writerFromPlanWriter(PlanNamedTypes::writeOrder));
     }
 
     static OrderBy readOrderBy(PlanStreamInput in) throws IOException {

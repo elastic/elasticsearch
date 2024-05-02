@@ -38,10 +38,12 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceStatsAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportGetInferenceStatsAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
@@ -56,6 +58,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestGetInferenceStatsAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -114,7 +117,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class)
+            new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
+            new ActionHandler<>(GetInferenceStatsAction.INSTANCE, TransportGetInferenceStatsAction.class)
         );
     }
 
@@ -134,7 +138,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestInferenceAction(),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
-            new RestDeleteInferenceModelAction()
+            new RestDeleteInferenceModelAction(),
+            new RestGetInferenceStatsAction()
         );
     }
 
@@ -144,11 +149,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
 
-        var httpRequestSenderFactory = new HttpRequestSender.Factory(
-            serviceComponents.get(),
-            HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager),
-            services.clusterService()
-        );
+        var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
+        var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
         ModelRegistry modelRegistry = new ModelRegistry(services.client());
@@ -166,7 +168,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         registry.init(services.client());
         inferenceServiceRegistry.set(registry);
 
-        return List.of(modelRegistry, registry);
+        return List.of(modelRegistry, registry, httpClientManager);
     }
 
     @Override

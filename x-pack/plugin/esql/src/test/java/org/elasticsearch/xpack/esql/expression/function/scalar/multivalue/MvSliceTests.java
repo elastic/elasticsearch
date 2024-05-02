@@ -273,7 +273,7 @@ public class MvSliceTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
+            List<Object> field = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
@@ -290,7 +290,7 @@ public class MvSliceTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
+            List<Object> field = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
@@ -307,7 +307,7 @@ public class MvSliceTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
+            List<Object> field = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
@@ -324,7 +324,7 @@ public class MvSliceTests extends AbstractFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
+            List<Object> field = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);

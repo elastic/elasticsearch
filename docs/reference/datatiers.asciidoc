@@ -212,41 +212,50 @@ tier.
 [[data-tier-allocation]]
 === Data tier index allocation
 
-You can check an existing index's data tier by <<indices-get-settings,polling its 
-settings>> for <<tier-preference-allocation-filter,`index.routing.allocation.include._tier_preference`>>:
+The <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>> setting determines the tier index shards should be allocated to.
+
+When you create an index, by default {es} sets the `_tier_preference`
+to `data_content` to automatically allocate the index shards to the content tier.
+
+When {es} creates an index as part of a <<data-streams, data stream>>,
+by default {es} sets the `_tier_preference`
+to `data_hot` to automatically allocate the index shards to the hot tier.
+
+At the time of index creation, you can override the default setting by explicitly setting 
+the preferred value in one of two ways:
+
+- By using an <<index-templates,index template>>. Refer to <<getting-started-index-lifecycle-management,Automate rollover with ILM>> for details.
+- From within the <<indices-create-index,create index>> request body. 
+
+You can override this 
+setting after index creation by <<indices-update-settings,updating the index setting>> to the preferred 
+value. 
+
+In this setting, you can provide multiple tiers in order of preference to prevent indices from remaining unallocated if no nodes are available in the preferred tier.
+
+To remove the data tier preference 
+setting, set the `_tier_preference` value to `null`. This allows the index to allocate to any data node within the cluster. Setting the `_tier_preference` to `null` does not restore the default value. Note that, in the case of managed indices, a <<ilm-migrate,migrate>> action might apply a new value in its place. 
+
+[discrete]
+[[data-tier-allocation-value]]
+==== Determine the current data tier preference
+
+You can check an existing index's data tier preference by <<indices-get-settings,polling its 
+settings>> for `index.routing.allocation.include._tier_preference`:
 
 [source,console]
 --------------------------------------------------
 GET /my-index-000001/_settings?filter_path=*.settings.index.routing.allocation.include._tier_preference
 --------------------------------------------------
 
-This `_tier_preference` setting may include a descending preference list for later data tier 
-temperatures, for example <<cold-tier,cold tier>> would state `data_cold,data_warm,data_hot`. 
-See <<ilm-migrate,ILM Migrate>> for more context. 
+[discrete]
+[[data-tier-allocation-troubleshooting]]
+==== Troubleshooting
 
-{es} will attempt to <<index-modules-allocation,allocate>> the index's shards 
-according to this setting. This setting will not overpower and may conflict with 
-other allocation settings preventing the shard from allocating. This historically 
-has occurred when a cluster has not yet been or has been insufficiently <<troubleshoot-migrate-to-tiers,migrated 
-to data tiers>>. This setting will not unallocate a currently allocated shard, but 
-may for example prevent it from migrating from its current location to its designated 
-data tier. To troubleshoot, run <<cluster-allocation-explain,Allocation Explain>> 
-against the suspected problematic shard.
+The `_tier_preference` setting might conflict with other allocation settings. This conflict might prevent the shard from allocating. A conflict might occur when a cluster has not yet been completely <<troubleshoot-migrate-to-tiers,migrated 
+to data tiers>>. 
 
-A created index will default the `_tier_preference` setting to `data_content` which 
-will allocate the index' shards to the content tier. A <<data-streams,Data Stream>> 
-will override its backing created index to `data_hot` to instead default allocate to the 
-hot tier. You can override these default actions upon index creation by explicitly setting 
-the preferred value either via an <<index-templates,Index Template>>, see 
-<<getting-started-index-lifecycle-management,bootstrapping ILM>>, or from within the 
-<<indices-create-index,created index>> request body itself. You may also override this 
-setting at any time by <<indices-update-settings,updating index settings>> to the preferred 
-value. 
-
-You may set the `_tier_preference` value to `null` to remove the data tier preference 
-setting which will allow it to allocate to any data node within the cluster and will not 
-reset the index's setting back to its respective upon-creation default. Forewarning if you 
-do that an <<ilm-migrate,ILM Migrate>> may apply a value at a later point if the index is managed. 
+This setting will not unallocate a currently allocated shard, but might prevent it from migrating from its current location to its designated data tier. To troubleshoot, call the <<cluster-allocation-explain,cluster allocation explain API>> and specify the suspected problematic shard.
 
 [discrete]
 [[data-tier-migration]]

@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.*;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.FULL;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.RIGHT;

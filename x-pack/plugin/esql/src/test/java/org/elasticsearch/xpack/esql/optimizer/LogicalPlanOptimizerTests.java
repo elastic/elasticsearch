@@ -4699,7 +4699,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | lookup int_number_names on int
             """);
 
-        System.out.println(plan);
         fail("not implemented yet");
     }
 

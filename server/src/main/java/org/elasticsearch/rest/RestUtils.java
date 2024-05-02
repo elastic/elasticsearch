@@ -10,6 +10,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.TimeValue;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -254,6 +255,29 @@ public class RestUtils {
      */
     public static Optional<String> extractTraceId(String traceparent) {
         return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
+    }
+
+    /**
+     * The name of the common {@code ?master_timeout} query parameter.
+     */
+    public static final String REST_MASTER_TIMEOUT_PARAM = "master_timeout";
+
+    /**
+     * The default value for the common {@code ?master_timeout} query parameter.
+     */
+    public static final TimeValue REST_MASTER_TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(30);
+
+    /**
+     * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?master_timeout} parameter
+     * @return the timeout from the request, with a default of {@link #REST_MASTER_TIMEOUT_DEFAULT} ({@code 30s}) if the request does not
+     *         specify the parameter
+     */
+    public static TimeValue getMasterNodeTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_MASTER_TIMEOUT_PARAM, REST_MASTER_TIMEOUT_DEFAULT);
     }
 
 }

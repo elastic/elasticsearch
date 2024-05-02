@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
+
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
 
@@ -71,7 +73,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             }
         }
         assertNotNull(expectedFile);
-        indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
+        closeShardNoCheck(indexShard); // we have to close it here otherwise rename fails since the write.lock is held by the engine
         multiFileWriter.renameAllTempFiles();
         strings = Sets.newHashSet(indexShard.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));

@@ -902,6 +902,22 @@ public class BytesStreamsTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
+    public void testTimeValueInterning() throws IOException {
+        try (var bytesOut = new BytesStreamOutput()) {
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.MINUS_ONE : new TimeValue(-1, TimeUnit.MILLISECONDS));
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.ZERO : new TimeValue(0, TimeUnit.MILLISECONDS));
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.THIRTY_SECONDS : new TimeValue(30, TimeUnit.SECONDS));
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.ONE_MINUTE : new TimeValue(1, TimeUnit.MINUTES));
+
+            try (var in = bytesOut.bytes().streamInput()) {
+                assertSame(TimeValue.MINUS_ONE, in.readTimeValue());
+                assertSame(TimeValue.ZERO, in.readTimeValue());
+                assertSame(TimeValue.THIRTY_SECONDS, in.readTimeValue());
+                assertSame(TimeValue.ONE_MINUTE, in.readTimeValue());
+            }
+        }
+    }
+
     private static class TestStreamOutput extends BytesStream {
 
         private final BytesStreamOutput output = new BytesStreamOutput();

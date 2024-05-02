@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -55,6 +57,12 @@ $endif$
     @Override
     public $Type$Block filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        // TODO optimizations
+        return new $Type$Lookup(this, positions, targetBlockSize);
     }
 
     @Override

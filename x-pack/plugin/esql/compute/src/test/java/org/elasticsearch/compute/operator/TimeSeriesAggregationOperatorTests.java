@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
@@ -58,15 +59,19 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "TimeSeriesAggregationOperator[mode=FINAL, tsHashChannel = 0, timestampIntervalChannel = 1, "
-            + "timeSeriesPeriod = 0s, maxPageSize = 100]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo(
+            "TimeSeriesAggregationOperator[mode=FINAL, tsHashChannel = 0, timestampIntervalChannel = 1, "
+                + "timeSeriesPeriod = 0s, maxPageSize = 100]"
+        );
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "HashAggregationOperator[blockHash=TimeSeriesBlockHash{keys=[BytesRefKey[channel=0], "
-            + "LongKey[channel=1]], entries=-1b}, aggregators=[]]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "HashAggregationOperator[blockHash=TimeSeriesBlockHash{keys=[BytesRefKey[channel=0], "
+                + "LongKey[channel=1]], entries=-1b}, aggregators=[]]"
+        );
     }
 
     public void testBasicRate() {

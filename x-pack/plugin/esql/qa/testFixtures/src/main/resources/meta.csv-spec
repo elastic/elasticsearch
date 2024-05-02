@@ -153,19 +153,19 @@ max           |number                              |"double|integer|long"       
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
 min           |number                              |"double|integer|long"                                                                                                             |[""]
-mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[values to join, delimiter]
-mv_count      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |[""]
-mv_dedupe     |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
-mv_first      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |[""]
-mv_last       |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |[""]
-mv_max        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |[""]
-mv_median     |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-mv_min        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |[""]
-mv_slice      |[field, start, end]                 |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", integer, integer]|[A multivalued field, start index, end index (included)]
-mv_sort       |[field, order]                      |["boolean|date|double|integer|ip|keyword|long|text|version", keyword]                                                             |[A multivalued field, sort order]
-mv_sum        |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-mv_zip        |[string1, string2, delim]           |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[A multivalued field, A multivalued field, delimiter]
+mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
+mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
+mv_count      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
+mv_dedupe     |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |Multivalue expression.
+mv_first      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
+mv_last       |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
+mv_max        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
+mv_median     |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
+mv_min        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
+mv_slice      |[field, start, end]                 |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", integer, integer]|[Multivalue expression. If `null`\, the function returns `null`., Start position. If `null`\, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list., End position(included). Optional; if omitted\, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list.]
+mv_sort       |[field, order]                      |["boolean|date|double|integer|ip|keyword|long|text|version", keyword]                                                             |[Multivalue expression. If `null`\, the function returns `null`., Sort order. The valid options are ASC and DESC\, the default is ASC.]
+mv_sum        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
+mv_zip        |[string1, string2, delim]           |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[Multivalue expression., Multivalue expression., Delimiter. Optional; if omitted\, `\,` is used as a default delimiter.]
 now           |null                                |null                                                                                                                              |null
 percentile    |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[, ]
 pi            |null                                |null                                                                                                                              |null
@@ -268,14 +268,14 @@ median        |The value that is greater than half of all values and less than h
 median_absolut|The median absolute deviation, a measure of variability.
 min           |The minimum value of a numeric field.
 mv_avg        |Converts a multivalued field into a single valued field containing the average of all of the values.
-mv_concat     |Reduce a multivalued string field to a single valued field by concatenating all values.
-mv_count      |Reduce a multivalued field to a single valued field containing the count of values.
+mv_concat     |Converts a multivalued string expression into a single valued column containing the concatenation of all values separated by a delimiter.
+mv_count      |Converts a multivalued expression into a single valued column containing a count of the number of values.
 mv_dedupe     |Remove duplicate values from a multivalued field.
-mv_first      |Reduce a multivalued field to a single valued field containing the first value.
-mv_last       |Reduce a multivalued field to a single valued field containing the last value.
-mv_max        |Reduce a multivalued field to a single valued field containing the maximum value.
+mv_first      |Converts a multivalued expression into a single valued column containing the first value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.  The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not guaranteed. It is *frequently* ascending, but don't rely on that. If you need the minimum value use <<esql-mv_min>> instead of `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't a performance benefit to `MV_FIRST`.
+mv_last       |Converts a multivalue expression into a single valued column containing the last value. This is most useful when reading from a function that emits multivalued columns in a known order like <<esql-split>>.  The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not guaranteed. It is *frequently* ascending, but don't rely on that. If you need the maximum value use <<esql-mv_max>> instead of `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a performance benefit to `MV_LAST`.
+mv_max        |Converts a multivalued expression into a single valued column containing the maximum value.
 mv_median     |Converts a multivalued field into a single valued field containing the median value.
-mv_min        |Reduce a multivalued field to a single valued field containing the minimum value.
+mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
 mv_slice      |Returns a subset of the multivalued field using the start and end index values.
 mv_sort       |Sorts a multivalued field in lexicographical order.
 mv_sum        |Converts a multivalued field into a single valued field containing the sum of all of the values.

@@ -59,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DOUBLE1 = field("foo", DataTypes.DOUBLE);
@@ -75,7 +76,8 @@ public class EvalMapperTests extends ESTestCase {
         10000000,
         10000,
         StringUtils.EMPTY,
-        false
+        false,
+        Map.of()
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")

@@ -2,7 +2,7 @@
 [[data-tiers]]
 == Data tiers
 
-A _data tier_ is a collection of <<modules-node,nodes>> within a cluster which share the same 
+A _data tier_ is a collection of <<modules-node,nodes>> within a cluster that share the same 
 <<node-roles,data node role>>. Elastic recommends this collection of nodes also shares the same 
 hardware profile to avoid <<hotspotting,hot spotting>>. Data tiers' usage generally splits along 
 <<data-management,data categories>> for _content_ and _time series_ data. {es} available 
@@ -10,7 +10,7 @@ data tiers:
 
 * <<content-tier,Content tier>> nodes handle the indexing and query load for content 
 indices, such as a <<system-indices,system index>> or a product catalog.
-* <<hot-tier,Hot tier>> nodes handle the indexing load for time series, 
+* <<hot-tier,Hot tier>> nodes handle the indexing load for time series data, 
 such as logs or metrics. They hold your most recent, most-frequently-accessed data.
 * <<warm-tier,Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
@@ -26,6 +26,9 @@ mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
 This extends the storage capacity even further — by up to 20 times compared to
 the warm tier. 
 
+IMPORTANT: {es} generally expects nodes within a data tier to share the same
+hardware profile. Variations that don't follow this recommendation should be
+carefully architected to avoid <<hotspotting,hot spotting>>.
 Content data will remain on the <<content-tier,content tier>> for its entire 
 data lifecycle. You can configure your time series data to progress through the 
 descending temperature data tiers hot, warm, cold, and frozen according to your 
@@ -35,7 +38,7 @@ specifically also using <<data-streams,Data Streams>>.
 
 [TIP]
 ====
-A data tiers' performance is highly subjective to its backing hardware profile. 
+A data tier's performance depends on its backing hardware profile. 
 See {cloud}/ec-configure-deployment-settings.html#ec-hardware-profiles[{ecloud}'s 
 hardware profiles] for example {cloud}/ec-reference-hardware.html[hardware configurations].
 
@@ -59,6 +62,8 @@ https://www.elastic.co/blog/it-depends[It Depends] philosphy.
 [[available-tier]]
 === Available data tiers
 
+Learn more about each data tier, including when and how it should be used.
+
 [discrete]
 [[content-tier]]
 ==== Content tier
@@ -76,7 +81,7 @@ While they are also responsible for indexing, content data is generally not inge
 as time series data such as logs and metrics. From a resiliency perspective the indices in this
 tier should be configured to use one or more replicas.
 
-The content tier is required and is frequently seen deployed within the same node 
+The content tier is required and is often deployed within the same node 
 grouping as the hot tier. System indices and other indices that aren't part
 of a data stream are automatically allocated to the content tier. 
 // end::content-tier[]
@@ -151,9 +156,11 @@ tier are typically slower than on the cold tier.
 [[configure-data-tiers]]
 === Configure data tiers
 
+Follow the instructions for your deployment type to configure data tiers.
+
 [discrete]
 [[configure-data-tiers-cloud]]
-==== On {ess} or {ece}
+==== {ess} or {ece}
 
 The default configuration for an {ecloud} deployment includes a shared tier for
 hot and content data. This tier is required and can't be removed.
@@ -187,7 +194,7 @@ tier].
 
 [discrete]
 [[configure-data-tiers-on-premise]]
-==== On self-managed deployments
+==== Self-managed deployments
 
 For self-managed deployments, each node's <<data-node,data role>> is configured
 in `elasticsearch.yml`. For example, the highest-performance nodes in a cluster

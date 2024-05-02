@@ -36,17 +36,15 @@ import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -380,30 +378,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (a.expressionsResolved() == false) {
-                AttributeSet resolved = new AttributeSet();
-                for (Expression e : groupings) {
+                AttributeMap<Expression> resolved = new AttributeMap<>();
+                for (Expression e : groupings.stream().filter(Expression::resolved).toList()) {
                     Attribute attr = Expressions.attribute(e);
                     if (attr != null) {
-                        if (attr.resolved()) {
-                            resolved.add(attr);
-                        } else if (attr instanceof UnresolvedAttribute) {
-                            // The aggregate itself could be resolvable if the grouping was, so we create a reference attribute to it.
-                            // This cannot be synthetic because synthetic attributes are disregarded during resolution.
-                            resolved.add(
-                                new ReferenceAttribute(
-                                    attr.source(),
-                                    attr.name(),
-                                    DataTypes.NULL,
-                                    attr.qualifier(),
-                                    attr.nullable(),
-                                    new NameId(),
-                                    false
-                                )
-                            );
-                        }
+                        resolved.put(attr, attr);
                     }
                 }
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved), childrenOutput);
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
                 List<NamedExpression> newAggregates = new ArrayList<>();
 
                 for (NamedExpression aggregate : a.aggregates()) {
@@ -485,31 +467,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 changed |= result != field;
                 newFields.add(result);
 
-                // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
-                Attribute existing = allResolvedInputs.stream()
-                    .filter(attr -> attr.name().equals(result.name()))
-                    .findFirst()
-                    .orElse(null);
-                if (existing != null) {
-                    allResolvedInputs.remove(existing);
-                }
                 if (result.resolved()) {
+                    // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
+                    Attribute existing = allResolvedInputs.stream()
+                        .filter(attr -> attr.name().equals(result.name()))
+                        .findFirst()
+                        .orElse(null);
+                    if (existing != null) {
+                        allResolvedInputs.remove(existing);
+                    }
                     allResolvedInputs.add(result.toAttribute());
-                } else if (result.toAttribute() instanceof UnresolvedAttribute) {
-                    // Subsequent expressions may rely on an unresolvable expression. For useful error messages, we shouldn't act as if
-                    // the unresolvable expression doesn't exist, so we create a reference attribute to it.
-                    // This cannot be synthetic because synthetic attributes are disregarded during resolution.
-                    allResolvedInputs.add(
-                        new ReferenceAttribute(
-                            result.source(),
-                            result.name(),
-                            DataTypes.NULL,
-                            result.qualifier(),
-                            result.nullable(),
-                            new NameId(),
-                            false
-                        )
-                    );
                 }
             }
             return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;

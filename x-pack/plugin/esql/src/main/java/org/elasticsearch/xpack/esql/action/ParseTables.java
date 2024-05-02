@@ -131,7 +131,7 @@ public class ParseTables {
                     }
                     case START_ARRAY -> parseTextArray(builder, scratch);
                     case VALUE_NULL -> builder.appendNull();
-                    case VALUE_STRING -> appendText(builder, scratch);
+                    case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN -> appendText(builder, scratch);
                     default -> throw new XContentParseException(p.getTokenLocation(), "expected string, array of strings, or null");
                 }
             }

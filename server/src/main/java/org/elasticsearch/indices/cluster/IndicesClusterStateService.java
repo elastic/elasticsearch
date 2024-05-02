@@ -847,6 +847,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         + state
                         + "], mark shard as started",
                     shard.getTimestampRange(),
+                    shard.getEventIngestedRange(),
                     ActionListener.noop(),
                     clusterState
                 );
@@ -914,6 +915,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 "after " + state.getRecoverySource(),
                 timestampMillisFieldRange,
+                ShardLongFieldRange.UNKNOWN,  /// MP TODO: FIXME - need to add this to the onRecoveryDone interface
                 ActionListener.noop()
             );
         }
@@ -1040,6 +1042,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         @Nullable
         ShardLongFieldRange getTimestampRange();
+
+        /// MP TODO: change this to no longer be default - require underlying Shard classes to implement it
+        default ShardLongFieldRange getEventIngestedRange() {
+            return ShardLongFieldRange.UNKNOWN;
+        }
 
         /**
          * Updates the shard state based on an incoming cluster state:

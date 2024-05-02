@@ -32,7 +32,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-
 import javax.inject.Inject;
 
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -122,7 +121,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir());
             // Fetch latest from remotes, including tags, overriding any existing local refs
-            fetchLatest.commandLine("git", "fetch", "--all", "--tags", "--force");
+            fetchLatest.commandLine("git", "fetch", "--all", "--tags", "--force", "--prune", "--prune-tags", "--recurse-submodules");
         });
 
         String projectPath = project.getPath();

@@ -706,11 +706,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 singleShutdownMetadataBuilder.setGracePeriod(TimeValue.MAX_VALUE);
             }
             final var nodeShutdownMetadata = new NodesShutdownMetadata(Map.of(node2.getId(), singleShutdownMetadataBuilder.build()));
-
+            // Add shutdown marker
             clusterState = ClusterState.builder(clusterState)
                 .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
                 .build();
-
             assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
             rerouteAndWait(service, clusterState, "reroute-after-shutdown");
             assertTrue("desired balance reset should be called on node shutdown", resetCalled.get());
@@ -720,14 +719,19 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             rerouteAndWait(service, clusterState, "random-reroute");
             assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
             assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), equalTo(Set.of(node2.getId())));
-            // Remove the shutdown marker
-            final var clusterStateBuilder = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
+            // Node may or may not have been removed
             final var removeNodeFromCluster = randomBoolean();
             if (removeNodeFromCluster) {
-                clusterStateBuilder.nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()));
+                clusterState = ClusterState.builder(clusterState)
+                    .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+                    .build();
             }
-            clusterState = clusterStateBuilder.build();
+            rerouteAndWait(service, clusterState, "random-reroute");
+            assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
+            // Remove the shutdown marker
+            clusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY))
+                .build();
             rerouteAndWait(service, clusterState, "random-reroute");
             if (removeNodeFromCluster) {
                 assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());

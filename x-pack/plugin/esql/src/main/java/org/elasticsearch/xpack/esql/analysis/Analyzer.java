@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
-import org.elasticsearch.xpack.esql.expression.TableColumnAttribute;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -32,7 +32,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -89,7 +90,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -119,16 +119,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var resolution = new Batch<>(
-            "Resolution",
+        var init = new Batch<>(
+            "Initialize",
+            Limiter.ONCE,
             new ResolveTable(),
             new ResolveEnrich(),
-            new ResolveFunctions(),
-            new ResolveRefs(),
-            new ImplicitCasting()
+            new ResolveLookup(),
+            new ResolveFunctions()
         );
+
+        var resolution = new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
-        rules = List.of(resolution, finish);
+
+        rules = List.of(init, resolution, finish);
     }
 
     private final Verifier verifier;
@@ -316,6 +319,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    private static class ResolveLookup extends ParameterizedAnalyzerRule<Lookup, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(Lookup lookup, AnalyzerContext context) {
+            // the parser passes the string wrapped in a literal
+            Source source = lookup.source();
+            Expression tableNameExpression = lookup.tableName();
+            String tableName = lookup.tableName().toString();
+            Map<String, Map<String, Column>> tables = context.configuration().tables();
+            LocalRelation localRelation = null;
+
+            if (tables.containsKey(tableName) == false) {
+                String message = "Unknown table [" + tableName + "]";
+                // typos check
+                List<String> potentialMatches = StringUtils.findSimilar(tableName, tables.keySet());
+                if (CollectionUtils.isEmpty(potentialMatches) == false) {
+                    message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
+                }
+                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, null, message);
+            }
+            // wrap the table in a local relationship for idiomatic field resolution
+            else {
+                localRelation = tableMapAsRelation(source, tables.get(tableName));
+                // postpone the resolution for ResolveRefs
+            }
+
+            return new Lookup(source, lookup.child(), tableNameExpression, lookup.matchFields(), localRelation);
+        }
+
+        private LocalRelation tableMapAsRelation(Source source, Map<String, Column> mapTable) {
+            Block[] blocks = new Block[mapTable.size()];
+
+            List<Attribute> attributes = new ArrayList<>(blocks.length);
+            int i = 0;
+            for (Map.Entry<String, Column> entry : mapTable.entrySet()) {
+                String name = entry.getKey();
+                Column column = entry.getValue();
+                // create a fake ES field - alternative is to use a ReferenceAttribute
+                EsField field = new EsField(name, column.type(), null, false, false);
+                attributes.add(new FieldAttribute(source, null, name, field));
+                // prepare the block for the supplier
+                blocks[i++] = column.values();
+            }
+            LocalSupplier supplier = LocalSupplier.of(blocks);
+            return new LocalRelation(source, attributes, supplier);
+        }
+    }
+
     private static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
@@ -358,8 +409,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveMvExpand(p, childrenOutput);
             }
 
-            if (plan instanceof Lookup p) {
-                return resolveLookup(context.configuration(), p, childrenOutput);
+            if (plan instanceof Lookup l) {
+                return resolveLookup(l, childrenOutput);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -418,52 +469,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return a;
         }
 
-        private LogicalPlan resolveLookup(EsqlConfiguration config, Lookup p, List<Attribute> childrenOutput) {
-            if (p.expressionsResolved()) {
-                return p;
-            }
-            String tableName = p.tableName().name();
-            Map<String, Column> table = config.tables().get(tableName);
-            if (table == null) {
-                return p;
-            }
-            table = new TreeMap<>(table);
-            // TODO what's the right type for this thing?!
-            Attribute resolvedTableName = new ReferenceAttribute(p.tableName().source(), tableName, KEYWORD);
-            List<Attribute> matchFields = new ArrayList<>(p.matchFields().size());
-            List<TableColumnAttribute> matchValues = new ArrayList<>(p.matchFields().size());
-            for (Attribute m : p.matchFields()) {
-                Column c = table.remove(m.name());
-                if (c == null) {
-                    // Can't resolve
-                    matchFields.add(m);
-                    continue;
-                }
-                if (m instanceof UnresolvedAttribute ua) {
-                    m = maybeResolveAttribute(ua, childrenOutput);
-                }
-
-                matchFields.add(m);
-                matchValues.add(new TableColumnAttribute(m.source(), m.name(), c.type(), null, c.values()));
-                if (m.dataType() != c.type()) {
-                    throw new IllegalArgumentException("NOCOMMIT how do I make this a more normal failure?");
-                }
-            }
-            List<TableColumnAttribute> mergeValues = new ArrayList<>(table.size());
-            for (Map.Entry<String, Column> unmatched : table.entrySet()) {
-                mergeValues.add(
-                    new TableColumnAttribute(
-                        p.source(),
-                        unmatched.getKey(),
-                        unmatched.getValue().type(),
-                        null,
-                        unmatched.getValue().values()
-                    )
-                );
-            }
-            return new Lookup(p.source(), p.child(), resolvedTableName, matchFields, matchValues, mergeValues);
-        }
-
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
             if (p.target() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
@@ -488,6 +493,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return p;
+        }
+
+        private LogicalPlan resolveLookup(Lookup l, List<Attribute> childrenOutput) {
+            // check if the table exists before performing any resolution
+            if (l.localRelation() == null) {
+                return l;
+            }
+
+            // check the on field against both the child output and the inner relation
+            List<NamedExpression> on = l.matchFields();
+            List<NamedExpression> resolvedOn = new ArrayList<>(on.size());
+            List<Attribute> localOutput = l.localRelation().output();
+
+            for (NamedExpression ne : on) {
+                if (ne instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
+                    ne = maybeResolveAttribute(ua, localOutput);
+                    // can't find the field inside the local relation
+                    if (ne instanceof UnresolvedAttribute lua) {
+                        // adjust message
+                        ne = lua.withUnresolvedMessage(
+                            lua.unresolvedMessage().replace("Unknown column", "Unknown column in lookup target")
+                        );
+                    }
+                    // check also the child output by resolving to it
+                    else {
+                        ne = maybeResolveAttribute(ua, localOutput);
+                    }
+                }
+
+                resolvedOn.add(ne);
+            }
+
+            return new Lookup(l.source(), l.child(), l.tableName(), resolvedOn, l.localRelation());
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

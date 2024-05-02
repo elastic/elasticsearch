@@ -4681,6 +4681,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(and, new PropagateNullable().rule(and));
     }
 
+    //
+    // Lookup
+    //
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Join[LEFT,true[BOOLEAN]]
+     *   |_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     *   \_LocalRelation[[name{f}#14, int{f}#15],[BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]], IntVectorBlock[vector=I
+     * ntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]]]
+     */
+    public void testBasicLookup() throws Exception {
+        var plan = optimizedPlan("""
+            from test
+            | lookup int_number_names on int
+            """);
+
+        System.out.println(plan);
+        fail("not implemented yet");
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }

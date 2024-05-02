@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 
 public class EsqlConfiguration extends Configuration implements Writeable {
@@ -64,7 +65,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.resultTruncationDefaultSize = resultTruncationDefaultSize;
         this.query = query;
         this.profile = profile;
-        this.tables = tables;
+        this.tables = tables != null ? tables : emptyMap();
     }
 
     public EsqlConfiguration(BlockStreamInput in) throws IOException {

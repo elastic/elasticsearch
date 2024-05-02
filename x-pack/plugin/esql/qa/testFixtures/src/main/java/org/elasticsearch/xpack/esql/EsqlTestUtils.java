@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -119,9 +118,52 @@ public final class EsqlTestUtils {
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
 
-    public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
-
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
+
+    private static final Map<String, Map<String, Column>> TABLES;
+
+    static {
+        BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
+        Map<String, Map<String, Column>> tables = new HashMap<>();
+        try (
+            IntBlock.Builder ints = factory.newIntBlockBuilder(10);
+            LongBlock.Builder longs = factory.newLongBlockBuilder(10);
+            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(10);
+        ) {
+            for (int i = 0; i < 10; i++) {
+                ints.appendInt(i);
+                longs.appendLong(i);
+                names.appendBytesRef(new BytesRef(switch (i) {
+                    case 0 -> "zero";
+                    case 1 -> "one";
+                    case 2 -> "two";
+                    case 3 -> "three";
+                    case 4 -> "four";
+                    case 5 -> "five";
+                    case 6 -> "six";
+                    case 7 -> "seven";
+                    case 8 -> "eight";
+                    case 9 -> "nine";
+                    default -> throw new IllegalArgumentException();
+                }));
+            }
+
+            IntBlock intsBlock = ints.build();
+            LongBlock longsBlock = longs.build();
+            BytesRefBlock namesBlock = names.build();
+            tables.put(
+                "int_number_names",
+                Map.of("int", new Column(DataTypes.INTEGER, intsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+            );
+            tables.put(
+                "long_number_names",
+                Map.of("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+            );
+        }
+        TABLES = unmodifiableMap(tables);
+    }
+
+    public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     private EsqlTestUtils() {}
 
@@ -273,47 +315,5 @@ public final class EsqlTestUtils {
                 assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
             }
         }
-    }
-
-    private static final Map<String, Map<String, Column>> TABLES;
-    static {
-        BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
-        Map<String, Map<String, Column>> tables = new HashMap<>();
-        try (
-            IntBlock.Builder ints = factory.newIntBlockBuilder(10);
-            LongBlock.Builder longs = factory.newLongBlockBuilder(10);
-            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(10);
-        ) {
-            for (int i = 0; i < 10; i++) {
-                ints.appendInt(i);
-                longs.appendLong(i);
-                names.appendBytesRef(new BytesRef(switch (i) {
-                    case 0 -> "zero";
-                    case 1 -> "one";
-                    case 2 -> "two";
-                    case 3 -> "three";
-                    case 4 -> "four";
-                    case 5 -> "five";
-                    case 6 -> "six";
-                    case 7 -> "seven";
-                    case 8 -> "eight";
-                    case 9 -> "nine";
-                    default -> throw new IllegalArgumentException();
-                }));
-            }
-
-            IntBlock intsBlock = ints.build();
-            LongBlock longsBlock = longs.build();
-            BytesRefBlock namesBlock = names.build();
-            tables.put("int_number_names", Map.of(
-                "int", new Column(DataTypes.INTEGER, intsBlock),
-                "name", new Column(DataTypes.KEYWORD, namesBlock)
-            ));
-            tables.put("long_number_names", Map.of(
-                "long", new Column(DataTypes.LONG, longsBlock),
-                "name", new Column(DataTypes.KEYWORD, namesBlock)
-            ));
-        }
-        TABLES = unmodifiableMap(tables);
     }
 }

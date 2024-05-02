@@ -155,6 +155,10 @@ qualifiedNamePattern
     : identifierPattern (DOT identifierPattern)*
     ;
 
+qualifiedNamePatterns
+    : qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    ;
+
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
@@ -190,11 +194,11 @@ orderExpression
     ;
 
 keepCommand
-    :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    :  KEEP qualifiedNamePatterns
     ;
 
 dropCommand
-    : DROP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    : DROP qualifiedNamePatterns
     ;
 
 renameCommand
@@ -275,8 +279,5 @@ enrichWithClause
     ;
 
 lookupCommand
-    : LOOKUP tableName=identifier ON matchFields=qualifiedNames
+    : LOOKUP tableName=qualifiedNamePattern ON matchFields=qualifiedNamePatterns
     ;
-
-qualifiedNames
-    : qualifiedName (COMMA qualifiedName)*;

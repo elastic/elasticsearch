@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
@@ -161,13 +162,9 @@ public class Mapper {
         }
 
         if (p instanceof Lookup lookup) {
-            return new HashJoinExec(
-                lookup.source(),
-                child,
-                lookup.tableName(),
-                lookup.matchFields(),
-                lookup.matchValues(),
-                lookup.mergeValues()
+            return new HashJoinExec(lookup.source(), child, null, emptyList(), null, null
+            // lookup.matchValues(),
+            // lookup.mergeValues()
             );
         }
 

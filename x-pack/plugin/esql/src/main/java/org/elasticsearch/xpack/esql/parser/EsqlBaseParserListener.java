@@ -446,6 +446,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
    */
@@ -839,14 +849,4 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   */
-  void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   */
-  void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
 }

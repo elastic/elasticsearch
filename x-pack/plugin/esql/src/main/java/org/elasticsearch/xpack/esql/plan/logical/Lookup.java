@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.expression.TableColumnAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -22,86 +23,62 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
- * Looks up values from the {@code tables} request parameter.
- * <p>
- *     This class exists in two very different modes - an "unresolved" mode
- *     which contains only the {@link #tableName} and {@link #matchValues},
- *     and a "resolved" mode which contains everything. The process of
- *     resolving all of the references adds the extra columns by looking
- *     up the table from the analysis context.
- * </p>
+ * Looks up values from the associated {@code tables}.
+ * The class is used only during the analysis phased, after which it is replaced by a {@code Join}.
  */
 public class Lookup extends UnaryPlan {
-    private final Attribute tableName;
-    private final List<Attribute> matchFields;
-    private final List<TableColumnAttribute> matchValues;
-    private final List<TableColumnAttribute> mergeValues;
-    private List<Attribute> output;
+    private final Expression tableName;
+    private final List<NamedExpression> matchFields;
+    // initialized during the analysis phase for output and validation
+    // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
+    private final LocalRelation localRelation;
+    private List<Attribute> lazyOutput;
 
-    public Lookup(
-        Source source,
-        LogicalPlan child,
-        Attribute tableName,
-        List<Attribute> matchFields,
-        @Nullable List<TableColumnAttribute> matchValues,
-        @Nullable List<TableColumnAttribute> mergeValues
-    ) {
+    public Lookup(Source source, LogicalPlan child, Expression tableName, List<NamedExpression> matchFields) {
+        this(source, child, tableName, matchFields, null);
+    }
+
+    public Lookup(Source source, LogicalPlan child, Expression tableName, List<NamedExpression> matchFields, LocalRelation localRelation) {
         super(source, child);
         this.tableName = tableName;
         this.matchFields = matchFields;
-        this.matchValues = matchValues;
-        this.mergeValues = mergeValues;
+        this.localRelation = localRelation;
     }
 
-    public Attribute tableName() {
+    public Expression tableName() {
         return tableName;
     }
 
-    public List<Attribute> matchFields() {
+    public List<NamedExpression> matchFields() {
         return matchFields;
     }
 
-    public List<TableColumnAttribute> matchValues() {
-        return matchValues;
-    }
-
-    public List<TableColumnAttribute> mergeValues() {
-        return mergeValues;
+    public LocalRelation localRelation() {
+        return localRelation;
     }
 
     @Override
     public boolean expressionsResolved() {
-        if (matchValues == null || mergeValues == null) {
-            return false;
-        }
-        return tableName.resolved()
-            && Resolvables.resolved(matchFields)
-            && Resolvables.resolved(matchValues)
-            && Resolvables.resolved(mergeValues);
+        return tableName.resolved() && Resolvables.resolved(matchFields);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Lookup(source(), newChild, tableName, matchFields, matchValues, mergeValues);
+        return new Lookup(source(), newChild, tableName, matchFields);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Lookup::new, child(), tableName, matchFields, matchValues, mergeValues);
+        return NodeInfo.create(this, Lookup::new, child(), tableName, matchFields);
     }
 
     @Override
     public List<Attribute> output() {
-        if (mergeValues == null) {
-            throw new IllegalStateException("unresolved");
+        if (lazyOutput == null) {
+            List<? extends NamedExpression> rightSide = localRelation != null ? localRelation.output() : matchFields;
+            lazyOutput = mergeOutputAttributes(child().output(), rightSide);
         }
-        if (mergeValues.isEmpty()) {
-            return child().output();
-        }
-        if (this.output == null) {
-            this.output = mergeOutputAttributes(mergeValues, child().output());
-        }
-        return output;
+        return lazyOutput;
     }
 
     @Override
@@ -118,12 +95,11 @@ public class Lookup extends UnaryPlan {
         Lookup lookup = (Lookup) o;
         return Objects.equals(tableName, lookup.matchFields)
             && Objects.equals(matchFields, lookup.matchFields)
-            && Objects.equals(matchValues, lookup.matchValues)
-            && Objects.equals(mergeValues, lookup.mergeValues);
+            && Objects.equals(localRelation, lookup.localRelation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), tableName, matchFields, matchValues, mergeValues);
+        return Objects.hash(super.hashCode(), tableName, matchFields, localRelation);
     }
 }

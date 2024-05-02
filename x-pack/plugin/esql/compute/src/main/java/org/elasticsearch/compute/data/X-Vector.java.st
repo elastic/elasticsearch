@@ -54,6 +54,19 @@ $endif$
     @Override
     $Type$Vector filter(int... positions);
 
+$if(int)$
+    /**
+     * The minimum value in the block. A block that contains only {@code nulls}
+     * may
+     */
+    int min();
+
+    /**
+     * The maximum value in the block.
+     */
+    int max();
+$endif$
+
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a $Type$Vector, and both vectors are {@link #equals($Type$Vector, $Type$Vector) equal}.

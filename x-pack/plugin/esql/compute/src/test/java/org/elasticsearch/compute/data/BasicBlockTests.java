@@ -228,6 +228,8 @@ public class BasicBlockTests extends ESTestCase {
                 IntStream.range(0, positionCount).forEach(vectorBuilder::appendInt);
                 IntVector vector = vectorBuilder.build();
                 assertSingleValueDenseBlock(vector.asBlock());
+                assertThat(vector.min(), equalTo(0));
+                assertThat(vector.max(), equalTo(positionCount - 1));
                 releaseAndAssertBreaker(vector.asBlock());
             }
         }
@@ -254,6 +256,8 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.asVector().min(), equalTo(value));
+            assertThat(block.asVector().max(), equalTo(value));
             releaseAndAssertBreaker(block);
         }
     }

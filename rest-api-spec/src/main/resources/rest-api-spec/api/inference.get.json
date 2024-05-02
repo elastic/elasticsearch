@@ -1,21 +1,26 @@
 {
-  "inference.put_model":{
+  "inference.get":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/put-inference-api.html",
-      "description":"Configure a model for use in the Inference API"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-inference-api.html",
+      "description":"Get an inference endpoint"
     },
     "stability":"experimental",
     "visibility":"public",
     "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+      "accept": [ "application/json"]
     },
     "url":{
       "paths":[
         {
+          "path":"/_inference",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
           "path":"/_inference/{inference_id}",
           "methods":[
-            "PUT"
+            "GET"
           ],
           "parts":{
             "inference_id":{
@@ -27,7 +32,7 @@
         {
           "path":"/_inference/{task_type}/{inference_id}",
           "methods":[
-            "PUT"
+            "GET"
           ],
           "parts":{
             "task_type":{
@@ -41,9 +46,6 @@
           }
         }
       ]
-    },
-    "body":{
-      "description":"The model's task and service settings"
     }
   }
 }

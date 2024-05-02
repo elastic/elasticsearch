@@ -5,6 +5,11 @@ Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 
 [[bug-8.13.1]]
 [float]
+
+* Cross-cluster searches involving nodes upgraded to 8.13.1 and a coordinator node that is running on
+  version 8.12 or earlier can produce duplicate buckets. This occurs when using date_histogram or histogram
+  aggregations (issue: {es-issue}108181[#108181]).
+
 === Bug fixes
 
 Aggregations::

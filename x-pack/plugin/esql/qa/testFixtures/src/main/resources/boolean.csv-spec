@@ -347,7 +347,7 @@ still_hired:boolean | job_positions:keyword
 ;
 
 implicitCastingEqual
-required_feature: esql.string_literal_auto_casting_8_15_0
+required_feature: esql.string_literal_auto_casting_to_ip
 from employees | where still_hired == "true" | sort emp_no | keep emp_no | limit 1;
 
 emp_no:integer
@@ -355,7 +355,7 @@ emp_no:integer
 ;
 
 implicitCastingNotEqual
-required_feature: esql.string_literal_auto_casting_8_15_0
+required_feature: esql.string_literal_auto_casting_to_ip
 from employees | where still_hired != "true" | sort emp_no | keep emp_no | limit 1;
 
 emp_no:integer

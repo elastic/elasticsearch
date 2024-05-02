@@ -129,7 +129,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
      */
-    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_8_15 = new NodeFeature("esql.string_literal_auto_casting_8_15_0");
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_TO_IP = new NodeFeature("esql.string_literal_auto_casting_to_ip");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -151,7 +151,7 @@ public class EsqlFeatures implements FeatureSpecification {
             CASTING_OPERATOR,
             MV_ORDERING_SORTED_ASCENDING,
             METRICS_COUNTER_FIELDS,
-            STRING_LITERAL_AUTO_CASTING_8_15
+            STRING_LITERAL_AUTO_CASTING_TO_IP
         );
     }
 

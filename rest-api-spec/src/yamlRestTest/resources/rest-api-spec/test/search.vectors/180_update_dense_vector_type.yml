@@ -4,9 +4,6 @@ setup:
       reason: "vector index types became updatable in 8.15.0"
 ---
 "Test create and update dense vector mapping with per-doc indexing and flush":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
   - do:
       indices.create:
         index: test_index
@@ -443,9 +440,6 @@ setup:
 
 ---
 "Test create and update dense vector mapping with bulk indexing":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
   - do:
       indices.create:
         index: test_index
@@ -698,10 +692,6 @@ setup:
 
 ---
 "Index, update and merge":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -954,10 +944,6 @@ setup:
 
 ---
 "Disallowed dense vector update path hnsw --> flat":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -994,10 +980,6 @@ setup:
 
 ---
 "Disallowed dense vector update path hnsw --> int8_flat":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -1034,10 +1016,6 @@ setup:
 
 ---
 "Disallowed dense vector update path int8_hnsw --> flat":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -1074,10 +1052,6 @@ setup:
 
 ---
 "Disallowed dense vector update path int8_hnsw --> int8_flat":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -1114,10 +1088,6 @@ setup:
 
 ---
 "Disallowed dense vector update path int8_flat --> flat":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -1154,10 +1124,6 @@ setup:
 
 ---
 "Allowed dense vector updates on same type but different other index_options, hnsw":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -1236,10 +1202,6 @@ setup:
 
 ---
 "Allowed dense vector updates on same type but different other index_options, int8_hnsw":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index
@@ -1358,10 +1320,6 @@ setup:
 
 ---
 "Allowed dense vector updates on same type but different other index_options, int8_flat":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
-
   - do:
       indices.create:
         index: test_index

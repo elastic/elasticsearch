@@ -8,14 +8,23 @@
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -185,6 +194,62 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testToXContent() throws Exception {
+        TimeValue configuredRetention = TimeValue.timeValueDays(100);
+        TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
+        TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
+        DataStreamLifecycle dataStreamLifecycle = new DataStreamLifecycle(
+            new DataStreamLifecycle.Retention(configuredRetention),
+            null,
+            null
+        );
+        {
+            boolean isSystemDataStream = true;
+            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = createManagedIndexDataStreamLifecycleExplanation(
+                System.currentTimeMillis(),
+                dataStreamLifecycle,
+                isSystemDataStream
+            );
+            Map<String, Object> resultMap = getXContentMap(explainIndexDataStreamLifecycle, globalDefaultRetention, globalMaxRetention);
+            Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
+            assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
+            assertThat(lifecycleResult.get("effective_retention"), equalTo(configuredRetention.getStringRep()));
+            assertThat(lifecycleResult.get("retention_determined_by"), equalTo("data_stream_configuration"));
+        }
+        {
+            boolean isSystemDataStream = false;
+            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = createManagedIndexDataStreamLifecycleExplanation(
+                System.currentTimeMillis(),
+                dataStreamLifecycle,
+                isSystemDataStream
+            );
+            Map<String, Object> resultMap = getXContentMap(explainIndexDataStreamLifecycle, globalDefaultRetention, globalMaxRetention);
+            Map<String, Object> lifecycleResult = (Map<String, Object>) resultMap.get("lifecycle");
+            assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
+            assertThat(lifecycleResult.get("effective_retention"), equalTo(globalMaxRetention.getStringRep()));
+            assertThat(lifecycleResult.get("retention_determined_by"), equalTo("max_global_retention"));
+        }
+    }
+
+    /*
+     * Calls toXContent on the given explainIndexDataStreamLifecycle, and converts the response to a Map
+     */
+    private Map<String, Object> getXContentMap(
+        ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention
+    ) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            ToXContent.Params params = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            RolloverConfiguration rolloverConfiguration = null;
+            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
+            explainIndexDataStreamLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            String serialized = Strings.toString(builder);
+            return XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());
+        }
+    }
+
     @Override
     protected Writeable.Reader<ExplainIndexDataStreamLifecycle> instanceReader() {
         return ExplainIndexDataStreamLifecycle::new;
@@ -204,10 +269,18 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         long now,
         @Nullable DataStreamLifecycle lifecycle
     ) {
+        return createManagedIndexDataStreamLifecycleExplanation(now, lifecycle, randomBoolean());
+    }
+
+    private static ExplainIndexDataStreamLifecycle createManagedIndexDataStreamLifecycleExplanation(
+        long now,
+        @Nullable DataStreamLifecycle lifecycle,
+        boolean isSystemDataStream
+    ) {
         return new ExplainIndexDataStreamLifecycle(
             randomAlphaOfLengthBetween(10, 30),
             true,
-            randomBoolean(),
+            isSystemDataStream,
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
             TimeValue.timeValueMillis(now),

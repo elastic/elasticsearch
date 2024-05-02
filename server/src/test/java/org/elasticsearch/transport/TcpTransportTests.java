@@ -9,14 +9,12 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -574,14 +572,11 @@ public class TcpTransportTests extends ESTestCase {
         Exception exception,
         boolean expectClosed,
         MockLogAppender.LoggingExpectation... expectations
-    ) throws IllegalAccessException {
+    ) {
         final TestThreadPool testThreadPool = new TestThreadPool("test");
         MockLogAppender appender = new MockLogAppender();
 
-        try {
-            appender.start();
-
-            Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+        try (var ignored = appender.capturing(TcpTransport.class)) {
             for (MockLogAppender.LoggingExpectation expectation : expectations) {
                 appender.addExpectation(expectation);
             }
@@ -621,8 +616,6 @@ public class TcpTransportTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
-            appender.stop();
             ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
         }
     }

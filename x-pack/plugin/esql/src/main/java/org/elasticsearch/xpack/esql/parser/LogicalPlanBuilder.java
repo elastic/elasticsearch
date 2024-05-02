@@ -77,6 +77,13 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
+    private int queryDepth = 0;
+
+    /**
+     * Maximum number of commands allowed per query
+     */
+    public static final int MAX_QUERY_DEPTH = 500;
+
     public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
         super(params);
     }
@@ -96,9 +103,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx) {
-        LogicalPlan input = plan(ctx.query());
-        PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
-        return makePlan.apply(input);
+        queryDepth++;
+        if (queryDepth > MAX_QUERY_DEPTH) {
+            throw new ParsingException(
+                "ESQL statement exceeded the maximum query depth allowed ({}): [{}]",
+                MAX_QUERY_DEPTH,
+                ctx.getText()
+            );
+        }
+        try {
+            LogicalPlan input = plan(ctx.query());
+            PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
+            return makePlan.apply(input);
+        } finally {
+            queryDepth--;
+        }
     }
 
     @Override

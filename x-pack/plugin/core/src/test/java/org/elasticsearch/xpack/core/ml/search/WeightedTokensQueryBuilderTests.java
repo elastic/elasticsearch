@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FeatureField;
@@ -26,23 +26,18 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -51,7 +46,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<WeightedTokensQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new TextExpansionResults.WeightedToken("foo", .42f));
+    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new WeightedToken("foo", .42f));
     private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
 
     @Override
@@ -74,10 +69,10 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         return builder;
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MachineLearning.class, MapperExtrasPlugin.class);
-    }
+    // @Override
+    // protected Collection<Class<? extends Plugin>> getPlugins() {
+    // return List.of(MachineLearning.class, MapperExtrasPlugin.class);
+    // }
 
     @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {

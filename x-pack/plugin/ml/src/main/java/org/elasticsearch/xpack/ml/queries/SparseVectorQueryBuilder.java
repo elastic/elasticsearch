@@ -26,11 +26,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,8 +52,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
-    private static final Logger logger = LogManager.getLogger(SparseVectorQueryBuilder.class);
     public static final String NAME = "sparse_vector";
+    public static final String ALLOWED_FIELD_TYPE = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
@@ -102,7 +98,16 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         if (tokens == null ^ inferenceId == null == false) {
             throw new IllegalArgumentException(
-                "[" + NAME + "] requires one of " + QUERY_VECTOR_FIELD.getPreferredName() + " or " + INFERENCE_ID_FIELD.getPreferredName()
+                "["
+                    + NAME
+                    + "] requires one of "
+                    + QUERY_VECTOR_FIELD.getPreferredName()
+                    + " or "
+                    + INFERENCE_ID_FIELD.getPreferredName()
+                    + "; tokens: " // TODO remove
+                    + tokens
+                    + "; inferenceId: "
+                    + inferenceId
             );
         }
         // TODO additional validation
@@ -130,11 +135,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     public String getFieldName() {
         return fieldName;
-    }
-
-    @Nullable
-    public TokenPruningConfig getTokenPruningConfig() {
-        return tokenPruningConfig;
     }
 
     @Override
@@ -225,8 +225,10 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         final String fieldTypeName = ft.typeName();
-        if (fieldTypeName.equals("sparse_vector") == false) {
-            throw new ElasticsearchParseException("[" + fieldTypeName + "] must be a [sparse_vector] field type.");
+        if (fieldTypeName.equals(ALLOWED_FIELD_TYPE) == false) {
+            throw new ElasticsearchParseException(
+                "field [" + fieldName + " must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + fieldTypeName + "]"
+            );
         }
 
         return (this.tokenPruningConfig == null)
@@ -238,94 +240,69 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
 
         if (tokens != null) {
-            // Weighted tokens
-            logger.info("rewriting weighted tokens");
-            return weightedTokensToQuery(fieldName, tokens);
-        } else {
-            // Inference
-            if (weightedTokensSupplier != null) {
-                TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
-                if (textExpansionResults == null) {
-                    logger.info("no text expansion results yet, trying again");
-                    return this;
-                }
-                logger.info("text expansions to weighted tokens");
-                return weightedTokensToQuery(fieldName, textExpansionResults.getWeightedTokens());
+            return this;
+        } else if (weightedTokensSupplier != null) {
+            TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
+            if (textExpansionResults == null) {
+                return this;
             }
-
-            logger.info("running inference");
-            CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-                inferenceId,
-                List.of(text),
-                TextExpansionConfigUpdate.EMPTY_UPDATE,
-                false,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
-            );
-            inferRequest.setHighPriority(true);
-            inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-
-            SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction(
-                (client, listener) -> executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    CoordinatedInferenceAction.INSTANCE,
-                    inferRequest,
-                    ActionListener.wrap(inferenceResponse -> {
-
-                        if (inferenceResponse.getInferenceResults().isEmpty()) {
-                            listener.onFailure(new IllegalStateException("inference response contain no results"));
-                            return;
-                        }
-
-                        if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
-                            textExpansionResultsSupplier.set(textExpansionResults);
-                            listener.onResponse(null);
-                        } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
-                            listener.onFailure(new IllegalStateException(warning.getWarning()));
-                        } else {
-                            listener.onFailure(
-                                new IllegalStateException(
-                                    "expected a result of type ["
-                                        + TextExpansionResults.NAME
-                                        + "] received ["
-                                        + inferenceResponse.getInferenceResults().get(0).getWriteableName()
-                                        + "]. Is ["
-                                        + inferenceId
-                                        + "] a compatible model?"
-                                )
-                            );
-                        }
-                    }, listener::onFailure)
-                )
-            );
-
-            return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
-        }
-    }
-
-    private QueryBuilder weightedTokensToQuery(String fieldName, List<WeightedToken> weightedTokens) {
-        if (tokenPruningConfig != null) {
-            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+            return new SparseVectorQueryBuilder(
                 fieldName,
-                weightedTokens,
+                textExpansionResults.getWeightedTokens(),
+                null,
+                null,
+                shouldPruneTokens,
                 tokenPruningConfig
             );
-            weightedTokensQueryBuilder.queryName(queryName);
-            weightedTokensQueryBuilder.boost(boost);
-            return weightedTokensQueryBuilder;
         }
-        // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
-        // if no token pruning configuration is specified we fall back to a boolean query.
-        // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
-        var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : weightedTokens) {
-            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
-        }
-        boolQuery.minimumShouldMatch(1);
-        boolQuery.boost(boost);
-        boolQuery.queryName(queryName);
-        return boolQuery;
+
+        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
+            inferenceId,
+            List.of(text),
+            TextExpansionConfigUpdate.EMPTY_UPDATE,
+            false,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+        );
+        inferRequest.setHighPriority(true);
+        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+
+        SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                CoordinatedInferenceAction.INSTANCE,
+                inferRequest,
+                ActionListener.wrap(inferenceResponse -> {
+
+                    if (inferenceResponse.getInferenceResults().isEmpty()) {
+                        listener.onFailure(new IllegalStateException("inference response contain no results"));
+                        return;
+                    }
+
+                    if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
+                        textExpansionResultsSupplier.set(textExpansionResults);
+                        listener.onResponse(null);
+                    } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+                        listener.onFailure(new IllegalStateException(warning.getWarning()));
+                    } else {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "expected a result of type ["
+                                    + TextExpansionResults.NAME
+                                    + "] received ["
+                                    + inferenceResponse.getInferenceResults().get(0).getWriteableName()
+                                    + "]. Is ["
+                                    + inferenceId
+                                    + "] a compatible model?"
+                            )
+                        );
+                    }
+                }, listener::onFailure)
+            )
+        );
+
+        return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
     }
 
     private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
@@ -377,19 +354,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED;
-    }
-
-    private static float parseWeight(String token, Object weight) throws IOException {
-        if (weight instanceof Number asNumber) {
-            return asNumber.floatValue();
-        }
-        if (weight instanceof String asString) {
-            return Float.parseFloat(asString);
-        }
-        throw new ElasticsearchParseException(
-            "Illegal weight for token: [" + token + "], expected floating point got " + weight.getClass().getSimpleName()
-        );
+        return TransportVersions.SPARSE_VECTOR_QUERY_ADDED;
     }
 
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

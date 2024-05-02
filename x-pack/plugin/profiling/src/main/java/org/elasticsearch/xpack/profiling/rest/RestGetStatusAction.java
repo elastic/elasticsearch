@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.profiling.action.GetStatusAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetStatusAction extends BaseRestHandler {
@@ -35,8 +36,8 @@ public class RestGetStatusAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         GetStatusAction.Request request = new GetStatusAction.Request();
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         request.waitForResourcesCreated(restRequest.paramAsBoolean("wait_for_resources_created", false));
         return channel -> client.execute(
             GetStatusAction.INSTANCE,

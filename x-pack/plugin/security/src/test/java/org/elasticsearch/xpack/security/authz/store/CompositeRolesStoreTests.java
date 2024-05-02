@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -16,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -297,10 +294,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
 
         final MockLogAppender mockAppender = new MockLogAppender();
-        final Logger logger = LogManager.getLogger(RoleDescriptorStore.class);
-        mockAppender.start();
-        try {
-            Loggers.addAppender(logger, mockAppender);
+        try (var ignored = mockAppender.capturing(RoleDescriptorStore.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "disabled role warning",
@@ -315,9 +309,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             assertEquals(Role.EMPTY, roleFuture.actionGet());
             assertThat(effectiveRoleDescriptors.get(), empty());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -721,8 +712,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            effectiveRoleDescriptors::set,
-            new WorkflowService()
+            effectiveRoleDescriptors::set
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -1532,7 +1522,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            null,
             "my_uuid"
         );
     }
@@ -2207,7 +2196,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             callback.onResponse(Collections.emptyList());
             return null;
         }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
-        final WorkflowService workflowService = new WorkflowService();
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2221,8 +2209,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
-            rds -> {},
-            workflowService
+            rds -> {}
         );
 
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
@@ -2321,7 +2308,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             callback.onResponse(Collections.emptyList());
             return null;
         }).when(privilegeStore).getPrivileges(isASet(), isASet(), anyActionListener());
-        final WorkflowService workflowService = new WorkflowService();
         final ThreadContext threadContext = new ThreadContext(settings);
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -2335,8 +2321,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
-            rds -> {},
-            workflowService
+            rds -> {}
         );
 
         final String apiKeyId = randomAlphaOfLength(20);
@@ -2719,7 +2704,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (String action : Arrays.asList(
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(
@@ -2733,7 +2718,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (String action : Arrays.asList(
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(
@@ -2929,8 +2914,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             serviceAccountService,
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            roleConsumer,
-            workflowService
+            roleConsumer
         ) {
             @Override
             public void invalidateAll() {

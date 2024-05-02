@@ -31,8 +31,7 @@ A role is defined by the following JSON structure:
 <4> A list of indices permissions entries. This field is optional (missing `indices`
     privileges effectively mean no index level permissions).
 <5> A list of application privilege entries. This field is optional.
-<6> beta:[]
-    A list of indices permissions entries for
+<6> A list of indices permissions entries for
     <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
     This field is optional (missing `remote_indices` privileges effectively mean
     no index level permissions for any API key based remote clusters).
@@ -164,8 +163,6 @@ no effect, and will not grant any actions in the
 
 [[roles-remote-indices-priv]]
 ==== Remote indices privileges
-
-beta::[]
 
 For <<remote-clusters-api-key,remote clusters configured with the API key based model>>, remote indices privileges
 can be used to specify desired indices privileges for matching remote clusters. The final

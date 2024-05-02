@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -136,8 +137,8 @@ public class GeoIpStatsAction {
                 builder.field("hits", cacheStats.hits());
                 builder.field("misses", cacheStats.misses());
                 builder.field("evictions", cacheStats.evictions());
-                builder.field("hits_time_in_millis", cacheStats.hitsTimeInMillis());
-                builder.field("misses_time_in_millis", cacheStats.missesTimeInMillis());
+                builder.humanReadableField("hits_time_in_millis", "hits_time", new TimeValue(cacheStats.hitsTimeInMillis()));
+                builder.humanReadableField("misses_time_in_millis", "misses_time", new TimeValue(cacheStats.missesTimeInMillis()));
                 builder.endObject();
                 builder.endObject();
             }

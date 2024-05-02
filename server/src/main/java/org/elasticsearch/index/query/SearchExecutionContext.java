@@ -515,6 +515,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
             (term) -> {
                 try {
                     TermStates termStates =  TermStates.build(searcher, term, true);
+
+                    if (termStates != null && termStates.docFreq() > 0) {
+                        searcher.collectionStatistics(term.field());
+                        searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
+                    }
+
                     return  termStates;
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

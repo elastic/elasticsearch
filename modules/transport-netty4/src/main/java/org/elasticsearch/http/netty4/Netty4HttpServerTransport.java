@@ -364,7 +364,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline()
                     .addLast(
                         "accept_channel_handler",
-                        new AcceptChannelHandler(acceptChannelPredicate, HttpServerTransport.HTTP_PROFILE_NAME)
+                        new AcceptChannelHandler(
+                            acceptChannelPredicate,
+                            HttpServerTransport.HTTP_PROFILE_NAME,
+                            transport.getThreadPool().getThreadContext()
+                        )
                     );
             }
             if (tlsConfig.isTLSEnabled()) {

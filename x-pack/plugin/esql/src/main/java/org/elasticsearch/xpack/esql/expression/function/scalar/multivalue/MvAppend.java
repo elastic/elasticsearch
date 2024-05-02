@@ -19,14 +19,11 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -37,13 +34,13 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 /**
  * Appends values to a multi-value
  */
-public class MvAppend extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     private final Expression field1, field2;
     private DataType dataType;
 
@@ -106,6 +103,7 @@ public class MvAppend extends ScalarFunction implements OptionalArgument, Evalua
         this.field2 = field2;
     }
 
+    @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
@@ -116,13 +114,7 @@ public class MvAppend extends ScalarFunction implements OptionalArgument, Evalua
             return resolution;
         }
         dataType = field1.dataType();
-        resolution = TypeResolutions.isType(
-            field2,
-            t -> t == dataType,
-            sourceText(),
-            TypeResolutions.ParamOrdinal.fromIndex(1),
-            dataType.typeName()
-        );
+        resolution = isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -150,11 +142,6 @@ public class MvAppend extends ScalarFunction implements OptionalArgument, Evalua
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new MvAppend(source(), newChildren.get(0), newChildren.get(1));
     }
@@ -170,11 +157,6 @@ public class MvAppend extends ScalarFunction implements OptionalArgument, Evalua
             resolveType();
         }
         return dataType;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

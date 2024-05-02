@@ -124,7 +124,7 @@ setup:
                   ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 5
 
@@ -189,7 +189,7 @@ setup:
                   ]
           rank:
             rrf:
-              window_size: 3
+              rank_window_size: 3
               rank_constant: 1
           size: 1
 
@@ -267,7 +267,7 @@ setup:
                   ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 5
 

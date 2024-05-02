@@ -8,13 +8,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -22,8 +27,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -130,6 +138,45 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testDefaultsForTimeSeriesIndex() throws IOException {
+        var isStored = randomBoolean();
+
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "binary");
+            if (isStored) {
+                b.field("store", "true");
+            }
+            b.endObject();
+
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+            b.startObject("dimension");
+            b.field("type", "keyword");
+            b.field("time_series_dimension", "true");
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
+            b.field("@timestamp", randomMillisUpToYear9999());
+            b.field("dimension", "dimension1");
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var docValuesField = fields.stream().filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY).findFirst();
+        assertTrue("Doc values are not present", docValuesField.isPresent());
+    }
+
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         if (rarely()) return null;
@@ -154,7 +201,71 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value.v1(), value.v2(), this::mapping);
+                }
+
+                List<Tuple<String, byte[]>> values = randomList(1, maxValues, this::generateValue);
+
+                var in = values.stream().map(Tuple::v1).toList();
+
+                var outList = values.stream()
+                    .map(Tuple::v2)
+                    .map(BytesCompareUnsigned::new)
+                    .collect(Collectors.toSet())
+                    .stream()
+                    .sorted()
+                    .map(b -> encode(b.bytes))
+                    .toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [binary] doesn't support synthetic source because it doesn't have doc values"),
+                        b -> b.field("type", "binary")
+                    ),
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [binary] doesn't support synthetic source because it doesn't have doc values"),
+                        b -> b.field("type", "binary").field("doc_values", false)
+                    )
+                );
+            }
+
+            private Tuple<String, byte[]> generateValue() {
+                var len = randomIntBetween(1, 256);
+                var bytes = randomByteArrayOfLength(len);
+
+                return Tuple.tuple(encode(bytes), bytes);
+            }
+
+            private String encode(byte[] bytes) {
+                return Base64.getEncoder().encodeToString(bytes);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "binary").field("doc_values", "true");
+
+                if (rarely()) {
+                    b.field("store", false);
+                }
+            }
+
+            private record BytesCompareUnsigned(byte[] bytes) implements Comparable<BytesCompareUnsigned> {
+                @Override
+                public int compareTo(BytesCompareUnsigned o) {
+                    return Arrays.compareUnsigned(bytes, o.bytes);
+                }
+            }
+        };
     }
 
     @Override

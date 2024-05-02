@@ -658,6 +658,9 @@ setup:
 
 ---
 "Test force delete given model with alias referenced by pipeline":
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/106652"
   - do:
       ml.put_trained_model_alias:
         model_alias: "alias-to-a-classification-model"

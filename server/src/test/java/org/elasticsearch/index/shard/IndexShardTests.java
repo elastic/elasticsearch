@@ -64,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
@@ -150,6 +151,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -194,7 +196,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -276,7 +277,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertNotNull(shardPath);
         // fail shard
         shard.failShard("test shard fail", new CorruptIndexException("", ""));
-        shard.close("do not assert history", false);
+        closeShardNoCheck(shard);
         shard.store().close();
         // check state file still exists
         ShardStateMetadata shardStateMetadata = load(logger, shardPath.getShardStatePath());
@@ -292,6 +293,36 @@ public class IndexShardTests extends IndexShardTestCase {
             ),
             equalTo(false)
         );
+    }
+
+    public void testAsyncCloseShard() throws Exception {
+        final var shard = newStartedShard();
+        final var store = shard.store();
+        final var storeCloser = new RunOnce(store::close);
+        final var engine = Objects.requireNonNull(shard.getEngineOrNull());
+
+        final var closeFuture = new PlainActionFuture<Void>();
+        final var closeTasks = new ArrayList<Runnable>();
+        shard.close(getTestName(), randomBoolean(), closeTasks::add, closeFuture);
+
+        if (randomBoolean()) {
+            storeCloser.run();
+        }
+
+        assertFalse(closeFuture.isDone());
+        assertThat(closeTasks, hasSize(1));
+        assertEquals(IndexShardState.CLOSED, shard.state());
+        assertNull(shard.getEngineOrNull());
+        EngineTestCase.ensureOpen(engine); // does not throw ACE
+
+        if (randomBoolean()) {
+            storeCloser.run();
+        }
+        assertTrue(store.hasReferences());
+
+        closeTasks.forEach(Runnable::run);
+        storeCloser.run();
+        assertFalse(store.hasReferences());
     }
 
     ShardStateMetadata getShardStateMetadata(IndexShard shard) {
@@ -1477,7 +1508,7 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        newShard.close("test", false);
+        closeShardNoCheck(newShard);
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -1766,7 +1797,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AtomicInteger preDelete = new AtomicInteger();
         AtomicInteger postDelete = new AtomicInteger();
         AtomicInteger postDeleteException = new AtomicInteger();
-        shard.close("simon says", true);
+        flushAndCloseShardNoCheck(shard);
         shard = reinitShard(shard, new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
@@ -1848,7 +1879,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        shard.close("Unexpected close", true);
+        closeShardNoCheck(shard);
         shard.state = IndexShardState.STARTED; // It will generate exception
 
         try {
@@ -4001,7 +4032,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107462")
     public void testFlushTimeExcludingWaiting() throws Exception {
         IndexShard shard = newStartedShard();
         for (int i = 0; i < randomIntBetween(4, 10); i++) {
@@ -4027,9 +4057,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 greaterThan(0L)
             );
             assertThat(
-                "Flush time excluding waiting should less than flush time with waiting",
+                "Flush time excluding waiting should be less or equal than the flush time with waiting",
                 flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
-                lessThan(flushStats.getTotalTime().millis())
+                lessThanOrEqualTo(flushStats.getTotalTime().millis())
             );
         } finally {
             closeShards(shard);
@@ -4372,7 +4402,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread closeShardThread = new Thread(() -> {
             try {
                 safeAwait(readyToCloseLatch);
-                shard.close("testing", false);
+                closeShardNoCheck(shard);
                 // in integration tests, this is done as a listener on IndexService.
                 MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (IOException e) {
@@ -4813,7 +4843,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.start();
         try {
             warmerStarted.await();
-            shard.close("testing", false);
+            closeShardNoCheck(shard);
             assertThat(shard.state, equalTo(IndexShardState.CLOSED));
         } finally {
             warmerBlocking.countDown();

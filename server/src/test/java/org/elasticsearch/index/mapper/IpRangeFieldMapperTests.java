@@ -10,15 +10,23 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
 
@@ -79,9 +87,105 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testValidSyntheticSource() throws IOException {
+        CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+            b.startObject("field");
+            b.field("type", "ip_range");
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+            b.endObject();
+        };
+
+        var values = randomList(1, 5, this::generateValue);
+        var inputValues = values.stream().map(Tuple::v1).toList();
+        var expectedValues = values.stream().map(Tuple::v2).toList();
+
+        var source = getSourceFor(mapping, inputValues);
+
+        // This is the main reason why we need custom logic.
+        // IP ranges are serialized into binary doc values in unpredictable order
+        // because API uses a set.
+        // So this assert needs to be not sensitive to order and in "reference"
+        // implementation of tests from MapperTestCase it is.
+        var actual = source.source().get("field");
+        if (inputValues.size() == 1) {
+            assertEquals(expectedValues.get(0), actual);
+        } else {
+            assertThat(actual, instanceOf(List.class));
+            assertTrue(((List<Object>) actual).containsAll(new HashSet<>(expectedValues)));
+        }
+    }
+
+    private Tuple<Object, Object> generateValue() {
+        String cidr = randomCidrBlock();
+        InetAddresses.IpRange range = InetAddresses.parseIpRangeFromCidr(cidr);
+
+        var includeFrom = randomBoolean();
+        var includeTo = randomBoolean();
+
+        Object input;
+        // "to" field always comes first.
+        Map<String, Object> output = new LinkedHashMap<>();
+        if (randomBoolean()) {
+            // CIDRs are always inclusive ranges.
+            input = cidr;
+            output.put("gte", InetAddresses.toAddrString(range.lowerBound()));
+            output.put("lte", InetAddresses.toAddrString(range.upperBound()));
+        } else {
+            var fromKey = includeFrom ? "gte" : "gt";
+            var toKey = includeTo ? "lte" : "lt";
+            var from = rarely() ? null : InetAddresses.toAddrString(range.lowerBound());
+            var to = rarely() ? null : InetAddresses.toAddrString(range.upperBound());
+            input = (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
+
+            var rawFrom = from != null ? range.lowerBound() : (InetAddress) rangeType().minValue();
+            var adjustedFrom = includeFrom ? rawFrom : (InetAddress) rangeType().nextUp(rawFrom);
+            output.put("gte", InetAddresses.toAddrString(adjustedFrom));
+
+            var rawTo = to != null ? range.upperBound() : (InetAddress) rangeType().maxValue();
+            var adjustedTo = includeTo ? rawTo : (InetAddress) rangeType().nextDown(rawTo);
+            output.put("lte", InetAddresses.toAddrString(adjustedTo));
+        }
+
+        return Tuple.tuple(input, output);
+    }
+
+    public void testInvalidSyntheticSource() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("type", "ip_range");
+            b.field("doc_values", false);
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("field [field] of type [ip_range] doesn't support synthetic source because it doesn't have doc values")
+        );
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        throw new AssumptionViolatedException("custom version of synthetic source tests is implemented");
+    }
+
+    private static String randomCidrBlock() {
+        boolean ipv4 = randomBoolean();
+
+        InetAddress address = randomIp(ipv4);
+        // exclude smallest prefix lengths to avoid empty ranges
+        int prefixLength = ipv4 ? randomIntBetween(0, 30) : randomIntBetween(0, 126);
+
+        return InetAddresses.toCidrString(address, prefixLength);
+    }
+
+    @Override
+    protected RangeType rangeType() {
+        return RangeType.IP;
     }
 
     @Override

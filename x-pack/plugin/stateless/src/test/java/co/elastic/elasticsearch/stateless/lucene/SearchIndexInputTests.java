@@ -110,7 +110,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             );
 
             indexInput.seek(randomLongBetween(0, input.length - 1));
-            SearchIndexInput clone = indexInput.clone();
+            SearchIndexInput clone = asInstanceOf(SearchIndexInput.class, indexInput.clone());
             assertThat(clone.cacheFile(), not(equalTo(indexInput.cacheFile())));
             assertThat(clone.getFilePointer(), equalTo(indexInput.getFilePointer()));
         } finally {

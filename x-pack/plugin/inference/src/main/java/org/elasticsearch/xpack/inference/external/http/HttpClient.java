@@ -81,7 +81,6 @@ public class HttpClient implements Closeable {
           And this stackoverflow question:
           https://stackoverflow.com/questions/64676200/understanding-the-lifecycle-of-a-connection-managed-by-poolinghttpclientconnecti
          */
-
         return clientBuilder.build();
     }
 

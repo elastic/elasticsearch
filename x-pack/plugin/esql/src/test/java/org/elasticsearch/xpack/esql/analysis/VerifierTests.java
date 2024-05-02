@@ -518,7 +518,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testAggsResolutionWithUnresolvedGroupings() {
-        // TODO: more tests, think of edge cases, parameterize.
+        // TODO: parameterize/randomize.
         assertThat(
             error("FROM tests | STATS count_distinct(emp_no) by BUCKET(languages, 10)"),
             equalTo(
@@ -527,9 +527,17 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
+            error("FROM tests | STATS count_distinct(x) by BUCKET(languages, 10), x = emp_no"),
+            equalTo(
+                "1:41: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
             error("FROM tests | STATS count_distinct(foobar) by BUCKET(languages, 10)"),
             equalTo(
-                "1:46: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]\nline 1:35: Unknown column [foobar]"
+                "1:46: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]\n"
+                    + "line 1:35: Unknown column [foobar]"
             )
         );
 
@@ -539,6 +547,40 @@ public class VerifierTests extends ESTestCase {
                 "1:61: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
             )
         );
+
+        assertThat(
+            error("FROM tests | STATS count_distinct(BUCKET(to_long(languages), 10)) by BUCKET(languages, 10)"),
+            equalTo(
+                "1:70: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]\n"
+                    + "line 1:35: function expects exactly four arguments when the first one is of type [LONG] and the second of type [INTEGER]"
+            )
+        );
+
+        // TODO: this test case is likely redundant
+        assertThat(
+            error("FROM tests | STATS count_distinct(BUCKET(languages, 10)) by emp_no"),
+            equalTo(
+                "1:35: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+    }
+
+    public void testUsingUnresolvedGroupingInAggs() {
+        // TODO: think of edge cases, parameterize/randomize.
+        assertThat(
+            error("FROM tests | STATS count_distinct(x) by x = BUCKET(languages, 10)"),
+            equalTo(
+                "1:45: function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
+            )
+        );
+    }
+
+    public void testUsingUnresolvedAttributeInEval() {
+        // TODO: think of edge cases, parameterize/randomize.
+        assertThat(error("FROM tests | eval x = foobar, y = x + 1"), equalTo("1:23: Unknown column [foobar]"));
+
+        assertThat(error("FROM tests | eval x = foobar, y = x + 1, z = y + 2"), equalTo("1:23: Unknown column [foobar]"));
+
     }
 
     private String error(String query) {

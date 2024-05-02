@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -176,7 +177,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldType(index));
+            assertNull(indicesService.getTimestampFieldTypeMap(index));
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
@@ -184,7 +185,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
             assertBusy(() -> {
-                final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(index);
+                Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(index);
+                /// MP TODO add tests that exercise event.ingested as well
+                DateFieldMapper.DateFieldType timestampFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
                 assertNotNull(timestampFieldType);
                 timestampFieldTypeFuture.onResponse(timestampFieldType);
             });
@@ -196,7 +199,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldType(index));
+            assertNull(indicesService.getTimestampFieldTypeMap(index));
         }
     }
 

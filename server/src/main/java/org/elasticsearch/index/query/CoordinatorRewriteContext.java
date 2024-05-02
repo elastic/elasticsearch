@@ -30,15 +30,21 @@ import java.util.function.LongSupplier;
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final DateFieldRange atTimestampInfo; // Refers to '@timestamp' field
     // Refers to 'event.ingested' field
-    private DateFieldRange eventIngestedInfo;  // TODO: make final
+    private final DateFieldRange eventIngestedInfo; // Refers to 'event.ingested' field
 
+    /**
+     * TODO DOCUMENT ME
+     * @param fieldType
+     * @param fieldRange
+     */
     public record DateFieldRange(DateFieldMapper.DateFieldType fieldType, IndexLongFieldRange fieldRange) {}
 
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        DateFieldRange atTimestampRange  // MP TODO: add eventIngestedRange
+        DateFieldRange atTimestampRange,
+        DateFieldRange eventIngestedRange
     ) {
         super(
             parserConfig,
@@ -57,6 +63,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null
         );
         this.atTimestampInfo = atTimestampRange;
+        this.eventIngestedInfo = eventIngestedRange;
     }
 
     long getMinTimestamp(String fieldName) {

@@ -93,7 +93,7 @@ public class SearchScrollRequestTests extends ESTestCase {
     public void testToXContent() throws IOException {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId("SCROLL_ID");
-        searchScrollRequest.scroll("1m");
+        searchScrollRequest.scroll(TimeValue.timeValueMinutes(1));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             searchScrollRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals("""

@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTestCase {
+    private static final String ESQL_VERSION = "2024.04.01";
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
@@ -498,12 +499,18 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         configureRemoteCluster();
         populateData();
 
+        final boolean skipUnavailable = randomBoolean();
+
         // avoids getting 404 errors
         updateClusterSettings(
             randomBoolean()
-                ? Settings.builder().put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0)).build()
+                ? Settings.builder()
+                    .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .put("cluster.remote.invalid_remote.skip_unavailable", Boolean.toString(skipUnavailable))
+                    .build()
                 : Settings.builder()
                     .put("cluster.remote.invalid_remote.mode", "proxy")
+                    .put("cluster.remote.invalid_remote.skip_unavailable", Boolean.toString(skipUnavailable))
                     .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                     .build()
         );
@@ -519,8 +526,14 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             var q2 = "FROM invalid_remote:employees |  SORT emp_id DESC | LIMIT 10";
             performRequestWithRemoteSearchUser(esqlRequest(q2));
         });
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-        assertThat(error.getMessage(), containsString("unable to find apikey"));
+
+        if (skipUnavailable == false) {
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(error.getMessage(), containsString("unable to find apikey"));
+        } else {
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            assertThat(error.getMessage(), containsString("Unable to connect to [invalid_remote]"));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -690,9 +703,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 body.endObject();
             }
         }
-        // TODO: we should use the latest or a random version, even when new versions are released.
-        String version = Build.current().isSnapshot() ? "snapshot" : "2024.04.01";
-        body.field("version", version);
+        body.field("version", ESQL_VERSION);
         body.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));

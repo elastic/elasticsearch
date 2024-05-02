@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -42,7 +43,8 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "integer",
-        description = "Returns an integer that indicates the position of a keyword substring within another string"
+        description = "Returns an integer that indicates the position of a keyword substring within another string",
+        examples = @Example(file = "string", tag = "locate")
     )
     public Locate(
         Source source,

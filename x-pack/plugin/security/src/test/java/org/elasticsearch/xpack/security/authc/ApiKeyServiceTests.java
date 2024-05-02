@@ -67,7 +67,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -1161,7 +1160,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Instant.now().plus(expiry),
             keyRoles,
             type,
-            Version.CURRENT,
+            ApiKey.CURRENT_API_KEY_VERSION,
             metadataMap
         );
         Map<String, Object> keyMap = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
@@ -2368,7 +2367,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final long now = randomMillisUpToYear9999();
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
         final Map<String, Object> oldMetadata = ApiKeyTests.randomMetadata();
-        final Version oldVersion = VersionUtils.randomVersion(random());
+        final ApiKey.Version oldVersion = new ApiKey.Version(randomIntBetween(1, ApiKey.CURRENT_API_KEY_VERSION.version()));
         final ApiKeyDoc oldApiKeyDoc = ApiKeyDoc.fromXContent(
             XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,
@@ -2419,8 +2418,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Map<String, Object> newMetadata = changeMetadata
             ? randomValueOtherThanMany(md -> md == null || md.equals(oldMetadata), ApiKeyTests::randomMetadata)
             : (randomBoolean() ? oldMetadata : null);
-        final Version newVersion = changeVersion
-            ? randomValueOtherThan(oldVersion, () -> VersionUtils.randomVersion(random()))
+        final ApiKey.Version newVersion = changeVersion
+            ? randomValueOtherThan(oldVersion, ApiKeyServiceTests::randomApiKeyVersion)
             : oldVersion;
         final Authentication newAuthentication = changeCreator
             ? randomValueOtherThanMany(
@@ -2468,7 +2467,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
             assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
             assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
-            assertEquals(newVersion.id, updatedApiKeyDoc.version);
+            assertEquals(newVersion.version(), updatedApiKeyDoc.version);
             final var actualUserRoles = service.parseRoleDescriptorsBytes(
                 "",
                 updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
@@ -2710,8 +2709,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                "all nodes must have version ["
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] or higher to support creating cross cluster API keys"
             )
         );
@@ -2856,8 +2855,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e1.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + WORKFLOWS_RESTRICTION_VERSION
+                "all nodes must have version ["
+                    + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
                     + "] or higher to support restrictions for API keys"
             )
         );
@@ -2874,8 +2873,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e2.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + WORKFLOWS_RESTRICTION_VERSION
+                "all nodes must have version ["
+                    + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
                     + "] or higher to support restrictions for API keys"
             )
         );
@@ -2991,7 +2990,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 Instant.now().plus(Duration.ofSeconds(3600)),
                 keyRoles,
                 ApiKey.Type.REST,
-                Version.CURRENT,
+                ApiKey.CURRENT_API_KEY_VERSION,
                 randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
             );
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
@@ -3206,5 +3205,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomBoolean(),
             mock(Realms.class)
         );
+    }
+
+    private static ApiKey.Version randomApiKeyVersion() {
+        return new ApiKey.Version(randomIntBetween(1, ApiKey.CURRENT_API_KEY_VERSION.version()));
     }
 }

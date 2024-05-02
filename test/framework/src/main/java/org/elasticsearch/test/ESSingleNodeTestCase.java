@@ -412,7 +412,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = clusterAdmin().health(
-            new ClusterHealthRequest(indices).timeout(timeout)
+            new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+                .timeout(timeout)
                 .waitForGreenStatus()
                 .waitForEvents(Priority.LANGUID)
                 .waitForNoRelocatingShards(true)

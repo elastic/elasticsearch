@@ -724,7 +724,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         mockSearchPhaseContext.getRequest().source(searchSourceBuilder);
         try (SearchPhaseResults<SearchPhaseResult> results = searchPhaseResults(controller, mockSearchPhaseContext)) {
             // generate the QuerySearchResults that the RankFeaturePhase would have received from QueryPhase
-            // here we have 3 results, with doc ids 1 and (11, 2) found on shards 0 and 1 respectively
+            // here we have 4 results, with doc ids 1 and (11, 2, 200) found on shards 0 and 1 respectively
             final ShardSearchContextId ctxShard1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
             QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
             queryResultShard1.setShardIndex(shard1Target.getShardId().getId());

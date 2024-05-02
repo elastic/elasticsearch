@@ -74,6 +74,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         super.testCleanup();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
+    @Override
+    public void testReadFromPositionWithLength() {
+        super.testReadFromPositionWithLength();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(AzureRepositoryPlugin.class);

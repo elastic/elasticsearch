@@ -820,6 +820,9 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
+                return false;
+            }
             ignoredValues = objectsWithIgnoredFields.get(name());
             hasValue |= ignoredValues != null;
             for (SourceLoader.SyntheticFieldLoader loader : fields) {

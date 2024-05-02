@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;

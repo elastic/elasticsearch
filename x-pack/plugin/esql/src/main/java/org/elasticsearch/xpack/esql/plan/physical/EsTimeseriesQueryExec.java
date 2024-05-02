@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;

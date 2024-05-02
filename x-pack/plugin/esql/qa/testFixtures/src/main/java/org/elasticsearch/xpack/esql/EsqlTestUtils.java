@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -56,11 +57,14 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.ql.TestUtils.of;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
@@ -315,5 +319,13 @@ public final class EsqlTestUtils {
             );
         }
         return unmodifiableMap(tables);
+    }
+
+    public static FieldAttribute getFieldAttribute(String name) {
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 }

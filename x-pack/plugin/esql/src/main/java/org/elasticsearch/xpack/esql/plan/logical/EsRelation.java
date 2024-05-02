@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;

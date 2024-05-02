@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -15,9 +17,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
@@ -73,7 +73,7 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute() {
-        return TestUtils.getFieldAttribute("a");
+        return EsqlTestUtils.getFieldAttribute("a");
     }
 
     //
@@ -143,8 +143,8 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testTwoEqualsDifferentFields() {
-        FieldAttribute fieldOne = TestUtils.getFieldAttribute("ONE");
-        FieldAttribute fieldTwo = TestUtils.getFieldAttribute("TWO");
+        FieldAttribute fieldOne = EsqlTestUtils.getFieldAttribute("ONE");
+        FieldAttribute fieldTwo = EsqlTestUtils.getFieldAttribute("TWO");
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, ONE), equalsOf(fieldTwo, TWO));
         Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
@@ -480,7 +480,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // a == 1 AND a == 2 -> nop for date/time fields
     public void testPropagateEquals_ignoreDateTimeFields() {
-        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataTypes.DATETIME);
+        FieldAttribute fa = EsqlTestUtils.getFieldAttribute("a", DataTypes.DATETIME);
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);

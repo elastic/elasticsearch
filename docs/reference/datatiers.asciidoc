@@ -3,13 +3,20 @@
 == Data tiers
 
 A _data tier_ is a collection of <<modules-node,nodes>> within a cluster that share the same 
-<<node-roles,data node role>>. Elastic recommends this collection of nodes also shares the same 
-hardware profile to avoid <<hotspotting,hot spotting>>. Data tiers' usage generally splits along 
-<<data-management,data categories>> for _content_ and _time series_ data. {es} available 
-data tiers:
+<<node-roles,data node role>>, and a hardware profile that's appropriately sized for the role. Elastic recommends that nodes in the same tier share the same 
+hardware profile to avoid <<hotspotting,hot spotting>>. 
+
+The data tiers that you use, and the way that you use them, depends on the data's <<data-management,category>>.
+
+The following data tiers are can be used with each data category:
+
+Content data:
 
 * <<content-tier,Content tier>> nodes handle the indexing and query load for content 
 indices, such as a <<system-indices,system index>> or a product catalog.
+
+Time series data:
+
 * <<hot-tier,Hot tier>> nodes handle the indexing load for time series data, 
 such as logs or metrics. They hold your most recent, most-frequently-accessed data.
 * <<warm-tier,Warm tier>> nodes hold time series data that is accessed less-frequently
@@ -29,33 +36,33 @@ the warm tier.
 IMPORTANT: {es} generally expects nodes within a data tier to share the same
 hardware profile. Variations that don't follow this recommendation should be
 carefully architected to avoid <<hotspotting,hot spotting>>.
-Content data will remain on the <<content-tier,content tier>> for its entire 
-data lifecycle. You can configure your time series data to progress through the 
-descending temperature data tiers hot, warm, cold, and frozen according to your 
-performance, resiliency, and data retention requirements. Elastic recommends 
-automating these lifecycle transitions via <<index-lifecycle-management,{ilm}>>, 
-specifically also using <<data-streams,Data Streams>>. 
+The way data tiers are used often depends on the data's category:
+
+- Content data remains on the <<content-tier,content tier>> for its entire
+data lifecycle. 
+
+- Time series data should progress through the 
+descending temperature data tiers (hot, warm, cold, and frozen) according to your 
+performance, resiliency, and data retention requirements. 
++ 
+You can automate these lifecycle transitions using the <<data-streams,data stream lifecycle>>, or custom <<index-lifecycle-management,{ilm}>>. 
 
 [TIP]
 ====
 A data tier's performance depends on its backing hardware profile. 
-See {cloud}/ec-configure-deployment-settings.html#ec-hardware-profiles[{ecloud}'s 
-hardware profiles] for example {cloud}/ec-reference-hardware.html[hardware configurations].
+For example hardware profiles, refer to Elastic Cloud's {cloud}/ec-reference-hardware.html[instance configurations].
 
-{es} itself does not require but Elastic generally assumes, for example in {ecloud} 
-Deployment configurations, that descending temperature data tiers have an increasing 
-multiplier of cpu and/or heap resources to their data storage ratio, so that later data 
-tiers can gain more space for data storage at the cost of slower response times.
+Elastic generally assumes that lower temperature data tiers have an increased ratio of data storage to CPU or heap resources. This allows later tiers to gain more space for data storage at the cost of slower response times.
 
-Under this assumption for a general architecture baseline, the above outline of 
-descending temperature data tier access proportionalities would reflect as searches 
-hitting 85% hot, 10% warm, 5% cold, and 1% frozen and ingest targeting 
-95% hot, 4% warm, 1% cold, and 0% frozen as checked via 
-<<cat-thread-pool,CAT Threadpools>>. These proportions are not required by {es} 
-although they encourage stable and highly responsive clusters. They're only intended 
-to serve as a general architecture baseline to then be applied to your specific 
-use case, hardware profiles, and architecture per Elastic's 
-https://www.elastic.co/blog/it-depends[It Depends] philosphy.  
+Using the principle that lower-temperature tiers should hold less frequently updated and accessed data, your requests should be distributed to data tiers in the following approximate proportions. These proportions keep your clusters stable and highly responsive.
+	
+	- Search: 85% hot, 10% warm, 5% cold, and 1% frozen
+	- Ingest: 95% hot, 4% warm, 1% cold, and 0% frozen
+	
+	You can check how your access requests are distributed among your data tiers using the <<cat-thread-pool,CAT thread pools>> API.  If your lower temperature tiers are being accessed at higher proportions, then your cluster performance might be impacted. 
+	
+	These proportions are intended to serve as a general baseline that you can apply to your specific 
+	use case, hardware profiles, and architecture.
 ====
 
 [discrete]

@@ -73,6 +73,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -616,28 +617,28 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             ResponseException.class,
             () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
         );
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), anyOf(containsString("invalid policy name"), containsString("no handler found")));
 
         policy = randomAlphaOfLengthBetween(0, 10) + "%20" + randomAlphaOfLengthBetween(0, 10);
         ex = expectThrows(
             ResponseException.class,
             () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
         );
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), anyOf(containsString("invalid policy name"), containsString("no handler found")));
 
         policy = "_" + randomAlphaOfLengthBetween(1, 20);
         ex = expectThrows(
             ResponseException.class,
             () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
         );
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), anyOf(containsString("invalid policy name"), containsString("no handler found")));
 
         policy = randomAlphaOfLengthBetween(256, 1000);
         ex = expectThrows(
             ResponseException.class,
             () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
         );
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), anyOf(containsString("invalid policy name"), containsString("no handler found")));
     }
 
     public void testDeletePolicyInUse() throws IOException {

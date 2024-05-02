@@ -1,0 +1,15 @@
+[[release-notes-7.17.21]]
+== {es} version 7.17.21
+
+coming[7.17.21]
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[breaking-7.17.21]]
+[float]
+=== Breaking changes
+
+SQL::
+* Limit how much space some string functions can use {es-pull}107333[#107333]
+
+

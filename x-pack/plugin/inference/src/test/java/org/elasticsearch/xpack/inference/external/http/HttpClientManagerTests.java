@@ -106,7 +106,7 @@ public class HttpClientManagerTests extends ESTestCase {
         );
 
         var evictionMaxIdle = TimeValue.timeValueSeconds(1);
-        manager.setEvictionMaxIdle(evictionMaxIdle);
+        manager.setConnectionMaxIdle(evictionMaxIdle);
 
         assertFalse(manager.isEvictionThreadRunning());
     }

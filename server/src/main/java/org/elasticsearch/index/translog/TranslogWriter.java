@@ -165,7 +165,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         try {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
-            header.write(channel);
+            header.write(channel, fsync);
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(
                 header.sizeInBytes(),
                 fileGeneration,

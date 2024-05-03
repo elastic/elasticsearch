@@ -3999,4 +3999,50 @@ public class TranslogTests extends ESTestCase {
         }
         return false;
     }
+
+    public void testDisabledFsync() throws IOException {
+        var config = new TranslogConfig(
+            shardId,
+            translogDir,
+            IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY),
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            false
+        );
+        var translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get()
+        );
+
+        try (
+            var translog = new Translog(
+                config,
+                translogUUID,
+                new TranslogDeletionPolicy(),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                getPersistedSeqNoConsumer()
+            ) {
+                @Override
+                ChannelFactory getChannelFactory() {
+                    return (file, openOption) -> new FilterFileChannel(FileChannel.open(file, openOption)) {
+                        @Override
+                        public void force(boolean metaData) {
+                            throw new AssertionError("fsync should be disabled");
+                        }
+                    };
+                }
+            }
+        ) {
+            if (randomBoolean()) {
+                translog.rollGeneration();
+            }
+            var location = translog.add(indexOp(randomUUID(), 1, primaryTerm.get(), "source"));
+            assertTrue("sync needs to happen", translog.ensureSynced(location, SequenceNumbers.UNASSIGNED_SEQ_NO));
+        }
+    }
 }

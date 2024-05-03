@@ -254,6 +254,7 @@ settings>> for `index.routing.allocation.include._tier_preference`:
 --------------------------------------------------
 GET /my-index-000001/_settings?filter_path=*.settings.index.routing.allocation.include._tier_preference
 --------------------------------------------------
+// TEST[setup:my_index]
 
 [discrete]
 [[data-tier-allocation-troubleshooting]]

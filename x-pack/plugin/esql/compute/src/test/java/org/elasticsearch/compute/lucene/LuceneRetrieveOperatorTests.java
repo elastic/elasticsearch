@@ -1,6 +1,5 @@
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -10,13 +9,14 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -34,19 +34,15 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -110,6 +106,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         return new LuceneRetrieveOperator.Factory(
             List.of(ctx),
             queryFunction,
+            new ArrayList<>(),
             dataPartitioning,
             taskConcurrency,
             maxPageSize,
@@ -169,11 +166,16 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
     public void testWithSimpleMatch() throws IOException {
         testWithQuery(
             QueryBuilders.matchQuery("stored_text", "time"),
+            new ArrayList<>(),
             List.of("3", "4", "1", "2")
         );
     }
 
-    private void testWithQuery(AbstractQueryBuilder queryBuilder, List<String> expectedOrderedIds) throws IOException {
+    private void testWithQuery(
+        AbstractQueryBuilder queryBuilder,
+        List<Pair<Rescorer, Integer>> rescorers,
+        List<String> expectedOrderedIds
+    ) throws IOException {
         initMapping();
         initIndex();
         int size = 4;
@@ -183,7 +185,8 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             DataPartitioning.SHARD,
             10_000,
             100,
-            queryBuilder
+            queryBuilder,
+            rescorers
         );
 
         Operator op =  new ValuesSourceReaderOperator.Factory(
@@ -348,7 +351,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         );
     }
 
-    private LuceneRetrieveOperator.Factory getFactory(DataPartitioning dataPartitioning, int size, int limit, AbstractQueryBuilder queryBuilder) throws IOException {
+    private LuceneRetrieveOperator.Factory getFactory(DataPartitioning dataPartitioning, int size, int limit, AbstractQueryBuilder queryBuilder, List<Pair<Rescorer, Integer>> rescorers) throws IOException {
         ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         SearchExecutionContext sec = getSearchExecutionContext(ctx.searcher());
         Query query = queryBuilder.toQuery(sec);
@@ -358,6 +361,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         return new LuceneRetrieveOperator.Factory(
             List.of(ctx),
             queryFunction,
+            rescorers,
             dataPartitioning,
             taskConcurrency,
             maxPageSize,

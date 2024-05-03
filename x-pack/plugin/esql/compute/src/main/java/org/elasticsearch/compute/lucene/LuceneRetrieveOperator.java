@@ -13,11 +13,14 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -36,10 +39,12 @@ import java.util.function.Function;
 
 public class LuceneRetrieveOperator extends LuceneOperator {
     private final int limit;
+    private final List<Pair<Rescorer, Integer>> rescorers;
 
-    protected LuceneRetrieveOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue, int limit) {
+    protected LuceneRetrieveOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue, int limit, List<Pair<Rescorer, Integer>> rescorers) {
         super(blockFactory, maxPageSize, sliceQueue);
         this.limit = limit;
+        this.rescorers = rescorers; // TODO should this be moved to LuceneSliceQueue?
     }
 
     public static class Factory implements LuceneOperator.Factory {
@@ -48,10 +53,12 @@ public class LuceneRetrieveOperator extends LuceneOperator {
         private final int maxPageSize;
         private final int limit;
         private final LuceneSliceQueue sliceQueue;
+        private final List<Pair<Rescorer, Integer>> rescorers;
 
         public Factory(
             List<? extends ShardContext> contexts,
             Function<ShardContext, Query> queryFunction,
+            List<Pair<Rescorer, Integer>> rescorers,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
@@ -63,6 +70,7 @@ public class LuceneRetrieveOperator extends LuceneOperator {
             var weightFunction = weightFunction(queryFunction);
             this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
+            this.rescorers = rescorers;
         }
 
 
@@ -82,7 +90,7 @@ public class LuceneRetrieveOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneRetrieveOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit);
+            return new LuceneRetrieveOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, rescorers);
         }
 
         static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction) {
@@ -170,12 +178,27 @@ public class LuceneRetrieveOperator extends LuceneOperator {
         return null;
     }
 
+    private void runRescorersAndSetScoreDocs() {
+        TopDocs topDocs = perShardCollector.topFieldCollector.topDocs();
+        for(Pair<Rescorer, Integer> rescorerConfig: rescorers) {
+            Rescorer rescorer = rescorerConfig.output1;
+            int windowSize = rescorerConfig.output2;
+            try {
+                topDocs = rescorer.rescore(perShardCollector.shardContext.searcher(), topDocs, windowSize);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        scoreDocs = topDocs.scoreDocs;
+    }
+
     private Page emit(boolean startEmitting) {
         if (startEmitting) {
             assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
             offset = 0;
             if (perShardCollector != null) {
-                scoreDocs = perShardCollector.topFieldCollector.topDocs().scoreDocs;
+                runRescorersAndSetScoreDocs();
             } else {
                 scoreDocs = new ScoreDoc[0];
             }

@@ -72,6 +72,10 @@ public class HttpClient implements Closeable {
           connections that are idle past the max idle time will be closed with the eviction thread executes. If that functionality proves
           not to be sufficient we can add a keep-alive strategy to the builder below.
 
+          In my testing, setting a keep-alive didn't actually influence when the connection would be removed from the pool. Setting a low
+          keep alive forced later requests that occurred after the duration to recreate the connection. The stale connections would not be
+          removed from the pool until the eviction thread closes expired connections.
+
           My understanding is that a connection marked as ready to be closed because of an elapsed keep-alive time will only be put into
           expiry status when another request is made.
 

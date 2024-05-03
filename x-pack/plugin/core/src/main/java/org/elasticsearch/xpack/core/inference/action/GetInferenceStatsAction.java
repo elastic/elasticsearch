@@ -52,7 +52,7 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
+        static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
 
         private final ConnectionPoolStats connectionPoolStats;
 
@@ -92,42 +92,46 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
             return Objects.hash(connectionPoolStats);
         }
 
-        private static class ConnectionPoolStats implements ToXContentObject, Writeable {
-            private static final String AVAILABLE_CONNECTIONS = "available_connections";
-            private static final String LEASED_CONNECTIONS = "leased_connections";
-            private static final String MAX_CONNECTIONS = "max_connections";
-            private static final String PENDING_CONNECTIONS = "pending_connections";
+        ConnectionPoolStats getConnectionPoolStats() {
+            return connectionPoolStats;
+        }
 
-            public static ConnectionPoolStats of(PoolStats poolStats) {
-                return new ConnectionPoolStats(poolStats.getAvailable(), poolStats.getLeased(), poolStats.getMax(), poolStats.getPending());
+        static class ConnectionPoolStats implements ToXContentObject, Writeable {
+            static final String LEASED_CONNECTIONS = "leased_connections";
+            static final String PENDING_CONNECTIONS = "pending_connections";
+            static final String AVAILABLE_CONNECTIONS = "available_connections";
+            static final String MAX_CONNECTIONS = "max_connections";
+
+            static ConnectionPoolStats of(PoolStats poolStats) {
+                return new ConnectionPoolStats(poolStats.getLeased(), poolStats.getPending(), poolStats.getAvailable(), poolStats.getMax());
             }
 
-            private final int availableConnections;
             private final int leasedConnections;
-            private final int maxConnections;
             private final int pendingConnections;
+            private final int availableConnections;
+            private final int maxConnections;
 
-            ConnectionPoolStats(int availableConnections, int leasedConnections, int maxConnections, int pendingConnections) {
-                this.availableConnections = availableConnections;
+            ConnectionPoolStats(int leasedConnections, int pendingConnections, int availableConnections, int maxConnections) {
                 this.leasedConnections = leasedConnections;
-                this.maxConnections = maxConnections;
                 this.pendingConnections = pendingConnections;
+                this.availableConnections = availableConnections;
+                this.maxConnections = maxConnections;
             }
 
             ConnectionPoolStats(StreamInput in) throws IOException {
-                this.availableConnections = in.readVInt();
                 this.leasedConnections = in.readVInt();
-                this.maxConnections = in.readVInt();
                 this.pendingConnections = in.readVInt();
+                this.availableConnections = in.readVInt();
+                this.maxConnections = in.readVInt();
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(AVAILABLE_CONNECTIONS, availableConnections);
                 builder.field(LEASED_CONNECTIONS, leasedConnections);
-                builder.field(MAX_CONNECTIONS, maxConnections);
                 builder.field(PENDING_CONNECTIONS, pendingConnections);
+                builder.field(AVAILABLE_CONNECTIONS, availableConnections);
+                builder.field(MAX_CONNECTIONS, maxConnections);
                 builder.endObject();
 
                 return builder;
@@ -135,10 +139,10 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeVInt(availableConnections);
                 out.writeVInt(leasedConnections);
-                out.writeVInt(maxConnections);
                 out.writeVInt(pendingConnections);
+                out.writeVInt(availableConnections);
+                out.writeVInt(maxConnections);
             }
 
             @Override
@@ -146,15 +150,31 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 ConnectionPoolStats that = (ConnectionPoolStats) o;
-                return availableConnections == that.availableConnections
-                    && leasedConnections == that.leasedConnections
-                    && maxConnections == that.maxConnections
-                    && pendingConnections == that.pendingConnections;
+                return leasedConnections == that.leasedConnections
+                    && pendingConnections == that.pendingConnections
+                    && availableConnections == that.availableConnections
+                    && maxConnections == that.maxConnections;
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(availableConnections, leasedConnections, maxConnections, pendingConnections);
+                return Objects.hash(leasedConnections, pendingConnections, availableConnections, maxConnections);
+            }
+
+            int getLeasedConnections() {
+                return leasedConnections;
+            }
+
+            int getPendingConnections() {
+                return pendingConnections;
+            }
+
+            int getAvailableConnections() {
+                return availableConnections;
+            }
+
+            int getMaxConnections() {
+                return maxConnections;
             }
         }
     }

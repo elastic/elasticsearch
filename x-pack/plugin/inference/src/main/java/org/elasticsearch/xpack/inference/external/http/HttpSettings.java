@@ -31,7 +31,8 @@ public class HttpSettings {
 
     public HttpSettings(Settings settings, ClusterService clusterService) {
         Objects.requireNonNull(clusterService);
-        this.maxResponseSize = MAX_HTTP_RESPONSE_SIZE.get(Objects.requireNonNull(settings));
+        Objects.requireNonNull(settings);
+        maxResponseSize = MAX_HTTP_RESPONSE_SIZE.get(settings);
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_HTTP_RESPONSE_SIZE, this::setMaxResponseSize);
     }

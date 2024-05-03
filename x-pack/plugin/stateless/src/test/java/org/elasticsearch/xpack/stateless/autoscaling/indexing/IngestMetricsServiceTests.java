@@ -61,7 +61,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
                 Sets.addToCopy(
                     ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                     MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
-                    MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING
+                    MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+                    MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING
                 )
             )
         );

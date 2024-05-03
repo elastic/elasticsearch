@@ -18,10 +18,12 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_EWMA_ALPHA;
@@ -67,6 +69,157 @@ public class AverageSearchLoadSamplerTests extends ESTestCase {
         // Cannot update more than 4 seconds at a time.
         averageLoad.update(timeValueSeconds(10).nanos(), List.of());
         assertThat(averageLoad.get(), closeTo(alpha * 4, 1e-3));
+    }
+
+    public void testContinuousFullLoad() {
+        int executorMaxThreads = 4;
+        TimeValue samplingFrequency = timeValueSeconds(1);
+        double alpha = 0.2;
+        var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+        var cycles = 1000;
+        for (int totalTime = executorMaxThreads; totalTime < cycles * executorMaxThreads; totalTime += executorMaxThreads) {
+            averageLoad.update(timeValueSeconds(totalTime).nanos(), List.of());
+        }
+        assertThat("The load should converge to the number of threads", averageLoad.get(), closeTo(executorMaxThreads, 1e-3));
+    }
+
+    public void testContinuousHalfLoad() {
+        int executorMaxThreads = 4;
+        TimeValue samplingFrequency = timeValueSeconds(1);
+        double alpha = 0.2;
+        var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+        var cycles = 1000;
+        var halfExecutorMaxThreads = executorMaxThreads / 2;
+        for (int totalTime = halfExecutorMaxThreads; totalTime < cycles * halfExecutorMaxThreads; totalTime += halfExecutorMaxThreads) {
+            averageLoad.update(timeValueSeconds(totalTime).nanos(), List.of());
+        }
+        assertThat("The load should converge to half the size of the executor", averageLoad.get(), closeTo(halfExecutorMaxThreads, 1e-3));
+    }
+
+    public void testSamplingFrequency() {
+        int executorMaxThreads = 4;
+        double alpha = 0.2;
+
+        for (int samplingInterval = 500; samplingInterval < 5_000; samplingInterval += 500) {
+            TimeValue samplingFrequency = timeValueMillis(samplingInterval);
+            var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+            var cycles = 1000;
+            for (int totalTime = samplingInterval; totalTime < cycles * samplingInterval; totalTime += samplingInterval) {
+                averageLoad.update(timeValueSeconds(totalTime).nanos(), List.of());
+            }
+            assertThat("The load should converge to the number of threads", averageLoad.get(), closeTo(executorMaxThreads, 1e-3));
+        }
+    }
+
+    public void testLoadWithHalfOngoingTasks() {
+        int executorMaxThreads = 4;
+        TimeValue samplingFrequency = timeValueSeconds(1);
+        double alpha = 0.2;
+        var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+        var cycles = 1000;
+        var halfExecutorMaxThreads = executorMaxThreads / 2;
+        for (int totalTime = halfExecutorMaxThreads; totalTime < cycles * halfExecutorMaxThreads; totalTime += halfExecutorMaxThreads) {
+            averageLoad.update(timeValueSeconds(totalTime).nanos(), List.of(0L, 0L));
+        }
+        assertThat("The load should converge to the size of the executor", averageLoad.get(), closeTo(executorMaxThreads, 1e-3));
+    }
+
+    public void testThatLoadIsCapped() {
+        int executorMaxThreads = 4;
+        TimeValue samplingFrequency = timeValueSeconds(1);
+        double alpha = 0.2;
+        var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+        var cycles = 1000;
+        var twiceExecutorMaxThreads = executorMaxThreads * 2;
+        for (int totalTime = twiceExecutorMaxThreads; totalTime < cycles * twiceExecutorMaxThreads; totalTime += twiceExecutorMaxThreads) {
+            averageLoad.update(timeValueSeconds(totalTime).nanos(), List.of(0L, 0L, 0L));
+        }
+        assertThat("The load should converge to the size of the executor", averageLoad.get(), closeTo(executorMaxThreads, 1e-3));
+    }
+
+    public void testLoadWithMixOfOngoingTasks() {
+        int executorMaxThreads = 4;
+        TimeValue samplingFrequency = timeValueSeconds(1);
+        double alpha = 0.2;
+        var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+        long totalExecutorTimeNanos = 0;
+        for (var cycle = 0; cycle < 100; cycle++) {
+            List<Long> ongoingTasksStartNanos = new ArrayList<>();
+            if (cycle % 10 == 0) {
+                // Every 10th measurement cycle, we reset to full load up to this point.
+                totalExecutorTimeNanos = cycle * timeValueSeconds(executorMaxThreads).nanos();
+            } else {
+                // For other measurement cycles, we add a full load of ongoing tasks.
+                for (int i = 0; i < executorMaxThreads; i++) {
+                    ongoingTasksStartNanos.add(samplingFrequency.nanos());
+                }
+            }
+            long nowNanos = cycle * samplingFrequency.nanos();
+            averageLoad.update(totalExecutorTimeNanos, ongoingTasksStartNanos, nowNanos);
+        }
+
+        assertThat("The load should converge to the number of threads", averageLoad.get(), closeTo(executorMaxThreads, 1e-3));
+    }
+
+    public void testFullLoadFromOngoingTasks() {
+        int executorMaxThreads = 4;
+        TimeValue samplingFrequency = timeValueSeconds(1);
+        double alpha = 0.2;
+        var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+        var numberOfOngoingTasks = executorMaxThreads;
+        long totalExecutorTimeNanos = 0;
+        for (var cycle = 0; cycle < 100; cycle++) {
+            List<Long> ongoingTasksStartNanos = new ArrayList<>();
+            // we add a full load of ongoing tasks.
+            for (int i = 0; i < numberOfOngoingTasks; i++) {
+                ongoingTasksStartNanos.add(samplingFrequency.nanos());
+            }
+            long nowNanos = cycle * samplingFrequency.nanos();
+            averageLoad.update(totalExecutorTimeNanos, ongoingTasksStartNanos, nowNanos);
+        }
+
+        assertThat("The load should converge to the number of ongoing tasks", averageLoad.get(), closeTo(numberOfOngoingTasks, 1e-3));
+    }
+
+    public void testWithHalfLoadFromOngoingTasks() {
+        int executorMaxThreads = 4;
+        TimeValue samplingFrequency = timeValueSeconds(1);
+        double alpha = 0.2;
+        var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+        var numberOfOngoingTasks = executorMaxThreads / 2;
+        for (var cycle = 0; cycle < 100; cycle++) {
+            List<Long> ongoingTasksStartNanos = new ArrayList<>();
+            // we add a half load of ongoing tasks.
+            for (int i = 0; i < numberOfOngoingTasks; i++) {
+                ongoingTasksStartNanos.add(samplingFrequency.nanos());
+            }
+            long nowNanos = cycle * samplingFrequency.nanos();
+            averageLoad.update(0, ongoingTasksStartNanos, nowNanos);
+        }
+
+        assertThat("The load should converge to the number of ongoing tasks", averageLoad.get(), closeTo(numberOfOngoingTasks, 1e-3));
+    }
+
+    public void testLoadWithMultipleThreadPoolSizes() {
+        for (int executorMaxThreads = 1; executorMaxThreads < 10; executorMaxThreads++) {
+            TimeValue samplingFrequency = timeValueSeconds(1);
+            double alpha = 0.2;
+            var averageLoad = new AverageSearchLoadSampler.AverageLoad(executorMaxThreads, samplingFrequency, alpha);
+
+            var cycles = 1000;
+            for (int totalTime = executorMaxThreads; totalTime < cycles * executorMaxThreads; totalTime += executorMaxThreads) {
+                averageLoad.update(timeValueSeconds(totalTime).nanos(), List.of());
+            }
+            assertThat("The load should converge to the number of threads", averageLoad.get(), closeTo(executorMaxThreads, 1e-3));
+        }
     }
 
     public void testEnsureRange() {

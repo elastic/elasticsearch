@@ -157,10 +157,6 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             return indexTemplates;
         }
 
-        public RolloverConfiguration getRolloverConfiguration() {
-            return rolloverConfiguration;
-        }
-
         public DataStreamGlobalRetention getGlobalRetention() {
             return globalRetention;
         }
@@ -199,7 +195,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration, globalRetention);
+                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

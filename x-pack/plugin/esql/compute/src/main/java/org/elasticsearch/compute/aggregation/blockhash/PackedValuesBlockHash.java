@@ -59,7 +59,6 @@ import java.util.List;
  */
 final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
-    private static final long MAX_LOOKUP = 100_000;
 
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
@@ -183,14 +182,14 @@ final class PackedValuesBlockHash extends BlockHash {
 
     class LookupWork implements ReleasableIterator<IntBlock> {
         private final Group[] groups;
-        private final long targetBytesSize;
+        private final long targetByteSize;
         private final int positionCount;
         private int position;
 
-        LookupWork(Page page, long targetBytesSize, int batchSize) {
+        LookupWork(Page page, long targetByteSize, int batchSize) {
             this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
             this.positionCount = page.getPositionCount();
-            this.targetBytesSize = targetBytesSize;
+            this.targetByteSize = targetByteSize;
         }
 
         @Override
@@ -200,9 +199,10 @@ final class PackedValuesBlockHash extends BlockHash {
 
         @Override
         public IntBlock next() {
-            int size = Math.toIntExact(Math.min(Integer.MAX_VALUE, targetBytesSize / Integer.BYTES / 2));
+            int size = Math.toIntExact(Math.min(Integer.MAX_VALUE, targetByteSize / Integer.BYTES / 2));
             try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
-                while (position < positionCount && ords.estimatedBytes() < targetBytesSize) {
+                while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
+                    // TODO a test where targetByteSize is very small should still make a few rows.
                     boolean singleEntry = startPosition(groups);
                     if (singleEntry) {
                         lookupSingleEntry(ords);
@@ -247,7 +247,7 @@ final class PackedValuesBlockHash extends BlockHash {
                         }
                         ords.appendInt(Math.toIntExact(found));
                         count++;
-                        if (count > MAX_LOOKUP) {
+                        if (count > Block.MAX_LOOKUP) {
                             // TODO replace this with a warning and break
                             throw new IllegalArgumentException("Found a single entry with " + count + " entries");
                         }

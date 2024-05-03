@@ -34,6 +34,12 @@ public final class ConstantNullVector extends AbstractVector implements BooleanV
     }
 
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public ConstantNullVector filter(int... positions) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");

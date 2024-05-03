@@ -370,7 +370,13 @@ public class OperatorTests extends MapperServiceTestCase {
                 var driver = new Driver(
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
-                    List.of(new HashLookupOperator(driverContext.blockFactory(), new Block[] { primesBlock }, new int[] { 0 })),
+                    List.of(
+                        new HashLookupOperator(
+                            driverContext.blockFactory(),
+                            new HashLookupOperator.Key[] { new HashLookupOperator.Key("primes", primesBlock) },
+                            new int[] { 0 }
+                        )
+                    ),
                     new PageConsumerOperator(page -> {
                         try {
                             BlockTestUtils.readInto(actualValues, page.getBlock(0));

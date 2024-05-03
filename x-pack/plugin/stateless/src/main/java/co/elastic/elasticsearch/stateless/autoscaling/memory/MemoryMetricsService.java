@@ -54,11 +54,16 @@ public class MemoryMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    // let each shard use 6MB by default, which matches what we see in heap dumps (with a bit of margin).
+    public static final ByteSizeValue SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
+    public static final Setting<ByteSizeValue> SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
+        "serverless.autoscaling.memory_metrics.shard_memory_overhead",
+        SHARD_MEMORY_OVERHEAD_DEFAULT,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private static final Logger logger = LogManager.getLogger(MemoryMetricsService.class);
     private static final int SENDING_PRIMARY_SHARD_ID = 0;
-    // let each shard use 6MB, which matches what we see in heap dumps (with a bit of margin).
-    // visible for testing
-    static final long SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(6).getBytes();
     // visible for testing
     static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
     // visible for testing
@@ -78,11 +83,14 @@ public class MemoryMetricsService implements ClusterStateListener {
 
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile TimeValue staleMetricsCheckInterval;
+    // visible for testing
+    volatile ByteSizeValue shardMemoryOverhead;
 
     public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_DURATION_SETTING, value -> staleMetricsCheckDuration = value);
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
+        clusterSettings.initializeAndWatch(SHARD_MEMORY_OVERHEAD_SETTING, value -> shardMemoryOverhead = value);
     }
 
     public MemoryMetrics getMemoryMetrics() {
@@ -98,7 +106,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         // That indirectly adds the necessary total indices and workload memory due to being included in the node memory above.
         // We assume 1 shard per index for now.
         final long tierMemoryInBytes = HeapToSystemMemory.dataNode(
-            totalIndicesMappingSize.sizeInBytes + SHARD_MEMORY_OVERHEAD * indicesCount()
+            totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * indicesCount()
         );
 
         return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, totalIndicesMappingSize.metricQuality);

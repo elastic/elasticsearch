@@ -17,14 +17,19 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
+import co.elastic.elasticsearch.serverless.constants.ProjectType;
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -37,10 +42,10 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,14 +56,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_DEFAULT;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
@@ -72,14 +83,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
         .build();
 
-    private String masterNode;
-
-    @Before
-    public void init() {
-        masterNode = startMasterNode();
-    }
-
     public void testCreateIndexWithMapping() throws Exception {
+        startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);
         ensureStableCluster(2); // master + index node
 
@@ -127,6 +132,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testUpdateIndexMapping() throws Exception {
+        startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);
         ensureStableCluster(2); // master + index node
 
@@ -170,6 +176,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testDeleteIndex() throws Exception {
+        startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);
         ensureStableCluster(2); // master + index node
 
@@ -219,6 +226,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testMovedShardPublication() throws Exception {
+        startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);
         startIndexNode(INDEX_NODE_SETTINGS);
         ensureStableCluster(3); // master + 2 index nodes
@@ -293,6 +301,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1734")
     public void testScaleUpAndDownOnMultipleIndicesAndNodes() throws Exception {
+        startMasterNode();
         int indexNodes = randomIntBetween(1, 10);
         logger.info("---> Number of index nodes: {}", indexNodes);
         List<String> nodeNames = new ArrayList<>();
@@ -368,6 +377,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1801")
     public void testMetricsRemainExactAfterAMasterFailover() throws Exception {
+        startMasterNode();
         var masterNode2 = startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);
 
@@ -412,6 +422,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testMemoryMetricsRemainExactAfterAShardMovesToADifferentNode() throws Exception {
+        startMasterNode();
         var indexNode1 = startIndexNode(INDEX_NODE_SETTINGS);
         var indexNode2 = startIndexNode(INDEX_NODE_SETTINGS);
 
@@ -460,6 +471,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testMemoryMetricsRemainExactAfterAShardMovesToADifferentNodeAndMappingsChange() throws Exception {
+        startMasterNode();
         var indexNode1 = startIndexNode(
             Settings.builder().put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueMillis(50)).build()
         );
@@ -523,6 +535,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testMemoryMetricsAfterFeatureStateRestore() throws Exception {
+        startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);
 
         final AtomicInteger transportMetricCounter = new AtomicInteger(0);
@@ -602,6 +615,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testMemoryMetricsUpdateMappingInTheMiddleOfSnapshotRestore() throws Exception {
+        startMasterNode();
         startIndexNode(INDEX_NODE_SETTINGS);
 
         // create test system index with feature state
@@ -663,6 +677,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1734")
     public void testNoMissedIndexMappingUpdatesOnSlowClusterUpdates() throws Exception {
+        var masterNode = startMasterNode();
         startIndexNode();
         ensureStableCluster(2);
 
@@ -699,6 +714,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testNoRetriesOnOutOfOrderSeqNos() throws Exception {
+        startMasterNode();
         startIndexNode();
         ensureStableCluster(2);
 
@@ -740,6 +756,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testShardMovesToNewNodeWithSlowClusterUpdate() throws Exception {
+        var masterNode = startMasterNode();
         var indexNode1 = startIndexNode();
         var indexNode2 = startIndexNode();
         ensureStableCluster(3);
@@ -781,6 +798,62 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         });
 
         disruption.stopDisrupting();
+    }
+
+    public void testSharMemoryOverheadSetting() throws Exception {
+        startMasterAndIndexNode(
+            Settings.builder()
+                .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                // For now, we assume one shard per index in the memory estimates, so pick a project type
+                // that has the default value of 1 for the number of shards.
+                .put(
+                    ServerlessSharedSettings.PROJECT_TYPE.getKey(),
+                    randomFrom(Arrays.stream(ProjectType.values()).filter(t -> t.getNumberOfShards() == 1).toList())
+                )
+                .build()
+        );
+        startSearchNode();
+        ensureStableCluster(2);
+        // Make sure we go beyond min heap size, otherwise they all round up to the same value
+        int minNoOfIndices = (int) (HeapToSystemMemory.MIN_HEAP_SIZE / SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes());
+        int noOfIndices = randomIntBetween(minNoOfIndices + 1, (int) (minNoOfIndices * 1.5));
+        logger.info("--> No. of indices: {}", noOfIndices);
+        var bulk = client().prepareBulk();
+        IntStream.range(0, noOfIndices).forEach(i -> bulk.add(new IndexRequest("index-" + i).source("field", randomUnicodeOfLength(10))));
+        assertNoFailures(bulk.get());
+        var memoryMetricService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
+        assertBusy(() -> assertThat(memoryMetricService.getIndicesMemoryMetrics().size(), equalTo(noOfIndices)));
+        // Shard memory overhead is only considered in the tier memory calculation
+        var totalMemoryWithDefaultShardOverhead = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
+        // Considering low number of fields, the memory overhead should be a factor of the shard memory overhead
+        assertThat(
+            totalMemoryWithDefaultShardOverhead,
+            allOf(
+                greaterThan(HeapToSystemMemory.dataNode(noOfIndices * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes())),
+                lessThan(HeapToSystemMemory.dataNode((noOfIndices + 1) * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes()))
+            )
+        );
+
+        var newShardMemoryOverhead = ByteSizeValue.ofMb(
+            randomLongBetween(SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() + 1, SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() * 3)
+        );
+        assertAcked(
+            admin().cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Map.of(SHARD_MEMORY_OVERHEAD_SETTING.getKey(), newShardMemoryOverhead))
+        );
+        var getSettingsResponse = clusterAdmin().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request())
+            .actionGet();
+        assertThat(
+            getSettingsResponse.settings().get(SHARD_MEMORY_OVERHEAD_SETTING.getKey()),
+            equalTo(newShardMemoryOverhead.getStringRep())
+        );
+        var totalMemoryWithNewShardOverhead = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
+        // The heap to system memory multiplier changes at {@link HeapToSystemMemory.HEAP_THRESHOLD}, so we only compare the lower bound.
+        assertThat(
+            totalMemoryWithNewShardOverhead,
+            greaterThan(HeapToSystemMemory.dataNode(noOfIndices * newShardMemoryOverhead.getBytes()))
+        );
     }
 
     private String startMasterNode() {

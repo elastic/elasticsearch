@@ -746,6 +746,7 @@ public class Stateless extends Plugin
             IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+            MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,

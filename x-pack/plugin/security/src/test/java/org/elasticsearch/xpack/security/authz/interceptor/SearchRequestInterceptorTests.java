@@ -44,7 +44,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         clusterService = mock(ClusterService.class);
-        interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService);
+        interceptor = new SearchRequestInterceptor(threadPool, licenseState);
     }
 
     @After

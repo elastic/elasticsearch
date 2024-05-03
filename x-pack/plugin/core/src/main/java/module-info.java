@@ -233,7 +233,8 @@ module org.elasticsearch.xcore {
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with
             org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
-            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
+            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent,
+            org.elasticsearch.xpack.core.security.action.apikey.ApiKey.VersionComponent;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.core.XPackFeatures;
 }

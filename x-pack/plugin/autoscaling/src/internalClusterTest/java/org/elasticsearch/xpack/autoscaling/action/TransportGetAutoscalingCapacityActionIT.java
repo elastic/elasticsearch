@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,25 +46,22 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
         assertBusy(() -> { assertCurrentCapacity(memory, storage, nodes); });
     }
 
-    public void assertCurrentCapacity(long memory, long storage, int nodes) throws IllegalAccessException {
-        Logger subjectLogger = LogManager.getLogger(TransportGetAutoscalingCapacityAction.class);
-
+    public void assertCurrentCapacity(long memory, long storage, int nodes) {
         MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        appender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "autoscaling capacity response message with " + storage,
-                TransportGetAutoscalingCapacityAction.class.getName(),
-                Level.DEBUG,
-                "autoscaling capacity response [*\"policies\"*\"test\"*\"current_capacity\"*\"storage\":"
-                    + storage
-                    + "*\"deciders\""
-                    + "*\"reactive_storage\""
-                    + "*\"reason_summary\"*\"reason_details\"*]"
-            )
-        );
-        Loggers.addAppender(subjectLogger, appender);
-        try {
+        try (var ignored = appender.capturing(TransportGetAutoscalingCapacityAction.class)) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "autoscaling capacity response message with " + storage,
+                    TransportGetAutoscalingCapacityAction.class.getName(),
+                    Level.DEBUG,
+                    "autoscaling capacity response [*\"policies\"*\"test\"*\"current_capacity\"*\"storage\":"
+                        + storage
+                        + "*\"deciders\""
+                        + "*\"reactive_storage\""
+                        + "*\"reason_summary\"*\"reason_details\"*]"
+                )
+            );
+
             GetAutoscalingCapacityAction.Response capacity = capacity();
             AutoscalingCapacity currentCapacity = capacity.results().get("test").currentCapacity();
             assertThat(currentCapacity.node().memory().getBytes(), Matchers.equalTo(memory));
@@ -75,9 +69,6 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
             assertThat(currentCapacity.node().storage().getBytes(), Matchers.equalTo(storage));
             assertThat(currentCapacity.total().storage().getBytes(), Matchers.equalTo(storage * nodes));
             appender.assertAllExpectationsMatched();
-        } finally {
-            appender.stop();
-            Loggers.removeAppender(subjectLogger, appender);
         }
     }
 

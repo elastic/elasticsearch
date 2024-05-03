@@ -69,6 +69,10 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         this.globalRetention = globalRetention;
     }
 
+    public RolloverConfiguration getRolloverConfiguration() {
+        return rolloverConfiguration;
+    }
+
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
         super(in);
         resolvedTemplate = in.readOptionalWriteable(Template::new);
@@ -116,7 +120,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

@@ -111,7 +111,12 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         logger.debug(() -> format("[%s] Request to delete trained model%s", request.getId(), request.isForce() ? " (force)" : ""));
 
         String id = request.getId();
-        cancelDownloadTask(client, id, listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)), request.timeout());
+        cancelDownloadTask(
+            client,
+            id,
+            listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)),
+            request.ackTimeout()
+        );
     }
 
     // package-private for testing

@@ -41,6 +41,8 @@ There are a couple of restrictions to be aware of:
 types:
 
 ** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
+** {plugins}/mapper-annotated-text-usage.html#annotated-text-synthetic-source[`annotated-text`]
+** <<binary-synthetic-source,`binary`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>
 ** <<date-synthetic-source,`date`>>
@@ -56,6 +58,7 @@ types:
 ** <<ip-synthetic-source,`ip`>>
 ** <<keyword-synthetic-source,`keyword`>>
 ** <<numeric-synthetic-source,`long`>>
+** <<range-synthetic-source,`range` types>>
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>>
@@ -169,3 +172,7 @@ https://www.rfc-editor.org/rfc/rfc7159.html[JSON RFC] defines objects as
 shouldn't care but without synthetic `_source` the original ordering is
 preserved and some applications may, counter to the spec, do something with
 that ordering.
+
+[[synthetic-source-modifications-ranges]]
+====== Representation of ranges
+Range field vales (e.g. `long_range`) are always represented as inclusive on both sides with bounds adjusted accordingly.  See <<range-synthetic-source-inclusive, examples>>.

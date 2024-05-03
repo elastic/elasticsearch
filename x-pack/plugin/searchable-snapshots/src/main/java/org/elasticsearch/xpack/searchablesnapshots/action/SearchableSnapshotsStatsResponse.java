@@ -30,7 +30,7 @@ import static java.util.stream.Collectors.toList;
 
 public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
-    private List<SearchableSnapshotShardStats> stats;
+    private final List<SearchableSnapshotShardStats> stats;
     private volatile List<CacheIndexInputStats> total;
 
     SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {

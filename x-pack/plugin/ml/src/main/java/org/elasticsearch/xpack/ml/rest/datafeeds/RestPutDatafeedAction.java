@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
@@ -51,8 +52,8 @@ public class RestPutDatafeedAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             putDatafeedRequest = PutDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
         }
-        putDatafeedRequest.timeout(restRequest.paramAsTime("timeout", putDatafeedRequest.timeout()));
-        putDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putDatafeedRequest.masterNodeTimeout()));
+        putDatafeedRequest.ackTimeout(restRequest.paramAsTime("timeout", putDatafeedRequest.ackTimeout()));
+        putDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(PutDatafeedAction.INSTANCE, putDatafeedRequest, new RestToXContentListener<>(channel));
     }
 

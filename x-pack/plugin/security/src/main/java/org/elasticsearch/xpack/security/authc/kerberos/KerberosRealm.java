@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
 
 import java.nio.file.Files;
@@ -64,7 +63,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     public static final String KRB_METADATA_UPN_KEY = "kerberos_user_principal_name";
 
     private final Cache<String, User> userPrincipalNameToUserCache;
-    private final NativeRoleMappingStore userRoleMapper;
+    private final UserRoleMapper userRoleMapper;
     private final KerberosTicketValidator kerberosTicketValidator;
     private final ThreadPool threadPool;
     private final Path keytabPath;
@@ -72,21 +71,21 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     private final boolean removeRealmName;
     private DelegatedAuthorizationSupport delegatedRealms;
 
-    public KerberosRealm(final RealmConfig config, final NativeRoleMappingStore nativeRoleMappingStore, final ThreadPool threadPool) {
-        this(config, nativeRoleMappingStore, new KerberosTicketValidator(), threadPool, null);
+    public KerberosRealm(final RealmConfig config, final UserRoleMapper userRoleMapper, final ThreadPool threadPool) {
+        this(config, userRoleMapper, new KerberosTicketValidator(), threadPool, null);
     }
 
     // pkg scoped for testing
     KerberosRealm(
         final RealmConfig config,
-        final NativeRoleMappingStore nativeRoleMappingStore,
+        final UserRoleMapper userRoleMapper,
         final KerberosTicketValidator kerberosTicketValidator,
         final ThreadPool threadPool,
         final Cache<String, User> userPrincipalNameToUserCache
     ) {
         super(config);
-        this.userRoleMapper = nativeRoleMappingStore;
-        this.userRoleMapper.refreshRealmOnChange(this);
+        this.userRoleMapper = userRoleMapper;
+        this.userRoleMapper.clearRealmCacheOnChange(this);
         final TimeValue ttl = config.getSetting(KerberosRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             this.userPrincipalNameToUserCache = (userPrincipalNameToUserCache == null)

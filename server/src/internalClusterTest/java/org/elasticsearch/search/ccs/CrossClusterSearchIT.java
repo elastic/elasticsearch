@@ -105,7 +105,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         if (randomBoolean()) {
-            searchRequest = searchRequest.scroll("1m");
+            searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
         }
         searchRequest.allowPartialSearchResults(false);
         if (randomBoolean()) {
@@ -286,7 +286,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + "no_such_index*");
         if (randomBoolean()) {
-            searchRequest = searchRequest.scroll("1m");
+            searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
         }
         searchRequest.allowPartialSearchResults(false);
         if (randomBoolean()) {

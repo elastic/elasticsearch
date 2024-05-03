@@ -174,10 +174,8 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             );
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
-            if (LOGGER.isDebugEnabled()) {
-                long timeMillis = stopWatch.stop().getMillis();
-                LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
-            }
+            long timeMillis = stopWatch.stop().getMillis();
+            LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
             listener.onFailure(ex);
         });
     }

@@ -313,7 +313,7 @@ public class SearchModule {
      * @param plugins List of included {@link SearchPlugin} objects.
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
-        this(settings, plugins, null);
+        this(settings, plugins, TelemetryProvider.NOOP);
     }
 
     /**
@@ -372,10 +372,8 @@ public class SearchModule {
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
         ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(
-            telemetryProvider == null
-                ? null
-                : telemetryProvider.getMeterRegistry()
-                    .registerLongCounter(ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT, "Aggregations usage", "count")
+            telemetryProvider.getMeterRegistry()
+                .registerLongCounter(ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT, "Aggregations usage", "count")
         );
 
         registerAggregation(

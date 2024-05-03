@@ -456,8 +456,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             @Override
             public InternalAggregation get() {
                 List<Bucket> reducedBuckets = reducer.get();
+                reducedBuckets.sort(Comparator.comparingLong(b -> b.key));
                 if (reduceContext.isFinalReduce()) {
-                    reducedBuckets.sort(Comparator.comparingLong(b -> b.key));
                     if (minDocCount == 0) {
                         addEmptyBuckets(reducedBuckets, reduceContext);
                     }

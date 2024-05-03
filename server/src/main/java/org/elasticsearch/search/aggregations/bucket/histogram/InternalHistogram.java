@@ -399,8 +399,8 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             @Override
             public InternalAggregation get() {
                 List<Bucket> reducedBuckets = reducer.get();
+                reducedBuckets.sort(Comparator.comparingDouble(b -> b.key));
                 if (reduceContext.isFinalReduce()) {
-                    reducedBuckets.sort(Comparator.comparingDouble(b -> b.key));
                     if (minDocCount == 0) {
                         addEmptyBuckets(reducedBuckets, reduceContext);
                     }

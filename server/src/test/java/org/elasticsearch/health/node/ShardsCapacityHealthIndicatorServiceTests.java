@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.IndexVersion;
@@ -375,6 +376,21 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             "elasticsearch:health:shards_capacity:diagnosis:increase_max_shards_per_node_frozen",
             SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().getUniqueId()
         );
+    }
+
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        int maxShardsPerNodeFrozen = randomValidMaxShards();
+        var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, featureService).calculate(
+            false,
+            HealthInfo.EMPTY_HEALTH_INFO
+        );
+
+        assertEquals(indicatorResult.status(), RED);
+        assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
+        assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
+        assertThat(indicatorResult.diagnosisList(), hasSize(0));
+        assertThat(indicatorResult.details(), is(HealthIndicatorDetails.EMPTY));
     }
 
     private static int randomValidMaxShards() {

@@ -228,7 +228,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 "Index Lifecycle Management is not running",
                 createDetails(verbose, ilmMetadata, currentMode),
                 AUTOMATION_DISABLED_IMPACT,
-                List.of(ILM_NOT_RUNNING)
+                verbose ? List.of(ILM_NOT_RUNNING) : List.of()
             );
         } else {
             var stagnatingIndices = stagnatingIndicesFinder.find();
@@ -248,7 +248,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                         + " stayed on the same action longer than expected.",
                     createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
                     STAGNATING_INDEX_IMPACT,
-                    createDiagnoses(stagnatingIndices, maxAffectedResourcesCount)
+                    verbose ? createDiagnoses(stagnatingIndices, maxAffectedResourcesCount) : List.of()
                 );
             }
         }

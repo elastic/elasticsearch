@@ -17,9 +17,11 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,6 +41,7 @@ public final class Mapping implements ToXContentFragment {
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
     private final MetadataFieldMapper[] metadataMappers;
+    private final MetadataFieldMapper[] metadataMappersSupportingSyntheticSource;
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
@@ -46,6 +49,13 @@ public final class Mapping implements ToXContentFragment {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
+        List<MetadataFieldMapper> metadataMappersSupportingSyntheticSource = new ArrayList<>();
+        for (MetadataFieldMapper mappers : metadataMappers) {
+            if (mappers.syntheticFieldLoader() != SourceLoader.SyntheticFieldLoader.NOTHING) {
+                metadataMappersSupportingSyntheticSource.add(mappers);
+            }
+        }
+        this.metadataMappersSupportingSyntheticSource = metadataMappersSupportingSyntheticSource.toArray(new MetadataFieldMapper[0]);
         Map.Entry<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>[] metadataMappersMap = new Map.Entry[metadataMappers.length];
         Map.Entry<String, MetadataFieldMapper>[] metadataMappersByName = new Map.Entry[metadataMappers.length];
         for (int i = 0; i < metadataMappers.length; i++) {
@@ -125,7 +135,7 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
+        return root.syntheticFieldLoader(metadataMappersSupportingSyntheticSource);
     }
 
     /**

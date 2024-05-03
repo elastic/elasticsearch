@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -712,19 +713,23 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> extra) {
-        return new SyntheticSourceFieldLoader(
-            Stream.concat(extra, mappers.values().stream())
-                .sorted(Comparator.comparing(Mapper::name))
-                .map(Mapper::syntheticFieldLoader)
-                .filter(l -> l != null)
-                .toList()
-        );
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(MetadataFieldMapper[] metadataFieldMappers) {
+        List<Mapper> mappers = new ArrayList<>(this.mappers.size() + (metadataFieldMappers != null ? metadataFieldMappers.length : 0));
+        for (Mapper mapper : this.mappers.values()) {
+            if (mapper.syntheticFieldLoader() != SourceLoader.SyntheticFieldLoader.NOTHING) {
+                mappers.add(mapper);
+            }
+        }
+        if (metadataFieldMappers != null) {
+            mappers.addAll(Arrays.asList(metadataFieldMappers));
+        }
+        mappers.sort(Comparator.comparing(Mapper::name));
+        return new SyntheticSourceFieldLoader(mappers.stream().map(Mapper::syntheticFieldLoader).toList());
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(Stream.empty());
+        return syntheticFieldLoader(null);
     }
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {

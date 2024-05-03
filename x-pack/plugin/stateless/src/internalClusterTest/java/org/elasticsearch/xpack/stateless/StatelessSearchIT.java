@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
@@ -193,9 +194,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
             Client client,
-            StatelessCommitCleaner commitCleaner
+            StatelessCommitCleaner commitCleaner,
+            SharedBlobCacheWarmingService cacheWarmingService
         ) {
-            return new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
+            return new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
         }
 
         private int getCreatedCommits() {
@@ -213,9 +215,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
             Client client,
-            StatelessCommitCleaner commitCleaner
+            StatelessCommitCleaner commitCleaner,
+            SharedBlobCacheWarmingService cacheWarmingService
         ) {
-            super(settings, objectStoreService, clusterService, client, commitCleaner);
+            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
         }
 
         @Override

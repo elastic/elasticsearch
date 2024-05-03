@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
@@ -49,6 +50,8 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
@@ -139,6 +142,69 @@ public class SharedBlobCacheWarmingService {
             "prewarming-cache",
             1 + threadPool.info(Stateless.PREWARM_THREAD_POOL).getMax(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE // forks to the fetch pool pretty much straight away
+        );
+    }
+
+    public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
+        assert vbcc.isFrozen();
+        long totalSizeInBytes = vbcc.getTotalSizeInBytes();
+        cacheService.maybeFetchRegion(
+            new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
+            0,
+            // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
+            // fully utilize each region. So we just pass it with a value that cover the current region.
+            totalSizeInBytes,
+            (channel, channelPos, relativePos, len, progressUpdater) -> {
+                try (OutputStream output = new OutputStream() {
+
+                    private final ByteBuffer byteBuffer = writeBuffer.get();
+                    private int bytesFlushed = 0;
+
+                    @Override
+                    public void write(int b) throws IOException {
+                        byteBuffer.put((byte) b);
+                        if (byteBuffer.hasRemaining() == false) {
+                            doFlush(false);
+                        }
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        int toWrite = len;
+                        while (toWrite > 0) {
+                            int toPut = Math.min(byteBuffer.remaining(), toWrite);
+                            byteBuffer.put(b, off + (len - toWrite), toPut);
+                            toWrite -= toPut;
+                            if (byteBuffer.hasRemaining() == false) {
+                                doFlush(false);
+                            }
+                        }
+                    }
+
+                    // We don't override the flush method as we only want to do cache aligned flushes - when the buffer is full or on close.
+                    private void doFlush(boolean closeFlush) throws IOException {
+                        int position = byteBuffer.position();
+                        var bytesCopied = SharedBytes.copyBufferToCacheFileAligned(channel, bytesFlushed + channelPos, byteBuffer);
+                        bytesFlushed += bytesCopied;
+                        assert closeFlush || bytesCopied == position : bytesCopied + " != " + position;
+                        assert closeFlush || position % SharedBytes.PAGE_SIZE == 0;
+                        assert position > 0;
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        if (byteBuffer.position() > 0) {
+                            doFlush(true);
+                        }
+                        assert byteBuffer.position() == 0;
+                        progressUpdater.accept(bytesFlushed);
+                    }
+                }) {
+                    vbcc.getBytesByRange(relativePos, Math.toIntExact(Math.min(len, totalSizeInBytes)), output);
+                }
+            },
+            fetchExecutor,
+            listener.map(b -> null)
         );
     }
 
@@ -501,7 +567,7 @@ public class SharedBlobCacheWarmingService {
                             var blobContainer = unwrapDirectory(indexShard.store().directory()).getBlobContainer(target.blob.primaryTerm());
                             try (var in = blobContainer.readBlob(OperationPurpose.INDICES, target.blob.blobName(), position, length)) {
                                 assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
-                                var bytesCopied = SharedBytes.copyToCacheFileAligned(
+                                int bytesCopied = SharedBytes.copyToCacheFileAligned(
                                     channel,
                                     in,
                                     channelPos,

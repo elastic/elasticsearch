@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -1786,7 +1787,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     this::getShardRoutingTable,
                     clusterService.threadPool(),
                     client,
-                    getCommitCleaner()
+                    getCommitCleaner(),
+                    new SharedBlobCacheWarmingService(
+                        sharedCacheService,
+                        threadPool,
+                        StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(nodeSettings)
+                    )
                 ) {
                     @Override
                     protected ShardCommitState createShardCommitState(

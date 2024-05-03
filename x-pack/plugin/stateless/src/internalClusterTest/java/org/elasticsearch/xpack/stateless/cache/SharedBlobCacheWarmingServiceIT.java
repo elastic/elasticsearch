@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -75,6 +77,52 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
         return plugins;
+    }
+
+    public void testCacheIsWarmedOnCommitUpload() throws IOException {
+        startMasterOnlyNode();
+
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
+            .build();
+        var indexNodeA = startIndexNode(cacheSettings);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+        ensureGreen(indexName);
+
+        IndexShard indexShard = findIndexShard(indexName);
+        IndexEngine shardEngine = getShardEngine(indexShard, IndexEngine.class);
+        final long generationToBlock = shardEngine.getCurrentGeneration() + 1;
+        final var mockRepository = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, indexNodeA));
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        commitService.addConsumerForNewUploadedBcc(indexShard.shardId(), bccInfo -> {
+            if (bccInfo.uploadedBcc().primaryTermAndGeneration().generation() == generationToBlock) {
+                logger.info("--> block object store repository");
+                mockRepository.setRandomControlIOExceptionRate(1.0);
+                mockRepository.setRandomDataFileIOExceptionRate(1.0);
+                mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+                future.onResponse(null);
+            }
+        });
+
+        indexDocs(indexName, 10);
+        flush(indexName);
+        future.actionGet();
+
+        // Forces a read from the cache in case the refresh read occurred before the files were marked as uploaded
+        assertThat(indexShard.store().readLastCommittedSegmentsInfo().getGeneration(), equalTo(generationToBlock));
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
@@ -228,7 +276,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .findFirst()
             .orElseThrow(() -> new AssertionError(TestStateless.class.getName() + " plugin not found"))
             .getSharedBlobCacheWarmingService();
-
         final var mockRepositoryB = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, node));
         warmingService.addListener(ActionListener.running(() -> {
             logger.info("--> block object store repository after warming");

@@ -108,6 +108,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
     }
+    javaToolChainPlugin {
+      id = 'elasticsearch.java-toolchain'
+      implementationClass = 'org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin'
+    }
     javaDoc {
       id = 'elasticsearch.java-doc'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
@@ -184,8 +188,10 @@ gradlePlugin {
  *****************************************************************************/
 
 def minCompilerJava = versions.get("minimumCompilerJava")
-targetCompatibility = minCompilerJava
-sourceCompatibility = minCompilerJava
+java {
+  targetCompatibility = minCompilerJava
+  sourceCompatibility = minCompilerJava
+}
 
 if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
   throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
@@ -200,6 +206,7 @@ sourceSets {
 
 tasks.withType(JavaCompile).configureEach {
   options.encoding = 'UTF-8'
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('licenseHeaders').configure {
@@ -241,7 +248,6 @@ dependencies {
   api buildLibs.commons.codec
   api buildLibs.apache.compress
   api buildLibs.ant
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:7.0.0'
   api buildLibs.nebula.info
   api buildLibs.apache.rat
   api buildLibs.jna
@@ -260,6 +266,9 @@ dependencies {
   api buildLibs.asm.tree
 
   compileOnly buildLibs.checkstyle
+
+  implementation 'com.github.javaparser:javaparser-core:3.18.0'
+
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock

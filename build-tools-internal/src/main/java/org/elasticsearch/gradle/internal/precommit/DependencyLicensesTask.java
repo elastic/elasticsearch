@@ -28,6 +28,7 @@ import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -189,7 +190,7 @@ public class DependencyLicensesTask extends DefaultTask {
         }
         File licensesDirAsFile = licensesDir.get().getAsFile();
         if (dependencies.isEmpty()) {
-            if (licensesDirAsFile.exists()) {
+            if (licensesDirAsFile.exists() && allIgnored() == false) {
                 throw new GradleException("Licenses dir " + licensesDirAsFile + " exists, but there are no dependencies");
             }
             return; // no dependencies to check
@@ -227,6 +228,10 @@ public class DependencyLicensesTask extends DefaultTask {
         notices.forEach((item, exists) -> failIfAnyMissing(item, exists, "notice"));
 
         sources.forEach((item, exists) -> failIfAnyMissing(item, exists, "sources"));
+    }
+
+    private boolean allIgnored() {
+        return Arrays.asList(getLicensesDir().listFiles()).stream().map(f -> f.getName()).allMatch(ignoreFiles::contains);
     }
 
     // This is just a marker output folder to allow this task being up-to-date.

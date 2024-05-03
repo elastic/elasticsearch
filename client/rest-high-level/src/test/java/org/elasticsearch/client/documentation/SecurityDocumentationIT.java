@@ -3088,6 +3088,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97756")
     public void testDelegatePkiAuthentication() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");

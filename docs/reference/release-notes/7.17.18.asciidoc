@@ -1,0 +1,24 @@
+[[release-notes-7.17.18]]
+== {es} version 7.17.18
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[bug-7.17.18]]
+[float]
+=== Bug fixes
+
+Ingest Node::
+* Better handling of async processor failures {es-pull}104289[#104289] (issue: {es-issue}101921[#101921])
+* Ingest correctly handle upsert operations and drop processors together {es-pull}104585[#104585] (issue: {es-issue}36746[#36746])
+
+Snapshot/Restore::
+* Fix deleting index during snapshot finalization {es-pull}103817[#103817] (issue: {es-issue}101029[#101029])
+
+[[upgrade-7.17.18]]
+[float]
+=== Upgrades
+
+Snapshot/Restore::
+* [7x] upgrade aws client depdencies {es-pull}104346[#104346]
+
+

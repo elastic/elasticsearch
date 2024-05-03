@@ -16,8 +16,10 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -48,9 +50,20 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        @Nullable HttpValidator httpValidator
     ) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, sharedGroupFactory);
+        super(
+            settings,
+            networkService,
+            bigArrays,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            httpValidator
+        );
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
@@ -86,7 +99,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
     private final class HttpSslChannelHandler extends HttpChannelHandler {
         HttpSslChannelHandler() {
-            super(SecurityNetty4HttpServerTransport.this, handlingSettings);
+            super(SecurityNetty4HttpServerTransport.this, handlingSettings, SecurityNetty4HttpServerTransport.this.httpValidator);
         }
 
         @Override

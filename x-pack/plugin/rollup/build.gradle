@@ -8,7 +8,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-rollup'
+base {
+  archivesName = 'x-pack-rollup'
+}
 
 dependencies {
   compileOnly project(":server")

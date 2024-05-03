@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
  */
 public class DeleteIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteIndexClusterStateUpdateRequest> {
 
-    DeleteIndexClusterStateUpdateRequest() {
+    public DeleteIndexClusterStateUpdateRequest() {
 
     }
 }

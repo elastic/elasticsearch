@@ -47,6 +47,15 @@ public interface RestHandler {
     }
 
     /**
+     * Returns the concrete RestHandler for this RestHandler. That is, if this is a delegating RestHandler it returns the delegate.
+     * Otherwise it returns itself.
+     * @return The underlying RestHandler
+     */
+    default RestHandler getConcreteRestHandler() {
+        return this;
+    }
+
+    /**
      * Indicates if the RestHandler supports working with pooled buffers. If the request handler will not escape the return
      * {@link RestRequest#content()} or any buffers extracted from it then there is no need to make a copies of any pooled buffers in the
      * {@link RestRequest} instance before passing a request to this handler. If this instance does not support pooled/unsafe buffers

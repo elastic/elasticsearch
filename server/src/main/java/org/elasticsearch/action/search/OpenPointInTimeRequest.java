@@ -26,10 +26,11 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
+
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private TimeValue keepAlive;
-
+    private int maxConcurrentShardRequests = SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
     @Nullable
     private String routing;
     @Nullable
@@ -121,6 +122,27 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     public OpenPointInTimeRequest preference(String preference) {
         this.preference = preference;
         return this;
+    }
+
+    /**
+     * Similar to {@link SearchRequest#getMaxConcurrentShardRequests()}, this returns the number of shard requests that should be
+     * executed concurrently on a single node . This value should be used as a protection mechanism to reduce the number of shard
+     * requests fired per open point-in-time request. The default is {@code 5}
+     */
+    public int maxConcurrentShardRequests() {
+        return maxConcurrentShardRequests;
+    }
+
+    /**
+     * Similar to {@link SearchRequest#setMaxConcurrentShardRequests(int)}, this sets the number of shard requests that should be
+     * executed concurrently on a single node. This value should be used as a protection mechanism to reduce the number of shard
+     * requests fired per open point-in-time request.
+     */
+    public void maxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        if (maxConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
+        }
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
 
     @Override

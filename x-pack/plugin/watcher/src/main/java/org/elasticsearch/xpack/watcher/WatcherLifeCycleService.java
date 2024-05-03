@@ -166,7 +166,9 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
-                    watcherService.reload(event.state(), "new local watcher shard allocation ids");
+                    watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
+                        clearAllocationIds(); // will cause reload again
+                    });
                 } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {

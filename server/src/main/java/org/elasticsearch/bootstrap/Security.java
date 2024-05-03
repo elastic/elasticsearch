@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
+import java.io.FilePermission;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -32,11 +33,15 @@ import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.security.Permission;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -115,7 +120,8 @@ final class Security {
                 createPermissions(environment),
                 getPluginAndModulePermissions(environment),
                 filterBadDefaults,
-                createRecursiveDataPathPermission(environment)
+                createRecursiveDataPathPermission(environment),
+                createForbiddenFilePermissions(environment)
             )
         );
 
@@ -178,6 +184,22 @@ final class Security {
         return policy;
     }
 
+    private static List<FilePermission> createForbiddenFilePermissions(Environment environment) throws IOException {
+        Permissions policy = new Permissions();
+        addSingleFilePath(policy, environment.configFile().resolve("elasticsearch.yml"), "read,readlink,write,delete,execute");
+        addSingleFilePath(policy, environment.configFile().resolve("jvm.options"), "read,readlink,write,delete,execute");
+        Path jvmOptionsD = environment.configFile().resolve("jvm.options.d");
+        if (Files.isDirectory(jvmOptionsD)) {
+            // we don't want to create this if it doesn't exist
+            addDirectoryPath(policy, "forbidden_access", jvmOptionsD, "read,readlink,write,delete,execute", false);
+        }
+        List<FilePermission> ps = new ArrayList<>();
+        for (Enumeration<Permission> e = policy.elements(); e.hasMoreElements();) {
+            ps.add((FilePermission) e.nextElement());
+        }
+        return ps;
+    }
+
     /** Adds access to classpath jars/classes for jar hell scan, etc */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static void addClasspathPermissions(Permissions policy) throws IOException {
@@ -209,6 +231,7 @@ final class Security {
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
         addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
+
         // read-write dirs
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);

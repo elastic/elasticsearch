@@ -33,10 +33,8 @@ to `data_cold,data_warm,data_hot`. This moves the index to nodes in the
 The migrate action is not allowed in the frozen phase. The frozen phase directly
 mounts the searchable snapshot using a
 <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
-of `data_frozen,data_cold,data_warm,data_hot`. This moves the index to nodes in the
-<<frozen-tier, frozen tier>>. If there are no nodes in the frozen tier, it falls back to the
-<<cold-tier, cold>> tier, then the <<warm-tier, warm>> tier, then finally the <<hot-tier, hot>>
-tier.
+of `data_frozen`. This moves the index to nodes in the
+<<frozen-tier, frozen tier>>.
 
 The migrate action is not allowed in the hot phase.
 The initial index allocation is performed <<data-tier-allocation, automatically>>,

@@ -8,7 +8,10 @@ esplugin {
     classname 'org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin'
     extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-repository-encrypted'
+
+base {
+    archivesName = 'x-pack-repository-encrypted'
+}
 
 dependencies {
     // necessary for the license check
@@ -27,5 +30,5 @@ dependencies {
         exclude group: 'javax.xml.bind', module: 'jaxb-api'
     }
     // for encrypted GCS repository integ tests
-    internalClusterTestRuntimeOnly 'com.google.guava:guava:31.1-jre'
+    internalClusterTestRuntimeOnly 'com.google.guava:guava:32.0.1-jre'
 }

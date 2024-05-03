@@ -44,6 +44,8 @@ def s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
   nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath ? s3PermanentBasePath + "_snapshot_tool_tests" + BuildParams.testSeed : 'base_path'
 }
 

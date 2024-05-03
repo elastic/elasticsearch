@@ -15,9 +15,11 @@ plugins {
 }
 
 group = "org.elasticsearch"
-
-targetCompatibility = 11
-sourceCompatibility = 11
+// This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
+java {
+  targetCompatibility = 11
+  sourceCompatibility = 11
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -83,4 +85,8 @@ project.getPlugins().withType(JavaBasePlugin.class) {
             s.setOutput("out/eclipse" + i)
         }
     }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }

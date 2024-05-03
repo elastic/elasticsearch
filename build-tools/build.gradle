@@ -21,8 +21,11 @@ description = "The elasticsearch build tools"
 
 group = "org.elasticsearch.gradle"
 version = versions.getProperty("elasticsearch")
-targetCompatibility = 11
-sourceCompatibility = 11
+
+java {
+    targetCompatibility = 11
+    sourceCompatibility = 11
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -68,7 +71,7 @@ gradlePlugin {
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-    outputFile = "${buildDir}/version.properties"
+    destinationFile = new File(buildDir, "version.properties");
     comment = 'Generated version properties'
     properties(versions)
 }
@@ -148,6 +151,10 @@ dependencies {
     testRuntimeOnly(buildLibs.junit5.platform.launcher) {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('test').configure {

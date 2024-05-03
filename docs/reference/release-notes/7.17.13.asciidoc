@@ -1,0 +1,40 @@
+[[release-notes-7.17.13]]
+== {es} version 7.17.13
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.13]]
+[discrete]
+=== Known issues
+include::7.17.10.asciidoc[tag=no-preventive-gc-issue]
+
+[float]
+[[security-updates-7.17.13]]
+=== Security updates
+
+* {es} generally filters out sensitive information and credentials before
+logging to the audit log. It was found that this filtering was not applied when
+requests to {es} use certain deprecated `_xpack/security` URIs for APIs. The
+impact of this flaw is that sensitive information, such as passwords and tokens,
+might be printed in cleartext in {es} audit logs. Note that audit logging is
+disabled by default and needs to be explicitly enabled. Even when audit logging
+is enabled, request bodies that could contain sensitive information are not
+printed to the audit log unless explicitly configured.
++
+The issue is resolved in {es} 7.17.13.
++
+For more information, see our related
+https://discuss.elastic.co/t/elasticsearch-8-9-2-and-7-17-13-security-update/342479[security
+announcement].
+
+[[enhancement-7.17.13]]
+[float]
+=== Enhancements
+
+Infra/Core::
+* Enhance regex performance with duplicate wildcards {es-pull}98176[#98176]
+
+Search::
+* Refactor nested field handling in `FieldFetcher` {es-pull}97683[#97683]
+
+

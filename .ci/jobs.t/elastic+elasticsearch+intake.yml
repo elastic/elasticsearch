@@ -2,24 +2,12 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+intake
     display-name: "elastic / elasticsearch # %BRANCH% - intake"
-    description: "Testing of the Elasticsearch %BRANCH% branch on every push.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     project-type: multijob
     node: master
     vault: []
-    triggers:
-      # We use this trigger instead of the provided "github" webhook trigger because it's more robust.
-      # Here we only trigger builds for pushes to the corresponding branch, rather than a push to any branch of the
-      # configured git repository. This avoids duplicate builds being triggered when pushes to multiple branches are
-      # done in quick succession.
-      - generic-webhook-trigger:
-          post-content-params:
-            - type: JSONPath
-              key: ref
-              value: '$.ref'
-          regex-filter-text: '$ref'
-          regex-filter-expression: "^refs/heads/%BRANCH%$"
-          cause: Push to GitHub (refs/heads/%BRANCH%)
-          silent-response: true
+    triggers: []
     scm:
       - git:
           wipe-workspace: false

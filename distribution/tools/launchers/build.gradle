@@ -17,7 +17,9 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
-archivesBaseName = 'elasticsearch-launchers'
+base {
+  archivesName = 'elasticsearch-launchers'
+}
 
 tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles 'jdk-signatures', 'snakeyaml-signatures'

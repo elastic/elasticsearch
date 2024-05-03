@@ -7,15 +7,14 @@
  */
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
+import org.elasticsearch.search.fetch.subphase.UnmappedFieldFetcher;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -95,22 +94,9 @@ class FieldsOptionSourceAdapter {
                 Map<String, DocumentField> documentFields = Collections.emptyMap();
                 try {
                     if (fieldFetcher == null) {
-                        CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
-                        // We separate the "include_unmapped" field patters with wildcards from the rest in order to use less space in the
-                        // lookup automaton
-                        Map<Boolean, List<String>> partitions = originalSource.fetchFields()
-                            .stream()
-                            .map(ff -> ff.field)
-                            .collect(Collectors.partitioningBy((s -> Regex.isSimpleMatchPattern(s))));
-                        List<String> unmappedWildcardPattern = partitions.get(true);
-                        List<String> unmappedConcreteFields = partitions.get(false);
-                        if (unmappedWildcardPattern.isEmpty() == false) {
-                            unmappedFieldsFetchAutomaton = new CharacterRunAutomaton(
-                                Regex.simpleMatchToAutomaton(unmappedWildcardPattern.toArray(new String[unmappedWildcardPattern.size()])),
-                                100000
-                            );
-                        }
-                        fieldFetcher = new FieldFetcher(Collections.emptyMap(), unmappedFieldsFetchAutomaton, unmappedConcreteFields);
+                        List<String> fieldPatterns = originalSource.fetchFields().stream().map(ff -> ff.field).collect(Collectors.toList());
+                        UnmappedFieldFetcher unmappedFieldFetcher = new UnmappedFieldFetcher(Collections.emptySet(), fieldPatterns);
+                        fieldFetcher = new FieldFetcher(Collections.emptyMap(), unmappedFieldFetcher);
 
                     }
                     documentFields = fieldFetcher.fetch(lookup);

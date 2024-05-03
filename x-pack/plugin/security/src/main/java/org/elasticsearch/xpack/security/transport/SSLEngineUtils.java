@@ -34,9 +34,14 @@ public class SSLEngineUtils {
 
     private SSLEngineUtils() {}
 
-    public static void extractClientCertificates(Logger logger, ThreadContext threadContext, HttpChannel httpChannel) {
-        SSLEngine sslEngine = getSSLEngine(httpChannel);
-        extract(logger, threadContext, sslEngine, httpChannel);
+    public static void extractClientCertificates(Logger logger, ThreadContext threadContext, Channel channel) {
+        SSLEngine sslEngine = getSSLEngine(channel);
+        extract(logger, threadContext, sslEngine, channel);
+    }
+
+    public static void extractClientCertificates(Logger logger, ThreadContext threadContext, HttpChannel channel) {
+        SSLEngine sslEngine = getSSLEngine(channel);
+        extract(logger, threadContext, sslEngine, channel);
     }
 
     public static void extractClientCertificates(Logger logger, ThreadContext threadContext, TcpChannel tcpChannel) {
@@ -47,9 +52,7 @@ public class SSLEngineUtils {
     public static SSLEngine getSSLEngine(HttpChannel httpChannel) {
         if (httpChannel instanceof Netty4HttpChannel) {
             Channel nettyChannel = ((Netty4HttpChannel) httpChannel).getNettyChannel();
-            SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
-            assert handler != null : "Must have SslHandler";
-            return handler.engine();
+            return getSSLEngine(nettyChannel);
         } else if (httpChannel instanceof NioHttpChannel) {
             SocketChannelContext context = ((NioHttpChannel) httpChannel).getContext();
             assert context instanceof SSLChannelContext : "Must be SSLChannelContext.class, found:  " + context.getClass();
@@ -57,6 +60,12 @@ public class SSLEngineUtils {
         } else {
             throw new AssertionError("Unknown channel class type: " + httpChannel.getClass());
         }
+    }
+
+    public static SSLEngine getSSLEngine(Channel channel) {
+        SslHandler handler = channel.pipeline().get(SslHandler.class);
+        assert handler != null : "Must have SslHandler";
+        return handler.engine();
     }
 
     public static SSLEngine getSSLEngine(TcpChannel tcpChannel) {

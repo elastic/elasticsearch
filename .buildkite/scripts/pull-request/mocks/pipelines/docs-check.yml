@@ -1,0 +1,14 @@
+config:
+  included-regions:
+    - ^docs/.*
+    - ^x-pack/docs/.*
+  excluded-regions: []
+steps:
+  - label: docs-check
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

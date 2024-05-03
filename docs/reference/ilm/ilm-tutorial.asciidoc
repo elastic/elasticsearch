@@ -14,11 +14,11 @@ requirements for your newest data, control costs over time, enforce retention po
 and still get the most out of your data.
 
 TIP: Data streams are best suited for
-<<data-streams-append-only,append-only>> use cases. If you need to frequently
-update or delete existing documents across multiple indices, we recommend
-using an index alias and index template instead. You can still use ILM to
-manage and rollover the alias's indices. Skip to
-<<manage-time-series-data-without-data-streams>>.
+<<data-streams-append-only,append-only>> use cases. If you need to update or delete existing time
+series data, you can perform update or delete operations directly on the data stream backing index.
+If you frequently send multiple documents using the same `_id` expecting last-write-wins, you may
+want to use an index alias with a write index instead. You can still use ILM to manage and rollover
+the alias's indices. Skip to <<manage-time-series-data-without-data-streams>>.
 
 To automate rollover and management of a data stream with {ilm-init}, you:
 

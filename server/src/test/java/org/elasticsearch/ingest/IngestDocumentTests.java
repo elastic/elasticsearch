@@ -1016,10 +1016,71 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testCopyConstructor() {
+        {
+            // generic test with a random document and copy
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            IngestDocument copy = new IngestDocument(ingestDocument);
+
+            // these fields should not be the same instance
+            assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+
+            // but the two objects should be very much equal to each other
+            assertIngestDocument(ingestDocument, copy);
+        }
+
+        {
+            // manually punch in a few values
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            ingestDocument.setFieldValue("_index", "foo1");
+            ingestDocument.setFieldValue("_id", "bar1");
+            ingestDocument.setFieldValue("hello", "world1");
+            IngestDocument copy = new IngestDocument(ingestDocument);
+
+            // make sure the copy matches
+            assertIngestDocument(ingestDocument, copy);
+
+            // change the copy
+            copy.setFieldValue("_index", "foo2");
+            copy.setFieldValue("_id", "bar2");
+            copy.setFieldValue("hello", "world2");
+
+            // the original shouldn't have changed
+            assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("foo1"));
+            assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("bar1"));
+            assertThat(ingestDocument.getFieldValue("hello", String.class), equalTo("world1"));
+        }
+
+        {
+            // the copy constructor rejects self-references
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            List<Object> someList = new ArrayList<>();
+            someList.add("some string");
+            someList.add(someList); // the list contains itself
+            ingestDocument.setFieldValue("someList", someList);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+        }
+    }
+
+    public void testCopyConstructorWithExecutedPipelines() {
+        /*
+         * This is similar to the first part of testCopyConstructor, except that we're executing a pipeilne, and running the
+         * assertions inside the processor so that we can test that executedPipelines is correct.
+         */
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        IngestDocument copy = new IngestDocument(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
-        assertIngestDocument(ingestDocument, copy);
+        TestProcessor processor = new TestProcessor(ingestDocument1 -> {
+            assertThat(ingestDocument1.getPipelineStack().size(), equalTo(1));
+            IngestDocument copy = new IngestDocument(ingestDocument1);
+            assertThat(ingestDocument1.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertIngestDocument(ingestDocument1, copy);
+            assertThat(copy.getPipelineStack(), equalTo(ingestDocument1.getPipelineStack()));
+        });
+        Pipeline pipeline = new Pipeline("pipeline1", "test pipeline", 1, Collections.emptyMap(), new CompoundProcessor(processor));
+        ingestDocument.executePipeline(pipeline, (ingestDocument1, exception) -> {
+            assertNotNull(ingestDocument1);
+            assertNull(exception);
+        });
+        assertThat(processor.getInvokedCounter(), equalTo(1));
     }
 
     public void testCopyConstructorWithZonedDateTime() {

@@ -1,0 +1,49 @@
+[[release-notes-7.17.19]]
+== {es} version 7.17.19
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.19]]
+[float]
+=== Known issues
+
+* Due to a bug in the bundled JDK 22 nodes might crash abruptly under high memory pressure.
+  We recommend <<jvm-version,downgrading to JDK 21.0.2>> asap to mitigate the issue.
+
+[[bug-7.17.19]]
+[float]
+=== Bug fixes
+
+Ingest Node::
+* Adding `executedPipelines` to the `IngestDocument` copy constructor {es-pull}105427[#105427]
+
+Machine Learning::
+* Detect 8.x ML nodes correctly {es-pull}105653[#105653]
+
+Search::
+* Force execution of `SearchService.Reaper` {es-pull}106544[#106544] (issue: {es-issue}106543[#106543])
+* Update to latest Lucene bugfix version 8.11.3 {es-pull}106365[#106365]
+
+Watcher::
+* Handling exceptions on watcher reload {es-pull}105442[#105442] (issue: {es-issue}69842[#69842])
+
+[[enhancement-7.17.19]]
+[float]
+=== Enhancements
+
+Ingest Node::
+* Adding a custom exception for problems with the graph of pipelines to be applied to a document {es-pull}105196[#105196]
+* Improving the performance of the ingest simulate verbose API {es-pull}105265[#105265]
+* Limiting the number of nested pipelines that can be executed {es-pull}105428[#105428]
+
+[[upgrade-7.17.19]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade joda time to 2.12.6 {es-pull}104720[#104720]
+
+Ingest Node::
+* Upgrade mime4j on the 7.17 line {es-pull}106380[#106380]
+
+

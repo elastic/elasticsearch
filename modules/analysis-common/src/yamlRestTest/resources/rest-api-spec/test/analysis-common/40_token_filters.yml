@@ -663,6 +663,23 @@
     - match:  { tokens.1.token: baz }
 
 ---
+"stemmer_override file access":
+    - do:
+        catch: bad_request
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_stemmer_override:
+                    type: stemmer_override
+                    rules_path: "jvm.options"
+    - match: { status: 400 }
+    - match: { error.type: illegal_argument_exception }
+    - match: { error.reason: "/Access.denied.trying.to.read.file.rules_path.*/" }
+
+---
 "decompounder":
     - do:
         indices.create:

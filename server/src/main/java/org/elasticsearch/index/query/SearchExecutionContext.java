@@ -64,6 +64,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -78,6 +79,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -722,6 +724,37 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public String getNestedParent(String nestedPath) {
         return mappingLookup.getNestedParent(nestedPath);
+    }
+
+    public List<String> getImmediateChildMappers(String path) {
+        List<String> nestedPathNames = mappingLookup.getNestedMappers()
+            .stream()
+            .map(ObjectMapper::name)
+            .sorted()
+            .collect(Collectors.toList());
+        String prefix = "".equals(path) ? "" : path + ".";
+        List<String> childMappers = new ArrayList<>();
+        int parentPos = Collections.binarySearch(nestedPathNames, path);
+        if (parentPos < -1 || parentPos >= nestedPathNames.size() - 1) {
+            return Collections.emptyList();
+        }
+        int i = parentPos + 1;
+        String lastChild = nestedPathNames.get(i);
+        if (lastChild.startsWith(prefix)) {
+            childMappers.add(lastChild);
+        }
+        i++;
+        while (i < nestedPathNames.size() && nestedPathNames.get(i).startsWith(prefix)) {
+            if (nestedPathNames.get(i).startsWith(lastChild + ".")) {
+                // child of child, skip
+                i++;
+                continue;
+            }
+            lastChild = nestedPathNames.get(i);
+            childMappers.add(lastChild);
+            i++;
+        }
+        return childMappers;
     }
 
     public NestedDocuments getNestedDocuments() {

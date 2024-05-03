@@ -87,7 +87,7 @@
 #
 # Elasticsearch security features are not enabled by default.
 # These features are free, but require configuration changes to enable them.
-# This means that users don’t have to provide credentials and can get full access
+# This means that users don't have to provide credentials and can get full access
 # to the cluster. Network connections are also not encrypted.
 #
 # To protect your data, we strongly encourage you to enable the Elasticsearch security features. 

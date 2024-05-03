@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+periodic+third-party-tests
     display-name: "elastic / elasticsearch # %BRANCH% - third party tests"
-    description: "Testing of the Elasticsearch %BRANCH% branch against third-party service integrations.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     project-type: multijob
     node: master
     vault: []

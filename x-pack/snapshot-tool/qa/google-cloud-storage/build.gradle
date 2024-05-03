@@ -47,10 +47,11 @@ def encodedCredentials = {
 
 def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
   include '**/GCSCleanupTests.class'
-
   systemProperty 'tests.security.manager', false
-
   systemProperty 'test.google.bucket', gcsBucket
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
+  
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath ? gcsBasePath + "_snapshot_tool_tests" + BuildParams.testSeed : 'base_path'
   nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
 }

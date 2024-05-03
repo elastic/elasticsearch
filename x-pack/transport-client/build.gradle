@@ -1,6 +1,9 @@
 apply plugin: 'elasticsearch.build'
 group = 'org.elasticsearch.client'
-archivesBaseName = 'x-pack-transport'
+
+base {
+  archivesName = 'x-pack-transport'
+}
 
 dependencies {
   // this "api" dependency looks weird, but it is correct, as it contains

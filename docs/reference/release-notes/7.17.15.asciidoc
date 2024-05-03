@@ -1,0 +1,33 @@
+[[release-notes-7.17.15]]
+== {es} version 7.17.15
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.15]]
+[discrete]
+=== Known issues
+include::7.17.14.asciidoc[tag=no-preventive-gc-issue]
+
+[[bug-7.17.15]]
+[float]
+=== Bug fixes
+
+ILM+SLM::
+* `WaitForSnapshotStep` now verifies that the index belongs to the latest snapshot of that SLM policy {es-pull}100911[#100911] (issue: {es-issue}57809[#57809])
+
+Network::
+* Ensure that all failures in `TcpTransport#openConnection` are treated consistently (all exceptions are now passed
+to the listener). {es-pull}101907[#101907] (issue: {es-issue}100510[#100510])
+* Protect `NodeConnectionsService` from stale connections {es-pull}92558[#92558] (issue: {es-issue}92029[#92029])
+
+Snapshot/Restore::
+* Fix race condition in `SnapshotsService` {es-pull}101652[#101652]
+
+[[upgrade-7.17.15]]
+[float]
+=== Upgrades
+
+Packaging::
+* Update bundled JDK to 21.0.1 {es-pull}101133[#101133]
+
+

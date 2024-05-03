@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -43,6 +44,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        project.getPluginManager().apply(MutedTestPlugin.class);
 
         configureConfigurations(project);
         configureCompile(project);
@@ -132,6 +134,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
             compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
             compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            compileOptions.setIncremental(BuildParams.isCi() == false);
         });
         // also apply release flag to groovy, which is used in build-tools
         project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {

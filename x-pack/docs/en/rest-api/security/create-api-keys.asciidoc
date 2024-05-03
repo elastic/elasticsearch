@@ -93,7 +93,7 @@ POST /_security/api_key
   "role_descriptors": { <2>
     "role-a": {
       "cluster": ["all"],
-      "index": [
+      "indices": [
         {
           "names": ["index-a*"],
           "privileges": ["read"]
@@ -102,7 +102,7 @@ POST /_security/api_key
     },
     "role-b": {
       "cluster": ["all"],
-      "index": [
+      "indices": [
         {
           "names": ["index-b*"],
           "privileges": ["all"]

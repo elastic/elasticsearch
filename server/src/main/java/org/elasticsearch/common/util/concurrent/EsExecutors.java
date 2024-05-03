@@ -40,12 +40,15 @@ public class EsExecutors {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsExecutors.class);
 
+    // although the available processors may technically change, for node sizing we use the number available at launch
+    private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
     /**
      * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
     public static final Setting<Integer> PROCESSORS_SETTING = new Setting<>(
         "processors",
-        s -> Integer.toString(Runtime.getRuntime().availableProcessors()),
+        s -> Integer.toString(MAX_NUM_PROCESSORS),
         processorsParser("processors"),
         Property.Deprecated,
         Property.NodeScope
@@ -66,7 +69,7 @@ public class EsExecutors {
     private static Function<String, Integer> processorsParser(final String name) {
         return s -> {
             final int value = Setting.parseInt(s, 1, name);
-            final int availableProcessors = Runtime.getRuntime().availableProcessors();
+            final int availableProcessors = MAX_NUM_PROCESSORS;
             if (value > availableProcessors) {
                 deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
@@ -379,6 +382,29 @@ public class EsExecutors {
             }
         }
 
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public void put(E e) {
+            // As the queue is unbounded, this method will always add to the queue.
+            super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean add(E e) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean offer(E e, long timeout, TimeUnit unit) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
     }
 
     /**

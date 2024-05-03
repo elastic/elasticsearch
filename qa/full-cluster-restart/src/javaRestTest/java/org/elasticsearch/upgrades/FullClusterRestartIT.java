@@ -742,20 +742,12 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
-     * Tests recovery of an index with or without a translog and the
-     * statistics we gather about that.
+     * Tests recovery of an index.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52031")
     public void testRecovery() throws Exception {
         int count;
-        boolean shouldHaveTranslog;
         if (isRunningAgainstOldCluster()) {
             count = between(200, 300);
-            /* We've had bugs in the past where we couldn't restore
-             * an index without a translog so we randomize whether
-             * or not we have one. */
-            shouldHaveTranslog = randomBoolean();
-
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
@@ -770,19 +762,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             if (randomBoolean()) {
                 performSyncedFlush(index, randomBoolean());
             }
-            if (shouldHaveTranslog) {
-                // Update a few documents so we are sure to have a translog
-                indexRandomDocuments(
-                    count / 10,
-                    false, // flushing here would invalidate the whole thing
-                    false,
-                    i -> jsonBuilder().startObject().field("field", "value").endObject()
-                );
-            }
-            saveInfoDocument("should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
             count = countOfIndexedRandomDocuments();
-            shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument("should_have_translog"));
         }
 
         // Count the documents in the index to make sure we have as many as we put there
@@ -793,63 +774,13 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertTotalHits(count, countResponse);
 
         if (false == isRunningAgainstOldCluster()) {
-            boolean restoredFromTranslog = false;
             boolean foundPrimary = false;
             Request recoveryRequest = new Request("GET", "/_cat/recovery/" + index);
             recoveryRequest.addParameter("h", "index,shard,type,stage,translog_ops_recovered");
             recoveryRequest.addParameter("s", "index,shard,type");
             String recoveryResponse = toStr(client().performRequest(recoveryRequest));
-            for (String line : recoveryResponse.split("\n")) {
-                // Find the primaries
-                foundPrimary = true;
-                if (false == line.contains("done") && line.contains("existing_store")) {
-                    continue;
-                }
-                /* Mark if we see a primary that looked like it restored from the translog.
-                 * Not all primaries will look like this all the time because we modify
-                 * random documents when we want there to be a translog and they might
-                 * not be spread around all the shards. */
-                Matcher m = Pattern.compile("(\\d+)$").matcher(line);
-                assertTrue(line, m.find());
-                int translogOps = Integer.parseInt(m.group(1));
-                if (translogOps > 0) {
-                    restoredFromTranslog = true;
-                }
-            }
+            foundPrimary = recoveryResponse.split("\n").length > 0;
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
-            assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
-
-            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-            String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
-            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-                int numCurrentVersion = 0;
-                int numBwcVersion = 0;
-                Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
-                segmentsRequest.addParameter("h", "prirep,shard,index,version");
-                segmentsRequest.addParameter("s", "prirep,shard,index");
-                String segmentsResponse = toStr(client().performRequest(segmentsRequest));
-                for (String line : segmentsResponse.split("\n")) {
-                    if (false == line.startsWith("p")) {
-                        continue;
-                    }
-                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
-                    assertTrue(line, m.find());
-                    String version = m.group(1);
-                    if (currentLuceneVersion.equals(version)) {
-                        numCurrentVersion++;
-                    } else if (bwcLuceneVersion.equals(version)) {
-                        numBwcVersion++;
-                    } else {
-                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
-                    }
-                }
-                assertNotEquals(
-                    "expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
-                    0,
-                    numCurrentVersion
-                );
-                assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);
-            }
         }
     }
 

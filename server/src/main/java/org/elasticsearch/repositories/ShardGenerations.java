@@ -141,6 +141,11 @@ public final class ShardGenerations {
         return generations.get(shardId);
     }
 
+    public boolean hasShardGen(RepositoryShardId repositoryShardId) {
+        final List<ShardGeneration> indexShardGens = getGens(repositoryShardId.index());
+        return repositoryShardId.shardId() < indexShardGens.size() && indexShardGens.get(repositoryShardId.shardId()) != null;
+    }
+
     public List<ShardGeneration> getGens(IndexId indexId) {
         return shardGenerations.getOrDefault(indexId, Collections.emptyList());
     }

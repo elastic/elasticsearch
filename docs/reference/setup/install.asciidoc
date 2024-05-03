@@ -54,6 +54,32 @@ Formulae are available from the Elastic Homebrew tap for installing
 +
 {ref}/brew.html[Install {es} on macOS with Homebrew]
 
+[discrete]
+[[jvm-version]]
+=== Java (JVM) Version
+
+{es} is built using Java, and includes a bundled version of
+https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE) within
+each distribution. The bundled JVM is the recommended JVM.
+
+To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
+If you must use a version of Java that is different from the bundled JVM, it is
+best to use the latest release of a link:/support/matrix[supported]
+https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+{es} is closely coupled to certain OpenJDK-specific features, so it may not
+work correctly with other JVMs. {es} will refuse to start if a known-bad
+version of Java is used.
+
+If you use a JVM other than the bundled one, you are responsible for reacting
+to announcements related to its security issues and bug fixes, and must
+yourself determine whether each update is necessary or not. In contrast, the
+bundled JVM is treated as an integral part of {es}, which means that Elastic
+takes responsibility for keeping it up to date. Security issues and bugs within
+the bundled JVM are treated as if they were within {es} itself.
+
+The bundled JVM is located within the `jdk` subdirectory of the {es} home
+directory. You may remove this directory if using your own JVM.
+
 include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]

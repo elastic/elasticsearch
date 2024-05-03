@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
@@ -34,7 +35,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     /**
      * Specific IOContext used for prewarming the cache. This context allows to write
      * a complete part of the {@link #fileInfo} at once in the cache and should not be
-     * used for anything else than what the {@link #prefetchPart(int)} method does.
+     * used for anything else than what the {@link #prefetchPart(int, Supplier)} method does.
      */
     public static final IOContext CACHE_WARMING_CONTEXT = new IOContext();
 
@@ -140,11 +141,15 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
      * @return a tuple with {@code Tuple<Persistent Cache Length, Prefetched Length>} values
      */
-    public Tuple<Long, Long> prefetchPart(final int part) throws IOException {
+    public Tuple<Long, Long> prefetchPart(final int part, Supplier<Boolean> isCancelled) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
         }
+        if (isCancelled.get()) {
+            return Tuple.tuple(0L, 0L);
+        }
+
         final ByteRange partRange = computeRange(IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum());
         assert assertRangeIsAlignedWithPart(partRange);
 
@@ -182,6 +187,9 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             try (InputStream input = openInputStreamFromBlobStore(range.start(), range.length())) {
                 while (remainingBytes > 0L) {
                     assert totalBytesRead + remainingBytes == range.length();
+                    if (isCancelled.get()) {
+                        return Tuple.tuple(cacheFile.getInitialLength(), totalBytesRead);
+                    }
                     final int bytesRead = readSafe(input, copyBuffer, range.start(), range.end(), remainingBytes, cacheFileReference);
 
                     // The range to prewarm in cache

@@ -10,10 +10,13 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.DefaultConfiguration;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
+import org.apache.logging.log4j.core.config.plugins.PluginConfiguration;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
@@ -63,11 +66,12 @@ public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
 
-    protected ESJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
+    protected ESJsonLayout(String typeName, Charset charset, String[] esmessagefields, final Configuration config) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
             .withPattern(pattern(typeName, esmessagefields))
             .withAlwaysWriteExceptions(false)
+            .withConfiguration(config)
             .build();
     }
 
@@ -135,8 +139,8 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static ESJsonLayout createLayout(String type, Charset charset, String[] esmessagefields) {
-        return new ESJsonLayout(type, charset, esmessagefields);
+    public static ESJsonLayout createLayout(String type, Charset charset, String[] esmessagefields, Configuration configuration) {
+        return new ESJsonLayout(type, charset, esmessagefields, configuration);
     }
 
     PatternLayout getPatternLayout() {
@@ -156,6 +160,9 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginAttribute("esmessagefields")
         private String esMessageFields;
 
+        @PluginConfiguration
+        private Configuration config;
+
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
         }
@@ -163,7 +170,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         @Override
         public ESJsonLayout build() {
             String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[] {} : esMessageFields.split(",");
-            return ESJsonLayout.createLayout(type, charset, split);
+            return ESJsonLayout.createLayout(type, charset, split, new DefaultConfiguration());
         }
 
         public Charset getCharset() {

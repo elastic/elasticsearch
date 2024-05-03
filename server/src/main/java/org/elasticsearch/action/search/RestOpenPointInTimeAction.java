@@ -42,6 +42,13 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
         openRequest.routing(request.param("routing"));
         openRequest.preference(request.param("preference"));
         openRequest.keepAlive(TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive"));
+        if (request.hasParam("max_concurrent_shard_requests")) {
+            final int maxConcurrentShardRequests = request.paramAsInt(
+                "max_concurrent_shard_requests",
+                openRequest.maxConcurrentShardRequests()
+            );
+            openRequest.maxConcurrentShardRequests(maxConcurrentShardRequests);
+        }
         return channel -> client.execute(OpenPointInTimeAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
     }
 }

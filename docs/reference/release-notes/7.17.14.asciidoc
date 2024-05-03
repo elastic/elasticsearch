@@ -1,0 +1,61 @@
+[[release-notes-7.17.14]]
+== {es} version 7.17.14
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.14]]
+[discrete]
+=== Known issues
+
+// tag::no-preventive-gc-issue[]
+* High Memory Pressure due to a GC change in JDK 21
++
+This version of Elasticsearch is bundled with JDK 21. In JDK 21
+https://bugs.openjdk.org/browse/JDK-8297639[Preventive GC has been removed].
+This may lead to increased memory pressure and an increased number of CircuitBreakerExceptions when retrieving large
+documents under some particular load. (issue: {es-issue}99592[#99592])
++
+If you needed to explicitly <<known-issues-7.17.10,enable Preventive GC for your workload in a previous Elasticsearch
+version>>, we recommend you avoid to upgrade to this version, as the settings to enable Preventive GC have been removed
+from JDK 21.
+// end::no-preventive-gc-issue[]
+
+
+[[bug-7.17.14]]
+[float]
+=== Bug fixes
+
+Infra/Core::
+* Fix deadlock between Cache.put and Cache.invalidateAll {es-pull}99480[#99480] (issue: {es-issue}99326[#99326])
+
+Infra/Scripting::
+* Fix Painless method lookup over unknown super interfaces {es-pull}97062[#97062] (issue: {es-issue}97022[#97022])
+
+Ingest Node::
+* Validate enrich index before completing policy execution {es-pull}100106[#100106]
+
+Machine Learning::
+* Defend against negative datafeed start times {es-pull}100284[#100284]
+
+Search::
+* Close expired search contexts on SEARCH thread {es-pull}99660[#99660]
+* Fix PIT when resolving with deleted indices {es-pull}99281[#99281]
+
+[[enhancement-7.17.14]]
+[float]
+=== Enhancements
+
+Infra/Node Lifecycle::
+* Check ILM status before reporting node migration STALLED {es-pull}98367[#98367] (issue: {es-issue}89486[#89486])
+
+Ingest Node::
+* Show concrete error when enrich index not exist rather than NPE {es-pull}99604[#99604]
+
+[[upgrade-7.17.14]]
+[float]
+=== Upgrades
+
+Packaging::
+* Upgrade bundled JDK to Java 21 {es-pull}99724[#99724]
+
+

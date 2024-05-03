@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.testfixtures;
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.ServiceInfo;
+import com.avast.gradle.dockercompose.tasks.ComposeBuild;
 import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
@@ -114,6 +115,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             composeExtension.getRemoveContainers().set(true);
             composeExtension.getCaptureContainersOutput()
                 .set(EnumSet.of(LogLevel.INFO, LogLevel.DEBUG).contains(project.getGradle().getStartParameter().getLogLevel()));
+            composeExtension.getUseDockerComposeV2().set(false);
             composeExtension.getExecutable()
                 .set(project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose");
 
@@ -145,6 +147,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.RestIntegTestTask"));
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.AntFixture"));
         maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
+        maybeSkipTasks(tasks, dockerSupport, ComposeBuild.class);
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
 

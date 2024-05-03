@@ -26,6 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -1819,7 +1820,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.search.VersionMismatchException::new,
             161,
             Version.V_7_12_0
-        );
+        ),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(GraphStructureException.class, GraphStructureException::new, 177, Version.V_7_17_19);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

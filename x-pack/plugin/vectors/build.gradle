@@ -6,7 +6,10 @@ esplugin {
   classname 'org.elasticsearch.xpack.vectors.DenseVectorPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-vectors'
+
+base {
+  archivesName = 'x-pack-vectors'
+}
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')

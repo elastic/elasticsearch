@@ -14,7 +14,10 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 
 group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-high-level-client'
+
+base {
+  archivesName = 'elasticsearch-rest-high-level-client'
+}
 
 // HLRC is published under the Elastic License
 projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
@@ -132,7 +135,7 @@ testClusters.configureEach {
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: clusterUserNameProvider.get(),
     password: clusterPasswordProvider.get(),
-    role: providers.systemProperty('tests.rest.cluster.role').orElse('admin').forUseAtConfigurationTime().get()
+    role: providers.systemProperty('tests.rest.cluster.role').orElse('admin').get()
   user username: 'admin_user', password: 'admin-password'
 
   extraConfigFile nodeCert.name, nodeCert

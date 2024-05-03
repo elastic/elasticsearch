@@ -66,6 +66,22 @@ ext.testArtifact = { p, String name = "test" ->
   };
 }
 
+class StepExpansion {
+  String templatePath
+  List<Version> versions
+  String variable
+}
+
+class ListExpansion {
+  List<Version> versions
+  String variable
+}
+
+// Filters out intermediate patch releases to reduce the load of CI testing
+def filterIntermediatePatches = { List<Version> versions ->
+  versions.groupBy {"${it.major}.${it.minor}"}.values().collect {it.max()}
+}
+
 tasks.register("updateCIBwcVersions") {
   def writeVersions = { File file, List<Version> versions ->
     file.text = ""
@@ -74,9 +90,66 @@ tasks.register("updateCIBwcVersions") {
       file << "  - \"$it\"\n"
     }
   }
+
+  def writeBuildkitePipeline = { String outputFilePath, String pipelineTemplatePath, List<ListExpansion> listExpansions, List<StepExpansion> stepExpansions = [] ->
+    def outputFile = file(outputFilePath)
+    def pipelineTemplate = file(pipelineTemplatePath)
+
+    def pipeline = pipelineTemplate.text
+
+    listExpansions.each { expansion ->
+      def listString = "[" + expansion.versions.collect { "\"${it}\"" }.join(", ") + "]"
+      pipeline = pipeline.replaceAll('\\$' + expansion.variable, listString)
+    }
+
+    stepExpansions.each { expansion ->
+      def steps = ""
+      expansion.versions.each {
+        steps += "\n" + file(expansion.templatePath).text.replaceAll('\\$BWC_VERSION', it.toString())
+      }
+      pipeline = pipeline.replaceAll(' *\\$' + expansion.variable, steps)
+    }
+
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipeline
+  }
+
+  // Writes a Buildkite pipelime from a template, and replaces $BWC_LIST with an array of versions
+  // Useful for writing a list of versions in a matrix configuration
+  def expandBwcList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: "BWC_LIST")])
+  }
+
+  // Writes a Buildkite pipeline from a template, and replaces $BWC_STEPS with a list of steps, one for each version
+  // Useful when you need to configure more versions than are allowed in a matrix configuration
+  def expandBwcSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [], [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")])
+  }
+
   doLast {
-    writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
-    writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
+    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
+    expandBwcList(
+      ".buildkite/pipelines/intake.yml",
+      ".buildkite/pipelines/intake.template.yml",
+      filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible)
+    )
+    writeBuildkitePipeline(
+      ".buildkite/pipelines/periodic.yml",
+      ".buildkite/pipelines/periodic.template.yml",
+      [
+        new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible), variable: "BWC_STEPS"),
+      ]
+    )
+
+    expandBwcSteps(
+      ".buildkite/pipelines/periodic-packaging.yml",
+      ".buildkite/pipelines/periodic-packaging.template.yml",
+      ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
+      filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible)
+    )
   }
 }
 
@@ -104,7 +177,7 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
+    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
     verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
   }
 }
@@ -138,8 +211,8 @@ if (bwc_tests_enabled == false) {
   println "See ${bwc_tests_disabled_issue}"
   println "==========================================================="
 }
-if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
-  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
+  // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
   bwc_tests_enabled = false
 }
 
@@ -204,6 +277,8 @@ allprojects {
     } else {
       checkPart1.configure { dependsOn 'check' }
     }
+
+    tasks.register('functionalTests') { dependsOn 'check'}
   }
 
   project.ext.disableTasks = { String... tasknames ->
@@ -273,13 +348,6 @@ tasks.register("branchConsistency") {
 tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
-    final DistributionLocator locator = new DistributionLocator()
-    final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-    final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-    final String sha256Sum = new String(sha256Uri.toURL().bytes)
-    wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-    println "Added checksum to wrapper properties"
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
     def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
     Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)

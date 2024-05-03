@@ -773,6 +773,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 networkService,
                 restController,
+                actionModule::copyRequestHeadersToThreadContext,
                 clusterService.getClusterSettings()
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(

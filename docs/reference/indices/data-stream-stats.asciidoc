@@ -120,7 +120,7 @@ Total number of selected data streams.
 (integer)
 Total number of backing indices for the selected data streams.
 
-`total_store_sizes`::
+`total_store_size`::
 (<<byte-units,byte value>>)
 Total size of all shards for the selected data streams.
 This property is included only if the `human` query parameter is `true`.

@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.749'
+  'aws': '1.12.270'
 ]
 
 dependencies {
@@ -79,6 +79,8 @@ tasks.named("bundlePlugin").configure {
 def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
   include '**/RepositoryCredentialsTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 tasks.named('check').configure {
@@ -316,6 +318,7 @@ tasks.named("thirdPartyAudit").configure {
     // We don't use the kms dependency
     'com.amazonaws.services.kms.AWSKMS',
     'com.amazonaws.services.kms.AWSKMSClient',
+    'com.amazonaws.services.kms.AWSKMSClientBuilder',
     'com.amazonaws.services.kms.model.DecryptRequest',
     'com.amazonaws.services.kms.model.DecryptResult',
     'com.amazonaws.services.kms.model.EncryptRequest',

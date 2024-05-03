@@ -1354,6 +1354,6 @@ public class TransportSearchActionTests extends ESTestCase {
             true
         ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
         assertTrue(anotherShardIterator.isPresent());
-        assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(1));
+        assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(0));
     }
 }

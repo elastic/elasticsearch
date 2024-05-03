@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -29,8 +30,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,7 +45,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ShutdownPlugin.class);
+        return Collections.singletonList(ShutdownPlugin.class);
     }
 
     /**
@@ -500,45 +501,17 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         );
 
         final String nodeB = internalCluster().startNode();
-        assertBusy(() -> {
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings("myindex")
-                    .setNames("index.number_of_replicas")
-                    .get()
-                    .getSetting("myindex", "index.number_of_replicas"),
-                equalTo("1")
-            );
-        });
+        assertBusy(() -> assertIndexSetting("myindex", "index.number_of_replicas", "1"));
         ensureGreen("myindex");
 
-        // Mark the node for shutdown
-        assertAcked(
-            client().execute(
-                PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, this.getTestName(), null, null)
-            ).get()
-        );
-
-        // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
-        // that auto-expansion has run.
+        putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
+        // registering node shutdown entry does not perform reroute, neither should it.
+        // we provoke it here in the test to ensure that auto-expansion has run.
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings("myindex");
         settingsRequest.setSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"));
         assertAcked(settingsRequest.execute().actionGet());
 
-        assertBusy(() -> {
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings("myindex")
-                    .setNames("index.number_of_replicas")
-                    .get()
-                    .getSetting("myindex", "index.number_of_replicas"),
-                equalTo("1")
-            );
-        });
-
+        assertBusy(() -> assertIndexSetting("myindex", "index.number_of_replicas", "1"));
         client().prepareIndex("myindex", "_doc").setSource("field", "value");
 
         internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback() {
@@ -550,6 +523,50 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
 
         ensureGreen("myindex");
+    }
+
+    public void testAutoExpandDuringReplace() throws Exception {
+        String node1 = internalCluster().startNode();
+        String node2 = internalCluster().startNode();
+
+        createIndex(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, randomFrom("0-all", "0-1"))
+                .build()
+        );
+        client().prepareIndex("myindex", "_doc").setSource("field", "value");
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
+
+        String nodeNameToReplace = randomFrom(node1, node2);
+        String nodeIdToReplace = getNodeId(nodeNameToReplace);
+        String replacementNodeName = "node_t2";
+
+        putNodeShutdown(nodeIdToReplace, SingleNodeShutdownMetadata.Type.REPLACE, replacementNodeName);
+        // registering node shutdown entry does not perform reroute, neither should it.
+        // we provoke it here in the test to ensure that auto-expansion has run.
+        UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings("index");
+        settingsRequest.setSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"));
+        assertAcked(settingsRequest.execute().actionGet());
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
+
+        String nodeName3 = internalCluster().startNode();
+        assertThat("started node name did not match registered replacement", nodeName3, equalTo(replacementNodeName));
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
+
+        assertBusy(() -> assertNodeShutdownStatus(nodeIdToReplace, COMPLETE));
+        internalCluster().stopNode(nodeNameToReplace);
+
+        ensureGreen("index");
+        assertIndexSetting("index", "index.number_of_replicas", "1");
     }
 
     public void testNodeShutdownWithUnassignedShards() throws Exception {
@@ -633,5 +650,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .map(DiscoveryNode::getId)
             .findFirst()
             .orElseThrow(() -> new AssertionError("requested node name [" + nodeName + "] not found"));
+    }
+
+    private void assertIndexSetting(String index, String setting, String expectedValue) {
+        GetSettingsResponse response = client().admin().indices().prepareGetSettings(index).get();
+        assertThat(response.getSetting(index, setting), equalTo(expectedValue));
     }
 }

@@ -12,6 +12,7 @@ import org.gradle.api.internal.tasks.testing.TestCompleteEvent;
 import org.gradle.api.internal.tasks.testing.TestDescriptorInternal;
 import org.gradle.api.internal.tasks.testing.TestResultProcessor;
 import org.gradle.api.internal.tasks.testing.TestStartEvent;
+import org.gradle.api.tasks.testing.TestFailure;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 
 import java.util.ArrayList;
@@ -30,7 +31,7 @@ final class RerunTestResultProcessor implements TestResultProcessor {
      * being the root element. This is required to be tracked here to get the
      * structure right when rerunning a test task tests.
      * */
-    private Object rootTestDescriptorId;
+    private TestDescriptorInternal rootTestDescriptor;
 
     RerunTestResultProcessor(TestResultProcessor delegate) {
         this.delegate = delegate;
@@ -39,13 +40,21 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     @Override
     public void started(TestDescriptorInternal descriptor, TestStartEvent testStartEvent) {
         activeDescriptorsById.put(descriptor.getId(), descriptor);
-        if (rootTestDescriptorId == null) {
-            rootTestDescriptorId = descriptor.getId();
-            delegate.started(descriptor, testStartEvent);
-        } else if (descriptor.getId().equals(rootTestDescriptorId) == false) {
+        if (rootTestDescriptor == null) {
+            rootTestDescriptor = descriptor;
+            try {
+                delegate.started(descriptor, testStartEvent);
+            } catch (IllegalArgumentException illegalArgumentException) {
+                logTracing(descriptor.getId(), illegalArgumentException);
+            }
+        } else if (descriptor.getId().equals(rootTestDescriptor.getId()) == false) {
             boolean active = activeDescriptorsById.containsKey(testStartEvent.getParentId());
             if (active) {
-                delegate.started(descriptor, testStartEvent);
+                try {
+                    delegate.started(descriptor, testStartEvent);
+                } catch (IllegalArgumentException illegalArgumentException) {
+                    logTracing(descriptor.getId(), illegalArgumentException);
+                }
             }
         }
     }
@@ -53,7 +62,7 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     @Override
     public void completed(Object testId, TestCompleteEvent testCompleteEvent) {
         boolean active = activeDescriptorsById.containsKey(testId);
-        if (testId.equals(rootTestDescriptorId)) {
+        if (testId.equals(rootTestDescriptor.getId())) {
             if (activeDescriptorsById.size() != 1) {
                 return;
             }
@@ -61,27 +70,50 @@ final class RerunTestResultProcessor implements TestResultProcessor {
             activeDescriptorsById.remove(testId);
         }
         if (active) {
-            delegate.completed(testId, testCompleteEvent);
+            try {
+                delegate.completed(testId, testCompleteEvent);
+            } catch (IllegalArgumentException illegalArgumentException) {
+                logTracing(testId, illegalArgumentException);
+            }
         }
     }
 
     @Override
     public void output(Object testId, TestOutputEvent testOutputEvent) {
         if (activeDescriptorsById.containsKey(testId)) {
-            delegate.output(testId, testOutputEvent);
+            try {
+                delegate.output(testId, testOutputEvent);
+            } catch (IllegalArgumentException illegalArgumentException) {
+                logTracing(testId, illegalArgumentException);
+            }
         }
     }
 
     @Override
-    public void failure(Object testId, Throwable throwable) {
+    public void failure(Object testId, TestFailure result) {
         if (activeDescriptorsById.containsKey(testId)) {
             activeDescriptorsById.remove(testId);
-            delegate.failure(testId, throwable);
+            try {
+                delegate.failure(testId, result);
+            } catch (IllegalArgumentException illegalArgumentException) {
+                logTracing(testId, illegalArgumentException);
+            }
         }
+    }
+
+    private void logTracing(Object testId, IllegalArgumentException illegalArgumentException) {
+        // Add tracing to diagnose why we see this on CI
+        System.out.println("Rerun failure test id = " + testId);
+        System.out.println("Active test descriptors:");
+        for (Map.Entry<Object, TestDescriptorInternal> entry : activeDescriptorsById.entrySet()) {
+            System.out.println("id= " + entry.getKey() + " -- " + entry.getValue().getDisplayName());
+        }
+        illegalArgumentException.printStackTrace();
     }
 
     public void reset() {
         this.activeDescriptorsById.clear();
+        this.activeDescriptorsById.put(rootTestDescriptor.getId(), rootTestDescriptor);
     }
 
     public List<TestDescriptorInternal> getActiveDescriptors() {

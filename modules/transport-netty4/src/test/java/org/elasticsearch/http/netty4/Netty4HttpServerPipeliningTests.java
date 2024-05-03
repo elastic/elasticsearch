@@ -29,6 +29,7 @@ import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -111,13 +112,14 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             );
         }
 
         @Override
         public ChannelHandler configureServerChannelHandler() {
-            return new CustomHttpChannelHandler(this, executorService);
+            return new CustomHttpChannelHandler(this, executorService, this.httpValidator);
         }
 
         @Override
@@ -132,8 +134,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService) {
-            super(transport, transport.handlingSettings);
+        CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService, HttpValidator httpValidator) {
+            super(transport, transport.handlingSettings, httpValidator);
             this.executorService = executorService;
         }
 

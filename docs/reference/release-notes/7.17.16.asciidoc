@@ -1,0 +1,37 @@
+[[release-notes-7.17.16]]
+== {es} version 7.17.16
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.16]]
+[discrete]
+=== Known issues
+include::7.17.14.asciidoc[tag=no-preventive-gc-issue]
+
+[float]
+[[security-updates-7.17.16]]
+=== Security updates
+
+* The 7.17.16 patch release contains a fix for a potential security vulnerability. https://discuss.elastic.co/c/announcements/security-announcements/31[Please see our security advisory for more details].
+
+[[bug-7.17.16]]
+[float]
+=== Bug fixes
+
+Infra/Circuit Breakers::
+* Add more logging to the real memory circuit breaker and lower minimum interval {es-pull}102396[#102396]
+
+Infra/Scripting::
+* Improve painless error wrapping {es-pull}100872[#100872]
+
+Transform::
+* Ensure transform updates only modify the expected transform task {es-pull}102934[#102934] (issue: {es-issue}102933[#102933])
+
+[[upgrade-7.17.16]]
+[float]
+=== Upgrades
+
+Snapshot/Restore::
+* Upgrade reactor netty http to v1.0.39 and reactor core to v3.4.34 {es-pull}102629[#102629]
+
+

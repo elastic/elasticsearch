@@ -9,7 +9,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-identity-provider'
+base {
+  archivesName = 'x-pack-identity-provider'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

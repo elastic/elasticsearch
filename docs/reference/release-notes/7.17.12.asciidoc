@@ -1,0 +1,45 @@
+[[release-notes-7.17.12]]
+== {es} version 7.17.12
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[known-issues-7.17.12]]
+[discrete]
+=== Known issues
+include::7.17.10.asciidoc[tag=no-preventive-gc-issue]
+
+[[bug-7.17.12]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Less jank in after-key parsing for unmapped fields {es-pull}97282[#97282] (issue: {es-issue}85928[#85928])
+
+CRUD::
+* Handle failure in `TransportUpdateAction#handleUpdateFailureWithRetry` {es-pull}97290[#97290] (issue: {es-issue}97286[#97286])
+
+Geo::
+* Support for Byte and Short as vector tiles features {es-pull}97619[#97619] (issue: {es-issue}97612[#97612])
+
+Infra/Core::
+* Capture max processors in static init {es-pull}97119[#97119] (issue: {es-issue}97088[#97088])
+* Preserve context in `ResultDeduplicator` {es-pull}84038[#84038] (issue: {es-issue}84036[#84036])
+
+Snapshot/Restore::
+* Fix unhandled exception when blobstore repository contains unexpected file {es-pull}93914[#93914]
+
+[[enhancement-7.17.12]]
+[float]
+=== Enhancements
+
+Transform::
+* Adding null check to fix potential NPE {es-pull}96785[#96785] (issue: {es-issue}96781[#96781])
+
+[[upgrade-7.17.12]]
+[float]
+=== Upgrades
+
+Network::
+* Upgrade Netty to 4.1.94.Final {es-pull}97114[#97114]
+
+

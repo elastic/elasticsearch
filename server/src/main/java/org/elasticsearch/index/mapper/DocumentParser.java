@@ -415,7 +415,9 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                if (context.mappingLookup().isSourceSynthetic() && fieldMapper.supportsSyntheticSourceNatively() == false) {
+                if (context.mappingLookup().isSourceSynthetic()
+                    && fieldMapper.supportsSyntheticSourceNatively() == false
+                    && fieldMapper.fallbackSyntheticSourceOptIn()) {
                     Tuple<XContentParser, XContentParser> clonedParsers = XContentHelper.cloneParser(context.parser());
 
                     int parentOffset = context.parent() instanceof RootObjectMapper ? 0 : context.parent().fullPath().length() + 1;

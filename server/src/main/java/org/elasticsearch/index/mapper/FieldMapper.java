@@ -448,6 +448,14 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * If a mapper opts in to use fallback synthetic source implementation.
+     * @return true or false
+     */
+    protected boolean fallbackSyntheticSourceOptIn() {
+        return false;
+    }
+
+    /**
      * Mappers override this method with native synthetic source support.
      * If mapper does not support synthetic source, it is generated using generic implementation
      * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
@@ -456,7 +464,7 @@ public abstract class FieldMapper extends Mapper {
      */
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
+        return fallbackSyntheticSourceOptIn() ? SourceLoader.SyntheticFieldLoader.NOTHING : super.syntheticFieldLoader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {

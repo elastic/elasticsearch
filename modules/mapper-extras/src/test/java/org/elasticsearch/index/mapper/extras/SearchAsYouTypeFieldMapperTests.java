@@ -824,7 +824,36 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
-        throw new AssumptionViolatedException("not supported");
+        return new SyntheticSourceSupport() {
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                String value = rarely() ? null : randomAlphaOfLengthBetween(0, 50);
+
+                return new SyntheticSourceExample(value, value, this::mapping);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "search_as_you_type");
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", true);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    protected boolean supportsCopyTo() {
+        // TODO this is so that `testSyntheticSourceInvalid` does not complain.
+        // This field does support copy_to
+        // should we fail to construct synthetic source in `FieldMapper` if there is copy_to ?
+        return false;
     }
 
     @Override

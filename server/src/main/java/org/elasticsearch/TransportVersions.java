@@ -190,7 +190,8 @@ public class TransportVersions {
     public static final TransportVersion SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE = def(8_647_00_0);
     public static final TransportVersion ESQL_REQUEST_TABLES = def(8_648_00_0);
     public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = def(8_649_00_0);
-    public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX = def(8_650_00_0);
+    public static final TransportVersion NO_GLOBAL_RETENTION_FOR_SYSTEM_DATA_STREAMS = def(8_650_00_0);
+    public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX = def(8_651_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

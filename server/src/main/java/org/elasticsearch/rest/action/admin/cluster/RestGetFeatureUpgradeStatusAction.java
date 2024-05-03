@@ -18,6 +18,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
 /**
  * Endpoint for getting the system feature upgrade status
  */
@@ -41,7 +43,7 @@ public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
         final GetFeatureUpgradeStatusRequest req = new GetFeatureUpgradeStatusRequest();
-        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
+        req.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return restChannel -> { client.execute(GetFeatureUpgradeStatusAction.INSTANCE, req, new RestToXContentListener<>(restChannel)); };
     }

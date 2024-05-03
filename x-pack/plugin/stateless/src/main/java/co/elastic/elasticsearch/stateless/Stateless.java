@@ -403,8 +403,6 @@ public class Stateless extends Plugin
         components.add(sharedBlobCacheServiceSupplier);
         var cacheBlobReaderService = setAndGet(this.cacheBlobReaderService, new CacheBlobReaderService(settings, cacheService, client));
         components.add(cacheBlobReaderService);
-        var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool);
-        setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
         var statelessElectionStrategy = setAndGet(
             this.electionStrategy,
             new StatelessElectionStrategy(objectStoreService::getClusterStateBlobContainer, threadPool)
@@ -522,6 +520,8 @@ public class Stateless extends Plugin
         components.add(searchMetricsService);
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
+        var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool, commitService.isStatelessUploadDelayed());
+        setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
 
         statelessIndexSettingProvider.initialize(services.indexNameExpressionResolver());
 
@@ -569,9 +569,10 @@ public class Stateless extends Plugin
     // Can be overridden by tests
     protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        boolean statelessUploadDelayed
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool);
+        return new SharedBlobCacheWarmingService(cacheService, threadPool, statelessUploadDelayed);
     }
 
     @Override

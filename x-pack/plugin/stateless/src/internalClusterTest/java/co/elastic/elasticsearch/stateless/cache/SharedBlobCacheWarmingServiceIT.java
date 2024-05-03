@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -141,6 +142,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .build();
+        if (STATELESS_UPLOAD_DELAYED) {
+            cacheSettings = Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), randomIntBetween(1, 10))
+                .put(cacheSettings)
+                .build();
+        }
         startIndexNode(cacheSettings);
 
         var searchNodeA = startSearchNode(cacheSettings);
@@ -158,9 +165,25 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             )
         );
 
-        int numDocs = randomIntBetween(100, 10000);
-        indexDocs(indexName, numDocs);
-        flushAndRefresh(indexName);
+        long totalDocs = 0L;
+        if (randomBoolean()) {
+            int initialCommits = randomIntBetween(1, 3);
+            for (int i = 0; i < initialCommits; i++) {
+                int numDocs = randomIntBetween(1, 1_000);
+                indexDocs(indexName, numDocs);
+                flush(indexName);
+                totalDocs += numDocs;
+            }
+        }
+
+        final int iters = randomIntBetween(1, 5);
+        for (int i = 0; i < iters; i++) {
+            int numDocs = randomIntBetween(1, 1_000);
+            indexDocs(indexName, numDocs);
+            refresh(indexName);
+            totalDocs += numDocs;
+        }
+
         ensureGreen(indexName);
 
         // Verify that we performed pre-warming and don't need to hit the object store on searches
@@ -168,7 +191,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
-        assertHitCount(prepareSearch(indexName), numDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
 
         var searchNodeB = startSearchNode(cacheSettings);
         ensureStableCluster(4);
@@ -178,7 +201,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         shutdownNode(searchNodeA);
         ensureGreen(indexName);
         assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
-        assertHitCount(prepareSearch(indexName), numDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
     }
 
     private static void shutdownNode(String indexNode) {
@@ -225,9 +248,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         @Override
         protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            boolean uploadDelayed
         ) {
-            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool);
+            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, uploadDelayed);
         }
     }
 
@@ -235,8 +259,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         private final CopyOnWriteArrayList<ActionListener<Void>> listeners = new CopyOnWriteArrayList<>();
 
-        BlockingSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool) {
-            super(cacheService, threadPool);
+        BlockingSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, boolean uploadDelayed) {
+            super(cacheService, threadPool, uploadDelayed);
         }
 
         void addListener(ActionListener<Void> listener) {

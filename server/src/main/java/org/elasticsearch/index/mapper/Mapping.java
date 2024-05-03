@@ -41,7 +41,7 @@ public final class Mapping implements ToXContentFragment {
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
     private final MetadataFieldMapper[] metadataMappers;
-    private final MetadataFieldMapper[] metadataMappersSupportingSyntheticSource;
+    private final DocCountFieldMapper docCountFieldMapper;
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
@@ -49,13 +49,14 @@ public final class Mapping implements ToXContentFragment {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
-        List<MetadataFieldMapper> metadataMappersSupportingSyntheticSource = new ArrayList<>();
+        DocCountFieldMapper docCountFieldMapper = null;
         for (MetadataFieldMapper mappers : metadataMappers) {
             if (mappers.syntheticFieldLoader() != SourceLoader.SyntheticFieldLoader.NOTHING) {
-                metadataMappersSupportingSyntheticSource.add(mappers);
+                assert docCountFieldMapper != null;
+                docCountFieldMapper = (DocCountFieldMapper) mappers;
             }
         }
-        this.metadataMappersSupportingSyntheticSource = metadataMappersSupportingSyntheticSource.toArray(new MetadataFieldMapper[0]);
+        this.docCountFieldMapper = docCountFieldMapper;
         Map.Entry<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>[] metadataMappersMap = new Map.Entry[metadataMappers.length];
         Map.Entry<String, MetadataFieldMapper>[] metadataMappersByName = new Map.Entry[metadataMappers.length];
         for (int i = 0; i < metadataMappers.length; i++) {
@@ -135,7 +136,7 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return root.syntheticFieldLoader(metadataMappersSupportingSyntheticSource);
+        return root.syntheticFieldLoader(docCountFieldMapper);
     }
 
     /**

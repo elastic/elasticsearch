@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -712,18 +713,32 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(MetadataFieldMapper[] metadataFieldMappers) {
-        List<Mapper> mappers = new ArrayList<>(this.mappers.size() + (metadataFieldMappers != null ? metadataFieldMappers.length : 0));
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(DocCountFieldMapper docCountFieldMapper) {
+        int size = this.mappers.size();
+        if (docCountFieldMapper != null) {
+            size++;
+        }
+        List<Mapper> mappers = new ArrayList<>(size);
         for (Mapper mapper : this.mappers.values()) {
             if (mapper.syntheticFieldLoader() != SourceLoader.SyntheticFieldLoader.NOTHING) {
                 mappers.add(mapper);
             }
         }
-        if (metadataFieldMappers != null) {
-            mappers.addAll(Arrays.asList(metadataFieldMappers));
+        if (docCountFieldMapper != null) {
+            mappers.add(docCountFieldMapper);
         }
         mappers.sort(Comparator.comparing(Mapper::name));
-        return new SyntheticSourceFieldLoader(mappers.stream().map(Mapper::syntheticFieldLoader).toList());
+        return new SyntheticSourceFieldLoader(new AbstractList<>() {
+            @Override
+            public SourceLoader.SyntheticFieldLoader get(int index) {
+                return mappers.get(index).syntheticFieldLoader();
+            }
+
+            @Override
+            public int size() {
+                return mappers.size();
+            }
+        });
     }
 
     @Override

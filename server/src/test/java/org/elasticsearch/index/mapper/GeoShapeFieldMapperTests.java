@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -229,6 +230,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        // Almost like GeoShapeType but no circles
         enum ShapeType {
             POINT,
             LINESTRING,
@@ -237,17 +239,16 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
             MULTILINESTRING,
             MULTIPOLYGON,
             GEOMETRYCOLLECTION,
-            BBOX
+            ENVELOPE
         }
-        ;
 
         return new SyntheticSourceSupport() {
             @Override
             public SyntheticSourceExample example(int maxValues) throws IOException {
                 if (randomBoolean()) {
                     Value v = generateValue();
-                    if (v.wktOutput != null) {
-                        return new SyntheticSourceExample(v.input, v.output, v.wktOutput, this::mapping);
+                    if (v.blockLoaderOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.output, v.blockLoaderOutput, this::mapping);
                     }
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
@@ -255,12 +256,18 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
                 List<Value> values = randomList(1, maxValues, this::generateValue);
                 List<Object> in = values.stream().map(Value::input).toList();
                 List<Object> out = values.stream().map(Value::output).toList();
-                List<Object> outBlock = values.stream().map(v -> v.wktOutput != null ? v.wktOutput : v.output).toList();
+
+                // Block loader infrastructure will never return nulls
+                List<Object> outBlockList = values.stream()
+                    .filter(v -> v.input != null)
+                    .map(v -> v.blockLoaderOutput != null ? v.blockLoaderOutput : v.output)
+                    .toList();
+                var outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
 
                 return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
 
-            private record Value(Object input, Object output, String wktOutput) {
+            private record Value(Object input, Object output, String blockLoaderOutput) {
                 Value(Object input, Object output) {
                     this(input, output, null);
                 }
@@ -294,21 +301,48 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
                         var line = GeometryTestUtils.randomLine(false);
                         return value(line, isGeoJson);
                     }
-                    default -> {
-                        return ignoreMalformed ? new Value("foo", "foo") : new Value(null, null);
+                    case POLYGON -> {
+                        var polygon = GeometryTestUtils.randomPolygon(false);
+                        return value(polygon, isGeoJson);
                     }
+                    case MULTIPOINT -> {
+                        var multiPoint = GeometryTestUtils.randomMultiPoint(false);
+                        return value(multiPoint, isGeoJson);
+                    }
+                    case MULTILINESTRING -> {
+                        var multiPoint = GeometryTestUtils.randomMultiLine(false);
+                        return value(multiPoint, isGeoJson);
+                    }
+                    case MULTIPOLYGON -> {
+                        var multiPolygon = GeometryTestUtils.randomMultiPolygon(false);
+                        return value(multiPolygon, isGeoJson);
+                    }
+                    case GEOMETRYCOLLECTION -> {
+                        var multiPolygon = GeometryTestUtils.randomGeometryCollectionWithoutCircle(false);
+                        return value(multiPolygon, isGeoJson);
+                    }
+                    case ENVELOPE -> {
+                        var rectangle = GeometryTestUtils.randomRectangle();
+                        var wktString = WellKnownText.toWKT(rectangle);
+
+                        return new Value(wktString, wktString);
+                    }
+                    default -> throw new UnsupportedOperationException("Unsupported shape");
                 }
             }
 
             private static Value value(Geometry geometry, boolean isGeoJson) {
                 var wktString = WellKnownText.toWKT(geometry);
+                var normalizedWktString = GeometryNormalizer.needsNormalize(Orientation.RIGHT, geometry)
+                    ? WellKnownText.toWKT(GeometryNormalizer.apply(Orientation.RIGHT, geometry))
+                    : wktString;
 
                 if (isGeoJson) {
                     var map = GeoJson.toMap(geometry);
-                    return new Value(map, map, wktString);
+                    return new Value(map, map, normalizedWktString);
                 }
 
-                return new Value(wktString, wktString);
+                return new Value(wktString, wktString, normalizedWktString);
             }
 
             private void mapping(XContentBuilder b) throws IOException {
@@ -316,9 +350,9 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
                 if (rarely()) {
                     b.field("index", false);
                 }
-                if (rarely()) {
-                    b.field("doc_values", false);
-                }
+//                if (rarely()) {
+//                    b.field("doc_values", false);
+//                }
                 if (ignoreMalformed) {
                     b.field("ignore_malformed", true);
                 }

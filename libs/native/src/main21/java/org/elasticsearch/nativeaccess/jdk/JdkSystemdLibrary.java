@@ -45,10 +45,10 @@ class JdkSystemdLibrary implements SystemdLibrary {
             }
             try (var stream = Files.walk(basepath)) {
                 var foundpaths = stream.filter(Files::isDirectory)
-                        .map(p -> p.resolve(libsystemd))
-                        .filter(Files::exists)
-                        .map(p -> p.toAbsolutePath().toString())
-                        .toList();
+                    .map(p -> p.resolve(libsystemd))
+                    .filter(Files::exists)
+                    .map(p -> p.toAbsolutePath().toString())
+                    .toList();
 
                 UnsatisfiedLinkError last = null;
                 for (String path : foundpaths) {

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ql.type.DateUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +68,8 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",
-            false
+            false,
+            Map.of()
         );
     }
 

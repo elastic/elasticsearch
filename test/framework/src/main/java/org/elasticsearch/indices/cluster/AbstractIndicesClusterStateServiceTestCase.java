@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -427,5 +428,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         public ShardLongFieldRange getEventIngestedRange() {
             return ShardLongFieldRange.EMPTY;
         }
+    }
+
+    public static void awaitIndexShardCloseAsyncTasks(IndicesClusterStateService indicesClusterStateService) {
+        final var latch = new CountDownLatch(1);
+        indicesClusterStateService.onClusterStateShardsClosed(latch::countDown);
+        safeAwait(latch);
     }
 }

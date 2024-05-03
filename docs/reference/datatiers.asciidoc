@@ -235,7 +235,7 @@ You can override this
 setting after index creation by <<indices-update-settings,updating the index setting>> to the preferred 
 value. 
 
-In this setting, you can provide multiple tiers in order of preference to prevent indices from remaining unallocated if no nodes are available in the preferred tier.
+This setting also accepts multiple tiers in order of preference. This prevents indices from remaining unallocated if no nodes are available in the preferred tier. For example, when {ilm} migrates an index to the cold phase, it sets the index `_tier_preference` to `data_cold,data_warm,data_hot`.
 
 To remove the data tier preference 
 setting, set the `_tier_preference` value to `null`. This allows the index to allocate to any data node within the cluster. Setting the `_tier_preference` to `null` does not restore the default value. Note that, in the case of managed indices, a <<ilm-migrate,migrate>> action might apply a new value in its place. 

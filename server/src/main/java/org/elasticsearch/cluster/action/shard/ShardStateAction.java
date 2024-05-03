@@ -786,6 +786,24 @@ public class ShardStateAction {
                         + clusterState.metadata().index(cursor.getKey()).getTimestampRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
+
+                boolean assertCondition = cursor.getValue().allPrimaryShardsActive() == false
+                    || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete();
+
+                logger.warn("MPXX Testing ShardStateAction assert in ShardStateAction for event.ingested");
+                if (assertCondition == false) {
+                    String msg = "index ["
+                        + cursor.getKey()
+                        + "] should have complete timestamp range, but got "
+                        + clusterState.metadata().index(cursor.getKey()).getTimestampRange()
+                        + " for "
+                        + cursor.getValue().prettyPrint();
+                    logger.warn("MPXX ASSERT FAILED: " + msg);
+                    throw new AssertionError(msg);
+                } else {
+                    logger.warn("MPXX: assert passed for " + clusterState.metadata().index(cursor.getKey()));
+                }
+
                 // assert cursor.getValue().allPrimaryShardsActive() == false
                 // || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete()
                 // : "index ["

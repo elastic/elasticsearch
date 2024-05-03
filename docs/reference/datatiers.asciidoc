@@ -33,9 +33,6 @@ mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
 This extends the storage capacity even further — by up to 20 times compared to
 the warm tier. 
 
-IMPORTANT: {es} generally expects nodes within a data tier to share the same
-hardware profile. Variations that don't follow this recommendation should be
-carefully architected to avoid <<hotspotting,hot spotting>>.
 The way data tiers are used often depends on the data's category:
 
 - Content data remains on the <<content-tier,content tier>> for its entire

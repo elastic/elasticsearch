@@ -26,12 +26,16 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 class JdkSystemdLibrary implements SystemdLibrary {
 
     static {
-        System.load(findLibSystemd());
+        loadLibSystemd();
     }
 
-    // On some systems libsystemd does not have a non-versioned symlink. System.loadLibrary only knows how to find
-    // non-versioned library files. So we must manually check the library path to find what we need.
-    static String findLibSystemd() {
+    // loadLibSystemd looks through java.library.path for one or more instances
+    // of libsystemd, returning the first one that can be loaded. If none
+    // can be found, or loaded, UnsatisfiedLinkError is thrown.
+    static String loadLibSystemd() {
+        // Note: on some systems libsystemd does not have a non-versioned symlink.
+        // System.loadLibrary only knows how to find non-versioned library files,
+        // so we must manually check the library path to find what we need.
         final String libsystemd = "libsystemd.so.0";
         String libpath = System.getProperty("java.library.path");
         for (String basepathStr : libpath.split(":")) {
@@ -40,10 +44,23 @@ class JdkSystemdLibrary implements SystemdLibrary {
                 continue;
             }
             try (var stream = Files.walk(basepath)) {
+                var foundpaths = stream.filter(Files::isDirectory)
+                        .map(p -> p.resolve(libsystemd))
+                        .filter(Files::exists)
+                        .map(p -> p.toAbsolutePath().toString())
+                        .toList();
 
-                var foundpath = stream.filter(Files::isDirectory).map(p -> p.resolve(libsystemd)).filter(Files::exists).findAny();
-                if (foundpath.isPresent()) {
-                    return foundpath.get().toAbsolutePath().toString();
+                UnsatisfiedLinkError last = null;
+                for (String path : foundpaths) {
+                    try {
+                        System.load(path);
+                        return path;
+                    } catch (UnsatisfiedLinkError e) {
+                        last = e;
+                    }
+                }
+                if (last != null) {
+                    throw last;
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
@@ -76,7 +77,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MachineLearning.class, MapperExtrasPlugin.class);
+        return List.of(MachineLearning.class, MapperExtrasPlugin.class, XPackClientPlugin.class);
     }
 
     @Override

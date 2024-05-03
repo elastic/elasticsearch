@@ -56,10 +56,9 @@ public class MemoryMetricsService implements ClusterStateListener {
     );
     private static final Logger logger = LogManager.getLogger(MemoryMetricsService.class);
     private static final int SENDING_PRIMARY_SHARD_ID = 0;
-    // let each shard use 5MB, which matches what we see in heap dumps (with a bit of margin).
-    // It also means that a 2GB heap node can handle a little less than 300 shards.
+    // let each shard use 6MB, which matches what we see in heap dumps (with a bit of margin).
     // visible for testing
-    static final long SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(5).getBytes();
+    static final long SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(6).getBytes();
     // visible for testing
     static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
     // visible for testing

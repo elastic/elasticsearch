@@ -61,13 +61,13 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
     @Override
     public ByteRange getRange(long position, int length, long remainingFileLength) {
         assert length <= remainingFileLength : length + " > " + remainingFileLength;
-        long start = (position / chunkSizeBytes) * chunkSizeBytes;
+        long start = BlobCacheUtils.roundDownToAlignedSize(position, chunkSizeBytes);
         // It is important that the end is only rounded up to a position that is not past the last CC.
         // This is an important property for the ability to append blobs to a VBCC.
         //
         // Hence we use the minimum of the next chunk position or the current file's end position
         // (rounded to page aligned, which is ok due to padding).
-        long chunkEnd = (((position + length - 1) / chunkSizeBytes) + 1) * chunkSizeBytes;
+        long chunkEnd = BlobCacheUtils.roundUpToAlignedSize(position + length, chunkSizeBytes);
         long fileEnd = BlobCacheUtils.toPageAlignedSize(position + remainingFileLength);
         long end = Math.min(chunkEnd, fileEnd);
         return ByteRange.of(start, end);

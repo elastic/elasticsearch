@@ -156,7 +156,7 @@ node.
 <3> Whether to allocate the shard.
 <4> Whether to allocate the shard to the particular node.
 <5> The decider which led to the `no` decision for the node.
-<6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision. For the example above, a newly created index has <<indices-get-settings,an index setting>> requiring it to only be allocated to a node named `nonexistent_node`, which does not exist so the index is unable to allocate.
+<6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision. In this example, a newly created index has <<indices-get-settings,an index setting>> that requires that it only be allocated to a node named `nonexistent_node`, which does not exist, so the index is unable to allocate.
 
 The following response contains an allocation explanation for an unassigned
 primary shard that was previously allocated.

@@ -2,4 +2,4 @@
 
 *Description*
 
-Reduce a multivalued string field to a single valued field by concatenating all values.
+Converts a multivalued string expression into a single valued column containing the concatenation of all values separated by a delimiter.

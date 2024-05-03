@@ -72,8 +72,8 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                     if (values.advanceExact(doc)) {
+                        TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                         final HistogramValue sketch = values.histogram();
                         while (sketch.next()) {
                             state.add(sketch.value(), sketch.count());

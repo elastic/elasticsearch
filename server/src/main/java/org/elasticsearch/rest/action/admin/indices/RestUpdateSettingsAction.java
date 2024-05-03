@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateSettingsAction extends BaseRestHandler {
@@ -44,7 +45,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
         updateSettingsRequest.ackTimeout(request.paramAsTime("timeout", updateSettingsRequest.ackTimeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
-        updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
+        updateSettingsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
         updateSettingsRequest.reopen(request.paramAsBoolean("reopen", false));
         try (var parser = request.contentParser()) {

@@ -23,6 +23,10 @@
         "bytes_out": {
           "type": "long",
           "time_series_metric": "counter"
+        },
+        "message_in": {
+          "type": "float",
+          "time_series_metric": "counter"
         }
       }
     }

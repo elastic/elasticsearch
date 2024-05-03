@@ -154,6 +154,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         usageStats.put("fls", fls);
         usageStats.put("dls", dls);
         usageStats.put("remote_indices", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteIndicesPrivileges).count());
+        usageStats.put("remote_cluster", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteClusterPermissions).count());
 
         return usageStats;
     }

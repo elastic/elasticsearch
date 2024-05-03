@@ -13,11 +13,11 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -39,7 +39,9 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
@@ -278,17 +280,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals("[slice] can only be used with [scroll] or [point-in-time] requests", validationErrors.validationErrors().get(0));
         }
         {
-            // collapse and rescore
-            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
-            searchRequest.source().collapse(new CollapseBuilder("field"));
-            searchRequest.source().addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("cannot use `collapse` in conjunction with `rescore`", validationErrors.validationErrors().get(0));
-        }
-        {
             // stored fields disabled with _source requested
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
             searchRequest.scroll((Scroll) null);
@@ -343,7 +334,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // Reader context with scroll
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray(Base64.getUrlEncoder().encode("id".getBytes(StandardCharsets.UTF_8))))
+                )
             ).scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -517,7 +510,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
-                    .pointInTimeBuilder(new PointInTimeBuilder("test"))
+                    .pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("test")))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -550,7 +543,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest("test").source(
-                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(""))
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -562,7 +555,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
-                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -570,7 +563,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().routing("route1")
-                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -578,7 +571,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")
-                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());

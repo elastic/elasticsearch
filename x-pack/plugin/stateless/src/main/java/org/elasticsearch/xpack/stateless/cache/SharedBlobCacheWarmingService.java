@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
 import org.apache.logging.log4j.LogManager;
@@ -32,13 +33,16 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -46,18 +50,73 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectory.unwrapDirectory;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+import static org.elasticsearch.core.Strings.format;
 
 public class SharedBlobCacheWarmingService {
+
+    /** Region of a blob **/
+    private record BlobRegion(BlobFile blob, int region) {}
+
+    /** Range of a blob to warm in cache, with a listener to complete once it is warmed **/
+    private record BlobRange(String fileName, BlobLocation blobLocation, long position, long length, ActionListener<Void> listener)
+        implements
+            Comparable<BlobRange> {
+
+        /**
+         * Ranges are ordered by decreasing positions in order to fetch them backwards: when fetched from indexing shards, ranges are
+         * rounded down more aggressively. By ordering them in backward order, we try to avoid small page aligned forward reads.
+         **/
+        private static final Comparator<BlobRange> COMPARATOR = Comparator.comparingLong(BlobRange::position).reversed();
+
+        @Override
+        public int compareTo(BlobRange other) {
+            return COMPARATOR.compare(this, other);
+        }
+    }
+
+    /** Queue of ranges to warm for a blob region **/
+    private static class BlobRangesQueue {
+
+        private final BlobRegion blobRegion;
+        private final PriorityBlockingQueue<BlobRange> queue = new PriorityBlockingQueue<>();
+        private final AtomicInteger counter = new AtomicInteger();
+
+        BlobRangesQueue(BlobRegion blobRegion) {
+            this.blobRegion = Objects.requireNonNull(blobRegion);
+        }
+
+        /**
+         * Adds a range to warm in cache for the current blob region, returning {@code true} if a warming task must be created to warm the
+         * range.
+         *
+         * @param fileName      the name of the file for which the range must be warmed up in cache.
+         * @param blobLocation  the blob location of the file
+         * @param position      the position in the blob where warming must start
+         * @param length        the length of bytes to warm
+         * @param listener      the listener to complete once the range is warmed
+         * @return {@code true} if a warming task must be created to warm the range, {@code false} otherwise
+         */
+        private boolean add(String fileName, BlobLocation blobLocation, long position, long length, ActionListener<Void> listener) {
+            queue.add(new BlobRange(fileName, blobLocation, position, length, listener));
+            // TODO Can we capture the max. seen file length here and use it to later fetch range?
+            return counter.incrementAndGet() == 1;
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheWarmingService.class);
 
@@ -65,11 +124,13 @@ public class SharedBlobCacheWarmingService {
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
+    private final boolean uploadDelayed;
 
-    public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool) {
+    public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, boolean uploadDelayed) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         this.fetchExecutor = threadPool.executor(Stateless.PREWARM_THREAD_POOL);
+        this.uploadDelayed = uploadDelayed;
 
         // the PREWARM_THREAD_POOL does the actual work but we want to limit the number of prewarming tasks in flight at once so that each
         // one completes sooner, so we use a ThrottledTaskRunner. The throttle limit is a little more than the threadpool size just to avoid
@@ -128,12 +189,17 @@ public class SharedBlobCacheWarmingService {
         private final IndexShard indexShard;
         private final StatelessCompoundCommit commit;
         private final ConcurrentMap<BlobRegion, CacheRegionWarmingTask> tasks;
+        private final ConcurrentMap<BlobRegion, BlobRangesQueue> queues; // used when stateless upload delayed is enabled
         private final RefCountingListener listeners;
+
+        private final AtomicLong tasksCount = new AtomicLong(0L);
+        private final AtomicLong totalBytesCopied = new AtomicLong(0L);
 
         Warmer(IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
             this.indexShard = indexShard;
             this.commit = commit;
-            this.tasks = new ConcurrentHashMap<>(commit.commitFiles().size());
+            this.tasks = new ConcurrentHashMap<>();
+            this.queues = new ConcurrentHashMap<>();
             this.listeners = new RefCountingListener(logging(listener));
         }
 
@@ -153,8 +219,8 @@ public class SharedBlobCacheWarmingService {
                             .filter(file -> LuceneFilesExtensions.fromFile(file) == LuceneFilesExtensions.SI)
                             .count(),
                         commit.commitFiles().size(),
-                        tasks.size(),
-                        tasks.values().stream().mapToLong(task -> task.size.get()).sum(),
+                        tasksCount.get(),
+                        totalBytesCopied.get(),
                         tasks.values()
                     );
                 });
@@ -202,30 +268,53 @@ public class SharedBlobCacheWarmingService {
                 // warm entire file when it is small
                 addLocation(blobLocation, fileName, listeners.acquire());
             } else {
-                var header = new BlobLocation(blobLocation.blobFile(), blobLocation.offset(), BUFFER_SIZE);
-                addLocation(header, fileName, listeners.acquire());
-                var footer = new BlobLocation(
-                    blobLocation.blobFile(),
+                // header
+                addLocation(blobLocation, fileName, blobLocation.offset(), BUFFER_SIZE, listeners.acquire());
+                // footer
+                addLocation(
+                    blobLocation,
+                    fileName,
                     blobLocation.offset() + blobLocation.fileLength() - CodecUtil.footerLength(),
-                    CodecUtil.footerLength()
+                    CodecUtil.footerLength(),
+                    listeners.acquire()
                 );
-                addLocation(footer, fileName, listeners.acquire());
             }
         }
 
         private void addLocation(BlobLocation location, String fileName, ActionListener<Void> listener) {
-            final long start = location.offset();
-            final long end = location.offset() + location.fileLength();
+            addLocation(location, fileName, location.offset(), location.fileLength(), listener);
+        }
+
+        private void addLocation(BlobLocation location, String fileName, long position, long length, ActionListener<Void> listener) {
+            final long start = position;
+            final long end = position + length;
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = (int) (start / regionSize);
             final int endRegion = (int) ((end - (end % regionSize == 0 ? 1 : 0)) / regionSize);
 
             if (startRegion == endRegion) {
-                addRegion(new BlobRegion(location.blobFile(), startRegion), fileName, listener);
+                if (uploadDelayed) {
+                    enqueue(new BlobRegion(location.blobFile(), startRegion), fileName, location, position, length, listener);
+                } else {
+                    addRegion(new BlobRegion(location.blobFile(), startRegion), fileName, listener);
+                }
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
-                        addRegion(new BlobRegion(location.blobFile(), r), fileName, listeners.acquire());
+                        if (uploadDelayed) {
+                            // adjust the position & length to the region
+                            var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
+                            enqueue(
+                                new BlobRegion(location.blobFile(), r),
+                                fileName,
+                                location,
+                                range.start(),
+                                range.length(),
+                                listeners.acquire()
+                            );
+                        } else {
+                            addRegion(new BlobRegion(location.blobFile(), r), fileName, listeners.acquire());
+                        }
                     }
                 }
             }
@@ -233,8 +322,9 @@ public class SharedBlobCacheWarmingService {
 
         private void addRegion(BlobRegion region, String fileName, ActionListener<Void> listener) {
             var task = tasks.computeIfAbsent(region, k -> {
-                var t = new CacheRegionWarmingTask(indexShard, region);
+                var t = new CacheRegionWarmingTask(indexShard, region, totalBytesCopied::addAndGet);
                 throttledTaskRunner.enqueueTask(t);
+                tasksCount.incrementAndGet();
                 return t;
             });
             task.files.add(fileName);
@@ -267,9 +357,110 @@ public class SharedBlobCacheWarmingService {
                 return null;
             });
         }
-    }
 
-    private record BlobRegion(BlobFile blob, int region) {}
+        private void enqueue(
+            BlobRegion blobRegion,
+            String fileName,
+            BlobLocation blobLocation,
+            long position,
+            long length,
+            ActionListener<Void> listener
+        ) {
+            assert uploadDelayed : "method should only be called when uploads are delayed";
+            var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
+            if (blobRanges.add(fileName, blobLocation, position, length, listener)) {
+                createWarmingTask(blobRanges);
+            }
+        }
+
+        private void createWarmingTask(BlobRangesQueue queue) {
+            throttledTaskRunner.enqueueTask(new WarmingTask(queue));
+            tasksCount.incrementAndGet();
+        }
+
+        private boolean isCancelled() {
+            return indexShard.store().isClosing() || indexShard.state() != IndexShardState.RECOVERING;
+        }
+
+        /**
+         * Warms in cache all pending file locations of a given blob region.
+         */
+        private class WarmingTask implements ActionListener<Releasable> {
+
+            private final BlobRangesQueue queue;
+            private final BlobRegion blobRegion;
+
+            WarmingTask(BlobRangesQueue queue) {
+                this.queue = Objects.requireNonNull(queue);
+                this.blobRegion = queue.blobRegion;
+                logger.trace("{}: scheduled {}", indexShard.shardId(), blobRegion);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (RefCountingRunnable refs = new RefCountingRunnable(() -> Releasables.close(releasable))) {
+                    var cacheKey = new FileCacheKey(indexShard.shardId(), blobRegion.blob.primaryTerm(), blobRegion.blob.blobName());
+                    var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+
+                    var remaining = queue.counter.get();
+                    assert 0 < remaining : remaining;
+
+                    while (0 < remaining) {
+                        for (int i = 0; i < remaining; i++) {
+                            var item = queue.queue.poll();
+                            assert item != null;
+
+                            if (isCancelled()) {
+                                item.listener().onResponse(null);
+                                continue;
+                            }
+
+                            var blobLocation = item.blobLocation();
+                            var cacheBlobReader = searchDirectory.getCacheBlobReader(blobLocation);
+                            // compute the range to warm in cache
+                            var range = cacheBlobReader.getRange(
+                                item.position(),
+                                Math.toIntExact(item.length()),
+                                blobLocation.offset() + blobLocation.fileLength() - item.position()
+                            );
+                            cacheService.maybeFetchRange(
+                                cacheKey,
+                                blobRegion.region,
+                                range,
+                                // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService
+                                // to fully utilize each region. So we just pass it with a value that cover the current region.
+                                (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
+                                (channel, channelPos, relativePos, length, progressUpdater) -> {
+                                    long position = range.start() + relativePos;
+                                    try (var in = cacheBlobReader.getRangeInputStream(position, length)) {
+                                        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
+                                        var bytesCopied = SharedBytes.copyToCacheFileAligned(
+                                            channel,
+                                            in,
+                                            channelPos,
+                                            progressUpdater,
+                                            writeBuffer.get().clear()
+                                        );
+                                        totalBytesCopied.addAndGet(bytesCopied);
+                                    }
+                                },
+                                fetchExecutor,
+                                ActionListener.releaseAfter(item.listener().map(ignored -> null), refs.acquire())
+                            );
+                        }
+
+                        remaining = queue.counter.addAndGet(-remaining);
+                        assert 0 <= remaining : remaining;
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> format("%s failed to warm region {}", indexShard.shardId(), blobRegion), e);
+            }
+        }
+    }
 
     /**
      * Fetch and write in cache a given region of a compound commit blob file.
@@ -281,10 +472,12 @@ public class SharedBlobCacheWarmingService {
         private final SubscribableListener<Void> listener = new SubscribableListener<>();
         private final Set<String> files = ConcurrentCollections.newConcurrentSet();
         private final AtomicLong size = new AtomicLong(0);
+        private final LongConsumer totalBytesCopied;
 
-        CacheRegionWarmingTask(IndexShard indexShard, BlobRegion target) {
+        CacheRegionWarmingTask(IndexShard indexShard, BlobRegion target, LongConsumer totalBytesCopied) {
             this.indexShard = indexShard;
             this.target = target;
+            this.totalBytesCopied = totalBytesCopied;
             logger.trace("{}: scheduled {}", indexShard.shardId(), target);
         }
 
@@ -316,6 +509,7 @@ public class SharedBlobCacheWarmingService {
                                     writeBuffer.get().clear()
                                 );
                                 size.addAndGet(bytesCopied);
+                                totalBytesCopied.accept(bytesCopied);
                                 if (bytesCopied < length) {
                                     // TODO we should remove this and allow gap completion in SparseFileTracker even if progress < range end
                                     progressUpdater.accept(length);

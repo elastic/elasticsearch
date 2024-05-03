@@ -22,7 +22,9 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.RegisterCommitRequest;
@@ -621,6 +623,52 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName), numDocs);
         internalCluster().stopNode(searchNode2);
+    }
+
+    public void testRecoverSearchShardFromVirtualBcc() {
+        assumeTrue("Test only works when uploads are delayed", STATELESS_UPLOAD_DELAYED);
+        startIndexNode(Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10).build());
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        long totalDocs = 0L;
+        int initialCommits = randomIntBetween(0, 3);
+        for (int i = 0; i < initialCommits; i++) {
+            int numDocs = randomIntBetween(1, 100);
+            indexDocs(indexName, numDocs);
+            flush(indexName);
+            totalDocs += numDocs;
+        }
+
+        var indexEngine = asInstanceOf(IndexEngine.class, findIndexShard(resolveIndex(indexName), 0).getEngineOrNull());
+        final long initialGeneration = indexEngine.getCurrentGeneration();
+
+        final int iters = randomIntBetween(1, 5);
+        for (int i = 0; i < iters; i++) {
+            int numDocs = randomIntBetween(1, 100);
+            indexDocs(indexName, numDocs);
+            refresh(indexName);
+            totalDocs += numDocs;
+        }
+
+        var commitService = indexEngine.getStatelessCommitService();
+        VirtualBatchedCompoundCommit virtualBcc = commitService.getCurrentVirtualBcc(indexEngine.config().getShardId());
+        assertThat(virtualBcc, notNullValue());
+        assertThat(virtualBcc.getPrimaryTermAndGeneration().generation(), equalTo(initialGeneration + 1));
+        assertThat(virtualBcc.lastCompoundCommit().generation(), equalTo(initialGeneration + iters));
+
+        startSearchNode();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+
+        var searchEngine = asInstanceOf(SearchEngine.class, findSearchShard(resolveIndex(indexName), 0).getEngineOrNull());
+        assertThat(searchEngine.getLastCommittedSegmentInfos().getGeneration(), equalTo(virtualBcc.lastCompoundCommit().generation()));
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), hasItem(virtualBcc.getPrimaryTermAndGeneration()));
+        assertHitCount(prepareSearch(indexName), totalDocs);
+
+        flush(indexName); // TODO Fix this, the flush should not be mandatory to delete the index (see ES-8335)
     }
 
     public void testRecoverMultipleIndexingShardsWithCoordinatingRetries() throws Exception {

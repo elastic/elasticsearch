@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
@@ -356,10 +357,14 @@ public class SearchDirectory extends ByteSizeDirectory {
                 location.offset() + location.fileLength()
             ),
             context,
-            cacheBlobReaderService.getCacheBlobReader(shardId, blobContainer.get(), location, objectStoreUploadTracker),
+            getCacheBlobReader(location),
             location.fileLength(),
             location.offset()
         );
+    }
+
+    public CacheBlobReader getCacheBlobReader(BlobLocation blobLocation) {
+        return cacheBlobReaderService.getCacheBlobReader(shardId, blobContainer.get(), blobLocation, objectStoreUploadTracker);
     }
 
     @Override

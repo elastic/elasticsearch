@@ -46,7 +46,7 @@ EXPORT int vec_caps() {
 #endif
 }
 
-int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
+static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.
     int32x4_t acc1 = vdupq_n_s32(0);
@@ -93,7 +93,7 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
-EXPORT int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
+static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     int32x4_t acc1 = vdupq_n_s32(0);
     int32x4_t acc2 = vdupq_n_s32(0);
     int32x4_t acc3 = vdupq_n_s32(0);

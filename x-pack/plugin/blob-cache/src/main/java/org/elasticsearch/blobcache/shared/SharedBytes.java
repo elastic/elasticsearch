@@ -210,8 +210,7 @@ public class SharedBytes extends AbstractRefCounted {
         return bytesCopied;
     }
 
-    public static int copyToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer)
-        throws IOException {
+    public static int copyToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
         if (buffer.hasRemaining()) {
             // ensure that last write is aligned on 4k boundaries (= page size)
             final int remainder = buffer.position() % PAGE_SIZE;

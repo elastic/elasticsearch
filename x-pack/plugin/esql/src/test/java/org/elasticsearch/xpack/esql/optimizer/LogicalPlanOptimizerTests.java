@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -128,6 +130,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -4688,18 +4692,47 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Limit[1000[INTEGER]]
-     * \_Join[LEFT,true[BOOLEAN]]
-     *   |_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
-     *   \_LocalRelation[[name{f}#14, int{f}#15],[BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]], IntVectorBlock[vector=I
-     * ntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]]]
+     * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
+     *   |_EsqlProject[[...]]
+     *   | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_LocalRelation[[int{f}#17, name{f}#18],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
+     * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      */
-    public void testBasicLookup() throws Exception {
+    public void testLookupSimple() {
         var plan = optimizedPlan("""
-            from test
-            | lookup int_number_names on int
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
             """);
+        var limit = as(plan, Limit.class);
+        var join = as(limit.child(), Join.class);
 
-        fail("not implemented yet");
+        // Left and right look sensible
+        var left = as(join.left(), EsqlProject.class);
+        assertThat(left.output().toString(), containsString("int{r}"));
+        var right = as(join.right(), LocalRelation.class);
+        assertMap(
+            right.output().stream().map(Object::toString).toList(),
+            matchesList().item(containsString("int{f}")).item(containsString("name{f}"))
+        );
+
+        // Join's output looks sensible too
+        assertMap(
+            join.output().stream().map(Object::toString).filter(s -> s.startsWith("int") || s.startsWith("name")).toList(),
+            matchesList()
+                /*
+                 * It's important that name is returned as a *reference* here
+                 * instead of a field. If it were a field we'd use SearchStats
+                 * on it and discover that it doesn't exist in the index. It doesn't!
+                 * We don't expect it to. It exists only in the lookup table.
+                 */
+                .item(containsString("name{r}"))
+                /*
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
+                 */
+                .item(containsString("int{r}"))
+        );
     }
 
     private Literal nullOf(DataType dataType) {

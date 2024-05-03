@@ -1864,6 +1864,14 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-multi-field-variation.json", "text");
     }
 
+    public void testLookupMissingField() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+              FROM test
+            | LOOKUP int_number_names ON garbage
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column in lookup target [garbage]"));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

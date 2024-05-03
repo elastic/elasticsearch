@@ -438,7 +438,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }).name(), DataTypes.KEYWORD);
 
-        return p -> new Lookup(source, p, tableName, matchFields);
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

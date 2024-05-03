@@ -34,10 +34,6 @@ public class Lookup extends UnaryPlan {
     private final LocalRelation localRelation;
     private List<Attribute> lazyOutput;
 
-    public Lookup(Source source, LogicalPlan child, Expression tableName, List<NamedExpression> matchFields) {
-        this(source, child, tableName, matchFields, null);
-    }
-
     public Lookup(Source source, LogicalPlan child, Expression tableName, List<NamedExpression> matchFields, LocalRelation localRelation) {
         super(source, child);
         this.tableName = tableName;
@@ -64,12 +60,12 @@ public class Lookup extends UnaryPlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Lookup(source(), newChild, tableName, matchFields);
+        return new Lookup(source(), newChild, tableName, matchFields, localRelation);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Lookup::new, child(), tableName, matchFields);
+        return NodeInfo.create(this, Lookup::new, child(), tableName, matchFields, localRelation);
     }
 
     @Override

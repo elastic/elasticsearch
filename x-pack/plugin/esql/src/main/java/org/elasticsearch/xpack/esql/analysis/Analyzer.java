@@ -504,9 +504,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // check the on field against both the child output and the inner relation
             List<NamedExpression> matchFields = new ArrayList<>(l.matchFields().size());
             List<Attribute> localOutput = l.localRelation().output();
+            boolean modified = false;
 
             for (NamedExpression ne : l.matchFields()) {
                 if (ne instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
+                    modified = true;
                     ne = maybeResolveAttribute(ua, localOutput);
                     // can't find the field inside the local relation
                     if (ne instanceof UnresolvedAttribute lua) {
@@ -523,8 +525,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 matchFields.add(ne);
             }
-
-            return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());
+            if (modified) {
+                return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());
+            }
+            return l;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

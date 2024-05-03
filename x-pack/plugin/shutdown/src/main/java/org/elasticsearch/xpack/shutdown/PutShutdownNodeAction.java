@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -96,6 +98,12 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)) {
+                // effectively super(in):
+                setParentTask(TaskId.readFromStream(in));
+                masterNodeTimeout(in.readTimeValue());
+                timeout(in.readTimeValue());
+            }
             this.nodeId = in.readString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
@@ -114,6 +122,9 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)) {
+                super.writeTo(out);
+            }
             out.writeString(nodeId);
             if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)
                 && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {

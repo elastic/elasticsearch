@@ -9,54 +9,44 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.FULL;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.LEFT;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.CoreJoinType.RIGHT;
-
 public class Join extends BinaryPlan {
 
-    private final JoinType type;
-    private final Expression condition;
+    private final JoinConfig config;
     private List<Attribute> lazyOutput;
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinType type, Expression condition) {
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right);
-        this.type = type;
-        this.condition = condition;
+        this.config = config;
+    }
+
+    public JoinConfig config() {
+        return config;
     }
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, Join::new, left(), right(), type, condition);
+        return NodeInfo.create(this, Join::new, left(), right(), config);
     }
 
     @Override
     public Join replaceChildren(List<LogicalPlan> newChildren) {
-        return new Join(source(), newChildren.get(0), newChildren.get(1), type, condition);
+        return new Join(source(), newChildren.get(0), newChildren.get(1), config);
     }
 
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, type, condition);
-    }
-
-    public JoinType type() {
-        return type;
-    }
-
-    public Expression condition() {
-        return condition;
+        return new Join(source(), left, right, config);
     }
 
     @Override
@@ -68,20 +58,30 @@ public class Join extends BinaryPlan {
     }
 
     private List<Attribute> computeOutput() {
-        if (type == LEFT) {
-            // right side can be null
-            return NamedExpressions.mergeOutputAttributes(left().output(), makeNullable(right().output()));
+        List<Attribute> right = makeReference(right().output());
+        return switch (config.type()) {
+            case LEFT -> // right side becomes nullable
+                NamedExpressions.mergeOutputAttributes(left().output(), makeNullable(right));
+            case RIGHT -> // left side becomes nullable
+                NamedExpressions.mergeOutputAttributes(makeNullable(left().output()), right);
+            case FULL -> // both sides become nullable
+                NamedExpressions.mergeOutputAttributes(makeNullable(left().output()), makeNullable(right));
+            default -> // neither side becomes nullable
+                NamedExpressions.mergeOutputAttributes(left().output(), right);
+        };
+    }
+
+    /**
+     * Make fields references, so we don't check if they exist in the index.
+     * We do this for fields that we know don't come from the index.
+     * NOCOMMIT we should signal this more clearly
+     */
+    private static List<Attribute> makeReference(List<Attribute> output) {
+        List<Attribute> out = new ArrayList<>(output.size());
+        for (Attribute a : output) {
+            out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
         }
-        if (type == RIGHT) {
-            // left side can be null
-            return NamedExpressions.mergeOutputAttributes(makeNullable(left().output()), right().output());
-        }
-        if (type == FULL) {
-            // both sides can be null
-            return NamedExpressions.mergeOutputAttributes(makeNullable(left().output()), makeNullable(right().output()));
-        }
-        // the rest - INNER, CROSS
-        return NamedExpressions.mergeOutputAttributes(left().output(), right().output());
+        return out;
     }
 
     private static List<Attribute> makeNullable(List<Attribute> output) {
@@ -94,7 +94,7 @@ public class Join extends BinaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return condition == null || condition.resolved();
+        return true;
     }
 
     public boolean duplicatesResolved() {
@@ -107,15 +107,12 @@ public class Join extends BinaryPlan {
         // - the children are resolved
         // - there are no conflicts in output
         // - the condition (if present) is resolved to a boolean
-        return childrenResolved()
-            && duplicatesResolved()
-            && expressionsResolved()
-            && (condition == null || DataTypes.BOOLEAN == condition.dataType());
+        return childrenResolved() && duplicatesResolved() && expressionsResolved();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, condition, left(), right());
+        return Objects.hash(config, left(), right());
     }
 
     @Override
@@ -128,10 +125,6 @@ public class Join extends BinaryPlan {
         }
 
         Join other = (Join) obj;
-
-        return Objects.equals(type, other.type)
-            && Objects.equals(condition, other.condition)
-            && Objects.equals(left(), other.left())
-            && Objects.equals(right(), other.right());
+        return config.equals(other.config) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 }

@@ -7,69 +7,59 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.expression.TableColumnAttribute;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-
 public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
-    private final Attribute tableName;
-    private final List<Attribute> matchFields;
-    private final List<TableColumnAttribute> matchValues;
-    private final List<TableColumnAttribute> mergeValues;
+    private final LocalSourceExec joinData;
+    private final List<NamedExpression> unionFields;  // NOCOMMIT why sometimes NamedExpression and sometimes Attribute?!
+    private final List<Attribute> output;
 
     public HashJoinExec(
         Source source,
         PhysicalPlan child,
-        Attribute tableName,
-        List<Attribute> matchFields,
-        @Nullable List<TableColumnAttribute> matchValues,
-        @Nullable List<TableColumnAttribute> mergeValues
+        LocalSourceExec hashData,
+        List<NamedExpression> unionFields,
+        List<Attribute> output
     ) {
         super(source, child);
-        this.tableName = tableName;
-        this.matchFields = matchFields;
-        this.matchValues = matchValues;
-        this.mergeValues = mergeValues;
+        this.joinData = hashData;
+        this.unionFields = unionFields;
+        this.output = output;
     }
 
-    public List<Attribute> matchFields() {
-        return matchFields;
+    public LocalSourceExec joinData() {
+        return joinData;
     }
 
-    public List<TableColumnAttribute> matchValues() {
-        return matchValues;
-    }
-
-    public List<TableColumnAttribute> mergeValues() {
-        return mergeValues;
+    public List<NamedExpression> unionFields() {
+        return unionFields;
     }
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(false, mergeValues);
+        state.add(false, output);
         return this;
     }
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(mergeValues, child().output());
+        return output;
     }
 
     @Override
     public HashJoinExec replaceChild(PhysicalPlan newChild) {
-        return new HashJoinExec(source(), newChild, tableName, matchFields, matchValues, mergeValues);
+        return new HashJoinExec(source(), newChild, joinData, unionFields, output);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, HashJoinExec::new, child(), tableName, matchFields, matchValues, mergeValues);
+        return NodeInfo.create(this, HashJoinExec::new, child(), joinData, unionFields, output);
     }
 
     @Override
@@ -83,15 +73,14 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         if (super.equals(o) == false) {
             return false;
         }
-        HashJoinExec lookup = (HashJoinExec) o;
-        return Objects.equals(tableName, lookup.matchFields)
-            && Objects.equals(matchFields, lookup.matchFields)
-            && Objects.equals(matchValues, lookup.matchValues)
-            && Objects.equals(mergeValues, lookup.mergeValues);
+        HashJoinExec hash = (HashJoinExec) o;
+        return joinData.equals(hash.joinData)
+            && unionFields.equals(hash.unionFields)
+            && output.equals(hash.output);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), tableName, matchFields, matchValues, mergeValues);
+        return Objects.hash(super.hashCode(), joinData, unionFields, output);
     }
 }

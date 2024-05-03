@@ -32,7 +32,8 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -1268,9 +1269,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         @Override
         protected LogicalPlan rule(Lookup lookup) {
-            Expression condition = Literal.TRUE;
             // left join between the main relation and the local, lookup relation
-            return new Join(lookup.source(), lookup.child(), lookup.localRelation(), JoinTypes.LEFT, condition);
+            return new Join(lookup.source(), lookup.child(), lookup.localRelation(), new JoinConfig(JoinType.LEFT, lookup.matchFields()));
         }
     }
 

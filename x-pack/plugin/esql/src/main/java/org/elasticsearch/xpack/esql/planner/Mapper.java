@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -116,6 +119,12 @@ public class Mapper {
             return map(ua, child);
         }
 
+        if (p instanceof BinaryPlan bp) {
+            var left = map(bp.left());
+            var right = map(bp.right());
+            return map(bp, addExchangeForFragment(left), addExchangeForFragment(right));
+        }
+
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
     }
 
@@ -158,13 +167,6 @@ public class Mapper {
                 enrich.policy().getMatchField(),
                 enrich.concreteIndices(),
                 enrich.enrichFields()
-            );
-        }
-
-        if (p instanceof Lookup lookup) {
-            return new HashJoinExec(lookup.source(), child, null, emptyList(), null, null
-            // lookup.matchValues(),
-            // lookup.mergeValues()
             );
         }
 
@@ -245,6 +247,27 @@ public class Mapper {
         // and clone it as a physical node along with the exchange
         if (child instanceof FragmentExec) {
             child = new FragmentExec(logical);
+            child = new ExchangeExec(child.source(), child);
+        }
+        return child;
+    }
+
+    private PhysicalPlan map(BinaryPlan p, PhysicalPlan lhs, PhysicalPlan rhs) {
+        if (p instanceof Join join) {
+            if (join.config().type() != JoinType.LEFT) {
+                throw new EsqlIllegalArgumentException("unsupported unary logical plan node [" + p.nodeName() + "]");
+            }
+            if (rhs instanceof LocalSourceExec local) {
+                return new HashJoinExec(local.source(), lhs, local, join.config().unionFields(), join.output());
+            }
+        }
+        throw new EsqlIllegalArgumentException("unsupported unary logical plan node [" + p.nodeName() + "]");
+    }
+
+    private PhysicalPlan addExchangeForFragment(PhysicalPlan child) {
+        // NOCOMMIT this seems bad
+        // NOCOMMIT what in the world is this? FROM test | LOOKUP t1 ON a | STATS MAX(v1) BY a
+        if (child instanceof FragmentExec) {
             child = new ExchangeExec(child.source(), child);
         }
         return child;

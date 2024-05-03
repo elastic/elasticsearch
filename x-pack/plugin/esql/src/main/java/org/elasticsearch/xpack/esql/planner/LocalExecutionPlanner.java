@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
-import org.elasticsearch.xpack.esql.expression.TableColumnAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -224,7 +223,7 @@ public class LocalExecutionPlanner {
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
         } else if (node instanceof HashJoinExec lookup) {
-            return planLookup(lookup, context);
+            return planHashJoin(lookup, context);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -487,19 +486,31 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private PhysicalOperation planLookup(HashJoinExec lookup, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(lookup.child(), context);
+    private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(join.child(), context);
         int positionsChannel = source.layout.numberOfChannels();
+
         Layout.Builder layoutBuilder = source.layout.builder();
-        layoutBuilder.append(lookup.mergeValues());
+        for (Attribute f : join.output()) {
+            if (join.child().outputSet().contains(f)) {
+                continue;
+            }
+            layoutBuilder.append(f);
+        }
         Layout layout = layoutBuilder.build();
-        assert lookup.matchValues().size() == lookup.matchFields().size();
-        HashLookupOperator.Key[] keys = new HashLookupOperator.Key[lookup.matchFields().size()];
-        int[] blockMapping = new int[lookup.matchFields().size()];
-        for (int k = 0; k < lookup.matchFields().size(); k++) {
-            TableColumnAttribute attr = lookup.matchValues().get(k);
-            keys[k] = new HashLookupOperator.Key(attr.name(), attr.block());
-            Layout.ChannelAndType input = source.layout.get(lookup.matchFields().get(k).id());
+
+        Block[] localData = join.joinData().supplier().get();
+        Map<String, Block> fieldToLocalData = new HashMap<>(join.joinData().output().size());
+        for (int c = 0; c < join.joinData().output().size(); c++) {
+            fieldToLocalData.put(join.joinData().output().get(c).name(), localData[c]);
+        }
+
+        HashLookupOperator.Key[] keys = new HashLookupOperator.Key[join.unionFields().size()];
+        int[] blockMapping = new int[join.unionFields().size()];
+        for (int k = 0; k < join.unionFields().size(); k++) {
+            NamedExpression unionField = join.unionFields().get(k);
+            keys[k] = new HashLookupOperator.Key(unionField.name(), fieldToLocalData.get(unionField.name()));
+            Layout.ChannelAndType input = source.layout.get(unionField.id());
             blockMapping[k] = input.channel();
         }
 
@@ -507,9 +518,17 @@ public class LocalExecutionPlanner {
         source = source.with(new HashLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
-        for (TableColumnAttribute merge : lookup.mergeValues()) {
+        int loadedFields = 0;
+        for (Attribute f : join.output()) {
+            if (join.child().outputSet().contains(f)) {
+                continue;
+            }
+            loadedFields++;
             source = source.with(
-                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(merge.name(), merge.block()), positionsChannel),
+                new ColumnLoadOperator.Factory(
+                    new ColumnLoadOperator.Values(f.name(), fieldToLocalData.get(f.name())),
+                    positionsChannel
+                ),
                 layout
             );
         }
@@ -517,7 +536,7 @@ public class LocalExecutionPlanner {
         // Drop the "positions" of the match
         List<Integer> projection = new ArrayList<>();
         IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
-        IntStream.range(positionsChannel + 1, positionsChannel + 1 + lookup.mergeValues().size()).boxed().forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + loadedFields).boxed().forEach(projection::add);
         return source.with(new ProjectOperatorFactory(projection), layout);
     }
 

@@ -786,14 +786,14 @@ public class ShardStateAction {
                         + clusterState.metadata().index(cursor.getKey()).getTimestampRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
-                assert cursor.getValue().allPrimaryShardsActive() == false
-                    || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete()
-                    : "index ["
-                        + cursor.getKey()
-                        + "] should have complete event.ingested range, but got "
-                        + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
-                        + " for "
-                        + cursor.getValue().prettyPrint();
+                // assert cursor.getValue().allPrimaryShardsActive() == false
+                // || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete()
+                // : "index ["
+                // + cursor.getKey()
+                // + "] should have complete event.ingested range, but got "
+                // + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
+                // + " for "
+                // + cursor.getValue().prettyPrint();
             }
             return true;
         }

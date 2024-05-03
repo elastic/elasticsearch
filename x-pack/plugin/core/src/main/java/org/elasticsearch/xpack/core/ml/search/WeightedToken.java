@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class WeightedToken implements Writeable, ToXContentFragment {
 
@@ -75,5 +76,18 @@ public class WeightedToken implements Writeable, ToXContentFragment {
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WeightedToken that = (WeightedToken) o;
+        return Float.compare(weight, that.weight) == 0 && Objects.equals(token, that.token);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(token, weight);
     }
 }

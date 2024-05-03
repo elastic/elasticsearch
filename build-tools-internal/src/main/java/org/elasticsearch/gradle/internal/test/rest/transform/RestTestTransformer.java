@@ -38,13 +38,13 @@ public class RestTestTransformer {
         List<RestTestTransformGlobalSetup> setupTransforms = transformations.stream()
             .filter(transform -> transform instanceof RestTestTransformGlobalSetup)
             .map(transform -> (RestTestTransformGlobalSetup) transform)
-            .collect(Collectors.toList());
+            .toList();
 
         // Collect any global teardown transformations
         List<RestTestTransformGlobalTeardown> teardownTransforms = transformations.stream()
             .filter(transform -> transform instanceof RestTestTransformGlobalTeardown)
             .map(transform -> (RestTestTransformGlobalTeardown) transform)
-            .collect(Collectors.toList());
+            .toList();
 
         // Collect any transformations that are identified by an object key.
         Map<String, List<RestTestTransformByParentObject>> objectKeyFinders = transformations.stream()
@@ -130,8 +130,9 @@ public class RestTestTransformer {
                     }
                 }
             }
-            currentNode.elements()
-                .forEachRemaining(node -> { traverseTest(testContext, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders); });
+            currentNode.elements().forEachRemaining(node -> {
+                traverseTest(testContext, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders);
+            });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 List<RestTestTransformByParentObject> transforms = objectKeyFinders.get(entry.getKey());

@@ -10,11 +10,11 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,19 +26,19 @@ public class GetComposableIndexTemplateResponseTests extends AbstractWireSeriali
 
     @Override
     protected GetComposableIndexTemplateAction.Response createTestInstance() {
+        DataStreamGlobalRetention globalRetention = randomBoolean() ? null : DataStreamGlobalRetentionTests.randomGlobalRetention();
         if (randomBoolean()) {
-            return new GetComposableIndexTemplateAction.Response(Collections.emptyMap());
+            return new GetComposableIndexTemplateAction.Response(Map.of(), globalRetention);
         }
         Map<String, ComposableIndexTemplate> templates = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             templates.put(randomAlphaOfLength(4), ComposableIndexTemplateTests.randomInstance());
         }
-        return new GetComposableIndexTemplateAction.Response(templates);
+        return new GetComposableIndexTemplateAction.Response(templates, globalRetention);
     }
 
     @Override
-    protected GetComposableIndexTemplateAction.Response mutateInstance(GetComposableIndexTemplateAction.Response instance)
-        throws IOException {
+    protected GetComposableIndexTemplateAction.Response mutateInstance(GetComposableIndexTemplateAction.Response instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

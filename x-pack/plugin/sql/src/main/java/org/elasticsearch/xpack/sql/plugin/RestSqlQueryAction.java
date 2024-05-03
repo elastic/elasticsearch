@@ -9,8 +9,12 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.action.Protocol;
@@ -24,9 +28,12 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSqlQueryAction extends BaseRestHandler {
+    private static final Logger LOGGER = LogManager.getLogger(RestSqlQueryAction.class);
 
     @Override
     public List<Route> routes() {
@@ -49,7 +56,14 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(SqlQueryAction.INSTANCE, sqlRequest, new SqlResponseListener(channel, request, sqlRequest));
+            cancellableClient.execute(
+                SqlQueryAction.INSTANCE,
+                sqlRequest,
+                new SqlResponseListener(channel, request, sqlRequest).delegateResponse((l, ex) -> {
+                    logOnFailure(LOGGER, ex);
+                    l.onFailure(ex);
+                })
+            );
         };
     }
 

@@ -10,15 +10,11 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
-
-import java.util.Collection;
-import java.util.Collections;
 
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
@@ -44,11 +40,6 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
             @Override
             public long ramBytesUsed() {
                 return 0;
-            }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
             }
 
             @Override

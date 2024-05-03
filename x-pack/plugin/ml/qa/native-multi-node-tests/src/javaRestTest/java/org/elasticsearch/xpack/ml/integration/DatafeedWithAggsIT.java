@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
 
@@ -33,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -155,9 +158,23 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         getBucketsRequest.setExcludeInterim(true);
         List<Bucket> buckets = getBuckets(getBucketsRequest);
         for (Bucket bucket : buckets) {
-            if (bucket.getEventCount() != 2) {
-                fail("Bucket [" + bucket.getTimestamp().getTime() + "] has [" + bucket.getEventCount() + "] when 2 were expected");
-            }
+            assertEquals(
+                "Bucket [" + bucket.getTimestamp().getTime() + "] has [" + bucket.getEventCount() + "] when 2 were expected",
+                2L,
+                bucket.getEventCount()
+            );
+            // Confirm that it's possible to search for the same buckets by @timestamp - proves that @timestamp works as a field alias
+            assertHitCount(
+                prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("job_id", jobId))
+                        .filter(QueryBuilders.termQuery("result_type", "bucket"))
+                        .filter(
+                            QueryBuilders.rangeQuery("@timestamp").gte(bucket.getTimestamp().getTime()).lte(bucket.getTimestamp().getTime())
+                        )
+                ).setTrackTotalHits(true),
+                1
+            );
         }
     }
 }

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
+import org.elasticsearch.gradle.internal.util.SerializableFunction;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
@@ -29,7 +30,6 @@ import org.gradle.internal.Factory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -54,8 +54,8 @@ public class CopyRestApiTask extends DefaultTask {
     private boolean skipHasRestTestCheck;
     private FileCollection config;
     private FileCollection additionalConfig;
-    private Function<FileCollection, FileTree> configToFileTree = FileCollection::getAsFileTree;
-    private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> configToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable patternSet;
     private final ProjectLayout projectLayout;
@@ -146,13 +146,16 @@ public class CopyRestApiTask extends DefaultTask {
         try {
             // check source folder for tests
             if (sourceResourceDir != null && new File(sourceResourceDir, REST_TEST_PREFIX).exists()) {
-                return Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))
-                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
             // check output for cases where tests are copied programmatically
             File yamlTestOutputDir = new File(additionalYamlTestsDir.get().getAsFile(), REST_TEST_PREFIX);
             if (yamlTestOutputDir.exists()) {
-                return Files.walk(yamlTestOutputDir.toPath()).anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(yamlTestOutputDir.toPath())) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
         } catch (IOException e) {
             throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);
@@ -176,11 +179,11 @@ public class CopyRestApiTask extends DefaultTask {
         this.additionalConfig = additionalConfig;
     }
 
-    public void setConfigToFileTree(Function<FileCollection, FileTree> configToFileTree) {
+    public void setConfigToFileTree(SerializableFunction<FileCollection, FileTree> configToFileTree) {
         this.configToFileTree = configToFileTree;
     }
 
-    public void setAdditionalConfigToFileTree(Function<FileCollection, FileTree> additionalConfigToFileTree) {
+    public void setAdditionalConfigToFileTree(SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree) {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 

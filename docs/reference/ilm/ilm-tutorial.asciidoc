@@ -7,30 +7,32 @@
 ++++
 
 When you continuously index timestamped documents into {es},
-you typically use a <<data-streams, data stream>> so you can periodically roll over to a
+you typically use a <<data-streams,data stream>> so you can periodically <<index-rollover,roll over>> to a
 new index.
-This enables you to implement a hot-warm-cold architecture to meet your performance
+This enables you to implement a <<data-tiers,hot-warm-cold architecture>> to meet your performance
 requirements for your newest data, control costs over time, enforce retention policies,
 and still get the most out of your data.
 
-TIP: Data streams are best suited for
-<<data-streams-append-only,append-only>> use cases. If you need to frequently
-update or delete existing documents across multiple indices, we recommend
-using an index alias and index template instead. You can still use ILM to
-manage and rollover the alias's indices. Skip to
-<<manage-time-series-data-without-data-streams>>.
+TIP: <<data-streams,Data streams>> are best suited for
+<<data-streams-append-only,append-only>> use cases. If you need to update or delete existing time
+series data, you can perform update or delete operations directly on the data stream backing index.
+If you frequently send multiple documents using the same `_id` expecting last-write-wins, you may
+want to use an index alias with a write index instead. You can still use <<index-lifecycle-management,ILM>> to manage and <<index-rollover,roll over>> 
+the alias's indices. Skip to <<manage-time-series-data-without-data-streams>>.
+
+[discrete]
+[[manage-time-series-data-with-data-streams]]
+=== Manage time series data with data streams
 
 To automate rollover and management of a data stream with {ilm-init}, you:
 
 . <<ilm-gs-create-policy, Create a lifecycle policy>> that defines the appropriate
-phases and actions.
-. <<ilm-gs-apply-policy, Create an index template>> to create the data stream and
+<<ilm-index-lifecycle,phases>> and <<ilm-actions,actions>>.
+. <<ilm-gs-apply-policy, Create an index template>> to <<ilm-gs-create-the-data-stream,create the data stream>> and
 apply the ILM policy and the indices settings and mappings configurations for the backing
 indices.
 . <<ilm-gs-check-progress, Verify indices are moving through the lifecycle phases>>
 as expected.
-
-For an introduction to rolling indices, see <<index-rollover>>.
 
 IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin,
 lifecycle policies are set up automatically.
@@ -41,7 +43,7 @@ or the {ilm-init} APIs.
 
 [discrete]
 [[ilm-gs-create-policy]]
-=== Create a lifecycle policy
+==== Create a lifecycle policy
 
 A lifecycle policy specifies the phases in the index lifecycle
 and the actions to perform in each phase. A lifecycle can have up to five phases:
@@ -101,7 +103,7 @@ PUT _ilm/policy/timeseries_policy
 
 [discrete]
 [[ilm-gs-apply-policy]]
-=== Create an index template to create the data stream and apply the lifecycle policy
+==== Create an index template to create the data stream and apply the lifecycle policy
 
 To set up a data stream, first create an index template to specify the lifecycle policy. Because
 the template is for a data stream, it must also include a `data_stream` definition.
@@ -148,7 +150,7 @@ PUT _index_template/timeseries_template
 
 [discrete]
 [[ilm-gs-create-the-data-stream]]
-=== Create the data stream
+==== Create the data stream
 
 To get things started, index a document into the name or wildcard pattern defined
 in the `index_patterns` of the <<index-templates,index template>>. As long
@@ -184,12 +186,12 @@ stream's write index.
 This process repeats each time a rollover condition is met.
 You can search across all of the data stream's backing indices, managed by the `timeseries_policy`,
 with the `timeseries` data stream name.
-Write operations are routed to the current write index. Read operations will be handled by all
-backing indices.
+Write operations should be sent to the data stream name, which will route them to its current write index. 
+Read operations against the data stream will be handled by all its backing indices.
 
 [discrete]
 [[ilm-gs-check-progress]]
-=== Check lifecycle progress
+==== Check lifecycle progress
 
 To get status information for managed indices, you use the {ilm-init} explain API.
 This lets you find out things like:
@@ -282,14 +284,15 @@ DELETE /_index_template/timeseries_template
 [[manage-time-series-data-without-data-streams]]
 === Manage time series data without data streams
 
-Even though <<data-streams, data streams>> are a convenient way to scale
-and manage time series data, they are designed to be append-only. We recognise there
-might be use-cases where data needs to be updated or deleted in place and the
-data streams don't support delete and update requests directly,
-so the index APIs would need to be used directly on the data stream's backing indices.
+Even though <<data-streams, data streams>> are a convenient way to scale and manage time series
+data, they are designed to be append-only. We recognise there might be use-cases where data needs to
+be updated or deleted in place and the data streams don't support delete and update requests
+directly, so the index APIs would need to be used directly on the data stream's backing indices. In
+these cases we still recommend using a data stream.
 
-In these cases, you can use an index alias to manage indices containing the time series data
-and periodically roll over to a new index.
+If you frequently send multiple documents using the same `_id` expecting last-write-wins, you can
+use an index alias instead of a data stream to manage indices containing the time series data and
+periodically roll over to a new index.
 
 To automate rollover and management of time series indices with {ilm-init} using an index
 alias, you:
@@ -303,7 +306,7 @@ as expected.
 
 [discrete]
 [[ilm-gs-alias-apply-policy]]
-=== Create an index template to apply the lifecycle policy
+==== Create an index template to apply the lifecycle policy
 
 To automatically apply a lifecycle policy to the new write index on rollover,
 specify the policy in the index template used to create new indices.
@@ -361,7 +364,7 @@ DELETE _index_template/timeseries_template
 
 [discrete]
 [[ilm-gs-alias-bootstrap]]
-=== Bootstrap the initial time series index with a write index alias
+==== Bootstrap the initial time series index with a write index alias
 
 To get things started, you need to bootstrap an initial index and
 designate it as the write index for the rollover alias specified in your index template.
@@ -392,11 +395,11 @@ This matches the `timeseries-*` pattern, so the settings from `timeseries_templa
 
 This process repeats each time rollover conditions are met.
 You can search across all of the indices managed by the `timeseries_policy` with the `timeseries` alias.
-Write operations are routed to the current write index.
+Write operations should be sent towards the alias, which will route them to its current write index. 
 
 [discrete]
 [[ilm-gs-alias-check-progress]]
-=== Check lifecycle progress
+==== Check lifecycle progress
 
 Retrieving the status information for managed indices is very similar to the data stream case.
 See the data stream <<ilm-gs-check-progress, check progress section>> for more information.

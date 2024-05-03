@@ -5,10 +5,10 @@
 <titleabbrev>Get rollup index caps</titleabbrev>
 ++++
 
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+
 Returns the rollup capabilities of all jobs inside of a rollup index (e.g. the
 index where rollup data is stored).
-
-experimental[]
 
 [[rollup-get-rollup-index-caps-request]]
 ==== {api-request-title}

@@ -24,6 +24,11 @@ public class SearchProfileShardResultTests extends AbstractWireSerializingTestCa
     }
 
     @Override
+    protected SearchProfileShardResult mutateInstance(SearchProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SearchProfileShardResult> instanceReader() {
         return SearchProfileShardResult::new;
     }

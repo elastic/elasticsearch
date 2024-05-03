@@ -7,8 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats.MemoryStatus;
@@ -18,7 +17,7 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeStats> {
+public class ModelSizeStatsTests extends AbstractXContentSerializingTestCase<ModelSizeStats> {
 
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
@@ -62,6 +61,11 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         return createRandomized();
     }
 
+    @Override
+    protected ModelSizeStats mutateInstance(ModelSizeStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ModelSizeStats createRandomized() {
         ModelSizeStats.Builder stats = new ModelSizeStats.Builder("foo");
         if (randomBoolean()) {
@@ -89,10 +93,10 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
             stats.setTotalPartitionFieldCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            stats.setLogTime(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+            stats.setLogTime(new Date(randomTimeValue().millis()));
         }
         if (randomBoolean()) {
-            stats.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+            stats.setTimestamp(new Date(randomTimeValue().millis()));
         }
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));

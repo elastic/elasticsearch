@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 
@@ -29,17 +30,19 @@ import static org.mockito.Mockito.when;
 public class TransformInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
-        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabledDefault() {
-        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(transportService, mock(ActionFilters.class));
         assertTrue(featureSet.enabled());
     }
 
     public void testParseSearchAggs() {
-        Aggregations emptyAggs = new Aggregations(Collections.emptyList());
+        InternalAggregations emptyAggs = InternalAggregations.from(Collections.emptyList());
         SearchResponse withEmptyAggs = mock(SearchResponse.class);
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
@@ -66,19 +69,19 @@ public class TransformInfoTransportActionTests extends ESTestCase {
         );
 
         int currentStat = 1;
-        List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);
+        List<InternalAggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);
         for (String statName : PROVIDED_STATS) {
             aggs.add(buildAgg(statName, currentStat++));
         }
-        Aggregations aggregations = new Aggregations(aggs);
+        InternalAggregations aggregations = InternalAggregations.from(aggs);
         SearchResponse withAggs = mock(SearchResponse.class);
         when(withAggs.getAggregations()).thenReturn(aggregations);
 
         assertThat(TransformInfoTransportAction.parseSearchAggs(withAggs), equalTo(expectedStats));
     }
 
-    private static Aggregation buildAgg(String name, double value) {
-        NumericMetricsAggregation.SingleValue agg = mock(NumericMetricsAggregation.SingleValue.class);
+    private static InternalAggregation buildAgg(String name, double value) {
+        InternalNumericMetricsAggregation.SingleValue agg = mock(InternalNumericMetricsAggregation.SingleValue.class);
         when(agg.getName()).thenReturn(name);
         when(agg.value()).thenReturn(value);
         return agg;

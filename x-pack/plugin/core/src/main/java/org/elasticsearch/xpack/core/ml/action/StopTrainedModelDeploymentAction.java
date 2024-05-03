@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -33,17 +34,19 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/stop";
 
     public StopTrainedModelDeploymentAction() {
-        super(NAME, StopTrainedModelDeploymentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ParseField FORCE = new ParseField("force");
+        public static final ParseField FINISH_PENDING_WORK = new ParseField("finish_pending_work");
 
         private String id;
         private boolean allowNoMatch = true;
         private boolean force;
+        private boolean finishPendingWork;
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -51,6 +54,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             PARSER.declareString(Request::setId, TrainedModelConfig.MODEL_ID);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
             PARSER.declareBoolean(Request::setForce, FORCE);
+            PARSER.declareBoolean(Request::setFinishPendingWork, FINISH_PENDING_WORK);
         }
 
         public static Request parseRequest(String id, XContentParser parser) {
@@ -74,6 +78,12 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             id = in.readString();
             allowNoMatch = in.readBoolean();
             force = in.readBoolean();
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+                finishPendingWork = in.readBoolean();
+            } else {
+                finishPendingWork = false;
+            }
         }
 
         private Request() {}
@@ -102,6 +112,14 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             return force;
         }
 
+        public boolean shouldFinishPendingWork() {
+            return finishPendingWork;
+        }
+
+        public void setFinishPendingWork(boolean finishPendingWork) {
+            this.finishPendingWork = finishPendingWork;
+        }
+
         @Override
         public boolean match(Task task) {
             return StartTrainedModelDeploymentAction.TaskMatcher.match(task, id);
@@ -113,6 +131,10 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             out.writeString(id);
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+                out.writeBoolean(finishPendingWork);
+            }
         }
 
         @Override
@@ -121,13 +143,14 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), id);
             builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.field(FORCE.getPreferredName(), force);
+            builder.field(FINISH_PENDING_WORK.getPreferredName(), finishPendingWork);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, allowNoMatch, force);
+            return Objects.hash(id, allowNoMatch, force, finishPendingWork);
         }
 
         @Override
@@ -136,7 +159,10 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             if (o == null || getClass() != o.getClass()) return false;
 
             Request that = (Request) o;
-            return Objects.equals(id, that.id) && allowNoMatch == that.allowNoMatch && force == that.force;
+            return Objects.equals(id, that.id)
+                && allowNoMatch == that.allowNoMatch
+                && force == that.force
+                && finishPendingWork == that.finishPendingWork;
         }
     }
 

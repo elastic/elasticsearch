@@ -16,6 +16,8 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RegexTests extends ESTestCase {
@@ -76,6 +78,28 @@ public class RegexTests extends ESTestCase {
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", true));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
+    }
+
+    public void testArbitraryWildcardMatch() {
+        final String prefix = randomAlphaOfLengthBetween(1, 20);
+        final String suffix = randomAlphaOfLengthBetween(1, 20);
+        final String pattern1 = "*".repeat(randomIntBetween(1, 1000));
+        // dd***
+        assertTrue(Regex.simpleMatch(prefix + pattern1, prefix + randomAlphaOfLengthBetween(10, 20), randomBoolean()));
+        // ***dd
+        assertTrue(Regex.simpleMatch(pattern1 + suffix, randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        // dd***dd
+        assertTrue(Regex.simpleMatch(prefix + pattern1 + suffix, prefix + randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        // dd***dd***dd
+        final String middle = randomAlphaOfLengthBetween(1, 20);
+        final String pattern2 = "*".repeat(randomIntBetween(1, 1000));
+        assertTrue(
+            Regex.simpleMatch(
+                prefix + pattern1 + middle + pattern2 + suffix,
+                prefix + randomAlphaOfLengthBetween(10, 20) + middle + randomAlphaOfLengthBetween(10, 20) + suffix,
+                randomBoolean()
+            )
+        );
     }
 
     public void testSimpleMatch() {
@@ -188,5 +212,28 @@ public class RegexTests extends ESTestCase {
         for (String s : strings) {
             assertFalse(run.run(s));
         }
+    }
+
+    public void testSimpleMatcher() {
+        assertThat(Regex.simpleMatcher((String[]) null), falseWith("abc"));
+        assertThat(Regex.simpleMatcher(), falseWith("abc"));
+        assertThat(Regex.simpleMatcher("abc"), trueWith("abc"));
+        assertThat(Regex.simpleMatcher("abc"), falseWith("abd"));
+
+        assertThat(Regex.simpleMatcher("abc", "xyz"), trueWith("abc"));
+        assertThat(Regex.simpleMatcher("abc", "xyz"), trueWith("xyz"));
+        assertThat(Regex.simpleMatcher("abc", "xyz"), falseWith("abd"));
+        assertThat(Regex.simpleMatcher("abc", "xyz"), falseWith("xyy"));
+
+        assertThat(Regex.simpleMatcher("abc", "*"), trueWith("abc"));
+        assertThat(Regex.simpleMatcher("abc", "*"), trueWith("abd"));
+
+        assertThat(Regex.simpleMatcher("a*c"), trueWith("abc"));
+        assertThat(Regex.simpleMatcher("a*c"), falseWith("abd"));
+
+        assertThat(Regex.simpleMatcher("a*c", "x*z"), trueWith("abc"));
+        assertThat(Regex.simpleMatcher("a*c", "x*z"), trueWith("xyz"));
+        assertThat(Regex.simpleMatcher("a*c", "x*z"), falseWith("abd"));
+        assertThat(Regex.simpleMatcher("a*c", "x*z"), falseWith("xyy"));
     }
 }

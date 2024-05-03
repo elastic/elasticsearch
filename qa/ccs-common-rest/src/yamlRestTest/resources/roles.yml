@@ -1,0 +1,11 @@
+remote_search_role:
+  cluster: [ 'all' ]
+  indices:
+    - names: [ '*' ]
+      privileges: [ 'read' ]
+      allow_restricted_indices: true
+  remote_indices:
+    - names: [ '*' ]
+      privileges: [ 'read', 'read_cross_cluster' ]
+      allow_restricted_indices: true
+      clusters: [ '*' ]

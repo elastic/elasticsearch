@@ -620,54 +620,6 @@ public class CuckooFilter implements Writeable {
             blocks[elementPos + 1] = blocks[elementPos + 1] & (~0L >>> endBits) | (value << (BLOCK_SIZE - endBits));
         }
 
-        public int set(int index, long[] arr, int off, int len) {
-            assert len > 0 : "len must be > 0 (got " + len + ")";
-            assert index >= 0 && index < valueCount;
-            len = Math.min(len, valueCount - index);
-            assert off + len <= arr.length;
-
-            final int originalIndex = index;
-            final PackedInts.Encoder encoder = PackedInts.getEncoder(PackedInts.Format.PACKED, PackedInts.VERSION_CURRENT, bitsPerValue);
-
-            // go to the next block where the value does not span across two blocks
-            final int offsetInBlocks = index % encoder.longValueCount();
-            if (offsetInBlocks != 0) {
-                for (int i = offsetInBlocks; i < encoder.longValueCount() && len > 0; ++i) {
-                    set(index++, arr[off++]);
-                    --len;
-                }
-                if (len == 0) {
-                    return index - originalIndex;
-                }
-            }
-
-            // bulk set
-            assert index % encoder.longValueCount() == 0;
-            int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
-            assert (((long) index * bitsPerValue) & MOD_MASK) == 0;
-            final int iterations = len / encoder.longValueCount();
-            encoder.encode(arr, off, blocks, blockIndex, iterations);
-            final int setValues = iterations * encoder.longValueCount();
-            index += setValues;
-            len -= setValues;
-            assert len >= 0;
-
-            if (index > originalIndex) {
-                // stay at the block boundary
-                return index - originalIndex;
-            } else {
-                // no progress so far => already at a block boundary but no full block to get
-                assert index == originalIndex;
-                len = Math.min(len, size() - index);
-                assert off + len <= arr.length;
-
-                for (int i = index, o = off, end = index + len; i < end; ++i, ++o) {
-                    set(i, arr[o]);
-                }
-                return len;
-            }
-        }
-
         public long ramBytesUsed() {
             return RamUsageEstimator.alignObjectSize(
                 RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 3 * Integer.BYTES   // bpvMinusBlockSize,valueCount,bitsPerValue

@@ -11,14 +11,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
-import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 
-import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierTests extends ESTestCase {
@@ -27,7 +24,7 @@ public class VerifierTests extends ESTestCase {
     private final IndexResolution indexResolution = IndexResolution.valid(
         new EsIndex("test", loadMapping("mapping-multi-field-with-nested.json"))
     );
-    private final Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+    private final Analyzer analyzer = analyzer(indexResolution);
     private final Planner planner = new Planner();
 
     private PhysicalPlan verify(String sql) {

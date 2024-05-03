@@ -16,20 +16,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
@@ -40,6 +41,8 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -50,12 +53,14 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -69,6 +74,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -82,11 +88,9 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -112,6 +116,9 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FA
 public class TrainedModelProvider {
 
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
+    private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS = new ToXContent.MapParams(
+        Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
+    );
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
     private static final int COMPRESSED_MODEL_CHUNK_SIZE = 16 * 1024 * 1024;
@@ -121,16 +128,23 @@ public class TrainedModelProvider {
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
-    private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS = new ToXContent.MapParams(
-        Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
-    );
+    private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
-    public TrainedModelProvider(Client client, NamedXContentRegistry xContentRegistry) {
+    public TrainedModelProvider(
+        Client client,
+        TrainedModelCacheMetadataService modelCacheMetadataService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.client = client;
+        this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;
     }
 
     public void storeTrainedModel(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+        storeTrainedModel(trainedModelConfig, listener, false);
+    }
+
+    public void storeTrainedModel(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener, boolean allowOverwriting) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -167,13 +181,17 @@ public class TrainedModelProvider {
         }
 
         if (definition != null) {
-            storeTrainedModelAndDefinition(trainedModelConfig, listener);
+            storeTrainedModelAndDefinition(trainedModelConfig, listener, allowOverwriting);
         } else {
-            storeTrainedModelConfig(trainedModelConfig, listener);
+            storeTrainedModelConfig(trainedModelConfig, listener, allowOverwriting);
         }
     }
 
     public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+        storeTrainedModelConfig(trainedModelConfig, listener, false);
+    }
+
+    public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener, boolean allowOverwriting) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -187,16 +205,17 @@ public class TrainedModelProvider {
         IndexRequest request = createRequest(
             trainedModelConfig.getModelId(),
             InferenceIndexConstants.LATEST_INDEX_NAME,
-            trainedModelConfig
+            trainedModelConfig,
+            allowOverwriting
         );
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
+            TransportIndexAction.TYPE,
             request,
-            ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
+            ActionListener.wrap(indexResponse -> refreshCacheVersion(listener), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
                         new ResourceAlreadyExistsException(
@@ -226,6 +245,16 @@ public class TrainedModelProvider {
         Vocabulary vocabulary,
         ActionListener<Void> listener
     ) {
+        storeTrainedModelVocabulary(modelId, vocabularyConfig, vocabulary, listener, false);
+    }
+
+    public void storeTrainedModelVocabulary(
+        String modelId,
+        VocabularyConfig vocabularyConfig,
+        Vocabulary vocabulary,
+        ActionListener<Void> listener,
+        boolean allowOverwriting
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             listener.onFailure(new ResourceAlreadyExistsException(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId)));
             return;
@@ -233,8 +262,8 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
-            createRequest(VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary).setRefreshPolicy(
+            TransportIndexAction.TYPE,
+            createRequest(VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary, allowOverwriting).setRefreshPolicy(
                 WriteRequest.RefreshPolicy.IMMEDIATE
             ),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
@@ -260,6 +289,15 @@ public class TrainedModelProvider {
         String index,
         ActionListener<Void> listener
     ) {
+        storeTrainedModelDefinitionDoc(trainedModelDefinitionDoc, index, listener, false);
+    }
+
+    public void storeTrainedModelDefinitionDoc(
+        TrainedModelDefinitionDoc trainedModelDefinitionDoc,
+        String index,
+        ActionListener<Void> listener,
+        boolean allowOverwriting
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelDefinitionDoc.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -272,8 +310,8 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
-            createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc),
+            TransportIndexAction.TYPE,
+            createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc, allowOverwriting),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
@@ -303,6 +341,14 @@ public class TrainedModelProvider {
     }
 
     public void storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata, ActionListener<Void> listener) {
+        storeTrainedModelMetadata(trainedModelMetadata, listener, false);
+    }
+
+    public void storeTrainedModelMetadata(
+        TrainedModelMetadata trainedModelMetadata,
+        ActionListener<Void> listener,
+        boolean allowOverwriting
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelMetadata.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -314,8 +360,13 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
-            createRequest(trainedModelMetadata.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelMetadata),
+            TransportIndexAction.TYPE,
+            createRequest(
+                trainedModelMetadata.getDocId(),
+                InferenceIndexConstants.LATEST_INDEX_NAME,
+                trainedModelMetadata,
+                allowOverwriting
+            ),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     listener.onFailure(
@@ -336,7 +387,11 @@ public class TrainedModelProvider {
         );
     }
 
-    public void getTrainedModelMetadata(Collection<String> modelIds, ActionListener<Map<String, TrainedModelMetadata>> listener) {
+    public void getTrainedModelMetadata(
+        Collection<String> modelIds,
+        @Nullable TaskId parentTaskId,
+        ActionListener<Map<String, TrainedModelMetadata>> listener
+    ) {
         SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
             .setQuery(
                 QueryBuilders.constantScoreQuery(
@@ -349,7 +404,10 @@ public class TrainedModelProvider {
             // First find the latest index
             .addSort("_index", SortOrder.DESC)
             .request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelIds)));
                 return;
@@ -369,7 +427,7 @@ public class TrainedModelProvider {
         }));
     }
 
-    public void refreshInferenceIndex(ActionListener<RefreshResponse> listener) {
+    public void refreshInferenceIndex(ActionListener<BroadcastResponse> listener) {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
@@ -379,7 +437,11 @@ public class TrainedModelProvider {
         );
     }
 
-    private void storeTrainedModelAndDefinition(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+    private void storeTrainedModelAndDefinition(
+        TrainedModelConfig trainedModelConfig,
+        ActionListener<Boolean> listener,
+        boolean allowOverwriting
+    ) {
 
         List<TrainedModelDefinitionDoc> trainedModelDefinitionDocs = new ArrayList<>();
         try {
@@ -420,12 +482,8 @@ public class TrainedModelProvider {
 
         BulkRequestBuilder bulkRequest = client.prepareBulk(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(createRequest(trainedModelConfig.getModelId(), trainedModelConfig));
-        trainedModelDefinitionDocs.forEach(
-            defDoc -> bulkRequest.add(
-                createRequest(TrainedModelDefinitionDoc.docId(trainedModelConfig.getModelId(), defDoc.getDocNum()), defDoc)
-            )
-        );
+            .add(createRequest(trainedModelConfig.getModelId(), trainedModelConfig, allowOverwriting));
+        trainedModelDefinitionDocs.forEach(defDoc -> bulkRequest.add(createRequest(defDoc.getDocId(), defDoc, allowOverwriting)));
 
         ActionListener<Boolean> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
@@ -470,10 +528,11 @@ public class TrainedModelProvider {
                 wrappedListener.onFailure(firstFailure);
                 return;
             }
-            wrappedListener.onResponse(true);
+
+            refreshCacheVersion(wrappedListener);
         }, wrappedListener::onFailure);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportBulkAction.TYPE, bulkRequest.request(), bulkResponseActionListener);
     }
 
     /**
@@ -541,15 +600,17 @@ public class TrainedModelProvider {
     public void getTrainedModel(
         final String modelId,
         final GetTrainedModelsAction.Includes includes,
+        @Nullable TaskId parentTaskId,
         final ActionListener<TrainedModelConfig> finalListener
     ) {
-        getTrainedModel(modelId, Collections.emptySet(), includes, finalListener);
+        getTrainedModel(modelId, Collections.emptySet(), includes, parentTaskId, finalListener);
     }
 
     public void getTrainedModel(
         final String modelId,
         final Set<String> modelAliases,
         final GetTrainedModelsAction.Includes includes,
+        @Nullable TaskId parentTaskId,
         final ActionListener<TrainedModelConfig> finalListener
     ) {
 
@@ -571,7 +632,7 @@ public class TrainedModelProvider {
                 finalListener.onResponse(modelBuilder.build());
                 return;
             }
-            this.getTrainedModelMetadata(Collections.singletonList(modelId), ActionListener.wrap(metadata -> {
+            this.getTrainedModelMetadata(Collections.singletonList(modelId), parentTaskId, ActionListener.wrap(metadata -> {
                 TrainedModelMetadata modelMetadata = metadata.get(modelId);
                 if (modelMetadata != null) {
                     if (includes.isIncludeTotalFeatureImportance()) {
@@ -604,11 +665,14 @@ public class TrainedModelProvider {
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
             .request();
+        if (parentTaskId != null) {
+            trainedModelConfigSearch.setParentTask(parentTaskId);
+        }
 
         ActionListener<SearchResponse> trainedModelSearchHandler = ActionListener.wrap(modelSearchResponse -> {
             TrainedModelConfig.Builder builder;
             try {
-                builder = handleHits(modelSearchResponse.getHits().getHits(), modelId, this::parseModelConfigLenientlyFromSource).get(0);
+                builder = handleHits(modelSearchResponse.getHits(), modelId, this::parseModelConfigLenientlyFromSource).get(0);
             } catch (ResourceNotFoundException ex) {
                 getTrainedModelListener.onFailure(
                     new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId))
@@ -635,12 +699,18 @@ public class TrainedModelProvider {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                SearchAction.INSTANCE,
-                ChunkedTrainedModelRestorer.buildSearch(client, modelId, InferenceIndexConstants.INDEX_PATTERN, MAX_NUM_DEFINITION_DOCS),
+                TransportSearchAction.TYPE,
+                ChunkedTrainedModelRestorer.buildSearch(
+                    client,
+                    modelId,
+                    InferenceIndexConstants.INDEX_PATTERN,
+                    MAX_NUM_DEFINITION_DOCS,
+                    parentTaskId
+                ),
                 ActionListener.wrap(definitionSearchResponse -> {
                     try {
                         List<TrainedModelDefinitionDoc> docs = handleHits(
-                            definitionSearchResponse.getHits().getHits(),
+                            definitionSearchResponse.getHits(),
                             modelId,
                             (bytes, resourceId) -> ChunkedTrainedModelRestorer.parseModelDefinitionDocLenientlyFromSource(
                                 bytes,
@@ -669,19 +739,21 @@ public class TrainedModelProvider {
                 }, getTrainedModelListener::onFailure)
             );
         }, getTrainedModelListener::onFailure);
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, trainedModelConfigSearch, trainedModelSearchHandler);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, trainedModelConfigSearch, trainedModelSearchHandler);
     }
 
     public void getTrainedModels(
         Set<String> modelIds,
         GetTrainedModelsAction.Includes includes,
         boolean allowNoResources,
+        @Nullable TaskId parentTaskId,
         final ActionListener<List<TrainedModelConfig>> finalListener
     ) {
         getTrainedModels(
             modelIds.stream().collect(Collectors.toMap(Function.identity(), _k -> Collections.emptySet())),
             includes,
             allowNoResources,
+            parentTaskId,
             finalListener
         );
     }
@@ -697,6 +769,7 @@ public class TrainedModelProvider {
         Map<String, Set<String>> modelIds,
         GetTrainedModelsAction.Includes includes,
         boolean allowNoResources,
+        @Nullable TaskId parentTaskId,
         final ActionListener<List<TrainedModelConfig>> finalListener
     ) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(
@@ -709,6 +782,9 @@ public class TrainedModelProvider {
             .setQuery(queryBuilder)
             .setSize(modelIds.size())
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
         List<TrainedModelConfig.Builder> configs = new ArrayList<>(modelIds.size());
         Set<String> modelsInIndex = Sets.difference(modelIds.keySet(), MODELS_STORED_AS_RESOURCE);
         Set<String> modelsAsResource = Sets.intersection(MODELS_STORED_AS_RESOURCE, modelIds.keySet());
@@ -744,6 +820,7 @@ public class TrainedModelProvider {
             }
             this.getTrainedModelMetadata(
                 modelIds.keySet(),
+                parentTaskId,
                 ActionListener.wrap(metadata -> finalListener.onResponse(modelBuilders.stream().map(builder -> {
                     TrainedModelMetadata modelMetadata = metadata.get(builder.getModelId());
                     if (modelMetadata != null) {
@@ -803,7 +880,7 @@ public class TrainedModelProvider {
             getTrainedModelListener.onResponse(configs);
         }, getTrainedModelListener::onFailure);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, configSearchHandler);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, configSearchHandler);
     }
 
     public void deleteTrainedModel(String modelId, ActionListener<Boolean> listener) {
@@ -825,7 +902,8 @@ public class TrainedModelProvider {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return;
             }
-            listener.onResponse(true);
+
+            refreshCacheVersion(listener);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
@@ -835,12 +913,31 @@ public class TrainedModelProvider {
         }));
     }
 
+    /**
+     * Returns a Tuple of
+     *  - hit count: the number of matching model Ids
+     *  - Map model id -> aliases: All matched model Ids and
+     *    the list of aliases that reference the model Id
+     *
+     * @param idExpression The expression to expand
+     * @param allowNoResources When wildcard expressions are used allow
+     *                         no matches (don't error)
+     * @param pageParams paging
+     * @param tags Tags the model must contain
+     * @param modelAliasMetadata Aliases
+     * @param parentTaskId Optional parent task Id
+     * @param previouslyMatchedIds Ids that have already been matched (e.g. deployment Id).
+     *                             It is not an error if these Ids are not matched in the query
+     * @param idsListener The listener
+     */
     public void expandIds(
         String idExpression,
         boolean allowNoResources,
         PageParams pageParams,
         Set<String> tags,
         ModelAliasMetadata modelAliasMetadata,
+        @Nullable TaskId parentTaskId,
+        Set<String> previouslyMatchedIds,
         ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener
     ) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
@@ -902,6 +999,9 @@ public class TrainedModelProvider {
                 indicesOptions
             )
         ).source(sourceBuilder);
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
@@ -941,6 +1041,7 @@ public class TrainedModelProvider {
                 // Reverse lookup to see what model aliases were matched by their found trained model IDs
                 ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
                 requiredMatches.filterMatchedIds(matchedTokens);
+                requiredMatches.filterMatchedIds(previouslyMatchedIds);
                 if (requiredMatches.hasUnmatchedIds()) {
                     idsListener.onFailure(ExceptionsHelper.missingTrainedModel(requiredMatches.unmatchedIdsString()));
                 } else {
@@ -951,12 +1052,15 @@ public class TrainedModelProvider {
         );
     }
 
-    public void getInferenceStats(String[] modelIds, ActionListener<List<InferenceStats>> listener) {
+    public void getInferenceStats(String[] modelIds, @Nullable TaskId parentTaskId, ActionListener<List<InferenceStats>> listener) {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        Arrays.stream(modelIds).map(this::buildStatsSearchRequest).forEach(multiSearchRequest::add);
+        Arrays.stream(modelIds).map(TrainedModelProvider::buildStatsSearchRequest).forEach(multiSearchRequest::add);
         if (multiSearchRequest.requests().isEmpty()) {
             listener.onResponse(Collections.emptyList());
             return;
+        }
+        if (parentTaskId != null) {
+            multiSearchRequest.setParentTask(parentTaskId);
         }
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
@@ -1008,7 +1112,7 @@ public class TrainedModelProvider {
         );
     }
 
-    private SearchRequest buildStatsSearchRequest(String modelId) {
+    private static SearchRequest buildStatsSearchRequest(String modelId) {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceStats.MODEL_ID.getPreferredName(), modelId))
             .filter(QueryBuilders.termQuery(InferenceStats.TYPE.getPreferredName(), InferenceStats.NAME));
@@ -1041,7 +1145,7 @@ public class TrainedModelProvider {
             );
     }
 
-    private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
+    private static InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
         if (response.getAggregations() == null) {
             logger.trace(() -> "[" + modelId + "] no previously stored stats found");
             return null;
@@ -1107,8 +1211,7 @@ public class TrainedModelProvider {
         }
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
                 getClass().getResourceAsStream(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT)
             )
         ) {
@@ -1151,7 +1254,7 @@ public class TrainedModelProvider {
         return boolQuery;
     }
 
-    private Set<String> matchedResourceIds(String[] tokens) {
+    private static Set<String> matchedResourceIds(String[] tokens) {
         if (Strings.isAllOrWildcard(tokens)) {
             return MODELS_STORED_AS_RESOURCE;
         }
@@ -1174,40 +1277,16 @@ public class TrainedModelProvider {
         return Collections.unmodifiableSet(matchedModels);
     }
 
-    private static <T> T handleSearchItem(
-        MultiSearchResponse.Item item,
-        String resourceId,
-        CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently
-    ) throws Exception {
-        return handleSearchItems(item, resourceId, parseLeniently).get(0);
-    }
-
-    // NOTE: This ignores any results that are in a different index than the first one seen in the search response.
-    private static <T> List<T> handleSearchItems(
-        MultiSearchResponse.Item item,
-        String resourceId,
-        CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently
-    ) throws Exception {
-        if (item.isFailure()) {
-            throw item.getFailure();
-        }
-        if (item.getResponse().getHits().getHits().length == 0) {
-            throw new ResourceNotFoundException(resourceId);
-        }
-        return handleHits(item.getResponse().getHits().getHits(), resourceId, parseLeniently);
-
-    }
-
     private static <T> List<T> handleHits(
-        SearchHit[] hits,
+        SearchHits hits,
         String resourceId,
         CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently
     ) throws Exception {
-        if (hits.length == 0) {
+        if (hits.getHits().length == 0) {
             throw new ResourceNotFoundException(resourceId);
         }
-        List<T> results = new ArrayList<>(hits.length);
-        String initialIndex = hits[0].getIndex();
+        List<T> results = new ArrayList<>(hits.getHits().length);
+        String initialIndex = hits.getAt(0).getIndex();
         for (SearchHit hit : hits) {
             // We don't want to spread across multiple backing indices
             if (hit.getIndex().equals(initialIndex)) {
@@ -1252,11 +1331,7 @@ public class TrainedModelProvider {
     }
 
     private TrainedModelConfig.Builder parseModelConfigLenientlyFromSource(BytesReference source, String modelId) throws IOException {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-        ) {
+        try (XContentParser parser = createParser(source)) {
             TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
 
             if (builder.getModelType() == null) {
@@ -1274,11 +1349,7 @@ public class TrainedModelProvider {
     }
 
     private TrainedModelMetadata parseMetadataLenientlyFromSource(BytesReference source, String modelId) throws IOException {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-        ) {
+        try (XContentParser parser = createParser(source)) {
             return TrainedModelMetadata.fromXContent(parser, true);
         } catch (IOException e) {
             logger.error(() -> "[" + modelId + "] failed to parse model metadata", e);
@@ -1286,22 +1357,41 @@ public class TrainedModelProvider {
         }
     }
 
-    private IndexRequest createRequest(String docId, String index, ToXContentObject body) {
-        return createRequest(new IndexRequest(index), docId, body);
+    private XContentParser createParser(BytesReference source) throws IOException {
+        return XContentHelper.createParserNotCompressed(
+            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+            source,
+            XContentType.JSON
+        );
     }
 
-    private IndexRequest createRequest(String docId, ToXContentObject body) {
-        return createRequest(new IndexRequest(), docId, body);
+    private static IndexRequest createRequest(String docId, String index, ToXContentObject body, boolean allowOverwriting) {
+        return createRequest(new IndexRequest(index), docId, body, allowOverwriting);
     }
 
-    private IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body) {
+    private static IndexRequest createRequest(String docId, ToXContentObject body, boolean allowOverwriting) {
+        return createRequest(new IndexRequest(), docId, body, allowOverwriting);
+    }
+
+    private static IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body, boolean allowOverwriting) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
-            return request.opType(DocWriteRequest.OpType.CREATE).id(docId).source(source);
+            var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
+
+            return request.opType(operation).id(docId).source(source);
         } catch (IOException ex) {
             // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
             // that is not the users fault. We did something wrong and should throw.
             throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
+    }
+
+    private void refreshCacheVersion(ActionListener<Boolean> listener) {
+        modelCacheMetadataService.updateCacheVersion(ActionListener.wrap(resp -> {
+            // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
+            // Errors should be reported through the onFailure method of the listener.
+            assert resp.equals(AcknowledgedResponse.TRUE);
+            listener.onResponse(true);
+        }, listener::onFailure));
     }
 }

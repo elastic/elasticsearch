@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -42,7 +44,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -108,7 +109,12 @@ public class AggConstructionContentionBenchmark {
     @Setup
     public void setup() {
         breakerService = switch (breaker) {
-            case "real", "preallocate" -> new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+            case "real", "preallocate" -> new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
+                Settings.EMPTY,
+                List.of(),
+                clusterSettings
+            );
             case "noop" -> new NoneCircuitBreakerService();
             default -> throw new UnsupportedOperationException();
         };
@@ -151,7 +157,6 @@ public class AggConstructionContentionBenchmark {
 
         private final CircuitBreaker breaker;
         private final PreallocatedCircuitBreakerService preallocated;
-        private final MultiBucketConsumer multiBucketConsumer;
 
         DummyAggregationContext(long bytesToPreallocate) {
             CircuitBreakerService breakerService;
@@ -167,7 +172,6 @@ public class AggConstructionContentionBenchmark {
                 preallocated = null;
             }
             breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-            multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
         }
 
         @Override
@@ -210,7 +214,7 @@ public class AggConstructionContentionBenchmark {
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
             }, index, ft.name());
-            return ft.fielddataBuilder("test", this::lookup).build(indexFieldDataCache, breakerService);
+            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(indexFieldDataCache, breakerService);
         }
 
         @Override
@@ -224,11 +228,6 @@ public class AggConstructionContentionBenchmark {
         @Override
         public Set<String> getMatchingFieldNames(String pattern) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isFieldMapped(String field) {
-            return field.startsWith("int");
         }
 
         @Override
@@ -272,6 +271,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public ClusterSettings getClusterSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -297,8 +301,13 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public MultiBucketConsumer multiBucketConsumer() {
-            return multiBucketConsumer;
+        public void removeReleasable(Aggregator aggregator) {
+            releaseMe.remove(aggregator);
+        }
+
+        @Override
+        public int maxBuckets() {
+            return Integer.MAX_VALUE;
         }
 
         @Override

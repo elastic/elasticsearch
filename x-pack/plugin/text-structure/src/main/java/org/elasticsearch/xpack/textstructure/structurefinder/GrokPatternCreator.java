@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
 import java.util.ArrayList;
@@ -33,6 +35,9 @@ import java.util.stream.Collectors;
  */
 public final class GrokPatternCreator {
 
+    private static final boolean ECS_COMPATIBILITY_DISABLED = false;
+    private static final boolean ECS_COMPATIBILITY_ENABLED = true;
+
     private static final Logger logger = LogManager.getLogger(GrokPatternCreator.class);
     private static final Map<Character, Boolean> PUNCTUATION_OR_SPACE_NEEDS_ESCAPING;
     static {
@@ -51,60 +56,131 @@ public final class GrokPatternCreator {
     /**
      * Grok patterns that are designed to match the whole message, not just a part of it.
      */
-    private static final List<FullMatchGrokPatternCandidate> FULL_MATCH_GROK_PATTERNS = Arrays.asList(
-        FullMatchGrokPatternCandidate.fromGrokPatternName("BACULA_LOGLINE", "bts"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("CATALINALOG", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("COMBINEDAPACHELOG", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("COMMONAPACHELOG", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("ELB_ACCESS_LOG", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("HAPROXYHTTP", "syslog_timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("HAPROXYTCP", "syslog_timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("HTTPD20_ERRORLOG", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("HTTPD24_ERRORLOG", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("NAGIOSLOGLINE", "nagios_epoch"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("NETSCREENSESSIONLOG", "date"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("RAILS3", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("RUBY_LOGGER", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("SHOREWALL", "timestamp"),
-        FullMatchGrokPatternCandidate.fromGrokPatternName("TOMCATLOG", "timestamp")
+    private static final List<FullMatchGrokPatternCandidate> FULL_MATCH_GROK_PATTERNS_LEGACY = Arrays.asList(
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("BACULA_LOGLINE", "bts"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("CATALINALOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("COMBINEDAPACHELOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("COMMONAPACHELOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("ELB_ACCESS_LOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("HAPROXYHTTP", "syslog_timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("HAPROXYTCP", "syslog_timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("HTTPD20_ERRORLOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("HTTPD24_ERRORLOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("NAGIOSLOGLINE", "nagios_epoch"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("NETSCREENSESSIONLOG", "date"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("RAILS3", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("RUBY_LOGGER", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("SHOREWALL", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameLegacy("TOMCATLOG", "timestamp")
+    );
+
+    private static final List<FullMatchGrokPatternCandidate> FULL_MATCH_GROK_PATTERNS_ECS = Arrays.asList(
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("BACULA_LOGLINE", "bts"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("CATALINALOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("COMBINEDAPACHELOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("COMMONAPACHELOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("ELB_ACCESS_LOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("HAPROXYHTTP", "syslog_timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("HAPROXYTCP", "syslog_timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("HTTPD20_ERRORLOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("HTTPD24_ERRORLOG", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("NAGIOSLOGLINE", "nagios_epoch"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("NETSCREENSESSIONLOG", "date"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("RAILS3", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("RUBY_LOGGER", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("SHOREWALL", "timestamp"),
+        FullMatchGrokPatternCandidate.fromGrokPatternNameEcs("TOMCATLOG", "timestamp")
     );
 
     /**
      * The first match in this list will be chosen, so it needs to be ordered
      * such that more generic patterns come after more specific patterns.
      */
-    private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS = Arrays.asList(
-        new ValueOnlyGrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC822", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC2822", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("DATESTAMP_OTHER", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("DATESTAMP_EVENTLOG", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("HTTPDERROR_DATE", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("SYSLOGTIMESTAMP", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("HTTPDATE", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("DATESTAMP", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("LOGLEVEL", "keyword", "loglevel"),
-        new ValueOnlyGrokPatternCandidate("URI", "keyword", "uri"),
-        new ValueOnlyGrokPatternCandidate("UUID", "keyword", "uuid"),
-        new ValueOnlyGrokPatternCandidate("MAC", "keyword", "macaddress"),
+    private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS_LEGACY = Arrays.asList(
+        new ValueOnlyGrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC822", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC2822", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_OTHER", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_EVENTLOG", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("HTTPDERROR_DATE", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("SYSLOGTIMESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("HTTPDATE", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("LOGLEVEL", "keyword", "loglevel", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("URI", "keyword", "uri", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("UUID", "keyword", "uuid", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("MAC", "keyword", "macaddress", ECS_COMPATIBILITY_DISABLED),
         // Can't use \b as the breaks, because slashes are not "word" characters
-        new ValueOnlyGrokPatternCandidate("PATH", "keyword", "path", "(?<!\\w)", "(?!\\w)"),
-        new ValueOnlyGrokPatternCandidate("EMAILADDRESS", "keyword", "email"),
+        new ValueOnlyGrokPatternCandidate("PATH", "keyword", "path", "(?<!\\w)", "(?!\\w)", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("EMAILADDRESS", "keyword", "email", ECS_COMPATIBILITY_DISABLED),
         // TODO: would be nice to have IPORHOST here, but HOSTNAME matches almost all words
-        new ValueOnlyGrokPatternCandidate("IP", "ip", "ipaddress"),
-        new ValueOnlyGrokPatternCandidate("DATE", "date", "date"),
+        new ValueOnlyGrokPatternCandidate("IP", "ip", "ipaddress", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("DATE", "date", "date", ECS_COMPATIBILITY_DISABLED),
         // A time with no date cannot be stored in a field of type "date", hence "keyword"
-        new ValueOnlyGrokPatternCandidate("TIME", "keyword", "time"),
+        new ValueOnlyGrokPatternCandidate("TIME", "keyword", "time", ECS_COMPATIBILITY_DISABLED),
         // This already includes pre/post break conditions
-        new ValueOnlyGrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", ""),
+        new ValueOnlyGrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", "", ECS_COMPATIBILITY_DISABLED),
         // Disallow +, - and . before numbers, as well as "word" characters, otherwise we'll pick
         // up numeric suffices too eagerly
-        new ValueOnlyGrokPatternCandidate("INT", "long", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)"),
-        new ValueOnlyGrokPatternCandidate("NUMBER", "double", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)"),
-        new ValueOnlyGrokPatternCandidate("BASE16NUM", "keyword", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\w)")
+        new ValueOnlyGrokPatternCandidate("INT", "long", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate("NUMBER", "double", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)", ECS_COMPATIBILITY_DISABLED),
+        new ValueOnlyGrokPatternCandidate(
+            "BASE16NUM",
+            "keyword",
+            "field",
+            "(?<![\\w.+-])",
+            "(?![\\w+-]|\\.\\w)",
+            ECS_COMPATIBILITY_DISABLED
+        )
+        // TODO: also unfortunately can't have USERNAME in the list as it matches too broadly
+        // Fixing these problems with overly broad matches would require some extra intelligence
+        // to be added to remove inappropriate matches. One idea would be to use a dictionary,
+        // but that doesn't necessarily help as "jay" could be a username but is also a dictionary
+        // word (plus there's the international headache with relying on dictionaries). Similarly,
+        // hostnames could also be dictionary words - I've worked on machines called "hippo" and
+        // "scarf" in the past. Another idea would be to look at the adjacent characters and
+        // apply some heuristic based on those.
+    );
+
+    /**
+     * The first match in this list will be chosen, so it needs to be ordered
+     * such that more generic patterns come after more specific patterns.
+     */
+    private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS_ECS = Arrays.asList(
+        new ValueOnlyGrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC822", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC2822", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_OTHER", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_EVENTLOG", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("HTTPDERROR_DATE", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("SYSLOGTIMESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("HTTPDATE", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP", "date", "extra_timestamp", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("LOGLEVEL", "keyword", "log.level", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("URI", "keyword", "url.original", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("UUID", "keyword", "uuid", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("MAC", "keyword", "macaddress", ECS_COMPATIBILITY_ENABLED),
+        // Can't use \b as the breaks, because slashes are not "word" characters
+        new ValueOnlyGrokPatternCandidate("PATH", "keyword", "path", "(?<!\\w)", "(?!\\w)", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("EMAILADDRESS", "keyword", "email", ECS_COMPATIBILITY_ENABLED),
+        // TODO: would be nice to have IPORHOST here, but HOSTNAME matches almost all words
+        new ValueOnlyGrokPatternCandidate("IP", "ip", "ipaddress", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("DATE", "date", "date", ECS_COMPATIBILITY_ENABLED),
+        // A time with no date cannot be stored in a field of type "date", hence "keyword"
+        new ValueOnlyGrokPatternCandidate("TIME", "keyword", "time", ECS_COMPATIBILITY_ENABLED),
+        // This already includes pre/post break conditions
+        new ValueOnlyGrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", "", ECS_COMPATIBILITY_ENABLED),
+        // Disallow +, - and . before numbers, as well as "word" characters, otherwise we'll pick
+        // up numeric suffices too eagerly
+        new ValueOnlyGrokPatternCandidate("INT", "long", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("NUMBER", "double", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)", ECS_COMPATIBILITY_ENABLED),
+        new ValueOnlyGrokPatternCandidate("BASE16NUM", "keyword", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\w)", ECS_COMPATIBILITY_ENABLED)
         // TODO: also unfortunately can't have USERNAME in the list as it matches too broadly
         // Fixing these problems with overly broad matches would require some extra intelligence
         // to be added to remove inappropriate matches. One idea would be to use a dictionary,
@@ -128,10 +204,11 @@ public final class GrokPatternCreator {
      */
     private final Map<String, Object> mappings;
     private final Map<String, FieldStats> fieldStats;
-    private final Map<String, String> grokPatternDefinitions;
+    private final PatternBank grokPatternBank;
     private final Map<String, Integer> fieldNameCountStore = new HashMap<>();
     private final StringBuilder overallGrokPatternBuilder = new StringBuilder();
     private final TimeoutChecker timeoutChecker;
+    private final boolean ecsCompatibility;
 
     /**
      *
@@ -142,6 +219,7 @@ public final class GrokPatternCreator {
      * @param fieldStats Will be updated with field stats for the fields in the returned pattern, if non-<code>null</code>.
      * @param customGrokPatternDefinitions Custom Grok pattern definitions to add to the built-in ones.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility The mode of compatibility with ECS compliant Grok patterns.
      */
     public GrokPatternCreator(
         List<String> explanation,
@@ -149,19 +227,16 @@ public final class GrokPatternCreator {
         Map<String, Object> mappings,
         Map<String, FieldStats> fieldStats,
         Map<String, String> customGrokPatternDefinitions,
-        TimeoutChecker timeoutChecker
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
     ) {
         this.explanation = Objects.requireNonNull(explanation);
         this.sampleMessages = Collections.unmodifiableCollection(sampleMessages);
         this.mappings = mappings;
         this.fieldStats = fieldStats;
-        if (customGrokPatternDefinitions.isEmpty()) {
-            grokPatternDefinitions = Grok.getBuiltinPatterns(false);
-        } else {
-            grokPatternDefinitions = new HashMap<>(Grok.getBuiltinPatterns(false));
-            grokPatternDefinitions.putAll(customGrokPatternDefinitions);
-        }
+        this.grokPatternBank = GrokBuiltinPatterns.get(ecsCompatibility).extendWith(customGrokPatternDefinitions);
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
+        this.ecsCompatibility = ecsCompatibility;
     }
 
     /**
@@ -172,10 +247,10 @@ public final class GrokPatternCreator {
      */
     public Tuple<String, String> findFullLineGrokPattern(String timestampField) {
 
-        for (FullMatchGrokPatternCandidate candidate : FULL_MATCH_GROK_PATTERNS) {
+        for (FullMatchGrokPatternCandidate candidate : ecsCompatibility ? FULL_MATCH_GROK_PATTERNS_ECS : FULL_MATCH_GROK_PATTERNS_LEGACY) {
             if (timestampField == null || timestampField.equals(candidate.getTimeField())) {
                 if (candidate.matchesAll(sampleMessages, timeoutChecker)) {
-                    return candidate.processMatch(explanation, sampleMessages, mappings, fieldStats, timeoutChecker);
+                    return candidate.processMatch(explanation, sampleMessages, mappings, fieldStats, timeoutChecker, ecsCompatibility);
                 }
             }
         }
@@ -195,10 +270,10 @@ public final class GrokPatternCreator {
         FullMatchGrokPatternCandidate candidate = FullMatchGrokPatternCandidate.fromGrokPattern(
             grokPattern,
             timestampField,
-            grokPatternDefinitions
+            grokPatternBank
         );
         if (candidate.matchesAll(sampleMessages, timeoutChecker)) {
-            candidate.processMatch(explanation, sampleMessages, mappings, fieldStats, timeoutChecker);
+            candidate.processMatch(explanation, sampleMessages, mappings, fieldStats, timeoutChecker, ecsCompatibility);
         } else {
             throw new IllegalArgumentException("Supplied Grok pattern [" + grokPattern + "] does not match sample messages");
         }
@@ -215,14 +290,18 @@ public final class GrokPatternCreator {
 
         overallGrokPatternBuilder.setLength(0);
 
-        GrokPatternCandidate seedCandidate = new PrecalculatedMappingGrokPatternCandidate(
-            seedPatternName,
-            seedMapping,
-            seedFieldName,
-            grokPatternDefinitions
-        );
+        if (seedPatternName == null) {
+            appendBestGrokMatchForStrings(true, sampleMessages, false, 0);
+        } else {
+            GrokPatternCandidate seedCandidate = new PrecalculatedMappingGrokPatternCandidate(
+                seedPatternName,
+                seedMapping,
+                seedFieldName,
+                grokPatternBank
+            );
 
-        processCandidateAndSplit(seedCandidate, true, sampleMessages, false, 0, false, 0);
+            processCandidateAndSplit(seedCandidate, true, sampleMessages, false, 0, false, 0);
+        }
 
         return overallGrokPatternBuilder.toString().replace("\t", "\\t").replace("\n", "\\n");
     }
@@ -260,7 +339,8 @@ public final class GrokPatternCreator {
             epilogues,
             mappings,
             fieldStats,
-            timeoutChecker
+            timeoutChecker,
+            ecsCompatibility
         );
         appendBestGrokMatchForStrings(false, prefaces, ignoreKeyValueCandidateLeft, ignoreValueOnlyCandidatesLeft);
         overallGrokPatternBuilder.append(patternBuilderContent);
@@ -288,9 +368,12 @@ public final class GrokPatternCreator {
                 bestCandidate = kvCandidate;
             } else {
                 ignoreKeyValueCandidate = true;
-                for (GrokPatternCandidate candidate : ORDERED_CANDIDATE_GROK_PATTERNS.subList(
+                List<GrokPatternCandidate> orderedCandidateGrokPatterns = ecsCompatibility
+                    ? ORDERED_CANDIDATE_GROK_PATTERNS_ECS
+                    : ORDERED_CANDIDATE_GROK_PATTERNS_LEGACY;
+                for (GrokPatternCandidate candidate : orderedCandidateGrokPatterns.subList(
                     ignoreValueOnlyCandidates,
-                    ORDERED_CANDIDATE_GROK_PATTERNS.size()
+                    orderedCandidateGrokPatterns.size()
                 )) {
                     if (candidate.matchesAll(snippets)) {
                         bestCandidate = candidate;
@@ -518,7 +601,8 @@ public final class GrokPatternCreator {
             Collection<String> epilogues,
             Map<String, Object> mappings,
             Map<String, FieldStats> fieldStats,
-            TimeoutChecker timeoutChecker
+            TimeoutChecker timeoutChecker,
+            boolean ecsCompatibility
         );
     }
 
@@ -544,15 +628,16 @@ public final class GrokPatternCreator {
          * @param grokPatternName Name of the Grok pattern to try to match - must match one defined in Logstash.
          * @param mappingType     Data type for field in Elasticsearch mappings.
          * @param fieldName       Name of the field to extract from the match.
+         * @param ecsCompatibility The mode of compatibility with ECS compliant Grok patterns.
          */
-        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName) {
+        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, boolean ecsCompatibility) {
             this(
                 grokPatternName,
                 Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType),
                 fieldName,
                 "\\b",
                 "\\b",
-                Grok.getBuiltinPatterns(false)
+                GrokBuiltinPatterns.get(ecsCompatibility)
             );
         }
 
@@ -562,12 +647,7 @@ public final class GrokPatternCreator {
          * @param fieldName              Name of the field to extract from the match.
          * @param grokPatternDefinitions Definitions of Grok patterns to be used.
          */
-        ValueOnlyGrokPatternCandidate(
-            String grokPatternName,
-            String mappingType,
-            String fieldName,
-            Map<String, String> grokPatternDefinitions
-        ) {
+        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, PatternBank grokPatternDefinitions) {
             this(
                 grokPatternName,
                 Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType),
@@ -584,15 +664,23 @@ public final class GrokPatternCreator {
          * @param fieldName       Name of the field to extract from the match.
          * @param preBreak        Only consider the match if it's broken from the previous text by this.
          * @param postBreak       Only consider the match if it's broken from the following text by this.
+         * @param ecsCompatibility The mode of compatibility with ECS compliant Grok patterns.
          */
-        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak, String postBreak) {
+        ValueOnlyGrokPatternCandidate(
+            String grokPatternName,
+            String mappingType,
+            String fieldName,
+            String preBreak,
+            String postBreak,
+            boolean ecsCompatibility
+        ) {
             this(
                 grokPatternName,
                 Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType),
                 fieldName,
                 preBreak,
                 postBreak,
-                Grok.getBuiltinPatterns(false)
+                GrokBuiltinPatterns.get(ecsCompatibility)
             );
         }
 
@@ -610,7 +698,7 @@ public final class GrokPatternCreator {
             String fieldName,
             String preBreak,
             String postBreak,
-            Map<String, String> grokPatternDefinitions
+            PatternBank grokPatternDefinitions
         ) {
             this.grokPatternName = Objects.requireNonNull(grokPatternName);
             this.mapping = Collections.unmodifiableMap(mapping);
@@ -655,7 +743,8 @@ public final class GrokPatternCreator {
             Collection<String> epilogues,
             Map<String, Object> mappings,
             Map<String, FieldStats> fieldStats,
-            TimeoutChecker timeoutChecker
+            TimeoutChecker timeoutChecker,
+            boolean ecsCompatibility
         ) {
             Collection<String> values = new ArrayList<>();
             for (String snippet : snippets) {
@@ -673,7 +762,7 @@ public final class GrokPatternCreator {
             // If the mapping is type "date" with no format, try to adjust it to include the format
             if (TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT.equals(adjustedMapping)) {
                 try {
-                    adjustedMapping = TextStructureUtils.findTimestampMapping(explanation, values, timeoutChecker);
+                    adjustedMapping = TextStructureUtils.findTimestampMapping(explanation, values, timeoutChecker, ecsCompatibility);
                 } catch (IllegalArgumentException e) {
                     // This feels like it shouldn't happen, but there may be some obscure edge case
                     // where it does, and in production it will cause less frustration to just return
@@ -736,13 +825,14 @@ public final class GrokPatternCreator {
             Collection<String> epilogues,
             Map<String, Object> mappings,
             Map<String, FieldStats> fieldStats,
-            TimeoutChecker timeoutChecker
+            TimeoutChecker timeoutChecker,
+            boolean ecsCompatibility
         ) {
             if (fieldName == null) {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
             Grok grok = new Grok(
-                Grok.getBuiltinPatterns(false),
+                GrokBuiltinPatterns.get(ecsCompatibility),
                 "(?m)%{DATA:" + PREFACE + "}\\b" + fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}",
                 TimeoutChecker.watchdog,
                 logger::warn
@@ -760,7 +850,13 @@ public final class GrokPatternCreator {
                 timeoutChecker.check("full message Grok pattern field extraction");
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
-            Map<String, String> mapping = TextStructureUtils.guessScalarMapping(explanation, adjustedFieldName, values, timeoutChecker);
+            Map<String, String> mapping = TextStructureUtils.guessScalarMapping(
+                explanation,
+                adjustedFieldName,
+                values,
+                timeoutChecker,
+                ecsCompatibility
+            );
             timeoutChecker.check("mapping determination");
             if (mappings != null) {
                 mappings.put(adjustedFieldName, mapping);
@@ -781,7 +877,7 @@ public final class GrokPatternCreator {
             String grokPatternName,
             Map<String, String> mapping,
             String fieldName,
-            Map<String, String> grokPatternDefinitions
+            PatternBank grokPatternDefinitions
         ) {
             super(grokPatternName, mapping, fieldName, "\\b", "\\b", grokPatternDefinitions);
         }
@@ -795,9 +891,20 @@ public final class GrokPatternCreator {
             Collection<String> epilogues,
             Map<String, Object> mappings,
             Map<String, FieldStats> fieldStats,
-            TimeoutChecker timeoutChecker
+            TimeoutChecker timeoutChecker,
+            boolean ecsCompatibility
         ) {
-            return super.processCaptures(explanation, fieldNameCountStore, snippets, prefaces, epilogues, null, fieldStats, timeoutChecker);
+            return super.processCaptures(
+                explanation,
+                fieldNameCountStore,
+                snippets,
+                prefaces,
+                epilogues,
+                null,
+                fieldStats,
+                timeoutChecker,
+                ecsCompatibility
+            );
         }
     }
 
@@ -810,31 +917,35 @@ public final class GrokPatternCreator {
         private final String timeField;
         private final Grok grok;
 
-        static FullMatchGrokPatternCandidate fromGrokPatternName(String grokPatternName, String timeField) {
-            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, Grok.getBuiltinPatterns(false));
+        static FullMatchGrokPatternCandidate fromGrokPatternNameLegacy(String grokPatternName, String timeField) {
+            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, GrokBuiltinPatterns.legacyPatterns());
+        }
+
+        static FullMatchGrokPatternCandidate fromGrokPatternNameEcs(String grokPatternName, String timeField) {
+            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, GrokBuiltinPatterns.ecsV1Patterns());
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(
             String grokPatternName,
             String timeField,
-            Map<String, String> grokPatternDefinitions
+            PatternBank grokPatternDefinitions
         ) {
             return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, grokPatternDefinitions);
         }
 
-        static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.getBuiltinPatterns(false));
+        static FullMatchGrokPatternCandidate fromGrokPatternLegacy(String grokPattern, String timeField) {
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, GrokBuiltinPatterns.get(ECS_COMPATIBILITY_DISABLED));
         }
 
-        static FullMatchGrokPatternCandidate fromGrokPattern(
-            String grokPattern,
-            String timeField,
-            Map<String, String> grokPatternDefinitions
-        ) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, grokPatternDefinitions);
+        static FullMatchGrokPatternCandidate fromGrokPatternEcs(String grokPattern, String timeField) {
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, GrokBuiltinPatterns.get(ECS_COMPATIBILITY_ENABLED));
         }
 
-        private FullMatchGrokPatternCandidate(String grokPattern, String timeField, Map<String, String> grokPatternDefinitions) {
+        static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField, PatternBank grokPatternBank) {
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, grokPatternBank);
+        }
+
+        private FullMatchGrokPatternCandidate(String grokPattern, String timeField, PatternBank grokPatternDefinitions) {
             this.grokPattern = grokPattern;
             this.timeField = timeField;
             grok = new Grok(grokPatternDefinitions, grokPattern, TimeoutChecker.watchdog, logger::warn);
@@ -863,7 +974,8 @@ public final class GrokPatternCreator {
             Collection<String> sampleMessages,
             Map<String, Object> mappings,
             Map<String, FieldStats> fieldStats,
-            TimeoutChecker timeoutChecker
+            TimeoutChecker timeoutChecker,
+            boolean ecsCompatibility
         ) {
 
             if (grokPattern.startsWith("%{") && grokPattern.endsWith("}")) {
@@ -905,7 +1017,8 @@ public final class GrokPatternCreator {
                         explanation,
                         fieldName,
                         valuesForField.getValue(),
-                        timeoutChecker
+                        timeoutChecker,
+                        ecsCompatibility
                     );
                     timeoutChecker.check("mapping determination");
                     // Exclude the time field because that will be dropped and replaced with @timestamp

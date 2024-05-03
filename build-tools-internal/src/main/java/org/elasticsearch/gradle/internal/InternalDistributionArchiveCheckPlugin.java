@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.ArchiveOperations;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
+public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
 
     private ArchiveOperations archiveOperations;
 
@@ -206,27 +207,10 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
         }
     }
 
-    private static boolean toolExists(Project project) {
-        if (project.getName().contains("tar")) {
-            return tarExists();
-        } else {
-            assert project.getName().contains("zip");
-            return zipExists();
-        }
-    }
-
     private static void assertNoClassFile(File file) {
         if (file.getName().endsWith(".class")) {
             throw new GradleException("Detected class file in distribution ('" + file.getName() + "')");
         }
-    }
-
-    private static boolean zipExists() {
-        return new File("/bin/unzip").exists() || new File("/usr/bin/unzip").exists() || new File("/usr/local/bin/unzip").exists();
-    }
-
-    private static boolean tarExists() {
-        return new File("/bin/tar").exists() || new File("/usr/bin/tar").exists() || new File("/usr/local/bin/tar").exists();
     }
 
     private Object distTaskOutput(TaskProvider<Task> buildDistTask) {

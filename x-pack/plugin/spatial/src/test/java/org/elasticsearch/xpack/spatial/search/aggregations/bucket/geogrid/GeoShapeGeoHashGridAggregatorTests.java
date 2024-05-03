@@ -33,8 +33,8 @@ public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected String hashAsString(double lng, double lat, int precision) {
-        return stringEncode(lng, lat, precision);
+    protected String[] hashAsStrings(double lng, double lat, int precision) {
+        return new String[] { stringEncode(lng, lat, precision) };
     }
 
     @Override
@@ -48,8 +48,8 @@ public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected boolean intersects(double lng, double lat, int precision, GeoShapeValues.GeoShapeValue value) throws IOException {
-        Rectangle boundingBox = GeoGridQueryBuilder.getQueryHash(hashAsString(lng, lat, precision));
+    protected boolean intersects(String hash, GeoShapeValues.GeoShapeValue value) throws IOException {
+        final Rectangle boundingBox = GeoGridQueryBuilder.getQueryHash(hash);
         return value.relate(
             GeoEncodingUtils.encodeLongitude(boundingBox.getMinLon()),
             GeoEncodingUtils.encodeLongitude(boundingBox.getMaxLon()),
@@ -59,9 +59,9 @@ public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected boolean intersectsBounds(double lng, double lat, int precision, GeoBoundingBox box) {
-        GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(precision, box);
-        return predicate.validHash(stringEncode(lng, lat, precision));
+    protected boolean intersectsBounds(String hash, GeoBoundingBox box) {
+        final GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(hash.length(), box);
+        return predicate.validHash(hash);
     }
 
     @Override

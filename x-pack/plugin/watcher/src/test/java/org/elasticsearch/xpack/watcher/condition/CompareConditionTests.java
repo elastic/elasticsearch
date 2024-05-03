@@ -188,6 +188,17 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(condition.execute(ctx).met(), is(met));
     }
 
+    public void testExecuteDateMathExecutionContext() throws Exception {
+        ClockMock clock = ClockMock.frozen();
+        boolean met = true;
+        Op op = CompareCondition.Op.GTE;
+        String value = "<{now-5m}>";
+
+        CompareCondition condition = new CompareCondition("ctx.execution_time", op, value, clock);
+        WatchExecutionContext ctx = mockExecutionContext("_name", null);
+        assertThat(condition.execute(ctx).met(), is(met));
+    }
+
     public void testExecutePath() throws Exception {
         ClockMock clock = ClockMock.frozen();
         boolean met = randomBoolean();

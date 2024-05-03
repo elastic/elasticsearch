@@ -2,10 +2,6 @@
 [[breaking_80_java_api_changes]]
 ==== Java API changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 [[ilm-hlrc-rename]]
 .The `indexlifecycle` package has been renamed `ilm` in the Java High Level REST Client.
 [%collapsible]
@@ -26,7 +22,7 @@ Update your workflow and applications to use the `ilm` package in place of
 To create `Fuzziness` instances, use the `fromString` and `fromEdits` method
 instead of the `build` method that used to accept both Strings and numeric
 values. Several fuzziness setters on query builders (e.g.
-MatchQueryBuilder#fuzziness) now accept only a `Fuzziness`instance instead of
+MatchQueryBuilder#fuzziness) now accept only a `Fuzziness` instance instead of
 an Object.
 
 Fuzziness used to be lenient when it comes to parsing arbitrary numeric values
@@ -52,4 +48,3 @@ testability.
 *Impact* +
 No action needed.
 ====
-//end::notable-breaking-changes[]

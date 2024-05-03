@@ -15,6 +15,6 @@ public final class ClearRepositoriesMeteringArchiveAction extends ActionType<Rep
     static final String NAME = "cluster:monitor/xpack/repositories_metering/clear_metering_archive";
 
     ClearRepositoriesMeteringArchiveAction() {
-        super(NAME, RepositoriesMeteringResponse::new);
+        super(NAME);
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
@@ -691,7 +692,7 @@ public class OsProbe {
                 // `cpuacct` was merged with `cpu` in v2
                 final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
 
-                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec");
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec") * 1000; // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
@@ -700,7 +701,7 @@ public class OsProbe {
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),
                     cpuStatsMap.get("nr_throttled"),
-                    cpuStatsMap.get("throttled_usec")
+                    cpuStatsMap.get("throttled_usec") * 1000
                 );
 
                 cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);
@@ -762,11 +763,11 @@ public class OsProbe {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+    OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
             refreshInterval,
             Runtime.getRuntime().availableProcessors(),
-            allocatedProcessors,
+            processors,
             Constants.OS_NAME,
             getPrettyName(),
             Constants.OS_ARCH,

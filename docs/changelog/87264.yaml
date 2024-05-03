@@ -1,6 +1,0 @@
-pr: 87264
-summary: Fork after calling `getRepositoryData` from `StoreRecovery`
-area: Snapshot/Restore
-type: bug
-issues:
- - 87237

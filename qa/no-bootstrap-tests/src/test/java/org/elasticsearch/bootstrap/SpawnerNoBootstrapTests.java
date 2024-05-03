@@ -8,9 +8,10 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
@@ -22,13 +23,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginTestUtil;
+import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
@@ -39,11 +39,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
@@ -52,6 +49,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * that prevents the Spawner class from doing its job. Also needs to run in a separate JVM to other
  * tests that extend ESTestCase for the same reason.
  */
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
     private static final String CONTROLLER_SOURCE = """
@@ -94,20 +92,6 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         public void assertMatched() {
             assertTrue("Expected to see message [" + expectedMessage + "] on logger [" + expectedLogger + "]", saw);
         }
-    }
-
-    private MockLogAppender addMockLogger(String loggerName) throws Exception {
-        MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        final Logger testLogger = LogManager.getLogger(loggerName);
-        Loggers.addAppender(testLogger, appender);
-        Loggers.setLevel(testLogger, Level.TRACE);
-        return appender;
-    }
-
-    private void removeMockLogger(String loggerName, MockLogAppender appender) {
-        Loggers.removeAppender(LogManager.getLogger(loggerName), appender);
-        appender.stop();
     }
 
     /**
@@ -219,15 +203,16 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         String stdoutLoggerName = "test_plugin-controller-stdout";
         String stderrLoggerName = "test_plugin-controller-stderr";
-        MockLogAppender stdoutAppender = addMockLogger(stdoutLoggerName);
-        MockLogAppender stderrAppender = addMockLogger(stderrLoggerName);
+        MockLogAppender appender = new MockLogAppender();
+        Loggers.setLevel(LogManager.getLogger(stdoutLoggerName), Level.TRACE);
+        Loggers.setLevel(LogManager.getLogger(stderrLoggerName), Level.TRACE);
         CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
         if (expectSpawn) {
-            stdoutAppender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
-            stderrAppender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
+            appender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
+            appender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
         }
 
-        try {
+        try (var ignore = appender.capturing(stdoutLoggerName, stderrLoggerName)) {
             Spawner spawner = new Spawner();
             spawner.spawnNativeControllers(environment);
 
@@ -245,11 +230,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             } else {
                 assertThat(processes, hasSize(0));
             }
-            stdoutAppender.assertAllExpectationsMatched();
-            stderrAppender.assertAllExpectationsMatched();
-        } finally {
-            removeMockLogger(stdoutLoggerName, stdoutAppender);
-            removeMockLogger(stderrLoggerName, stderrAppender);
+            appender.assertAllExpectationsMatched();
         }
     }
 
@@ -307,12 +288,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             spawner.spawnNativeControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
-            if (Constants.WINDOWS) {
-                assertThat(e, instanceOf(NoSuchFileException.class));
-            } else {
-                assertThat(e, hasToString(containsString("Not a directory")));
-            }
+            var e = expectThrows(IllegalStateException.class, () -> spawner.spawnNativeControllers(environment));
+            assertThat(e.getMessage(), equalTo("Plugin [.DS_Store] is missing a descriptor properties file."));
         }
     }
 

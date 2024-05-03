@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModelTestUtils.deserializeFromTrainedModel;
 import static org.hamcrest.Matchers.closeTo;
@@ -66,21 +65,13 @@ public class EnsembleInferenceModelTests extends ESTestCase {
     public void testSerializationFromEnsemble() throws Exception {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             int numberOfFeatures = randomIntBetween(1, 10);
-            Ensemble ensemble = EnsembleTests.createRandom(
-                randomFrom(TargetType.values()),
-                randomBoolean()
-                    ? Collections.emptyList()
-                    : Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList())
-            );
+            Ensemble ensemble = EnsembleTests.createRandom(randomFrom(TargetType.values()), randomBoolean() ? 0 : numberOfFeatures);
             assertThat(serializeFromTrainedModel(ensemble), is(not(nullValue())));
         }
     }
 
     public void testInferenceWithoutPreparing() throws IOException {
-        Ensemble ensemble = EnsembleTests.createRandom(
-            TargetType.REGRESSION,
-            Stream.generate(() -> randomAlphaOfLength(10)).limit(4).collect(Collectors.toList())
-        );
+        Ensemble ensemble = EnsembleTests.createRandom(TargetType.REGRESSION, 4);
 
         EnsembleInferenceModel model = deserializeFromTrainedModel(ensemble, xContentRegistry(), EnsembleInferenceModel::fromXContent);
         expectThrows(ElasticsearchException.class, () -> model.infer(Collections.emptyMap(), RegressionConfig.EMPTY_PARAMS, null));

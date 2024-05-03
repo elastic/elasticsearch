@@ -9,8 +9,9 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -27,16 +28,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Indices clear cache action.
  */
 public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAction<
     ClearIndicesCacheRequest,
-    ClearIndicesCacheResponse,
+    BroadcastResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
+    public static final ActionType<BroadcastResponse> TYPE = new ActionType<>("indices:admin/cache/clear");
     private final IndicesService indicesService;
 
     @Inject
@@ -48,13 +49,13 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClearIndicesCacheAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
             ClearIndicesCacheRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             false
         );
         this.indicesService = indicesService;
@@ -62,20 +63,20 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected EmptyResult readShardResult(StreamInput in) throws IOException {
-        return EmptyResult.readEmptyResultFrom(in);
+        return EmptyResult.INSTANCE;
     }
 
     @Override
-    protected ClearIndicesCacheResponse newResponse(
+    protected ResponseFactory<BroadcastResponse, TransportBroadcastByNodeAction.EmptyResult> getResponseFactory(
         ClearIndicesCacheRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<EmptyResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new ClearIndicesCacheResponse(totalShards, successfulShards, failedShards, shardFailures);
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new BroadcastResponse(
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -103,7 +104,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     }
 
     /**
-     * The refresh request works against *all* shards.
+     * The indices clear cache request works against *all* shards.
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ClearIndicesCacheRequest request, String[] concreteIndices) {

@@ -13,6 +13,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -20,7 +22,9 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutComponentTemplateAction extends BaseRestHandler {
 
     @Override
@@ -37,10 +41,12 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         PutComponentTemplateAction.Request putRequest = new PutComponentTemplateAction.Request(request.param("name"));
-        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
+        putRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
-        putRequest.componentTemplate(ComponentTemplate.parse(request.contentParser()));
+        try (var parser = request.contentParser()) {
+            putRequest.componentTemplate(ComponentTemplate.parse(parser));
+        }
 
         return channel -> client.execute(PutComponentTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }

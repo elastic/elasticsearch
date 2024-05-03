@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -204,7 +205,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1h")));
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10, group, emptyList(), null);
         RollupJobCaps cap = new RollupJobCaps(job);
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
 
         final GroupConfig group2 = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1h")));
@@ -235,7 +236,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         final List<MetricConfig> metrics = singletonList(new MetricConfig("bar", singletonList("max")));
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10, group, metrics, null);
         RollupJobCaps cap = new RollupJobCaps(job);
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
 
         // TODO Is it what we really want to test?
@@ -278,7 +279,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .calendarInterval(new DateHistogramInterval("1d"));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -308,7 +309,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .calendarInterval(new DateHistogramInterval("1h"));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -344,7 +345,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
             .calendarInterval(new DateHistogramInterval("1h"))
             .subAggregation(new HistogramAggregationBuilder("histo").field("bar").interval(100));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -380,7 +381,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
             .calendarInterval(new DateHistogramInterval("1h"))
             .subAggregation(new TermsAggregationBuilder("histo").userValueTypeHint(ValueType.STRING).field("bar"));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);

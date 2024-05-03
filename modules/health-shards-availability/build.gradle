@@ -1,0 +1,25 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'Health report API extension providing the shards_availability output'
+  classname 'org.elasticsearch.health.plugin.ShardsAvailabilityPlugin'
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+tasks.named("yamlRestTestV7CompatTransform").configure {task ->
+  task.addAllowedWarningRegex("setting \\[ecs\\] is deprecated as ECS format is the default and only option")
+}

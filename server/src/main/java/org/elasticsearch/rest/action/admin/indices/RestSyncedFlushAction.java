@@ -9,13 +9,12 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -56,22 +55,22 @@ public class RestSyncedFlushAction extends BaseRestHandler {
         return channel -> client.admin().indices().flush(flushRequest, new SimulateSyncedFlushResponseListener(channel));
     }
 
-    static final class SimulateSyncedFlushResponseListener extends RestBuilderListener<FlushResponse> {
+    static final class SimulateSyncedFlushResponseListener extends RestBuilderListener<BroadcastResponse> {
 
         SimulateSyncedFlushResponseListener(RestChannel channel) {
             super(channel);
         }
 
         @Override
-        public RestResponse buildResponse(FlushResponse flushResponse, XContentBuilder builder) throws Exception {
+        public RestResponse buildResponse(BroadcastResponse flushResponse, XContentBuilder builder) throws Exception {
             builder.startObject();
             buildSyncedFlushResponse(builder, flushResponse);
             builder.endObject();
             final RestStatus restStatus = flushResponse.getFailedShards() == 0 ? RestStatus.OK : RestStatus.CONFLICT;
-            return new BytesRestResponse(restStatus, builder);
+            return new RestResponse(restStatus, builder);
         }
 
-        private static void buildSyncedFlushResponse(XContentBuilder builder, FlushResponse flushResponse) throws IOException {
+        private static void buildSyncedFlushResponse(XContentBuilder builder, BroadcastResponse flushResponse) throws IOException {
             builder.startObject("_shards");
             builder.field("total", flushResponse.getTotalShards());
             builder.field("successful", flushResponse.getSuccessfulShards());

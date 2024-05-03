@@ -7,18 +7,12 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -145,59 +139,20 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         null
     );
 
-    public static final ParseField LAST_CHECKPOINT = new ParseField("last");
-    public static final ParseField NEXT_CHECKPOINT = new ParseField("next");
-    public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
-    public static final ParseField CHANGES_LAST_DETECTED_AT = new ParseField("changes_last_detected_at");
-    public static final ParseField LAST_SEARCH_TIME = new ParseField("last_search_time");
+    public static final String LAST_CHECKPOINT = "last";
+    public static final String NEXT_CHECKPOINT = "next";
+    public static final String OPERATIONS_BEHIND = "operations_behind";
+    public static final String CHANGES_LAST_DETECTED_AT = "changes_last_detected_at";
+    public static final String CHANGES_LAST_DETECTED_AT_HUMAN = CHANGES_LAST_DETECTED_AT + "_string";
+
+    public static final String LAST_SEARCH_TIME = "last_search_time";
+    public static final String LAST_SEARCH_TIME_HUMAN = LAST_SEARCH_TIME + "_string";
+
     private final TransformCheckpointStats last;
     private final TransformCheckpointStats next;
     private final long operationsBehind;
     private final Instant changesLastDetectedAt;
     private final Instant lastSearchTime;
-
-    private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
-        "data_frame_transform_checkpointing_info",
-        true,
-        a -> {
-            long behind = a[2] == null ? 0L : (Long) a[2];
-            Instant changesLastDetectedAt = (Instant) a[3];
-            Instant lastSearchTime = (Instant) a[4];
-            return new TransformCheckpointingInfo(
-                a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
-                a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
-                behind,
-                changesLastDetectedAt,
-                lastSearchTime
-            );
-        }
-    );
-
-    static {
-        LENIENT_PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            TransformCheckpointStats.LENIENT_PARSER::apply,
-            LAST_CHECKPOINT
-        );
-        LENIENT_PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            TransformCheckpointStats.LENIENT_PARSER::apply,
-            NEXT_CHECKPOINT
-        );
-        LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
-        LENIENT_PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, CHANGES_LAST_DETECTED_AT.getPreferredName()),
-            CHANGES_LAST_DETECTED_AT,
-            ObjectParser.ValueType.VALUE
-        );
-        LENIENT_PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, LAST_SEARCH_TIME.getPreferredName()),
-            LAST_SEARCH_TIME,
-            ObjectParser.ValueType.VALUE
-        );
-    }
 
     /**
      * Create checkpoint stats object with checkpoint information about the last and next checkpoint as well as the current state
@@ -227,16 +182,8 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         last = new TransformCheckpointStats(in);
         next = new TransformCheckpointStats(in);
         operationsBehind = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            changesLastDetectedAt = in.readOptionalInstant();
-        } else {
-            changesLastDetectedAt = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            lastSearchTime = in.readOptionalInstant();
-        } else {
-            lastSearchTime = null;
-        }
+        changesLastDetectedAt = in.readOptionalInstant();
+        lastSearchTime = in.readOptionalInstant();
     }
 
     public TransformCheckpointStats getLast() {
@@ -262,26 +209,18 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(LAST_CHECKPOINT.getPreferredName(), last);
+        builder.field(LAST_CHECKPOINT, last);
         if (next.getCheckpoint() > 0) {
-            builder.field(NEXT_CHECKPOINT.getPreferredName(), next);
+            builder.field(NEXT_CHECKPOINT, next);
         }
         if (operationsBehind > 0) {
-            builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
+            builder.field(OPERATIONS_BEHIND, operationsBehind);
         }
         if (changesLastDetectedAt != null) {
-            builder.timeField(
-                CHANGES_LAST_DETECTED_AT.getPreferredName(),
-                CHANGES_LAST_DETECTED_AT.getPreferredName() + "_string",
-                changesLastDetectedAt.toEpochMilli()
-            );
+            builder.timeField(CHANGES_LAST_DETECTED_AT, CHANGES_LAST_DETECTED_AT_HUMAN, changesLastDetectedAt.toEpochMilli());
         }
         if (lastSearchTime != null) {
-            builder.timeField(
-                LAST_SEARCH_TIME.getPreferredName(),
-                LAST_SEARCH_TIME.getPreferredName() + "_string",
-                lastSearchTime.toEpochMilli()
-            );
+            builder.timeField(LAST_SEARCH_TIME, LAST_SEARCH_TIME_HUMAN, lastSearchTime.toEpochMilli());
         }
         builder.endObject();
         return builder;
@@ -292,16 +231,8 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         last.writeTo(out);
         next.writeTo(out);
         out.writeLong(operationsBehind);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeOptionalInstant(changesLastDetectedAt);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalInstant(lastSearchTime);
-        }
-    }
-
-    public static TransformCheckpointingInfo fromXContent(XContentParser p) {
-        return LENIENT_PARSER.apply(p, null);
+        out.writeOptionalInstant(changesLastDetectedAt);
+        out.writeOptionalInstant(lastSearchTime);
     }
 
     @Override

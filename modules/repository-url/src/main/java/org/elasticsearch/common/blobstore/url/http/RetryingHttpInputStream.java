@@ -33,7 +33,7 @@ class RetryingHttpInputStream extends InputStream {
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
     public static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
 
-    private final Logger logger = LogManager.getLogger(RetryingHttpInputStream.class);
+    private static final Logger logger = LogManager.getLogger(RetryingHttpInputStream.class);
 
     private final String blobName;
     private final URI blobURI;
@@ -112,8 +112,10 @@ class RetryingHttpInputStream extends InputStream {
     }
 
     @Override
-    public long skip(long n) {
-        throw new UnsupportedOperationException("RetryingHttpInputStream does not support seeking");
+    public long skip(long n) throws IOException {
+        // This could be optimized on a failure by re-opening stream directly to the preferred location. However, it is rarely called,
+        // so for now we will rely on the default implementation which just discards bytes by reading.
+        return super.skip(n);
     }
 
     @Override

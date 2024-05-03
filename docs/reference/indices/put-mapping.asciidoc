@@ -50,17 +50,17 @@ and indices, omit this parameter or use `*` or `_all`.
 [[put-mapping-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `write_index_only`::
 (Optional, Boolean)
@@ -197,6 +197,11 @@ PUT /my-index-000001/_mapping
 <<multi-fields,Multi-fields>> let you index the same field in different ways.
 You can use the update mapping API to update the `fields` mapping parameter and
 enable multi-fields for an existing field.
+
+WARNING: If an index (or data stream) contains documents when you add a
+multi-field, those documents will not have values for the new multi-field. You
+can populate the new multi-field with the <<picking-up-a-new-property,update by
+query API>>.
 
 To see how this works, try the following example.
 

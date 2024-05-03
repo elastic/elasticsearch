@@ -7,31 +7,31 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FOLLOWER_INDICES_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
 
-public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowInfoAction.Response> {
+public class FollowInfoResponseTests extends AbstractChunkedSerializingTestCase<FollowInfoAction.Response> {
 
-    static final ConstructingObjectParser<FollowerInfo, Void> INFO_PARSER = new ConstructingObjectParser<>("info_parser", args -> {
-        return new FollowerInfo(
+    static final ConstructingObjectParser<FollowerInfo, Void> INFO_PARSER = new ConstructingObjectParser<>(
+        "info_parser",
+        args -> new FollowerInfo(
             (String) args[0],
             (String) args[1],
             (String) args[2],
             Status.fromString((String) args[3]),
             (FollowParameters) args[4]
-        );
-    });
+        )
+    );
 
     static {
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.FOLLOWER_INDEX_FIELD);
@@ -48,7 +48,7 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<FollowInfoAction.Response, Void> PARSER = new ConstructingObjectParser<>(
         "response",
-        args -> { return new FollowInfoAction.Response((List<FollowerInfo>) args[0]); }
+        args -> new FollowInfoAction.Response((List<FollowerInfo>) args[0])
     );
 
     static {
@@ -56,7 +56,7 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
     }
 
     @Override
-    protected FollowInfoAction.Response doParseInstance(XContentParser parser) throws IOException {
+    protected FollowInfoAction.Response doParseInstance(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -86,5 +86,14 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
             );
         }
         return new FollowInfoAction.Response(infos);
+    }
+
+    @Override
+    protected FollowInfoAction.Response mutateInstance(FollowInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> instance.getFollowInfos().size() + 2);
     }
 }

@@ -8,21 +8,24 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -58,7 +61,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     public ComposableIndexTemplateMetadata(StreamInput in) throws IOException {
-        this.indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
+        this.indexTemplates = in.readMap(ComposableIndexTemplate::new);
     }
 
     public static ComposableIndexTemplateMetadata fromXContent(XContentParser parser) throws IOException {
@@ -89,23 +92,18 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_7_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.indexTemplates, StreamOutput::writeString, (outstream, val) -> val.writeTo(outstream));
+        out.writeMap(this.indexTemplates, StreamOutput::writeWriteable);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(INDEX_TEMPLATE.getPreferredName());
-        for (Map.Entry<String, ComposableIndexTemplate> template : indexTemplates.entrySet()) {
-            builder.field(template.getKey(), template.getValue(), params);
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentValuesMap(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
     }
 
     @Override
@@ -167,8 +165,8 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_7_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_7_7_0;
         }
     }
 }

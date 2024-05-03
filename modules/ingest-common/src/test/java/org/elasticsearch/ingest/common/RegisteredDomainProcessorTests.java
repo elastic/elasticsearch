@@ -9,9 +9,9 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -26,11 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class RegisteredDomainProcessorTests extends ESTestCase {
     private Map<String, Object> buildEvent(String domain) {
-        return new HashMap<>() {
-            {
-                put("domain", domain);
-            }
-        };
+        return Map.of("domain", domain);
     }
 
     public void testBasic() throws Exception {
@@ -44,23 +40,28 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         // Verify "com" is returned as the eTLD, for that FQDN or subdomain
         testRegisteredDomainProcessor(buildEvent("com"), "com", null, "com", null);
         testRegisteredDomainProcessor(buildEvent("example.com"), "example.com", "example.com", "com", null);
-        // Verify "googleapis.com" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", null, "googleapis.com", null);
+        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", "googleapis.com", "com", null);
         testRegisteredDomainProcessor(
             buildEvent("content-autofill.googleapis.com"),
             "content-autofill.googleapis.com",
-            "content-autofill.googleapis.com",
             "googleapis.com",
+            "com",
+            "content-autofill"
+        );
+        // Verify "ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
+        testRegisteredDomainProcessor(
+            buildEvent("global.ssl.fastly.net"),
+            "global.ssl.fastly.net",
+            "global.ssl.fastly.net",
+            "ssl.fastly.net",
             null
         );
-        // Verify "global.ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor(buildEvent("global.ssl.fastly.net"), "global.ssl.fastly.net", null, "global.ssl.fastly.net", null);
         testRegisteredDomainProcessor(
             buildEvent("1.www.global.ssl.fastly.net"),
             "1.www.global.ssl.fastly.net",
-            "www.global.ssl.fastly.net",
             "global.ssl.fastly.net",
-            "1"
+            "ssl.fastly.net",
+            "1.www"
         );
     }
 
@@ -74,7 +75,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class);
@@ -125,7 +126,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "url", ignoreMissing);
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);

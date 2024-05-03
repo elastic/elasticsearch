@@ -114,9 +114,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     }
                 }
 
-                byte[] response = ("""
+                byte[] response = (String.format(Locale.ROOT, """
                     {"kind":"storage#objects","items":[%s],"prefixes":[%s]}\
-                    """.formatted(String.join(",", listOfBlobs), String.join(",", prefixes))).getBytes(UTF_8);
+                    """, String.join(",", listOfBlobs), String.join(",", prefixes))).getBytes(UTF_8);
 
                 exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
@@ -131,24 +131,27 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 BytesReference blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");
-                    final int offset;
-                    final int end;
+                    final long offset;
+                    final long end;
                     if (range == null) {
-                        offset = 0;
+                        offset = 0L;
                         end = blob.length() - 1;
                     } else {
                         Matcher matcher = RANGE_MATCHER.matcher(range);
                         if (matcher.find() == false) {
                             throw new AssertionError("Range bytes header does not match expected format: " + range);
                         }
-                        offset = Integer.parseInt(matcher.group(1));
-                        end = Integer.parseInt(matcher.group(2));
+                        offset = Long.parseLong(matcher.group(1));
+                        end = Long.parseLong(matcher.group(2));
                     }
                     BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     final int bufferedLength = response.length();
                     if (offset > 0 || bufferedLength > end) {
-                        response = response.slice(offset, Math.min(end + 1 - offset, bufferedLength - offset));
+                        response = response.slice(
+                            Math.toIntExact(offset),
+                            Math.toIntExact(Math.min(end + 1 - offset, bufferedLength - offset))
+                        );
                     }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
                     response.writeTo(exchange.getResponseBody());
@@ -183,9 +186,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 if (content.isPresent()) {
                     blobs.put(content.get().v1(), content.get().v2());
 
-                    byte[] response = """
+                    byte[] response = String.format(Locale.ROOT, """
                         {"bucket":"%s","name":"%s"}
-                        """.formatted(bucket, content.get().v1()).getBytes(UTF_8);
+                        """, bucket, content.get().v1()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
@@ -266,16 +269,16 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private String buildBlobInfoJson(String blobName, int size) {
-        return """
+        return String.format(Locale.ROOT, """
             {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"%s"}
-            """.formatted(bucket, blobName, blobName, size);
+            """, bucket, blobName, blobName, size);
     }
 
     public Map<String, BytesReference> blobs() {
         return blobs;
     }
 
-    private String httpServerUrl(final HttpExchange exchange) {
+    private static String httpServerUrl(final HttpExchange exchange) {
         return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
     }
 

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.scheduler;
 
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+
 public class CronSchedule implements SchedulerEngine.Schedule {
     private final Cron cron;
 

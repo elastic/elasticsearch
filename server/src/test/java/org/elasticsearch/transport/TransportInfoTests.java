@@ -8,7 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -31,10 +30,6 @@ public class TransportInfoTests extends ESTestCase {
         );
         Map<String, BoundTransportAddress> profiles = Collections.singletonMap("test_profile", boundAddress);
         return new TransportInfo(boundAddress, profiles, cnameInPublishAddressProperty);
-    }
-
-    public void testDoNotForgetToRemoveProperty() {
-        assertTrue("Remove es.transport.cname_in_publish_address property from TransportInfo in 9.0.0", Version.CURRENT.major < 9);
     }
 
     public void testCorrectlyDisplayPublishedCname() throws Exception {
@@ -75,7 +70,10 @@ public class TransportInfoTests extends ESTestCase {
         httpInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> transportMap = (Map<String, Object>) createParser(builder).map().get(TransportInfo.Fields.TRANSPORT);
+        Map<String, Object> transportMap;
+        try (var parser = createParser(builder)) {
+            transportMap = (Map<String, Object>) parser.map().get(TransportInfo.Fields.TRANSPORT);
+        }
         Map<String, Object> profilesMap = (Map<String, Object>) transportMap.get("profiles");
         assertEquals(expected, transportMap.get(TransportInfo.Fields.PUBLISH_ADDRESS));
         assertEquals(expected, ((Map<String, Object>) profilesMap.get("test_profile")).get(TransportInfo.Fields.PUBLISH_ADDRESS));

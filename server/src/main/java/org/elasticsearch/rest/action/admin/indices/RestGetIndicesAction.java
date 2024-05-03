@@ -17,30 +17,30 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * The REST handler for get index and head index APIs.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetIndicesAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndicesAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
         + " is deprecated. The parameter will be removed in the next major version.";
 
-    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = Collections.unmodifiableSet(
-        Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
-            .collect(Collectors.toSet())
-    );
+    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, INCLUDE_TYPE_NAME_PARAMETER);
 
     @Override
     public List<Route> routes() {
@@ -66,11 +66,14 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
-        getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
+        getIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getIndexRequest.features(GetIndexRequest.Feature.fromRequest(request));
-        return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));
+        final var httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
+            .indices()
+            .getIndex(getIndexRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     /**

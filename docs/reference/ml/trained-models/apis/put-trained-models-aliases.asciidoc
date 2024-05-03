@@ -20,7 +20,7 @@ A trained model alias is a logical name used to reference a single trained model
 [[ml-put-trained-models-aliases-prereq]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 
@@ -34,11 +34,16 @@ and processors.
 An alias must be unique and refer to only a single trained model. However,
 you can have multiple aliases for each trained model.
 
-If you use this API to update an alias such that it references a different
-trained model ID and the model uses a different type of {dfanalytics}, an error
-occurs. For example, this situation occurs if you have a trained model for
+API Restrictions:
+
+* You are not allowed to update an alias such that it references a different
+trained model ID and the model uses a different type of {dfanalytics}. For example,
+this situation occurs if you have a trained model for
 {reganalysis} and a trained model for {classanalysis}; you cannot reassign an
 alias from one type of trained model to another.
+* You cannot update an alias from a `pytorch` model and a {dfanalytics} model.
+* You cannot update the alias from a deployed `pytorch` model to one
+not currently deployed.
 
 If you use this API to update an alias and there are very few input fields in
 common between the old and new trained models for the model alias, the API
@@ -62,7 +67,7 @@ The identifier for the trained model that the alias refers to.
 (Optional, boolean)
 Specifies whether the alias gets reassigned to the specified trained model if it
 is already assigned to a different model. If the alias is already assigned and
-this parameter is `false`, the API returns an error. Defaults to `false`. 
+this parameter is `false`, the API returns an error. Defaults to `false`.
 
 [[ml-put-trained-models-aliases-example]]
 == {api-examples-title}

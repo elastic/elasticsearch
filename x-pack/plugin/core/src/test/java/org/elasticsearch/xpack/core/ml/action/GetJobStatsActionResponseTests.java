@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -29,8 +29,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
-
 public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
@@ -47,9 +45,9 @@ public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestC
             JobState jobState = randomFrom(EnumSet.allOf(JobState.class));
             DiscoveryNode node = randomBoolean()
                 ? null
-                : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+                : DiscoveryNodeUtils.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
             String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
-            TimeValue openTime = randomBoolean() ? null : parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
+            TimeValue openTime = randomBoolean() ? null : randomPositiveTimeValue();
             TimingStats timingStats = randomBoolean() ? null : TimingStatsTests.createTestInstance("foo");
             Response.JobStats jobStats = new Response.JobStats(
                 jobId,
@@ -68,6 +66,11 @@ public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestC
         result = new Response(new QueryPage<>(jobStatsList, jobStatsList.size(), Job.RESULTS_FIELD));
 
         return result;
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

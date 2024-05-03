@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -30,10 +30,10 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/reset";
     public static final ResetJobAction INSTANCE = new ResetJobAction();
 
-    public static final Version VERSION_INTRODUCED = Version.V_7_14_0;
+    public static final TransportVersion TRANSPORT_VERSION_INTRODUCED = TransportVersions.V_7_14_0;
 
     private ResetJobAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -51,6 +51,11 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
          */
         private boolean shouldStoreResult;
 
+        /**
+         * Should user added annotations be removed when the job is reset?
+         */
+        private boolean deleteUserAnnotations;
+
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID);
         }
@@ -59,6 +64,11 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             skipJobStateValidation = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                deleteUserAnnotations = in.readBoolean();
+            } else {
+                deleteUserAnnotations = false;
+            }
         }
 
         @Override
@@ -66,6 +76,9 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(skipJobStateValidation);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                out.writeBoolean(deleteUserAnnotations);
+            }
         }
 
         public void setSkipJobStateValidation(boolean skipJobStateValidation) {
@@ -88,14 +101,17 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             return shouldStoreResult;
         }
 
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, MlTasks.JOB_TASK_ID_PREFIX + jobId, parentTaskId, headers);
+        public void setDeleteUserAnnotations(boolean deleteUserAnnotations) {
+            this.deleteUserAnnotations = deleteUserAnnotations;
+        }
+
+        public boolean getDeleteUserAnnotations() {
+            return deleteUserAnnotations;
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, MlTasks.JOB_TASK_ID_PREFIX + jobId, parentTaskId, headers);
         }
 
         public String getJobId() {
@@ -104,7 +120,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, skipJobStateValidation);
+            return Objects.hash(jobId, skipJobStateValidation, deleteUserAnnotations);
         }
 
         @Override
@@ -112,7 +128,9 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || o.getClass() != getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(jobId, that.jobId) && skipJobStateValidation == that.skipJobStateValidation;
+            return Objects.equals(jobId, that.jobId)
+                && skipJobStateValidation == that.skipJobStateValidation
+                && deleteUserAnnotations == that.deleteUserAnnotations;
         }
     }
 }

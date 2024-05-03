@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
-import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,7 +37,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
@@ -54,7 +52,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer(getIndexResult);
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
@@ -74,7 +72,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer(resolution);
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -355,6 +353,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals(
             "1:8: Unknown value ['dz'] for first argument of [DATE_DIFF('dz', int, date)]; " + "did you mean [dd, dw, dy, d]?",
             error("SELECT DATE_DIFF('dz', int, date) FROM test")
+        );
+    }
+
+    public void testDateFormatValidArgs() {
+        accept("SELECT DATE_FORMAT(date, '%H:%i:%s.%f') FROM test");
+        accept("SELECT DATE_FORMAT(date::date, '%m/%d/%Y') FROM test");
+        accept("SELECT DATE_FORMAT(date::time, '%H:%i:%s') FROM test");
+    }
+
+    public void testDateFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATE_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATE_FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATE_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_FORMAT(date, int) FROM test")
         );
     }
 

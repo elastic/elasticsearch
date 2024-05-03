@@ -7,12 +7,15 @@
 package org.elasticsearch.xpack.ql.tree;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
@@ -41,6 +44,19 @@ public class NodeTests extends ESTestCase {
                 new AChildIsAProperty(randomSource(), empty, "single").toString()
             );
         }
+    }
+
+    public void testWithNullChild() {
+        List<Dummy> listWithNull = new ArrayList<>();
+        listWithNull.add(null);
+        var e = expectThrows(QlIllegalArgumentException.class, () -> new ChildrenAreAProperty(randomSource(), listWithNull, "single"));
+        assertEquals("Null children are not allowed", e.getMessage());
+    }
+
+    public void testWithImmutableChildList() {
+        // It's good enough that the node can be created without throwing a NPE
+        var node = new ChildrenAreAProperty(randomSource(), List.of(), "single");
+        assertEquals(node.children().size(), 0);
     }
 
     public abstract static class Dummy extends Node<Dummy> {
@@ -123,5 +139,11 @@ public class NodeTests extends ESTestCase {
         public Dummy replaceChildren(List<Dummy> newChildren) {
             throw new UnsupportedOperationException("no children to replace");
         }
+    }
+
+    // Returns an empty list. The returned list may be backed various implementations, some
+    // allowing null some not - disallowing null disallows (throws NPE for) contains(null).
+    private static <T> List<T> emptyList() {
+        return randomFrom(List.of(), Collections.emptyList(), new ArrayList<>(), new LinkedList<>());
     }
 }

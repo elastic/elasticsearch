@@ -8,6 +8,8 @@
 
 package org.elasticsearch.lucene.index;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -26,12 +28,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.LazySoftDeletesDirectoryReaderWrapper;
+import org.elasticsearch.test.GraalVMThreadsFilter;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
 
     public void testDropFullyDeletedSegments() throws IOException {
@@ -101,7 +105,7 @@ public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
         writer.close();
         DirectoryReader reader = new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir), softDeletesField);
         assertEquals(uniqueDocs.size(), reader.numDocs());
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         for (Integer docId : uniqueDocs) {
             assertEquals(1, searcher.count(new TermQuery(new Term("id", docId.toString()))));
         }

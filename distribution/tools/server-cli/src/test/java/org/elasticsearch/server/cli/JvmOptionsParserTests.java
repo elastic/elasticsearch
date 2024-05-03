@@ -8,12 +8,16 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -26,14 +30,28 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 @WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
+
+    private static final Map<String, String> TEST_SYSPROPS = Map.of(
+        "os.name",
+        "Linux",
+        "os.arch",
+        "aarch64",
+        "java.library.path",
+        "/usr/lib"
+    );
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
@@ -47,7 +65,6 @@ public class JvmOptionsParserTests extends ESTestCase {
         try (StringReader sr = new StringReader("-Xms1g\n-Xmx1g"); BufferedReader br = new BufferedReader(sr)) {
             assertExpectedJvmOptions(randomIntBetween(8, Integer.MAX_VALUE), br, Arrays.asList("-Xms1g", "-Xmx1g"));
         }
-
     }
 
     public void testSingleVersionOption() throws IOException {
@@ -291,7 +308,7 @@ public class JvmOptionsParserTests extends ESTestCase {
 
         final int javaMajorVersion = randomIntBetween(8, Integer.MAX_VALUE);
         final int smallerJavaMajorVersion = randomIntBetween(7, javaMajorVersion - 1);
-        final String invalidRangeLine = String.format(Locale.ROOT, "%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
+        final String invalidRangeLine = Strings.format("%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
         try (StringReader sr = new StringReader(invalidRangeLine); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, invalidRangeLine));
         }
@@ -306,8 +323,8 @@ public class JvmOptionsParserTests extends ESTestCase {
         );
         try (StringReader sr = new StringReader(numberFormatExceptionsLine); BufferedReader br = new BufferedReader(sr)) {
             final Map<Integer, String> invalidLines = new HashMap<>(2);
-            invalidLines.put(1, String.format(Locale.ROOT, "%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
-            invalidLines.put(2, String.format(Locale.ROOT, "8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
+            invalidLines.put(1, Strings.format("%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
+            invalidLines.put(2, Strings.format("8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
             assertInvalidLines(br, invalidLines);
         }
 
@@ -321,7 +338,7 @@ public class JvmOptionsParserTests extends ESTestCase {
 
         final int lowerBound = randomIntBetween(9, 16);
         final int upperBound = randomIntBetween(8, lowerBound - 1);
-        final String upperBoundGreaterThanLowerBound = String.format(Locale.ROOT, "%d-%d-XX:+UseG1GC", lowerBound, upperBound);
+        final String upperBoundGreaterThanLowerBound = Strings.format("%d-%d-XX:+UseG1GC", lowerBound, upperBound);
         try (StringReader sr = new StringReader(upperBoundGreaterThanLowerBound); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, upperBoundGreaterThanLowerBound));
         }
@@ -343,4 +360,70 @@ public class JvmOptionsParserTests extends ESTestCase {
         assertThat(seenInvalidLines, equalTo(invalidLines));
     }
 
+    public void testNodeProcessorsActiveCount() {
+        {
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, TEST_SYSPROPS);
+            assertThat(jvmOptions, not(hasItem(containsString("-XX:ActiveProcessorCount="))));
+        }
+        {
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
+        }
+        {
+            // check rounding
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
+        }
+        {
+            // check validation
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
+            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS));
+            assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
+        }
+    }
+
+    public void testCommandLineDistributionType() {
+        var sysprops = new HashMap<>(TEST_SYSPROPS);
+        sysprops.put("es.distribution.type", "testdistro");
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
+        assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));
+    }
+
+    public void testLibraryPath() {
+        assertLibraryPath("Mac OS", "aarch64", "darwin-aarch64");
+        assertLibraryPath("Mac OS", "amd64", "darwin-x64");
+        assertLibraryPath("Mac OS", "x86_64", "darwin-x64");
+        assertLibraryPath("Linux", "aarch64", "linux-aarch64");
+        assertLibraryPath("Linux", "amd64", "linux-x64");
+        assertLibraryPath("Linux", "x86_64", "linux-x64");
+        assertLibraryPath("Windows", "amd64", "windows-x64");
+        assertLibraryPath("Windows", "x86_64", "windows-x64");
+        assertLibraryPath("Unknown", "aarch64", "unsupported_os[Unknown]-aarch64");
+        assertLibraryPath("Mac OS", "Unknown", "darwin-unsupported_arch[Unknown]");
+    }
+
+    private void assertLibraryPath(String os, String arch, String expected) {
+        String existingPath = "/usr/lib";
+        var sysprops = Map.of("os.name", os, "os.arch", arch, "java.library.path", existingPath);
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
+        Map<String, String> options = new HashMap<>();
+        for (var jvmOption : jvmOptions) {
+            if (jvmOption.startsWith("-D")) {
+                String[] parts = jvmOption.substring(2).split("=");
+                assert parts.length == 2;
+                options.put(parts[0], parts[1]);
+            }
+        }
+        String separator = FileSystems.getDefault().getSeparator();
+        assertThat(
+            options,
+            hasEntry(equalTo("java.library.path"), allOf(containsString("platform" + separator + expected), containsString(existingPath)))
+        );
+        assertThat(
+            options,
+            hasEntry(equalTo("jna.library.path"), allOf(containsString("platform" + separator + expected), containsString(existingPath)))
+        );
+    }
 }

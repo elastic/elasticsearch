@@ -17,17 +17,22 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AwsS3ServiceImplTests extends ESTestCase {
 
@@ -227,6 +232,42 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         final String configName = S3Repository.CLIENT_NAME.get(repositorySettings);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
+    }
+
+    public void testLoggingCredentialsProviderCatchesErrors() {
+        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
+        String mockProviderErrorMessage = "mockProvider failed to generate credentials";
+        Mockito.when(mockProvider.getCredentials()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
+        var mockLogger = Mockito.mock(Logger.class);
+
+        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
+        var exception = expectThrows(IllegalStateException.class, credentialsProvider::getCredentials);
+        assertEquals(mockProviderErrorMessage, exception.getMessage());
+
+        var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
+        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
+
+        assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to load credentials from"));
+        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
+    }
+
+    public void testLoggingCredentialsProviderCatchesErrorsOnRefresh() {
+        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
+        String mockProviderErrorMessage = "mockProvider failed to refresh";
+        Mockito.doThrow(new IllegalStateException(mockProviderErrorMessage)).when(mockProvider).refresh();
+        var mockLogger = Mockito.mock(Logger.class);
+
+        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
+        var exception = expectThrows(IllegalStateException.class, credentialsProvider::refresh);
+        assertEquals(mockProviderErrorMessage, exception.getMessage());
+
+        var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
+        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
+
+        assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to refresh"));
+        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 
 }

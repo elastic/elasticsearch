@@ -70,7 +70,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
         // get target index
@@ -82,7 +82,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         if (targetIndexMetadata == null) {
             logger.warn(
                 "[{}] index [{}] unable to copy execution state to target index [{}] as target index does not exist",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName(),
                 targetIndexName
             );
@@ -91,9 +91,9 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             );
         }
 
-        String phase = targetNextStepKey.getPhase();
-        String action = targetNextStepKey.getAction();
-        String step = targetNextStepKey.getName();
+        String phase = targetNextStepKey.phase();
+        String action = targetNextStepKey.action();
+        String step = targetNextStepKey.name();
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
         // Override the phase, action, and step for the target next StepKey

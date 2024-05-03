@@ -25,8 +25,8 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
     IndicesStatsResponse,
     IndicesStatsRequestBuilder> {
 
-    public IndicesStatsRequestBuilder(ElasticsearchClient client, IndicesStatsAction action) {
-        super(client, action, new IndicesStatsRequest());
+    public IndicesStatsRequestBuilder(ElasticsearchClient client) {
+        super(client, IndicesStatsAction.INSTANCE, new IndicesStatsRequest());
     }
 
     /**
@@ -147,6 +147,16 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
 
     public IndicesStatsRequestBuilder setIncludeSegmentFileSizes(boolean includeSegmentFileSizes) {
         request.includeSegmentFileSizes(includeSegmentFileSizes);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setIncludeUnloadedSegments(boolean includeUnloadedSegments) {
+        request.includeUnloadedSegments(includeUnloadedSegments);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setDenseVector(boolean denseVector) {
+        request.denseVector(denseVector);
         return this;
     }
 }

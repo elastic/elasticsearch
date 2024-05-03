@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -27,13 +26,29 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.DOUBLE, "-1.7976931348623157E309", "[double] supports only finite values"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.DOUBLE, Double.NEGATIVE_INFINITY, "[double] supports only finite values")
+            NumberTypeOutOfRangeSpec.of(
+                NumberFieldMapper.NumberType.DOUBLE,
+                "1.7976931348623157E309",
+                "[double] supports only finite values"
+            ),
+            NumberTypeOutOfRangeSpec.of(
+                NumberFieldMapper.NumberType.DOUBLE,
+                "-1.7976931348623157E309",
+                "[double] supports only finite values"
+            ),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
+            NumberTypeOutOfRangeSpec.of(
+                NumberFieldMapper.NumberType.DOUBLE,
+                Double.POSITIVE_INFINITY,
+                "[double] supports only finite values"
+            ),
+            NumberTypeOutOfRangeSpec.of(
+                NumberFieldMapper.NumberType.DOUBLE,
+                Double.NEGATIVE_INFINITY,
+                "[double] supports only finite values"
+            )
         );
     }
 
@@ -105,7 +120,13 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
             @Override
             protected DoubleFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new DoubleFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -113,7 +134,13 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
             @Override
             protected DoubleFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new DoubleFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit(1.0);
@@ -124,7 +151,7 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new NumberSyntheticSourceSupport(Number::doubleValue);
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed);
     }
 }

@@ -1,8 +1,8 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
@@ -40,6 +40,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
   task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
   task.skipTest("mustache/40_search_transform/Test search transform mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("painless/40_exception/Test painless exceptions are returned when logging a broken response", "Exceptions are no longer thrown from Mustache, but from the transform action itself")
   task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
   task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")
   task.replaceKeyInDo("watcher.deactivate_watch", "xpack-watcher.deactivate_watch")

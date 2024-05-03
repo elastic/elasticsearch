@@ -1,8 +1,8 @@
 ---
 "Metrics object indexing":
-  - skip:
-      features: allowed_warnings_regex
-      version: " - 8.2.99"
+  - requires:
+      test_runner_features: allowed_warnings_regex
+      cluster_features: ["gte_v8.3.0"]
       reason: added in 8.3.0
 
   - do:
@@ -64,9 +64,9 @@
 
 ---
 "Root without subobjects":
-  - skip:
-      features: allowed_warnings_regex
-      version: " - 8.2.99"
+  - requires:
+      test_runner_features: allowed_warnings_regex
+      cluster_features: ["gte_v8.3.0"]
       reason: added in 8.3.0
 
   - do:
@@ -123,10 +123,10 @@
 
 ---
 "Metrics object indexing with synthetic source":
-  - skip:
-      features: allowed_warnings_regex
-      version: " - 8.2.99"
-      reason: added in 8.3.0
+  - requires:
+      test_runner_features: allowed_warnings_regex
+      cluster_features: ["gte_v8.4.0"]
+      reason: added in 8.4.0
 
   - do:
       indices.put_template:
@@ -135,7 +135,7 @@
           index_patterns: test-*
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             dynamic_templates:
               - no_subobjects:
                   match: metrics
@@ -190,10 +190,10 @@
 
 ---
 "Root without subobjects with synthetic source":
-  - skip:
-      features: allowed_warnings_regex
-      version: " - 8.2.99"
-      reason: added in 8.3.0
+  - requires:
+      test_runner_features: allowed_warnings_regex
+      cluster_features: ["gte_v8.4.0"]
+      reason: added in 8.4.0
 
   - do:
       indices.put_template:
@@ -202,7 +202,7 @@
           index_patterns: test-*
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             subobjects: false
             properties:
               host.name:

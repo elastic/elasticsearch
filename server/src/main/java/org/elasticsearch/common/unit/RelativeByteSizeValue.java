@@ -9,6 +9,11 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 /**
  * A byte size value that allows specification using either of:
@@ -16,9 +21,8 @@ import org.elasticsearch.ElasticsearchParseException;
  * 2. Relative percentage value (95%)
  * 3. Relative ratio value (0.95)
  */
-public class RelativeByteSizeValue {
+public class RelativeByteSizeValue implements Writeable {
 
-    public static final String MAX_HEADROOM_PREFIX = "max_headroom=";
     private final ByteSizeValue absolute;
     private final RatioValue ratio;
 
@@ -46,13 +50,16 @@ public class RelativeByteSizeValue {
 
     /**
      * Calculate the size to use, optionally catering for a max headroom.
+     * If a ratio/percentage is used, the resulting bytes are rounded to the next integer value.
      * @param total the total size to use
      * @param maxHeadroom the max headroom to cater for or null (or -1) to ignore.
      * @return the size to use
      */
     public ByteSizeValue calculateValue(ByteSizeValue total, ByteSizeValue maxHeadroom) {
         if (ratio != null) {
-            long ratioBytes = (long) Math.ceil(ratio.getAsRatio() * total.getBytes());
+            // Use percentage instead of ratio, and divide bytes by 100, to make the calculation with double more accurate.
+            double res = total.getBytes() * ratio.getAsPercent() / 100;
+            long ratioBytes = (long) Math.ceil(res);
             if (maxHeadroom != null && maxHeadroom.getBytes() != -1) {
                 return ByteSizeValue.ofBytes(Math.max(ratioBytes, total.getBytes() - maxHeadroom.getBytes()));
             } else {
@@ -72,15 +79,20 @@ public class RelativeByteSizeValue {
     }
 
     public static RelativeByteSizeValue parseRelativeByteSizeValue(String value, String settingName) {
-        try {
-            RatioValue ratio = RatioValue.parseRatioValue(value);
-            if (ratio.getAsPercent() != 0.0d || value.endsWith("%")) {
-                return new RelativeByteSizeValue(ratio);
-            } else {
-                return new RelativeByteSizeValue(ByteSizeValue.ZERO);
+        // If the value ends with a `b`, it implies it is probably a byte size value, so do not try to parse as a ratio/percentage at all.
+        // The main motivation is to make parsing faster. Using exception throwing and catching when trying to parse as a ratio as a
+        // means of identifying that a string is not a ratio can be quite slow.
+        if (value.endsWith("b") == false) {
+            try {
+                RatioValue ratio = RatioValue.parseRatioValue(value);
+                if (ratio.getAsPercent() != 0.0d || value.endsWith("%")) {
+                    return new RelativeByteSizeValue(ratio);
+                } else {
+                    return new RelativeByteSizeValue(ByteSizeValue.ZERO);
+                }
+            } catch (ElasticsearchParseException e) {
+                // ignore, see if it parses as bytes
             }
-        } catch (ElasticsearchParseException e) {
-            // ignore, see if it parses as bytes
         }
         try {
             return new RelativeByteSizeValue(ByteSizeValue.parseBytesSizeValue(value, settingName));
@@ -91,9 +103,29 @@ public class RelativeByteSizeValue {
 
     public String getStringRep() {
         if (ratio != null) {
-            return ratio.toString();
+            return ratio.formatNoTrailingZerosPercent();
         } else {
             return absolute.getStringRep();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(isAbsolute());
+        if (isAbsolute()) {
+            assert absolute != null;
+            absolute.writeTo(out);
+        } else {
+            assert ratio != null;
+            ratio.writeTo(out);
+        }
+    }
+
+    public static RelativeByteSizeValue readFrom(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            return new RelativeByteSizeValue(ByteSizeValue.readFrom(in));
+        } else {
+            return new RelativeByteSizeValue(RatioValue.readFrom(in));
         }
     }
 }

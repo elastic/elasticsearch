@@ -17,6 +17,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ public class ReleaseHighlightsGenerator {
         final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = entries.stream()
             .map(ChangelogEntry::getHighlight)
             .filter(Objects::nonNull)
+            .sorted(Comparator.comparingInt(ChangelogEntry.Highlight::getPr))
             .collect(Collectors.groupingBy(ChangelogEntry.Highlight::isNotable, Collectors.toList()));
 
         final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());

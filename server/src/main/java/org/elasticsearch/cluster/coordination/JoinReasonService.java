@@ -12,11 +12,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,8 +52,7 @@ public class JoinReasonService {
      * Called when a new cluster state was applied by a master-eligible node, possibly adding or removing some nodes.
      */
     public void onClusterStateApplied(DiscoveryNodes discoveryNodes) {
-        assert Thread.currentThread().getName().contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-            || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         assert discoveryNodes.getLocalNode().isMasterNode();
 
         if (this.discoveryNodes != discoveryNodes) {
@@ -98,8 +99,7 @@ public class JoinReasonService {
      * absent node is still tracked then this adds the removal reason ({@code disconnected}, {@code lagging}, etc.) to the tracker.
      */
     public void onNodeRemoved(DiscoveryNode discoveryNode, String reason) {
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName();
+        assert MasterService.assertMasterUpdateOrTestThread();
         trackedNodes.computeIfPresent(discoveryNode.getId(), (ignored, trackedNode) -> trackedNode.withRemovalReason(reason));
     }
 
@@ -108,9 +108,9 @@ public class JoinReasonService {
      * @param currentMode   The current mode of the master that the node is joining.
      * @return              A description of the reason for the join, possibly including some details of its earlier removal.
      */
-    public String getJoinReason(DiscoveryNode discoveryNode, Coordinator.Mode currentMode) {
+    public JoinReason getJoinReason(DiscoveryNode discoveryNode, Coordinator.Mode currentMode) {
         return trackedNodes.getOrDefault(discoveryNode.getId(), UNKNOWN_NODE)
-            .getDescription(relativeTimeInMillisSupplier.getAsLong(), discoveryNode.getEphemeralId(), currentMode);
+            .getJoinReason(relativeTimeInMillisSupplier.getAsLong(), discoveryNode.getEphemeralId(), currentMode);
     }
 
     /**
@@ -135,7 +135,7 @@ public class JoinReasonService {
 
         TrackedNode withRemovalReason(String removalReason);
 
-        String getDescription(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode);
+        JoinReason getJoinReason(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode);
 
         long getRemovalAgeMillis(long currentTimeMillis);
     }
@@ -162,11 +162,11 @@ public class JoinReasonService {
         }
 
         @Override
-        public String getDescription(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode) {
+        public JoinReason getJoinReason(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode) {
             if (currentMode == CANDIDATE) {
-                return "completing election";
+                return COMPLETING_ELECTION;
             } else {
-                return "joining";
+                return NEW_NODE_JOINING;
             }
         }
 
@@ -194,11 +194,11 @@ public class JoinReasonService {
         }
 
         @Override
-        public String getDescription(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode) {
+        public JoinReason getJoinReason(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode) {
             if (currentMode == CANDIDATE) {
-                return "completing election";
+                return COMPLETING_ELECTION;
             } else {
-                return "rejoining";
+                return KNOWN_NODE_REJOINING;
             }
         }
 
@@ -232,7 +232,7 @@ public class JoinReasonService {
         }
 
         @Override
-        public String getDescription(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode) {
+        public JoinReason getJoinReason(long currentTimeMillis, String joiningNodeEphemeralId, Coordinator.Mode currentMode) {
             final StringBuilder description = new StringBuilder();
             if (currentMode == CANDIDATE) {
                 description.append("completing election");
@@ -262,7 +262,7 @@ public class JoinReasonService {
                 description.append(", [").append(removalCount).append("] total removals");
             }
 
-            return description.toString();
+            return new JoinReason(description.toString(), isRestarted ? null : ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING);
         }
 
         @Override
@@ -271,4 +271,7 @@ public class JoinReasonService {
         }
     }
 
+    private static final JoinReason COMPLETING_ELECTION = new JoinReason("completing election", null);
+    private static final JoinReason NEW_NODE_JOINING = new JoinReason("joining", null);
+    private static final JoinReason KNOWN_NODE_REJOINING = new JoinReason("rejoining", null);
 }

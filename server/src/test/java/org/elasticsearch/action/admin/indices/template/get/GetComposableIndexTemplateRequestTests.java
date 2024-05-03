@@ -11,8 +11,6 @@ package org.elasticsearch.action.admin.indices.template.get;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class GetComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<GetComposableIndexTemplateAction.Request> {
     @Override
     protected Writeable.Reader<GetComposableIndexTemplateAction.Request> instanceReader() {
@@ -25,8 +23,7 @@ public class GetComposableIndexTemplateRequestTests extends AbstractWireSerializ
     }
 
     @Override
-    protected GetComposableIndexTemplateAction.Request mutateInstance(GetComposableIndexTemplateAction.Request instance)
-        throws IOException {
+    protected GetComposableIndexTemplateAction.Request mutateInstance(GetComposableIndexTemplateAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

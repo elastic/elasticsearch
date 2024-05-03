@@ -30,7 +30,7 @@ the anomalies. Influencer results are available only if an
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 
 [[ml-get-influencer-query-parms]]
@@ -38,7 +38,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `desc`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=desc-results]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=desc-results]
 
 `end`::
 (Optional, string) Returns influencers with timestamps earlier than this time.
@@ -47,7 +47,7 @@ specific timestamps.
 
 `exclude_interim`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `from`::
 (Optional, integer)
@@ -99,7 +99,7 @@ properties:
 
 `bucket_span`::
 (number)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
 
 `influencer_score`::
 (number) A normalized score between 0-100, which is based on the probability of
@@ -121,11 +121,11 @@ calculated at the time the bucket was processed.
 
 `is_interim`::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `probability`::
 (number) The probability that the influencer has this behavior, in the range 0
@@ -138,7 +138,7 @@ human-readable and friendly interpretation of this.
 
 `timestamp`::
 (date)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timestamp-results]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=timestamp-results]
 
 NOTE: Additional influencer properties are added, depending on the fields being
 analyzed. For example, if it's analyzing `user_name` as an influencer, then a

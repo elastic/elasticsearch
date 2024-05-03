@@ -26,18 +26,25 @@ public interface SimpleDiffable<T extends Diffable<T>> extends Diffable<T> {
     @Override
     default Diff<T> diff(T previousState) {
         if (this.equals(previousState)) {
-            return (Diff<T>) EMPTY;
+            return empty();
         } else {
             return new CompleteDiff<>((T) this);
         }
     }
 
-    @SuppressWarnings("unchecked")
     static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
         if (in.readBoolean()) {
             return new CompleteDiff<>(reader.read(in));
         }
-        return (Diff<T>) EMPTY;
+        return empty();
+    }
+
+    /**
+     * @return empty diff instance that returns the input object when applied
+     */
+    @SuppressWarnings("unchecked")
+    static <V> Diff<V> empty() {
+        return (Diff<V>) EMPTY;
     }
 
     class CompleteDiff<T extends Diffable<T>> implements Diff<T> {

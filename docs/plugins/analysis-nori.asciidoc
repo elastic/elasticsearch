@@ -1,5 +1,5 @@
 [[analysis-nori]]
-=== Korean (nori) Analysis Plugin
+=== Korean (nori) analysis plugin
 
 The Korean (nori) Analysis plugin integrates Lucene nori analysis
 module into elasticsearch. It uses the https://bitbucket.org/eunjeon/mecab-ko-dic[mecab-ko-dic dictionary]
@@ -82,7 +82,7 @@ dictionary to `$ES_HOME/config/userdict_ko.txt`:
 [source,txt]
 -----------------------
 c++                 <1>
-C샤프
+C쁠쁠
 세종
 세종시 세종 시        <2>
 -----------------------
@@ -176,7 +176,7 @@ PUT nori_sample
           "nori_user_dict": {
             "type": "nori_tokenizer",
             "decompound_mode": "mixed",
-            "user_dictionary_rules": ["c++", "C샤프", "세종", "세종시 세종 시"]
+            "user_dictionary_rules": ["c++", "C쁠쁠", "세종", "세종시 세종 시"]
           }
         },
         "analyzer": {
@@ -305,7 +305,7 @@ Which responds with:
 
 The `nori_part_of_speech` token filter removes tokens that match a set of
 part-of-speech tags. The list of supported tags and their meanings can be found here:
-{lucene-core-javadoc}/../analyzers-nori/org/apache/lucene/analysis/ko/POS.Tag.html[Part of speech tags]
+{lucene-core-javadoc}/../analysis/nori/org/apache/lucene/analysis/ko/POS.Tag.html[Part of speech tags]
 
 It accepts the following setting:
 

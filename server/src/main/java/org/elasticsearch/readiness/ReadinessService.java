@@ -13,13 +13,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
 
@@ -40,6 +43,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
     private final Environment environment;
+    private final CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory;
 
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
@@ -51,8 +55,18 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
+        this(clusterService, environment, ServerSocketChannel::open);
+    }
+
+    // package private to enable mocking (for testing)
+    ReadinessService(
+        ClusterService clusterService,
+        Environment environment,
+        CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory
+    ) {
         this.serverChannel = null;
         this.environment = environment;
+        this.socketChannelFactory = socketChannelFactory;
         clusterService.addListener(this);
     }
 
@@ -102,18 +116,26 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     // package private for testing
     ServerSocketChannel setupSocket() {
-        InetAddress localhost = InetAddress.getLoopbackAddress();
-        int portNumber = PORT.get(environment.settings());
+        var settings = environment.settings();
+        int portNumber = PORT.get(settings);
         assert portNumber >= 0;
 
+        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+            try {
+                return socketAddress(InetAddress.getByName("0"), portNumber);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+            }
+        });
+
         try {
-            serverChannel = ServerSocketChannel.open();
+            serverChannel = socketChannelFactory.get();
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
-                    serverChannel.bind(socketAddress(localhost, portNumber));
+                    serverChannel.bind(socketAddress);
                 } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
+                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
                 }
                 return null;
             });
@@ -129,7 +151,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 }
             }
         } catch (Exception e) {
-            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(localhost, portNumber), e);
+            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
         }
 
         return serverChannel;
@@ -182,7 +204,18 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // package private for testing
     synchronized void stopListener() {
         assert enabled(environment);
+
+        // Avoid unnecessary logging if stop is repeatedly called.
+        // This can happen because we call stop listener on cluster state updates.
+        if (ready() == false) {
+            return;
+        }
+
         try {
+            logger.info(
+                "stopping readiness service on channel {}",
+                (this.serverChannel == null) ? "None" : this.serverChannel.getLocalAddress()
+            );
             if (this.serverChannel != null) {
                 this.serverChannel.close();
                 listenerThreadLatch.await();
@@ -201,14 +234,27 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
-
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
-        if (shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId())) {
-            setReady(false);
-            logger.info("marking node as not ready because it's shutting down");
+        boolean shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
+
+        if (shuttingDown) {
+            // only disable the probe and log if the probe is running
+            if (ready()) {
+                setReady(false);
+                logger.info("marking node as not ready because it's shutting down");
+            }
         } else {
-            setReady(clusterState.nodes().getMasterNodeId() != null);
+            boolean masterElected = clusterState.nodes().getMasterNodeId() != null;
+            boolean fileSettingsApplied = areFileSettingsApplied(clusterState);
+            logger.info("readiness: masterElected={}, fileSettingsApplied={}", masterElected, fileSettingsApplied);
+            setReady(masterElected && fileSettingsApplied);
         }
+    }
+
+    // protected to allow mock service to override
+    protected boolean areFileSettingsApplied(ClusterState clusterState) {
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
     }
 
     private void setReady(boolean ready) {
@@ -223,7 +269,12 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
      * Add a listener for bound readiness service address.
      * @param listener
      */
-    public void addBoundAddressListener(BoundAddressListener listener) {
+    public synchronized void addBoundAddressListener(BoundAddressListener listener) {
+        // this expects that setupSocket is called within a synchronized method
+        var b = boundAddress();
+        if (b != null) {
+            listener.addressBound(b);
+        }
         boundAddressListeners.add(listener);
     }
 

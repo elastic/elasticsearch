@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -182,7 +181,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        builder.patterns(in.readStringList());
+        builder.patterns(in.readStringCollectionAsList());
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -206,8 +205,8 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeString(name);
         out.writeInt(order);
         out.writeStringCollection(patterns);
-        Settings.writeSettingsToStream(settings, out);
-        out.writeMap(mappings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        settings.writeTo(out);
+        out.writeMap(mappings, StreamOutput::writeWriteable);
         out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }
@@ -225,7 +224,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 
@@ -316,14 +315,14 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
-        public static void toXContentWithTypes(
+        public static XContentBuilder toXContentWithTypes(
             IndexTemplateMetadata indexTemplateMetadata,
             XContentBuilder builder,
             ToXContent.Params params
         ) throws IOException {
             builder.startObject(indexTemplateMetadata.name());
             toInnerXContent(indexTemplateMetadata, builder, params, true);
-            builder.endObject();
+            return builder.endObject();
         }
 
         /**
@@ -440,11 +439,10 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
-                                    .put(mappingType, parser.mapOrdered())
-                                    .map();
-                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
+                                builder.putMapping(
+                                    currentFieldName,
+                                    Strings.toString(XContentFactory.jsonBuilder().map(Map.of(currentFieldName, parser.mapOrdered())))
+                                );
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {

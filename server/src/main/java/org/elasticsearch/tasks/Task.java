@@ -11,6 +11,7 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -21,7 +22,7 @@ import java.util.Set;
 /**
  * Current task information
  */
-public class Task {
+public class Task implements Traceable {
 
     /**
      * The request header to mark tasks with specific ids
@@ -32,6 +33,7 @@ public class Task {
      * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
      * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
      * has to be declared as a header copied over from http request.
+     * May also be used internally when APM is enabled.
      */
     public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
 
@@ -41,13 +43,28 @@ public class Task {
      */
     public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
+    public static final String TRACE_STATE = "tracestate";
+
+    /**
+     * Used internally to pass the apm trace context between the nodes
+     */
+    public static final String APM_TRACE_CONTEXT = "apm.local.context";
+
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
 
-    public static final Set<String> HEADERS_TO_COPY = Set.of(X_OPAQUE_ID_HTTP_HEADER, TRACE_ID, X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+    public static final String TRACE_START_TIME = "trace.starttime";
+    public static final String TRACE_PARENT = "traceparent";
+
+    public static final Set<String> HEADERS_TO_COPY = Set.of(
+        X_OPAQUE_ID_HTTP_HEADER,
+        TRACE_PARENT_HTTP_HEADER,
+        TRACE_ID,
+        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
+    );
 
     private final long id;
 
@@ -122,6 +139,7 @@ public class Task {
         return new TaskInfo(
             new TaskId(localNodeId, getId()),
             getType(),
+            localNodeId,
             getAction(),
             description,
             status,
@@ -247,5 +265,10 @@ public class Task {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
+    }
+
+    @Override
+    public String getSpanId() {
+        return "task-" + getId();
     }
 }

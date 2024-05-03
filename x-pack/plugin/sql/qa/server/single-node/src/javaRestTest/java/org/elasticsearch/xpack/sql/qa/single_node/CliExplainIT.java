@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.CliIntegrationTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
@@ -14,6 +16,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CliExplainIT extends CliIntegrationTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public void testExplainBasic() throws IOException {
         index("test", body -> body.field("test_field", "test_value"));
 
@@ -52,7 +62,8 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
         assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));
-        assertThat(readLine(), startsWith("  ]"));
+        assertThat(readLine(), startsWith("  ],"));
+        assertThat(readLine(), startsWith("  \"track_total_hits\" : -1"));
         assertThat(readLine(), startsWith("}]"));
         assertEquals("", readLine());
     }
@@ -111,7 +122,8 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("        \"order\" : \"asc\""));
         assertThat(readLine(), startsWith("      }"));
         assertThat(readLine(), startsWith("    }"));
-        assertThat(readLine(), startsWith("  ]"));
+        assertThat(readLine(), startsWith("  ],"));
+        assertThat(readLine(), startsWith("  \"track_total_hits\" : -1"));
         assertThat(readLine(), startsWith("}]"));
         assertEquals("", readLine());
     }

@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -19,7 +20,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
@@ -91,28 +91,6 @@ public class NerConfigUpdate extends NlpConfigUpdate {
         return NAME;
     }
 
-    @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof NerConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-        NerConfig nerConfig = (NerConfig) originalConfig;
-        if (isNoop(nerConfig)) {
-            return nerConfig;
-        }
-
-        return new NerConfig(
-            nerConfig.getVocabularyConfig(),
-            (tokenizationUpdate == null) ? nerConfig.getTokenization() : tokenizationUpdate.apply(nerConfig.getTokenization()),
-            nerConfig.getClassificationLabels(),
-            Optional.ofNullable(resultsField).orElse(nerConfig.getResultsField())
-        );
-    }
-
     boolean isNoop(NerConfig originalConfig) {
         return (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField())) && super.isNoop();
     }
@@ -146,8 +124,8 @@ public class NerConfigUpdate extends NlpConfigUpdate {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_0_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<NerConfigUpdate.Builder, NerConfigUpdate> {

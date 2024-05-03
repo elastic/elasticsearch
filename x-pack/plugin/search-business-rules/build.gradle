@@ -7,7 +7,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-searchbusinessrules'
+base {
+  archivesName = 'x-pack-searchbusinessrules'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

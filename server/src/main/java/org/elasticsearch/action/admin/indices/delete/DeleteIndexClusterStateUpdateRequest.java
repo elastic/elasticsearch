@@ -7,14 +7,49 @@
  */
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  * Cluster state update request that allows to close one or more indices
  */
-public class DeleteIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteIndexClusterStateUpdateRequest> {
+public class DeleteIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteIndexClusterStateUpdateRequest>
+    implements
+        ClusterStateAckListener,
+        ClusterStateTaskListener {
 
-    DeleteIndexClusterStateUpdateRequest() {
+    private final ActionListener<AcknowledgedResponse> listener;
 
+    public DeleteIndexClusterStateUpdateRequest(ActionListener<AcknowledgedResponse> listener) {
+        this.listener = listener;
+    }
+
+    @Override
+    public void onFailure(Exception e) {
+        listener.onFailure(e);
+    }
+
+    @Override
+    public boolean mustAck(DiscoveryNode discoveryNode) {
+        return true;
+    }
+
+    @Override
+    public void onAllNodesAcked() {
+        listener.onResponse(AcknowledgedResponse.TRUE);
+    }
+
+    @Override
+    public void onAckFailure(Exception e) {
+        listener.onResponse(AcknowledgedResponse.FALSE);
+    }
+
+    @Override
+    public void onAckTimeout() {
+        listener.onResponse(AcknowledgedResponse.FALSE);
     }
 }

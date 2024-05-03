@@ -10,10 +10,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Invalidates any security tokens associated with the provided SAML session.
  * The session identity is provided in a SAML {@code &lt;LogoutRequest&gt;}
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlInvalidateSessionRequest, RestSamlInvalidateSessionAction> PARSER = new ObjectParser<>(
@@ -76,7 +78,7 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
                         builder.field("invalidated", resp.getCount());
                         builder.field("redirect", resp.getRedirectUrl());
                         builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 }
             );

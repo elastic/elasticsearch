@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.HistoBackedHistogramAggregator;
@@ -37,16 +38,18 @@ public class AnalyticsAggregatorFactory {
         builder.register(
             PercentilesAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
                     return new HistoBackedTDigestPercentilesAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,
                         compression,
+                        executionHint,
                         keyed,
                         formatter,
                         metadata
@@ -56,7 +59,7 @@ public class AnalyticsAggregatorFactory {
                     int numSigFig = ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentilesAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,
@@ -79,16 +82,18 @@ public class AnalyticsAggregatorFactory {
         builder.register(
             PercentileRanksAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
                     return new HistoBackedTDigestPercentileRanksAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,
                         compression,
+                        executionHint,
                         keyed,
                         formatter,
                         metadata
@@ -98,7 +103,7 @@ public class AnalyticsAggregatorFactory {
                     int numSigFig = ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentileRanksAggregator(
                         name,
-                        valuesSource,
+                        config,
                         context,
                         parent,
                         percents,

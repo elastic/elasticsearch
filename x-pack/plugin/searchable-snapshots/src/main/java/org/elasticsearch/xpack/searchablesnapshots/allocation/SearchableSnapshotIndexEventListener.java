@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -21,8 +23,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import static org.elasticsearch.core.Strings.format;
@@ -35,16 +38,16 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final @Nullable CacheService cacheService;
-    private final @Nullable FrozenCacheService frozenCacheService;
+    private final @Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService;
 
     public SearchableSnapshotIndexEventListener(
         Settings settings,
         @Nullable CacheService cacheService,
-        @Nullable FrozenCacheService frozenCacheService
+        @Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService
     ) {
         assert cacheService != null || DiscoveryNode.canContainData(settings) == false;
         this.cacheService = cacheService;
-        this.frozenCacheService = frozenCacheService;
+        this.sharedBlobCacheService = sharedBlobCacheService;
     }
 
     /**
@@ -55,20 +58,22 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
      * @param indexSettings the shard's index settings
      */
     @Override
-    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         ensureSnapshotIsLoaded(indexShard);
+        listener.onResponse(null);
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
-        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
+        final var store = indexShard.store();
+        final SearchableSnapshotDirectory directory = unwrapDirectory(store.directory());
         assert directory != null;
-        final StepListener<Void> preWarmListener = new StepListener<>();
-        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);
+        final ListenableFuture<Void> preWarmListener = new ListenableFuture<>();
+        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), store::isClosing, preWarmListener);
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
-            preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
+            preWarmListener.addListener(ActionListener.wrap(v -> preWarmCondition.run(), e -> {
                 logger.warn(
                     () -> format(
                         "pre-warm operation failed for [%s] while it was the target of primary relocation [%s]",
@@ -78,7 +83,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                     e
                 );
                 preWarmCondition.run();
-            });
+            }));
         }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success || indexShard.routingEntry().recoverySource().getType() == RecoverySource.Type.PEER
@@ -101,12 +106,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                             shardId
                         );
                     }
-                    if (frozenCacheService != null) {
-                        frozenCacheService.markShardAsEvictedInCache(
-                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-                            shardId
-                        );
+                    if (sharedBlobCacheService != null) {
+                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
                     }
                 }
             }

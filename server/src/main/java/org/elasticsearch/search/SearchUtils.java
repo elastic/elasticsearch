@@ -17,22 +17,22 @@ public final class SearchUtils {
 
     public static int calculateMaxClauseValue(ThreadPool threadPool) {
         int searchThreadPoolSize = threadPool.info(ThreadPool.Names.SEARCH).getMax();
-        long heapSize = JvmStats.jvmStats().getMem().getHeapMax().getGb();
+        long heapSize = JvmStats.jvmStats().getMem().getHeapMax().getMb();
         return calculateMaxClauseValue(searchThreadPoolSize, heapSize);
     }
 
-    static int calculateMaxClauseValue(long threadPoolSize, double heapInGb) {
-        if (threadPoolSize <= 0 || heapInGb <= 0) {
+    static int calculateMaxClauseValue(long threadPoolSize, long heapInMb) {
+        if (threadPoolSize <= 0 || heapInMb <= 0) {
             return DEFAULT_MAX_CLAUSE_COUNT;
         }
         // In a worst-case scenario, each clause may end up using up to 16k of memory
         // to load postings, positions, offsets, impacts, etc. So we calculate the
         // maximum number of clauses we can support in a single thread pool by
-        // dividing the heap by 16k (or the equivalent, multiplying the heap in GB by
-        // 64k), and then divide that by the number of possible concurrent search
+        // dividing the heap by 16k (or the equivalent, multiplying the heap in MB by
+        // 64), and then divide that by the number of possible concurrent search
         // threads.
-        int maxClauseCount = (int) (heapInGb * 65_536 / threadPoolSize);
-        return Math.max(DEFAULT_MAX_CLAUSE_COUNT, maxClauseCount);
+        long maxClauseCount = (heapInMb * 64 / threadPoolSize);
+        return Math.max(DEFAULT_MAX_CLAUSE_COUNT, (int) maxClauseCount);
     }
 
     private SearchUtils() {}

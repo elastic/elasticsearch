@@ -128,26 +128,29 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
         );
 
-        LOGGER.info("Generating release highlights...");
-        ReleaseHighlightsGenerator.update(
-            this.releaseHighlightsTemplate.get().getAsFile(),
-            this.releaseHighlightsFile.get().getAsFile(),
-            entries
-        );
+        // Only update breaking changes and migration guide for new minors
+        if (qualifiedVersion.revision() == 0) {
+            LOGGER.info("Generating release highlights...");
+            ReleaseHighlightsGenerator.update(
+                this.releaseHighlightsTemplate.get().getAsFile(),
+                this.releaseHighlightsFile.get().getAsFile(),
+                entries
+            );
 
-        LOGGER.info("Generating breaking changes / deprecations notes...");
-        BreakingChangesGenerator.update(
-            this.breakingChangesTemplate.get().getAsFile(),
-            this.breakingChangesMigrationFile.get().getAsFile(),
-            entries
-        );
+            LOGGER.info("Generating breaking changes / deprecations notes...");
+            BreakingChangesGenerator.update(
+                this.breakingChangesTemplate.get().getAsFile(),
+                this.breakingChangesMigrationFile.get().getAsFile(),
+                entries
+            );
 
-        LOGGER.info("Updating migration/index...");
-        MigrationIndexGenerator.update(
-            getMinorVersions(versions),
-            this.migrationIndexTemplate.get().getAsFile(),
-            this.migrationIndexFile.get().getAsFile()
-        );
+            LOGGER.info("Updating migration/index...");
+            MigrationIndexGenerator.update(
+                getMinorVersions(versions),
+                this.migrationIndexTemplate.get().getAsFile(),
+                this.migrationIndexFile.get().getAsFile()
+            );
+        }
     }
 
     /**
@@ -161,8 +164,18 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
         final String pattern = "v" + qualifiedVersion.major() + ".*";
         // We may be generating notes for a minor version prior to the latest minor, so we need to filter out versions that are too new.
-        return Stream.concat(gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)), Stream.of(qualifiedVersion))
-            .collect(toSet());
+        Set<QualifiedVersion> versions = Stream.concat(
+            gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)),
+            Stream.of(qualifiedVersion)
+        ).collect(toSet());
+
+        // If this is a new minor ensure we include the previous minor, which may not have been released
+        if (qualifiedVersion.minor() > 0 && qualifiedVersion.revision() == 0) {
+            QualifiedVersion previousMinor = new QualifiedVersion(qualifiedVersion.major(), qualifiedVersion.minor() - 1, 0, null);
+            versions.add(previousMinor);
+        }
+
+        return versions;
     }
 
     /**

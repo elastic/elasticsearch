@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.Accountable;
-
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 abstract class AbstractArray implements BigArray {
@@ -37,9 +33,4 @@ abstract class AbstractArray implements BigArray {
     }
 
     protected abstract void doClose();
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
-    }
 }

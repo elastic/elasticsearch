@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -726,12 +725,12 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             final String id = Integer.toString(length + i);
             threads[i] = new Thread(() -> {
                 try {
-                    barrier.await();
+                    safeAwait(barrier);
                     final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
                     replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.noop());
                     replicationTracker.persistRetentionLeases(path);
-                    barrier.await();
-                } catch (final BrokenBarrierException | InterruptedException | WriteStateException e) {
+                    safeAwait(barrier);
+                } catch (final WriteStateException e) {
                     throw new AssertionError(e);
                 }
             });
@@ -740,13 +739,13 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
 
         try {
             // synchronize the threads invoking ReplicationTracker#persistRetentionLeases(Path path)
-            barrier.await();
+            safeAwait(barrier);
             // wait for all the threads to finish
-            barrier.await();
+            safeAwait(barrier);
             for (int i = 0; i < numberOfThreads; i++) {
                 threads[i].join();
             }
-        } catch (final BrokenBarrierException | InterruptedException e) {
+        } catch (final InterruptedException e) {
             throw new AssertionError(e);
         }
         assertThat(replicationTracker.loadRetentionLeases(path), equalTo(replicationTracker.getRetentionLeases()));

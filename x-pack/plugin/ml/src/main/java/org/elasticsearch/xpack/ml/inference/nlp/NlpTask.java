@@ -7,22 +7,19 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class NlpTask {
@@ -30,7 +27,7 @@ public class NlpTask {
     private final NlpConfig config;
     private final NlpTokenizer tokenizer;
 
-    public NlpTask(NlpConfig config, Vocabulary vocabulary) {
+    public NlpTask(NlpConfig config, Vocabulary vocabulary) throws IOException {
         this.config = config;
         this.tokenizer = NlpTokenizer.build(vocabulary, config.getTokenization());
     }
@@ -45,11 +42,12 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span) throws IOException;
+        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span, Integer windowSize)
+            throws IOException;
     }
 
     public interface ResultProcessor {
-        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult);
+        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult);
     }
 
     public abstract static class Processor implements Releasable {
@@ -76,19 +74,10 @@ public class NlpTask {
         public abstract RequestBuilder getRequestBuilder(NlpConfig config);
 
         public abstract ResultProcessor getResultProcessor(NlpConfig config);
-    }
 
-    public static String extractInput(TrainedModelInput input, Map<String, Object> doc) {
-        assert input.getFieldNames().size() == 1;
-        String inputField = input.getFieldNames().get(0);
-        Object inputValue = XContentMapValues.extractValue(inputField, doc);
-        if (inputValue == null) {
-            throw ExceptionsHelper.badRequestException("Input field [{}] does not exist in the source document", inputField);
+        static ElasticsearchException chunkingNotSupportedException(TaskType taskType) {
+            throw chunkingNotSupportedException(TaskType.NER);
         }
-        if (inputValue instanceof String) {
-            return (String) inputValue;
-        }
-        throw ExceptionsHelper.badRequestException("Input value [{}] for field [{}] must be a string", inputValue, inputField);
     }
 
     public record Request(TokenizationResult tokenization, BytesReference processInput) {

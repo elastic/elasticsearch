@@ -9,17 +9,23 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -60,7 +66,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         public static Feature[] fromRequest(RestRequest request) {
             if (request.hasParam("features")) {
                 String[] featureNames = request.param("features").split(",");
-                Set<Feature> features = new HashSet<>();
+                Set<Feature> features = EnumSet.noneOf(Feature.class);
                 List<String> invalidFeatures = new ArrayList<>();
                 for (int k = 0; k < featureNames.length; k++) {
                     try {
@@ -88,7 +94,15 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private transient boolean includeDefaults = false;
 
     public GetIndexRequest() {
-
+        super(
+            DataStream.isFailureStoreFeatureFlagEnabled()
+                ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
+                    .failureStoreOptions(
+                        IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true)
+                    )
+                    .build()
+                : IndicesOptions.strictExpandOpen()
+        );
     }
 
     public GetIndexRequest(StreamInput in) throws IOException {
@@ -111,7 +125,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         if (this.features == DEFAULT_FEATURES) {
             return features(features);
         } else {
-            return features(ArrayUtils.concat(features(), features, Feature.class));
+            return features(ArrayUtils.concat(features(), features));
         }
     }
 
@@ -160,5 +174,10 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         out.writeArray((o, f) -> o.writeByte(f.id), features);
         out.writeBoolean(humanReadable);
         out.writeBoolean(includeDefaults);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 }

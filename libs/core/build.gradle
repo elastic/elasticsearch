@@ -7,10 +7,12 @@
  */
 
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  compileOnly project(':libs:elasticsearch-logging')
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
@@ -40,4 +42,8 @@ tasks.named("thirdPartyAudit").configure {
           'org/osgi/framework/wiring/BundleWire',
           'org/osgi/framework/wiring/BundleWiring'
   )
+}
+
+dependencies {
+  jarHell sourceSets.main.output
 }

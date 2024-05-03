@@ -109,7 +109,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
-        return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed, metadata);
+        return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed, false, metadata);
     }
 
     @Override
@@ -167,11 +167,6 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     }
 
     @Override
-    protected Class<ParsedDateHistogram> implementationClass() {
-        return ParsedDateHistogram.class;
-    }
-
-    @Override
     protected InternalDateHistogram mutateInstance(InternalDateHistogram instance) {
         String name = instance.getName();
         List<InternalDateHistogram.Bucket> buckets = instance.getBuckets();
@@ -210,30 +205,30 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
+        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, false, metadata);
     }
 
     public void testLargeReduce() {
-        expectReduceUsesTooManyBuckets(
-            new InternalDateHistogram(
-                "h",
-                List.of(),
-                BucketOrder.key(true),
-                0,
-                0,
-                new InternalDateHistogram.EmptyBucketInfo(
-                    Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(),
-                    InternalAggregations.EMPTY,
-                    new LongBounds(
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2018-01-01T00:00:00Z"),
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z")
-                    )
-                ),
-                DocValueFormat.RAW,
-                false,
-                null
+        InternalDateHistogram largeHisto = new InternalDateHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            0,
+            new InternalDateHistogram.EmptyBucketInfo(
+                Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(),
+                InternalAggregations.EMPTY,
+                new LongBounds(
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:00Z"),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z")
+                )
             ),
-            100000
+            DocValueFormat.RAW,
+            false,
+            false,
+            null
         );
+        expectReduceUsesTooManyBuckets(largeHisto, 100000);
+        expectReduceThrowsRealMemoryBreaker(largeHisto);
     }
 }

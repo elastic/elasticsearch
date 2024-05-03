@@ -31,6 +31,11 @@
         "required":false,
         "description":"When `true`, the transform is deleted regardless of its current state. The default value is `false`, meaning that the transform must be `stopped` before it can be deleted."
       },
+      "delete_dest_index":{
+        "type":"boolean",
+        "required":false,
+        "description":"When `true`, the destination index is deleted together with the transform. The default value is `false`, meaning that the destination index will not be deleted."
+      },
       "timeout":{
         "type":"time",
         "required":false,

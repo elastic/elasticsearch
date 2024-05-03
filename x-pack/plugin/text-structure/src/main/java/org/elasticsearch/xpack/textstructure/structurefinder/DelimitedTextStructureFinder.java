@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -32,6 +31,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class DelimitedTextStructureFinder implements TextStructureFinder {
 
     static final int MAX_EXCLUDE_LINES_PATTERN_LENGTH = 1000;
@@ -43,7 +44,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
-    static DelimitedTextStructureFinder makeDelimitedTextStructureFinder(
+    static DelimitedTextStructureFinder createFromSample(
         List<String> explanation,
         String sample,
         String charsetName,
@@ -120,7 +121,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         sampleLines = null;
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         SortedMap<String, Object> fieldMappings = mappingsAndFieldStats.v1();
 
@@ -166,6 +167,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
+                .setEcsCompatibility(overrides.getEcsCompatibility())
                 .setIngestPipeline(
                     TextStructureUtils.makeIngestPipelineDefinition(
                         null,
@@ -175,7 +177,8 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                         timeField.v1(),
                         timeField.v2().getJavaTimestampFormats(),
                         needClientTimeZone,
-                        timeField.v2().needNanosecondPrecision()
+                        timeField.v2().needNanosecondPrecision(),
+                        overrides.getEcsCompatibility()
                     )
                 )
                 .setMultilineStartPattern(
@@ -205,7 +208,8 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                     null,
                     null,
                     false,
-                    false
+                    false,
+                    null
                 )
             );
             structureBuilder.setMultilineStartPattern(
@@ -586,6 +590,36 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         return false;
     }
 
+    static boolean canCreateFromMessages(
+        List<String> explanation,
+        List<String> messages,
+        int minFieldsPerRow,
+        CsvPreference csvPreference,
+        String formatName,
+        double allowedFractionOfBadLines
+    ) {
+        for (String message : messages) {
+            try (CsvListReader csvReader = new CsvListReader(new StringReader(message), csvPreference)) {
+                if (csvReader.read() == null) {
+                    explanation.add(format("Not %s because message with no lines: [%s]", formatName, message));
+                    return false;
+                }
+                if (csvReader.read() != null) {
+                    explanation.add(format("Not %s because message with multiple lines: [%s]", formatName, message));
+                    return false;
+                }
+            } catch (IOException e) {
+                explanation.add(format("Not %s because there was a parsing exception: [%s]", formatName, e.getMessage()));
+                return false;
+            }
+        }
+
+        // Every line contains a single valid delimited message, so
+        // we can safely concatenate and run the logic for a sample.
+        String sample = String.join("\n", messages);
+        return canCreateFromSample(explanation, sample, minFieldsPerRow, csvPreference, formatName, allowedFractionOfBadLines);
+    }
+
     static boolean canCreateFromSample(
         List<String> explanation,
         String sample,
@@ -594,7 +628,6 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         String formatName,
         double allowedFractionOfBadLines
     ) {
-
         // Logstash's CSV parser won't tolerate fields where just part of the
         // value is quoted, whereas SuperCSV will, hence this extra check
         String[] sampleLines = sample.split("\n");
@@ -615,7 +648,6 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         try (CsvListReader csvReader = new CsvListReader(new StringReader(sample), csvPreference)) {
 
             int fieldsInFirstRow = -1;
-            int fieldsInLastRow = -1;
 
             List<Integer> illFormattedRows = new ArrayList<>();
             int numberOfRows = 0;
@@ -639,7 +671,6 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                             );
                             return false;
                         }
-                        fieldsInLastRow = fieldsInFirstRow;
                         continue;
                     }
 
@@ -661,37 +692,18 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                         // as it may have and down stream effects
                         if (illFormattedRows.size() > Math.ceil(allowedFractionOfBadLines * totalNumberOfRows)) {
                             explanation.add(
-                                new ParameterizedMessage(
-                                    "Not {} because {} or more rows did not have the same number of fields "
-                                        + "as the first row ({}). Bad rows {}",
+                                format(
+                                    "Not %s because %s or more rows did not have the same number of fields "
+                                        + "as the first row (%s). Bad rows %s",
                                     formatName,
                                     illFormattedRows.size(),
                                     fieldsInFirstRow,
                                     illFormattedRows
-                                ).getFormattedMessage()
+                                )
                             );
                             return false;
                         }
-                        continue;
                     }
-
-                    fieldsInLastRow = fieldsInThisRow;
-                }
-
-                if (fieldsInLastRow > fieldsInFirstRow) {
-                    explanation.add(
-                        "Not "
-                            + formatName
-                            + " because last row has more fields than first row: ["
-                            + fieldsInFirstRow
-                            + "] and ["
-                            + fieldsInLastRow
-                            + "]"
-                    );
-                    return false;
-                }
-                if (fieldsInLastRow < fieldsInFirstRow) {
-                    --numberOfRows;
                 }
             } catch (SuperCsvException e) {
                 // Tolerate an incomplete last row

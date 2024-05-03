@@ -359,6 +359,25 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
+     *    "version_field": {
+     *       "type": "version",
+     *    }
+     */
+    public void testVersionField() throws IOException {
+        String query = "SELECT version_field FROM test";
+        String actualValue = "2.11.4";
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        createIndexWithFieldTypeAndProperties("version", fieldProps, getIndexProps());
+        index("{\"version_field\":\"" + actualValue + "\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "version_field", "version", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(actualValue))));
+        assertResponse(expected, runSql(query));
+    }
+
+    /*
      *    "geo_point_field": {
      *       "type": "geo_point",
      *       "ignore_malformed": true/false
@@ -409,9 +428,9 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             actualValue = "\"foo\"";
         }
         createIndexWithFieldTypeAndProperties("geo_shape", fieldProps, getIndexProps());
-        index("""
+        index(String.format(java.util.Locale.ROOT, """
             {"geo_shape_field":{"type":"point","coordinates":%s}}
-            """.formatted(actualValue));
+            """, actualValue));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
@@ -1252,7 +1271,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         LEAF;
     }
 
-    private void addField(
+    private static void addField(
         XContentBuilder index,
         boolean nestedFieldAdded,
         int remainingFields,
@@ -1323,16 +1342,19 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         }
     }
 
-    private boolean shouldAddNestedField() {
+    private static boolean shouldAddNestedField() {
         return randomBoolean();
     }
 
-    private void createIndexWithFieldTypeAndAlias(String type, Map<String, Map<String, Object>> fieldProps, Map<String, Object> indexProps)
-        throws IOException {
+    private static void createIndexWithFieldTypeAndAlias(
+        String type,
+        Map<String, Map<String, Object>> fieldProps,
+        Map<String, Object> indexProps
+    ) throws IOException {
         createIndexWithFieldTypeAndProperties(type, fieldProps, indexProps, true, false, null);
     }
 
-    private void createIndexWithFieldTypeAndProperties(
+    private static void createIndexWithFieldTypeAndProperties(
         String type,
         Map<String, Map<String, Object>> fieldProps,
         Map<String, Object> indexProps
@@ -1340,7 +1362,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         createIndexWithFieldTypeAndProperties(type, fieldProps, indexProps, false, false, null);
     }
 
-    private void createIndexWithFieldTypeAndSubFields(
+    private static void createIndexWithFieldTypeAndSubFields(
         String type,
         Map<String, Map<String, Object>> fieldProps,
         Map<String, Object> indexProps,
@@ -1350,7 +1372,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         createIndexWithFieldTypeAndProperties(type, fieldProps, indexProps, false, true, subFieldsProps, subFieldsTypes);
     }
 
-    private void createIndexWithFieldTypeAndProperties(
+    private static void createIndexWithFieldTypeAndProperties(
         String type,
         Map<String, Map<String, Object>> fieldProps,
         Map<String, Object> indexProps,
@@ -1431,7 +1453,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         client().performRequest(request);
     }
 
-    private Request buildRequest(String query) {
+    private static Request buildRequest(String query) {
         Request request = new Request("POST", RestSqlTestCase.SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
@@ -1440,14 +1462,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         return request;
     }
 
-    private Map<String, Object> runSql(String query) throws IOException {
+    private static Map<String, Object> runSql(String query) throws IOException {
         Response response = client().performRequest(buildRequest(query));
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
     }
 
-    private JDBCType jdbcTypeFor(String esType) {
+    private static JDBCType jdbcTypeFor(String esType) {
         return switch (esType) {
             case "long" -> JDBCType.BIGINT;
             case "integer" -> JDBCType.INTEGER;

@@ -13,31 +13,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
         + " Specifying types in multi search template requests is deprecated.";
-    private static final Set<String> RESPONSE_PARAMS;
 
-    static {
-        final Set<String> responseParams = new HashSet<>(
-            asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
-        );
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
-    }
+    private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final boolean allowExplicitIndex;
 
@@ -65,7 +59,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-        return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest, new RestToXContentListener<>(channel));
     }
 
     /**
@@ -93,7 +87,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 } else {
                     throw new IllegalArgumentException("Malformed search template");
                 }
-                RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
+                RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             }
         );
         return multiRequest;

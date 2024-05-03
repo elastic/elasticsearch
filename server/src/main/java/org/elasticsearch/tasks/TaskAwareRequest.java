@@ -27,6 +27,18 @@ public interface TaskAwareRequest {
     void setParentTask(TaskId taskId);
 
     /**
+     * Gets the request ID. Defaults to -1, meaning "no request ID is set".
+     */
+    default long getRequestId() {
+        return -1;
+    }
+
+    /**
+     * Set the request ID related to this task.
+     */
+    void setRequestId(long requestId);
+
+    /**
      * Get a reference to the task that created this request. Implementers should default to
      * {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
      */

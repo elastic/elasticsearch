@@ -58,13 +58,16 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.nio.conn.NoopIOSessionStrategy;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
@@ -88,6 +91,7 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -114,6 +118,7 @@ import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_CONNECTIONS;
@@ -122,6 +127,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_PORT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_SCHEME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_SOCKET_TIMEOUT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_TCP_KEEP_ALIVE;
 
 /**
  * Handles an OpenID Connect Authentication response as received by the facilitator. In the case of an implicit flow, validates
@@ -246,8 +252,9 @@ public class OpenIdConnectAuthenticator {
      * @param expectedNonce  The nonce value we sent in the authentication request and should be contained in the Id Token
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
+    // package private to testing
     @SuppressWarnings("unchecked")
-    private void getUserClaims(
+    void getUserClaims(
         @Nullable AccessToken accessToken,
         JWT idToken,
         Nonce expectedNonce,
@@ -255,6 +262,9 @@ public class OpenIdConnectAuthenticator {
         ActionListener<JWTClaimsSet> claimsListener
     ) {
         try {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("ID Token Header: {}", idToken.getHeader());
+            }
             JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
@@ -281,16 +291,21 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(
-                        ActionListener.wrap(v -> { getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener); }, ex -> {
-                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                            claimsListener.onFailure(ex);
-                        })
-                    );
+                    .triggerReload(ActionListener.wrap(v -> {
+                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
+                    }, ex -> {
+                        LOGGER.debug("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                        claimsListener.onFailure(ex);
+                    }));
             } else {
+                LOGGER.debug("Failed to parse or validate the ID Token", e);
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
         } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
+            LOGGER.debug(
+                () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
+                e
+            );
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }
@@ -378,7 +393,7 @@ public class OpenIdConnectAuthenticator {
      * @param expectedState The state that was originally generated
      * @param state         The state that was contained in the response
      */
-    private void validateState(State expectedState, State state) {
+    private static void validateState(State expectedState, State state) {
         if (null == state) {
             throw new ElasticsearchSecurityException("Failed to validate the response, the response did not contain a state parameter");
         } else if (null == expectedState) {
@@ -434,7 +449,7 @@ public class OpenIdConnectAuthenticator {
      * of the Id Token and call the provided listener.
      * (This method is package-protected for testing purposes)
      */
-    void handleUserinfoResponse(
+    static void handleUserinfoResponse(
         HttpResponse httpResponse,
         JWTClaimsSet verifiedIdTokenClaims,
         ActionListener<JWTClaimsSet> claimsListener
@@ -508,7 +523,11 @@ public class OpenIdConnectAuthenticator {
     /**
      * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
      */
-    private void validateUserInfoResponse(JWTClaimsSet userInfoClaims, String expectedSub, ActionListener<JWTClaimsSet> claimsListener) {
+    private static void validateUserInfoResponse(
+        JWTClaimsSet userInfoClaims,
+        String expectedSub,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
         if (userInfoClaims.getSubject().isEmpty()) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
         } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
@@ -604,7 +623,7 @@ public class OpenIdConnectAuthenticator {
      * Handle the Token Response from the OpenID Connect Provider. If successful, extract the (yet not validated) Id Token
      * and access token and call the provided listener.
      */
-    private void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
+    private static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
         try {
             final HttpEntity entity = httpResponse.getEntity();
             final Header encodingHeader = entity.getContentEncoding();
@@ -683,7 +702,9 @@ public class OpenIdConnectAuthenticator {
         try {
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
-                ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
+                ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor(
+                    IOReactorConfig.custom().setSoKeepAlive(realmConfig.getSetting(HTTP_TCP_KEEP_ALIVE)).build()
+                );
                 final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
                 final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
                 final SSLContext clientContext = sslService.sslContext(sslConfiguration);
@@ -700,9 +721,11 @@ public class OpenIdConnectAuthenticator {
                     .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
+
                 HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
-                    .setDefaultRequestConfig(requestConfig);
+                    .setDefaultRequestConfig(requestConfig)
+                    .setKeepAliveStrategy(getKeepAliveStrategy());
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
                     httpAsyncClientBuilder.setProxy(
                         new HttpHost(
@@ -719,6 +742,32 @@ public class OpenIdConnectAuthenticator {
         } catch (PrivilegedActionException e) {
             throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
         }
+    }
+
+    // Package private for testing
+    CloseableHttpAsyncClient getHttpClient() {
+        return httpClient;
+    }
+
+    // Package private for testing
+    ConnectionKeepAliveStrategy getKeepAliveStrategy() {
+        final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
+        return (response, context) -> {
+            var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
+            long actualKeepAlive;
+            if (serverKeepAlive <= -1) {
+                actualKeepAlive = userConfiguredKeepAlive;
+            } else if (userConfiguredKeepAlive <= -1) {
+                actualKeepAlive = serverKeepAlive;
+            } else {
+                actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
+            }
+            if (actualKeepAlive < -1) {
+                actualKeepAlive = -1;
+            }
+            LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
+            return actualKeepAlive;
+        };
     }
 
     /*

@@ -90,6 +90,7 @@ image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and C
 
 To configure a remote cluster from Stack Management in {kib}:
 
+. Set up a <<add-remote-clusters,secure connection>> as needed.
 . Select *Remote Clusters* from the side navigation.
 . Specify the {es} endpoint URL, or the IP address or host name of the remote
 cluster (`ClusterA`) followed by the transport port (defaults to `9300`). For
@@ -99,7 +100,7 @@ example, `cluster.es.eastus2.staging.azure.foundit.no:9400` or
 [%collapsible%open]
 .API example
 ====
-You can also use the <<cluster-update-settings,cluster update settings API>> to 
+You can also use the <<cluster-update-settings,cluster update settings API>> to
 add a remote cluster:
 
 [source,console]
@@ -147,7 +148,7 @@ cluster with cluster alias `leader`.
     "num_nodes_connected" : 1, <1>
     "max_connections_per_cluster" : 3,
     "initial_connect_timeout" : "30s",
-    "skip_unavailable" : false,
+    "skip_unavailable" : true,
     "mode" : "sniff"
   }
 }
@@ -159,15 +160,7 @@ cluster with cluster alias `leader`.
     connected to.
 ====
 
-[[ccr-enable-soft-deletes]]
-==== Enable soft deletes on leader indices
-To follow an index, it must have been created with
-<<ccr-leader-requirements,soft deletes>> enabled. If the index doesn’t have
-soft deletes enabled, you must reindex it and use the new index as the leader
-index. Soft deletes are enabled by default on new indices
-created with {es} 7.0.0 and later.
-
-include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[tag=configure-ccr-privileges]
+include::{es-ref-dir}/security/authentication/remote-clusters-privileges-cert.asciidoc[tag=configure-ccr-privileges]
 
 [[ccr-getting-started-follower-index]]
 ==== Create a follower index to replicate a specific index
@@ -200,8 +193,8 @@ image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib
 [%collapsible%open]
 .API example
 ====
-You can also use the <<ccr-put-follow,create follower API>> to create follower 
-indices. When you create a follower index, you must reference the remote cluster 
+You can also use the <<ccr-put-follow,create follower API>> to create follower
+indices. When you create a follower index, you must reference the remote cluster
 and the leader index that you created in the remote cluster.
 
 When initiating the follower request, the response returns before the
@@ -255,7 +248,9 @@ POST /server-metrics-follower/_ccr/unfollow
 You use <<ccr-auto-follow,auto-follow patterns>> to automatically create new
 followers for rolling time series indices. Whenever the name of a new index on
 the remote cluster matches the auto-follow pattern, a corresponding follower
-index is added to the local cluster.
+index is added to the local cluster. Note that only indices created on the
+remote cluster after the auto-follow pattern is created will be auto-followed:
+existing indices on the remote cluster are ignored even if they match the pattern.
 
 An auto-follow pattern specifies the remote cluster you want to replicate from,
 and one or more index patterns that specify the rolling time series indices you

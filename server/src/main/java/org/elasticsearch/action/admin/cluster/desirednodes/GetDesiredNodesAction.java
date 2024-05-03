@@ -22,12 +22,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+import static java.util.Collections.singletonMap;
+
 public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Response> {
     public static final GetDesiredNodesAction INSTANCE = new GetDesiredNodesAction();
     public static final String NAME = "cluster:admin/desired_nodes/get";
 
     GetDesiredNodesAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -57,7 +59,7 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.desiredNodes = new DesiredNodes(in);
+            this.desiredNodes = DesiredNodes.readFrom(in);
         }
 
         @Override
@@ -71,7 +73,10 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            return desiredNodes.toXContent(builder, params);
+            return desiredNodes.toXContent(
+                builder,
+                new DelegatingMapParams(singletonMap(DesiredNodes.CONTEXT_MODE_PARAM, DesiredNodes.CONTEXT_MODE_API), params)
+            );
         }
 
         @Override

@@ -70,8 +70,7 @@ public class IndexSortIT extends ESIntegTestCase {
                 .putList("index.sort.field", "date", "numeric_dv", "keyword_dv")
         ).setMapping(TEST_MAPPING).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
+            prepareIndex("test").setId(Integer.toString(i))
                 .setSource("numeric_dv", randomInt(), "keyword_dv", randomAlphaOfLengthBetween(10, 20))
                 .get();
         }
@@ -83,25 +82,22 @@ public class IndexSortIT extends ESIntegTestCase {
     public void testInvalidIndexSort() {
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "invalid_field"))
+            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "invalid_field"))
                 .setMapping(TEST_MAPPING)
-                .get()
         );
         assertThat(exc.getMessage(), containsString("unknown index sort field:[invalid_field]"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "numeric"))
+            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "numeric"))
                 .setMapping(TEST_MAPPING)
-                .get()
         );
         assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[numeric]"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "keyword"))
+            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "keyword"))
                 .setMapping(TEST_MAPPING)
-                .get()
         );
         assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[keyword]"));
     }

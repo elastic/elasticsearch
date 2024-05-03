@@ -40,6 +40,8 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
  */
 public class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
+    public static final String DUMP_OUTPUT_ON_FAILURE_PROP_NAME = "dumpOutputOnFailure";
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
@@ -54,7 +56,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
-            ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
+            ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
+            test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);
@@ -88,7 +91,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders().add(nonInputProperties);
             test.getExtensions().add("nonInputProperties", nonInputProperties);
 
-            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName()));
+            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName().replace("#", "_")));
             test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", BuildParams.getDefaultParallel().toString())));
 
             test.exclude("**/*$*.class");
@@ -141,6 +144,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleUserHome = project.getGradle().getGradleUserHomeDir();
             nonInputProperties.systemProperty("gradle.user.home", gradleUserHome);
+            nonInputProperties.systemProperty("workspace.dir", Util.locateElasticsearchWorkspace(project.getGradle()));
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 

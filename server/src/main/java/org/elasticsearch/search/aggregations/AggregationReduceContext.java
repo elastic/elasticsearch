@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 /**
  * Dependencies used to reduce aggs.
  */
-public abstract sealed class AggregationReduceContext permits AggregationReduceContext.ForPartial,AggregationReduceContext.ForFinal {
+public abstract sealed class AggregationReduceContext permits AggregationReduceContext.ForPartial, AggregationReduceContext.ForFinal {
     /**
      * Builds {@link AggregationReduceContext}s.
      */

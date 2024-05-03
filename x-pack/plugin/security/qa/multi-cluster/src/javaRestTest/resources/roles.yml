@@ -1,0 +1,40 @@
+read_remote_shared_logs:
+  remote_indices:
+    - names: [ 'shared-logs' ]
+      privileges: [ 'read', 'read_cross_cluster' ]
+      clusters: [ 'my_*' ]
+
+read_remote_shared_metrics:
+  remote_indices:
+    - names: [ 'shared-metrics' ]
+      privileges: [ 'read', 'read_cross_cluster' ]
+      clusters: [ 'my_*' ]
+
+transform_remote_shared_index:
+  indices:
+    - names: [ 'simple-remote-transform' ]
+      privileges: [ 'create_index', 'index', 'read' ]
+  remote_indices:
+    - names: [ 'shared-transform-index' ]
+      privileges: [ 'read', 'read_cross_cluster', 'view_index_metadata' ]
+      clusters: [ 'my_*' ]
+
+ml_jobs_shared_airline_data:
+  cluster: [ 'manage_ml' ]
+  indices:
+    - names: [ 'data-frame-analytics-dest' ]
+      privileges: [ 'all' ]
+  remote_indices:
+    - names: [ 'shared-airline-data' ]
+      privileges: [ 'read', 'read_cross_cluster', 'view_index_metadata' ]
+      clusters: [ 'my_*' ]
+
+ccr_user_role:
+  cluster: [ 'manage_ccr', 'monitor' ]
+  indices:
+    - names: [ 'follower*', 'shared-*', 'metrics-*' ]
+      privileges: [ 'monitor', 'read', 'write', 'manage_follow_index' ]
+  remote_indices:
+    - names: [ 'leader-index', 'shared-*', 'metrics-*' ]
+      privileges: [ 'cross_cluster_replication' ]
+      clusters: [ "*" ]

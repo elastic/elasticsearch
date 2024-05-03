@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -20,13 +22,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -131,7 +134,7 @@ public class IndexRequestTests extends ESTestCase {
         IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
-        ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful);
         indexResponse.setShardInfo(shardInfo);
         boolean forcedRefresh = false;
         if (randomBoolean()) {
@@ -145,22 +148,19 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
-        assertEquals(
-            """
-                IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
-                {"total":%s,"successful":%s,"failed":0}]\
-                """.formatted(
-                shardId.getIndexName(),
-                id,
-                version,
-                created ? "created" : "updated",
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                0,
-                total,
-                successful
-            ),
-            indexResponse.toString()
-        );
+        Object[] args = new Object[] {
+            shardId.getIndexName(),
+            id,
+            version,
+            created ? "created" : "updated",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            total,
+            successful };
+        assertEquals(Strings.format("""
+            IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
+            {"total":%s,"successful":%s,"failed":0}]\
+            """, args), indexResponse.toString());
     }
 
     public void testIndexRequestXContentSerialization() throws IOException {
@@ -208,12 +208,12 @@ public class IndexRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 indexRequest.setDynamicTemplates(Map.of());
             }
-            Version ver = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(ver);
+            out.setTransportVersion(ver);
             indexRequest.writeTo(out);
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-            in.setVersion(ver);
+            in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), anEmptyMap());
         }
@@ -223,14 +223,15 @@ public class IndexRequestTests extends ESTestCase {
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
-            BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(ver);
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
-            assertThat(
-                error.getMessage(),
-                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later")
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_7_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_13_0)
             );
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
+            assertThat(error.getMessage(), equalTo("[dynamic_templates] parameter requires all nodes on 7.13.0 or later"));
         }
         // new version
         {
@@ -238,12 +239,16 @@ public class IndexRequestTests extends ESTestCase {
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_7_13_0,
+                TransportVersion.current()
+            );
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(ver);
+            out.setTransportVersion(ver);
             indexRequest.writeTo(out);
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-            in.setVersion(ver);
+            in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
         }
@@ -256,16 +261,16 @@ public class IndexRequestTests extends ESTestCase {
         request.source(source, XContentType.JSON);
         assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
-        source = """
+        source = Strings.format("""
             {"name":"%s"}
-            """.formatted(randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
+            """, randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes(StandardCharsets.UTF_8).length;
         assertEquals(
             "index {[index][null], source[n/a, actual length: ["
-                + new ByteSizeValue(actualBytes).toString()
+                + ByteSizeValue.ofBytes(actualBytes).toString()
                 + "], max length: "
-                + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
+                + ByteSizeValue.ofBytes(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
                 + "]}",
             request.toString()
         );
@@ -432,6 +437,25 @@ public class IndexRequestTests extends ESTestCase {
                 equalTo("Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error")
             );
         }
+
+        {
+            // Alias to time series data stream
+            DataStreamAlias alias = new DataStreamAlias("my-alias", List.of(tsdbDataStream), tsdbDataStream, null);
+            var metadataBuilder3 = Metadata.builder(metadata);
+            metadataBuilder3.put(alias.getName(), tsdbDataStream, true, null);
+            var metadata3 = metadataBuilder3.build();
+            IndexRequest request = new IndexRequest(alias.getName());
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start1), XContentType.JSON);
+            var result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+
+            request = new IndexRequest(alias.getName());
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start2), XContentType.JSON);
+            result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+        }
     }
 
     static String renderSource(String sourceTemplate, Instant instant) {
@@ -440,5 +464,35 @@ public class IndexRequestTests extends ESTestCase {
 
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    public void testSerialization() throws IOException {
+        // Note: IndexRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a Writable
+        IndexRequest indexRequest = createTestInstance();
+        IndexRequest copy = copyWriteable(indexRequest, null, IndexRequest::new);
+        assertThat(copy.getListExecutedPipelines(), equalTo(indexRequest.getListExecutedPipelines()));
+        assertThat(copy.getExecutedPipelines(), equalTo(indexRequest.getExecutedPipelines()));
+        assertThat(copy.getPipeline(), equalTo(indexRequest.getPipeline()));
+        assertThat(copy.isRequireAlias(), equalTo(indexRequest.isRequireAlias()));
+        assertThat(copy.ifSeqNo(), equalTo(indexRequest.ifSeqNo()));
+        assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
+        assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
+        assertThat(copy.isRequireDataStream(), equalTo(indexRequest.isRequireDataStream()));
+    }
+
+    private IndexRequest createTestInstance() {
+        IndexRequest indexRequest = new IndexRequest(randomAlphaOfLength(20));
+        indexRequest.setPipeline(randomAlphaOfLength(15));
+        indexRequest.setRequestId(randomLong());
+        indexRequest.setRequireAlias(randomBoolean());
+        indexRequest.setRequireDataStream(randomBoolean());
+        indexRequest.setIfSeqNo(randomNonNegativeLong());
+        indexRequest.setFinalPipeline(randomAlphaOfLength(20));
+        indexRequest.setIfPrimaryTerm(randomNonNegativeLong());
+        indexRequest.setListExecutedPipelines(randomBoolean());
+        for (int i = 0; i < randomIntBetween(0, 20); i++) {
+            indexRequest.addPipeline(randomAlphaOfLength(20));
+        }
+        return indexRequest;
     }
 }

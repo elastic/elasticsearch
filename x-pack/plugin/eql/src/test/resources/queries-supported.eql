@@ -715,3 +715,20 @@ any where `some?field` == null
 any where ?`some?field` == null
 any where `somefield?`
 any where ?`somefield?`
+
+// samples
+sample by x [any where true] [any where true]
+sample by x [any where true] by y [any where true] by z
+sample [any where true] by y [any where true] by z
+sample [any where true] by x [any where true] by x
+
+sample by `?somefield` [any where true] [any where true]
+sample by x [any where true] by ?`?somefield` [any where true]
+sample by ?`?somefield` [any where true] [any where true]
+sample by x [any where true] [any where true] by `?somefield`
+
+sample by ?x, ?y, z, ?t [any where true] by ?z [any where t == ?y] by t
+sample by ?x, ?y, z, ?t [any where true] by z [any where t == y] by t
+sample by z, ?t [any where true] by ?a, ?b [any where t == y] by ?a, ?b
+sample by z, ?t [any where true] by ?a, ?b [any where t == y] by ?a, ?b
+sample by z, ?`t?t` [any where ?a == concat(?b,?c)] by ?a, ?b [any where ?`abc` == y] by ?a, ?b

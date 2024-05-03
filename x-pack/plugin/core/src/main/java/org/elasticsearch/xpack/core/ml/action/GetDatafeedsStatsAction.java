@@ -16,6 +16,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
@@ -36,6 +39,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
@@ -49,7 +54,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String RUNNING_STATE = "running_state";
 
     private GetDatafeedsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     // This needs to be a MasterNodeReadRequest even though the corresponding transport
@@ -61,7 +66,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String datafeedId;
+        private final String datafeedId;
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
@@ -113,6 +118,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             }
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeed_stats[%s]", datafeedId), parentTaskId, headers);
         }
     }
 
@@ -174,6 +184,10 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
             public DatafeedTimingStats getTimingStats() {
                 return timingStats;
+            }
+
+            public RunningState getRunningState() {
+                return runningState;
             }
 
             @Override
@@ -357,7 +371,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                         tasksInProgress
                     );
                     DatafeedState datafeedState = MlTasks.getDatafeedState(statsBuilder.datafeedId, tasksInProgress);
-                    return statsBuilder.setNode(maybeTask != null ? state.getNodes().get(maybeTask.getExecutorNode()) : null)
+                    DiscoveryNode node = null;
+                    if (maybeTask != null && maybeTask.getExecutorNode() != null) {
+                        node = state.getNodes().get(maybeTask.getExecutorNode());
+                    }
+                    return statsBuilder.setNode(node)
                         .setDatafeedState(datafeedState)
                         .setAssignmentExplanation(maybeTask != null ? maybeTask.getAssignment().getExplanation() : null)
                         .setTimingStats(timingStats)

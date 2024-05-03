@@ -31,10 +31,7 @@ the Elasticsearch project. They are provided by individual developers or private
 companies and have their own licenses as well as their own versioning system.
 Issues and bug reports can usually be reported on the community plugin's web site.
 
-For advice on writing your own plugin, see <<plugin-authors>>.
-
-IMPORTANT: Site plugins -- plugins containing HTML, CSS and JavaScript -- are
-no longer supported.
+For advice on writing your own plugin, refer to <<plugin-authors>>.
 
 include::plugin-script.asciidoc[]
 
@@ -43,8 +40,6 @@ include::api.asciidoc[]
 include::analysis.asciidoc[]
 
 include::discovery.asciidoc[]
-
-include::ingest.asciidoc[]
 
 include::mapper.asciidoc[]
 

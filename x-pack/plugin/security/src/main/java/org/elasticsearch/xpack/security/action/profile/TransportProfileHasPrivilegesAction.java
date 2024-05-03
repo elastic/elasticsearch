@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -50,7 +51,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final ProfileService profileService;
-    private final SecurityContext securityContext;
     private final ThreadPool threadPool;
 
     @Inject
@@ -60,14 +60,18 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         AuthorizationService authorizationService,
         NativePrivilegeStore privilegeStore,
         ProfileService profileService,
-        SecurityContext securityContext,
         ThreadPool threadPool
     ) {
-        super(ProfileHasPrivilegesAction.NAME, transportService, actionFilters, ProfileHasPrivilegesRequest::new);
+        super(
+            ProfileHasPrivilegesAction.NAME,
+            transportService,
+            actionFilters,
+            ProfileHasPrivilegesRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.profileService = profileService;
-        this.securityContext = securityContext;
         this.threadPool = threadPool;
     }
 
@@ -75,20 +79,18 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     protected void doExecute(Task task, ProfileHasPrivilegesRequest request, ActionListener<ProfileHasPrivilegesResponse> listener) {
         assert task instanceof CancellableTask : "task must be cancellable";
         profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
-            if (profileSubjectsAndFailures.profileUidToSubject().isEmpty()) {
-                listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), profileSubjectsAndFailures.failureProfileUids()));
+            if (profileSubjectsAndFailures.results().isEmpty()) {
+                listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), profileSubjectsAndFailures.errors()));
                 return;
             }
             final Set<String> hasPrivilegeProfiles = Collections.synchronizedSet(new HashSet<>());
-            final Set<String> errorProfiles = Collections.synchronizedSet(new HashSet<>(profileSubjectsAndFailures.failureProfileUids()));
-            final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.profileUidToSubject()
-                .entrySet();
-            final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
+            final Map<String, Exception> errorProfiles = new ConcurrentHashMap<>(profileSubjectsAndFailures.errors());
+            final AtomicInteger counter = new AtomicInteger(profileSubjectsAndFailures.results().size());
             assert counter.get() > 0;
             resolveApplicationPrivileges(
                 request,
                 ActionListener.wrap(applicationPrivilegeDescriptors -> threadPool.generic().execute(() -> {
-                    for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
+                    for (Map.Entry<String, Subject> profileUidToSubject : profileSubjectsAndFailures.results()) {
                         // return the partial response if the "has privilege" task got cancelled in the meantime
                         if (((CancellableTask) task).isCancelled()) {
                             listener.onFailure(new TaskCancelledException("has privilege task cancelled"));
@@ -107,7 +109,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                                 }
                             }, checkPrivilegesException -> {
                                 logger.debug(() -> "Failed to check privileges for profile [" + profileUid + "]", checkPrivilegesException);
-                                errorProfiles.add(profileUid);
+                                errorProfiles.put(profileUid, checkPrivilegesException);
                             }), () -> {
                                 if (counter.decrementAndGet() == 0) {
                                     listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));

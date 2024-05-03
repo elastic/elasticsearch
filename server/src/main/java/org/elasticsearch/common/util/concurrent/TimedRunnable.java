@@ -58,18 +58,6 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     /**
-     * Return the time since this task was created until it finished running.
-     * If the task is still running or has not yet been run, returns -1.
-     */
-    long getTotalNanos() {
-        if (finishTimeNanos == -1) {
-            // There must have been an exception thrown, the total time is unknown (-1)
-            return -1;
-        }
-        return Math.max(finishTimeNanos - creationTimeNanos, 1);
-    }
-
-    /**
      * Return the time this task spent being run.
      * If the task is still running or has not yet been run, returns -1.
      */

@@ -20,10 +20,12 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -38,12 +40,14 @@ import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutin
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateToDataTiersRouting;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 
 public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction<MigrateToDataTiersRequest, MigrateToDataTiersResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportMigrateToDataTiersAction.class);
 
+    private final RerouteService rerouteService;
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -52,6 +56,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
     public TransportMigrateToDataTiersAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -68,8 +73,9 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             MigrateToDataTiersRequest::new,
             indexNameExpressionResolver,
             MigrateToDataTiersResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
@@ -107,11 +113,9 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         }
 
         IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+        if (currentMetadata != null && currentILMMode(state) != STOPPED) {
             listener.onFailure(
-                new IllegalStateException(
-                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
-                )
+                new IllegalStateException("stop ILM before migrating to data tiers, current state is [" + currentILMMode(state) + "]")
             );
             return;
         }
@@ -141,20 +145,19 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                clusterService.getRerouteService()
-                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<ClusterState>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {}
+                rerouteService.reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void ignored) {}
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.log(
-                                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
-                                "unsuccessful reroute after migration to data tiers routing",
-                                e
-                            );
-                        }
-                    });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.log(
+                            MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                            "unsuccessful reroute after migration to data tiers routing",
+                            e
+                        );
+                    }
+                });
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(

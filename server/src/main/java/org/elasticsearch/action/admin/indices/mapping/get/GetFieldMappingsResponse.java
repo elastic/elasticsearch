@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,7 +18,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,7 +30,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /**
@@ -52,8 +50,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        mappings = unmodifiableMap(in.readMap(StreamInput::readString, mapIn -> {
-            if (mapIn.getVersion().before(Version.V_8_0_0)) {
+        mappings = in.readImmutableMap(mapIn -> {
+            if (mapIn.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 int typesSize = mapIn.readVInt();
                 assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
                 if (typesSize == 0) {
@@ -61,10 +59,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }
                 mapIn.readString(); // type
             }
-            return unmodifiableMap(
-                mapIn.readMap(StreamInput::readString, inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))
-            );
-        }));
+            return mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()));
+        });
     }
 
     /** returns the retrieved field mapping. The return map keys are index, field (as specified in the request). */
@@ -127,12 +123,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
 
-        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER = new ConstructingObjectParser<>(
-            "field_mapping_meta_data",
-            true,
-            a -> new FieldMappingMetadata((String) a[0], (BytesReference) a[1])
-        );
-
         /**
          * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}.
          */
@@ -156,12 +146,12 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(mappings, StreamOutput::writeString, (outpt, map) -> {
-            if (outpt.getVersion().before(Version.V_8_0_0)) {
+        out.writeMap(mappings, (outpt, map) -> {
+            if (outpt.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 outpt.writeVInt(1);
                 outpt.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
-            outpt.writeMap(map, StreamOutput::writeString, (o, v) -> {
+            outpt.writeMap(map, (o, v) -> {
                 o.writeString(v.fullName());
                 o.writeBytesReference(v.source);
             });

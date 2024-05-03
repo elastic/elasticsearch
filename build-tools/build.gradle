@@ -21,8 +21,11 @@ description = "The elasticsearch build tools"
 
 group = "org.elasticsearch.gradle"
 version = versions.getProperty("elasticsearch")
-targetCompatibility = versions.get("minimumRuntimeJava")
-sourceCompatibility = versions.get("minimumRuntimeJava")
+
+java {
+  targetCompatibility = versions.get("minimumRuntimeJava")
+  sourceCompatibility = versions.get("minimumRuntimeJava")
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -36,6 +39,10 @@ gradlePlugin {
         esPlugin {
             id = 'elasticsearch.esplugin'
             implementationClass = 'org.elasticsearch.gradle.plugin.PluginBuildPlugin'
+        }
+        stableEsPlugin {
+          id = 'elasticsearch.stable-esplugin'
+          implementationClass = 'org.elasticsearch.gradle.plugin.StablePluginBuildPlugin'
         }
         javaRestTest {
             id = 'elasticsearch.java-rest-test'
@@ -64,7 +71,7 @@ gradlePlugin {
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-    outputFile = "${buildDir}/version.properties"
+    destinationFile = new File(buildDir, "version.properties");
     comment = 'Generated version properties'
     properties(versions)
 }
@@ -94,6 +101,7 @@ publishing.publications.named("elastic").configure {
 
 configurations {
     integTestImplementation.extendsFrom(testFixturesApi)
+    integTestImplementation.extendsFrom(testImplementation)
     integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
     register("reaper")
 }
@@ -118,34 +126,45 @@ dependencies {
     api buildLibs.commmons.io
     implementation buildLibs.asm.tree
     implementation buildLibs.asm
+    implementation buildLibs.jackson.core
+    implementation buildLibs.jackson.databind
 
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi buildLibs.junit
-    testFixturesApi buildLibs.randomized.runner
     testFixturesApi buildLibs.wiremock
     testFixturesApi platform(buildLibs.spock.platform)
     testFixturesApi(buildLibs.spock.core) {
         exclude module: "groovy"
     }
-
-    integTestImplementation(buildLibs.spock.junit4) {
+    testFixturesApi(buildLibs.bytebuddy) {
+      because 'Generating dynamic plugin apis'
+    }
+    testImplementation(buildLibs.spock.junit4) {
         because 'required as we rely on junit4 rules'
     }
 
-    integTestImplementation(platform(buildLibs.junit5.platform))
-    integTestImplementation(buildLibs.junit5.jupiter) {
+    testImplementation(platform(buildLibs.junit5.platform))
+    testImplementation(buildLibs.junit5.jupiter) {
         because 'allows to write and run Jupiter tests'
     }
-    integTestRuntimeOnly(buildLibs.junit5.vintage) {
+    testRuntimeOnly(buildLibs.junit5.vintage) {
         because 'allows JUnit 3 and JUnit 4 tests to run'
     }
 
-    integTestRuntimeOnly(buildLibs.junit5.platform.launcher) {
+    testRuntimeOnly(buildLibs.junit5.platform.launcher) {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
+
 }
 
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
+}
+
+tasks.named('test').configure {
+    useJUnitPlatform()
+}
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

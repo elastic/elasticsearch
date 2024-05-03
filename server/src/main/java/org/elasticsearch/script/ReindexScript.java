@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * A script used in the reindex api
  */
-public abstract class ReindexScript {
+public abstract class ReindexScript extends WriteScript {
 
     public static final String[] PARAMETERS = {};
 
@@ -24,12 +24,15 @@ public abstract class ReindexScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** The context map for the script */
-    private final Map<String, Object> ctx;
-
-    public ReindexScript(Map<String, Object> params, Map<String, Object> ctx) {
+    /**
+     * Metadata available to the script
+     * _index can't be null
+     * _id, _routing and _version are writable and nullable
+     * op must be 'noop', 'index' or 'delete'
+     */
+    public ReindexScript(Map<String, Object> params, CtxMap<ReindexMetadata> ctxMap) {
+        super(ctxMap);
         this.params = params;
-        this.ctx = ctx;
     }
 
     /** Return the parameters for this script. */
@@ -37,14 +40,9 @@ public abstract class ReindexScript {
         return params;
     }
 
-    /** Return the context map for this script */
-    public Map<String, Object> getCtx() {
-        return ctx;
-    }
-
     public abstract void execute();
 
     public interface Factory {
-        ReindexScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
+        ReindexScript newInstance(Map<String, Object> params, CtxMap<ReindexMetadata> ctxMap);
     }
 }

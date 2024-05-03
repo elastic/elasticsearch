@@ -23,4 +23,9 @@ public class FollowInfoRequestTests extends AbstractWireSerializingTestCase<Foll
         request.setFollowerIndices(generateRandomStringArray(4, 4, true, false));
         return request;
     }
+
+    @Override
+    protected FollowInfoAction.Request mutateInstance(FollowInfoAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

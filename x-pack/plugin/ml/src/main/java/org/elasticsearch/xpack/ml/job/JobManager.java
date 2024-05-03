@@ -10,9 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -23,12 +22,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -84,7 +86,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class JobManager {
 
-    private static final Version MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = Version.V_7_14_0;
+    private static final MlConfigVersion MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = MlConfigVersion.V_7_14_0;
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
 
@@ -128,8 +130,8 @@ public class JobManager {
         this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
-    public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, listener);
+    public void jobExists(String jobId, @Nullable TaskId parentTaskId, ActionListener<Boolean> listener) {
+        jobConfigProvider.jobExists(jobId, true, parentTaskId, listener);
     }
 
     /**
@@ -140,13 +142,8 @@ public class JobManager {
      *                    a ResourceNotFoundException is returned
      */
     public void getJob(String jobId, ActionListener<Job> jobListener) {
-        jobConfigProvider.getJob(
-            jobId,
-            ActionListener.wrap(
-                r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
-                jobListener::onFailure
-            )
-        );
+        // TODO JIndex we shouldn't be building the job here
+        jobConfigProvider.getJob(jobId, null, jobListener.delegateFailureAndWrap((l, r) -> l.onResponse(r.build())));
     }
 
     /**
@@ -155,10 +152,16 @@ public class JobManager {
      *
      * @param expression   the jobId or an expression matching jobIds
      * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param parentTaskId The parent task ID if available
      * @param jobsListener The jobs listener
      */
-    public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, jobsListener);
+    public void expandJobBuilders(
+        String expression,
+        boolean allowNoMatch,
+        @Nullable TaskId parentTaskId,
+        ActionListener<List<Job.Builder>> jobsListener
+    ) {
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, parentTaskId, jobsListener);
     }
 
     /**
@@ -173,15 +176,15 @@ public class JobManager {
         expandJobBuilders(
             expression,
             allowNoMatch,
-            ActionListener.wrap(
-                jobBuilders -> jobsListener.onResponse(
+            null,
+            jobsListener.delegateFailureAndWrap(
+                (l, jobBuilders) -> l.onResponse(
                     new QueryPage<>(
                         jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList()),
                         jobBuilders.size(),
                         Job.RESULTS_FIELD
                     )
-                ),
-                jobsListener::onFailure
+                )
             )
         );
     }
@@ -199,7 +202,7 @@ public class JobManager {
     static void validateCategorizationAnalyzerOrSetDefault(
         Job.Builder jobBuilder,
         AnalysisRegistry analysisRegistry,
-        Version minNodeVersion
+        MlConfigVersion minNodeVersion
     ) throws IOException {
         AnalysisConfig analysisConfig = jobBuilder.getAnalysisConfig();
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
@@ -209,7 +212,7 @@ public class JobManager {
                 analysisRegistry
             );
         } else if (analysisConfig.getCategorizationFieldName() != null
-            && minNodeVersion.onOrAfter(MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
+            && minNodeVersion.onOrAfter(MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
                 // Any supplied categorization filters are transferred into the new categorization analyzer.
                 // The user supplied categorization filters will already have been validated when the put job
                 // request was built, so we know they're valid.
@@ -230,7 +233,7 @@ public class JobManager {
         ActionListener<PutJobAction.Response> actionListener
     ) throws IOException {
 
-        Version minNodeVersion = state.getNodes().getMinNodeVersion();
+        MlConfigVersion minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.getNodes());
 
         Job.Builder jobBuilder = request.getJobBuilder();
         jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());
@@ -243,10 +246,10 @@ public class JobManager {
             @Override
             public void onResponse(Boolean mappingsUpdated) {
 
-                jobConfigProvider.putJob(job, ActionListener.wrap(response -> {
+                jobConfigProvider.putJob(job, actionListener.delegateFailureAndWrap((l, response) -> {
                     auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
-                    actionListener.onResponse(new PutJobAction.Response(job));
-                }, actionListener::onFailure));
+                    l.onResponse(new PutJobAction.Response(job));
+                }));
             }
 
             @Override
@@ -265,16 +268,16 @@ public class JobManager {
             }
         };
 
-        ActionListener<Boolean> addDocMappingsListener = ActionListener.wrap(
-            indicesCreated -> ElasticsearchMappings.addDocMappingIfMissing(
+        ActionListener<Boolean> addDocMappingsListener = putJobListener.delegateFailureAndWrap(
+            (l, indicesCreated) -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlConfigIndex.indexName(),
                 MlConfigIndex::mapping,
                 client,
                 state,
                 request.masterNodeTimeout(),
-                putJobListener
-            ),
-            putJobListener::onFailure
+                l,
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
+            )
         );
 
         ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(matchedIds -> {
@@ -316,7 +319,7 @@ public class JobManager {
             actionListener::onFailure
         );
 
-        jobConfigProvider.jobExists(job.getId(), false, ActionListener.wrap(jobExists -> {
+        jobConfigProvider.jobExists(job.getId(), false, null, ActionListener.wrap(jobExists -> {
             if (jobExists) {
                 actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             } else {
@@ -343,7 +346,8 @@ public class JobManager {
             client,
             clusterService.state(),
             request.masterNodeTimeout(),
-            ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure)
+            ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
 
         if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
@@ -406,7 +410,7 @@ public class JobManager {
 
         // Step 2. Delete the physical storage
         ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelUpgradesListener = ActionListener.wrap(
-            r -> new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
+            r -> new JobDataDeleter(clientToUse, jobId, request.getDeleteUserAnnotations()).deleteJobDocuments(
                 jobConfigProvider,
                 indexNameExpressionResolver,
                 state,
@@ -436,16 +440,14 @@ public class JobManager {
                         logger.error("[{}] Updating autodetect failed for job update [{}]", jobUpdate.getJobId(), jobUpdate);
                     }
                 },
-                    e -> {
-                        logger.error(
-                            () -> format(
-                                "[%s] Updating autodetect failed with an exception, job update [%s] ",
-                                jobUpdate.getJobId(),
-                                jobUpdate
-                            ),
-                            e
-                        );
-                    }
+                    e -> logger.error(
+                        () -> format(
+                            "[%s] Updating autodetect failed with an exception, job update [%s] ",
+                            jobUpdate.getJobId(),
+                            jobUpdate
+                        ),
+                        e
+                    )
                 ));
             }
         } else {
@@ -468,24 +470,27 @@ public class JobManager {
 
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (modelSnapshotId != null && ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) == false) {
-            voidChainTaskExecutor.add(listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
-                if (newModelSnapshot == null) {
-                    String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
-                    listener.onFailure(new ResourceNotFoundException(message));
-                    return;
-                }
-                jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
-                    if (oldModelSnapshot != null && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
-                        String message = "Job ["
-                            + job.getId()
-                            + "] has a more recent model snapshot ["
-                            + oldModelSnapshot.result.getSnapshotId()
-                            + "]";
-                        listener.onFailure(new IllegalArgumentException(message));
+            voidChainTaskExecutor.add(
+                listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, false, newModelSnapshot -> {
+                    if (newModelSnapshot == null) {
+                        String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
+                        listener.onFailure(new ResourceNotFoundException(message));
+                        return;
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure);
-            }, listener::onFailure));
+                    jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), false, oldModelSnapshot -> {
+                        if (oldModelSnapshot != null
+                            && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
+                            String message = "Job ["
+                                + job.getId()
+                                + "] has a more recent model snapshot ["
+                                + oldModelSnapshot.result.getSnapshotId()
+                                + "]";
+                            listener.onFailure(new IllegalArgumentException(message));
+                        }
+                        listener.onResponse(null);
+                    }, listener::onFailure);
+                }, listener::onFailure)
+            );
         }
     }
 
@@ -530,13 +535,13 @@ public class JobManager {
         }
     }
 
-    private boolean isJobOpen(ClusterState clusterState, String jobId) {
+    private static boolean isJobOpen(ClusterState clusterState, String jobId) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
-    private Set<String> openJobIds(ClusterState clusterState) {
+    private static Set<String> openJobIds(ClusterState clusterState) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
@@ -621,14 +626,15 @@ public class JobManager {
         // calendarJobIds may be a group or job
         jobConfigProvider.expandGroupIds(
             calendarJobIds,
-            ActionListener.wrap(expandedIds -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                // Merge the expanded group members with the request Ids.
-                // Ids that aren't jobs will be filtered by isJobOpen()
-                expandedIds.addAll(calendarJobIds);
-
-                openJobIds.retainAll(expandedIds);
-                submitJobEventUpdate(openJobIds, updateListener);
-            }), updateListener::onFailure)
+            updateListener.delegateFailureAndWrap(
+                (delegate, expandedIds) -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                    // Merge the expanded group members with the request Ids.
+                    // Ids that aren't jobs will be filtered by isJobOpen()
+                    expandedIds.addAll(calendarJobIds);
+                    openJobIds.retainAll(expandedIds);
+                    submitJobEventUpdate(openJobIds, delegate);
+                })
+            )
         );
     }
 
@@ -637,7 +643,7 @@ public class JobManager {
             updateJobProcessNotifier.submitJobUpdate(
                 UpdateParams.scheduledEventsUpdate(jobId),
                 ActionListener.wrap(
-                    isUpdated -> { auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)); },
+                    isUpdated -> auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)),
                     e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
                 )
             );
@@ -656,7 +662,7 @@ public class JobManager {
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
-        CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
+        CheckedConsumer<DocWriteResponse, Exception> modelSizeStatsResponseHandler = response -> {
             // In case we are reverting to the empty snapshot the quantiles will be null
             if (modelSnapshot.getQuantiles() == null) {
                 actionListener.onResponse(new RevertModelSnapshotAction.Response(modelSnapshot));
@@ -665,12 +671,13 @@ public class JobManager {
             jobResultsPersister.persistQuantiles(
                 modelSnapshot.getQuantiles(),
                 WriteRequest.RefreshPolicy.IMMEDIATE,
-                ActionListener.wrap(quantilesResponse -> {
-                    // The quantiles can be large, and totally dominate the output -
-                    // it's clearer to remove them as they are not necessary for the revert op
-                    ModelSnapshot snapshotWithoutQuantiles = new ModelSnapshot.Builder(modelSnapshot).setQuantiles(null).build();
-                    actionListener.onResponse(new RevertModelSnapshotAction.Response(snapshotWithoutQuantiles));
-                }, actionListener::onFailure)
+                // The quantiles can be large, and totally dominate the output -
+                // it's clearer to remove them as they are not necessary for the revert op
+                actionListener.delegateFailureAndWrap(
+                    (l, quantilesResponse) -> l.onResponse(
+                        new RevertModelSnapshotAction.Response(new ModelSnapshot.Builder(modelSnapshot).setQuantiles(null).build())
+                    )
+                )
             );
         };
 
@@ -680,7 +687,7 @@ public class JobManager {
         CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             if (response) {
                 ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
-                jobResultsPersister.persistModelSizeStats(
+                jobResultsPersister.persistModelSizeStatsWithoutRetries(
                     revertedModelSizeStats,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(modelSizeStatsResponseHandler, actionListener::onFailure)

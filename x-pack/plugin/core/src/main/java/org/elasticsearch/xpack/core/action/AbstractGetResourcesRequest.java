@@ -10,9 +10,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public abstract class AbstractGetResourcesRequest extends ActionRequest {
@@ -92,6 +96,13 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
             && Objects.equals(pageParams, other.pageParams)
             && allowNoResources == other.allowNoResources;
     }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getCancelableTaskDescription(), parentTaskId, headers);
+    }
+
+    public abstract String getCancelableTaskDescription();
 
     public abstract String getResourceIdField();
 }

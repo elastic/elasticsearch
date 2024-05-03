@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -34,14 +33,17 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
     @Override
     protected SimulateIndexTemplateRequest createTestInstance() {
         SimulateIndexTemplateRequest req = new SimulateIndexTemplateRequest(randomAlphaOfLength(10));
-        PutComposableIndexTemplateAction.Request newTemplateRequest = new PutComposableIndexTemplateAction.Request(randomAlphaOfLength(4));
+        TransportPutComposableIndexTemplateAction.Request newTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(
+            randomAlphaOfLength(4)
+        );
         newTemplateRequest.indexTemplate(ComposableIndexTemplateTests.randomInstance());
         req.indexTemplateRequest(newTemplateRequest);
+        req.includeDefaults(randomBoolean());
         return req;
     }
 
     @Override
-    protected SimulateIndexTemplateRequest mutateInstance(SimulateIndexTemplateRequest instance) throws IOException {
+    protected SimulateIndexTemplateRequest mutateInstance(SimulateIndexTemplateRequest instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
@@ -52,11 +54,9 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
 
     public void testAddingGlobalTemplateWithHiddenIndexSettingIsIllegal() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate.Builder().indexPatterns(List.of("*"))
-            .template(template)
-            .build();
+        ComposableIndexTemplate globalTemplate = ComposableIndexTemplate.builder().indexPatterns(List.of("*")).template(template).build();
 
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
 
         SimulateIndexTemplateRequest simulateRequest = new SimulateIndexTemplateRequest("testing");

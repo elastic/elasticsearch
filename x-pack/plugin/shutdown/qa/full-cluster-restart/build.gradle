@@ -1,104 +1,21 @@
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
   // Currently needed for MlConfigIndexMappingsFullClusterRestartIT and SLM classes used in
   // FullClusterRestartIT
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(":qa:full-cluster-restart")))
-  testImplementation project(':x-pack:qa')
-}
-
-tasks.named("forbiddenPatterns") {
-  exclude '**/system_key'
-}
-
-String outputDir = "${buildDir}/generated-resources/${project.name}"
-
-tasks.register("copyTestNodeKeyMaterial", Copy) {
-  from project(':x-pack:plugin:core')
-    .files(
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
-    )
-  into outputDir
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
+  javaRestTestImplementation project(':x-pack:qa')
 }
 
 BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
-    def baseCluster = testClusters.register(baseName) {
-        testDistribution = "DEFAULT"
-        if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
-          // When testing older versions we have to first upgrade to 7.last
-          versions = [bwcVersion.toString(), BuildParams.bwcVersions.minimumWireCompatibleVersion.toString(), project.version]
-        } else {
-          versions = [bwcVersion.toString(), project.version]
-        }
-        numberOfNodes = 2
-        setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-        user username: "test_user", password: "x-pack-test-password"
-
-        setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-        // some tests rely on the translog not being flushed
-        setting 'indices.memory.shard_inactive_time', '60m'
-        setting 'xpack.security.enabled', 'true'
-        setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.license.self_generated.type', 'trial'
-
-        extraConfigFile 'testnode.pem', file("${outputDir}/testnode.pem")
-        extraConfigFile 'testnode.crt', file("${outputDir}/testnode.crt")
-
-        keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
-        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-
-        setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-        setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-        keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-
-        setting 'xpack.security.authc.api_key.enabled', 'true'
-
-        requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-    }
-
-    tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-        mustRunAfter("precommit")
-        useCluster baseCluster
-        dependsOn "copyTestNodeKeyMaterial"
-        doFirst {
-            delete("${buildDir}/cluster/shared/repo/${baseName}")
-        }
-        systemProperty 'tests.is_old_cluster', 'true'
-    }
-
-    tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-        mustRunAfter("precommit")
-        useCluster baseCluster
-        dependsOn "${baseName}#oldClusterTest"
-        doFirst {
-            baseCluster.get().goToNextVersion()
-            if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
-              // When doing a full cluster restart of older versions we actually have to upgrade twice. First to 7.last, then to the current version.
-              baseCluster.get().goToNextVersion()
-            }
-        }
-        systemProperty 'tests.is_old_cluster', 'false'
-    }
-
-    String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
-    tasks.matching { it.name.startsWith("${baseName}#") && it.name.endsWith("ClusterTest") }.configureEach {
-        it.systemProperty 'tests.old_cluster_version', oldVersion
-        it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-        it.nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
-        it.nonInputProperties.systemProperty('tests.clustername', baseName)
-    }
-
-    tasks.register(bwcTaskName(bwcVersion)) {
-        dependsOn "${baseName}#upgradedClusterTest"
-    }
-
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+  }
 }

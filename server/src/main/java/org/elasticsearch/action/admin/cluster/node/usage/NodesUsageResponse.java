@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,22 +27,18 @@ import java.util.List;
  */
 public class NodesUsageResponse extends BaseNodesResponse<NodeUsage> implements ToXContentFragment {
 
-    public NodesUsageResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesUsageResponse(ClusterName clusterName, List<NodeUsage> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodeUsage> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeUsage::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeUsage> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -62,15 +58,7 @@ public class NodesUsageResponse extends BaseNodesResponse<NodeUsage> implements 
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this, true, true);
     }
 
 }

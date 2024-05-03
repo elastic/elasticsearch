@@ -10,11 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -123,7 +123,7 @@ public class WatcherService {
                 1000,
                 daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
                 client.threadPool().getThreadContext(),
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
     }
@@ -201,7 +201,7 @@ public class WatcherService {
      * Reload the watcher service, does not switch the state from stopped to started, just keep going
      * @param state cluster state, which is needed to find out about local shards
      */
-    void reload(ClusterState state, String reason) {
+    void reload(ClusterState state, String reason, Consumer<Exception> exceptionConsumer) {
         boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
         if (hasValidWatcherTemplates == false) {
             logger.warn("missing watcher index templates");
@@ -221,7 +221,10 @@ public class WatcherService {
         int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> logger.error("error reloading watcher", e)));
+        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
+            logger.error("error reloading watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -230,14 +233,17 @@ public class WatcherService {
      * @param state                     the current cluster state
      * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
-    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
                 postWatchesLoadedCallback.run();
             }
-        }, e -> logger.error("error starting watcher", e)));
+        }, e -> {
+            logger.error("error starting watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -311,13 +317,7 @@ public class WatcherService {
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
         try {
-            RefreshResponse refreshResponse = client.admin()
-                .indices()
-                .refresh(new RefreshRequest(INDEX))
-                .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
-                throw illegalState("not all required shards have been refreshed");
-            }
+            refreshWatches(indexMetadata);
 
             // find out local shards
             String watchIndexName = indexMetadata.getIndex().getName();
@@ -326,7 +326,7 @@ public class WatcherService {
             if (routingNode == null) {
                 return Collections.emptyList();
             }
-            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED);
+            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
             // find out all allocation ids
             List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
@@ -388,12 +388,14 @@ public class WatcherService {
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
+                response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
             if (response != null) {
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
                 clearScrollRequest.addScrollId(response.getScrollId());
+                response.decRef();
                 client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }
@@ -401,6 +403,17 @@ public class WatcherService {
         logger.debug("Loaded [{}] watches for execution", watches.size());
 
         return watches;
+    }
+
+    // Non private for unit testing purposes
+    void refreshWatches(IndexMetadata indexMetadata) {
+        BroadcastResponse refreshResponse = client.admin()
+            .indices()
+            .refresh(new RefreshRequest(INDEX))
+            .actionGet(TimeValue.timeValueSeconds(5));
+        if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
+            throw illegalState("not all required shards have been refreshed");
+        }
     }
 
     /**
@@ -411,7 +424,7 @@ public class WatcherService {
      * @param index           The index of the local shard
      * @return true if the we should parse the watch on this node, false otherwise
      */
-    private boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
+    private static boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
         int hash = Murmur3HashFunction.hash(id);
         int shardIndex = Math.floorMod(hash, totalShardCount);
         return shardIndex == index;

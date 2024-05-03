@@ -2,8 +2,8 @@
 = Time functions
 
 The time functions detect events that happen at unusual times, either of the day
-or of the week. These functions can be used to find unusual patterns of behavior,
-typically associated with suspicious user activity.
+or of the week. These functions can be used to find unusual patterns of 
+behavior, typically associated with suspicious user activity.
 
 The {ml-features} include the following time functions:
 
@@ -77,6 +77,12 @@ its past behavior.
 The `time_of_week` function detects when events occur that are outside normal
 usage patterns. For example, it detects login events on the weekend.
 
+IMPORTANT: The `time_of_week` function models time in epoch seconds modulo the 
+  duration of a week in seconds. It means that the `typical` and `actual` values 
+  are seconds after a whole number of weeks since 1/1/1970 in UTC which is a 
+  Thursday. For example, a value of `475` is 475 seconds after midnight on 
+  Thursday in UTC. 
+
 This function supports the following properties:
 
 * `by_field_name` (optional)
@@ -102,3 +108,5 @@ models when events occur throughout the week for each `eventcode`. It detects
 when a workstation event occurs at an unusual time during the week for that
 `eventcode` compared to other workstations. It detects events for a
 particular workstation that are outside the normal usage pattern.
+
+

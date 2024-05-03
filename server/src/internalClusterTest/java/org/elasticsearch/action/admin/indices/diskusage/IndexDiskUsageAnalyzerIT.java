@@ -8,12 +8,12 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.apache.lucene.tests.util.English;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -40,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,19 +60,20 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         return plugins;
     }
 
-    private static final Set<ShardId> failOnFlushShards = Sets.newConcurrentHashSet();
+    private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();
 
     public static class EngineTestPlugin extends Plugin implements EnginePlugin {
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new InternalEngine(config) {
                 @Override
-                public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
                     final ShardId shardId = config.getShardId();
                     if (failOnFlushShards.contains(shardId)) {
-                        throw new EngineException(shardId, "simulated IO");
+                        listener.onFailure(new EngineException(shardId, "simulated IO"));
+                    } else {
+                        super.flushHoldingLock(force, waitIfOngoing, listener);
                     }
-                    super.flush(force, waitIfOngoing);
                 }
             });
         }
@@ -87,18 +88,14 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {
-            mapping.startObject("_doc");
+            mapping.startObject("properties");
             {
-                mapping.startObject("properties");
-                {
-                    mapping.startObject("english_text");
-                    mapping.field("type", "text");
-                    mapping.endObject();
+                mapping.startObject("english_text");
+                mapping.field("type", "text");
+                mapping.endObject();
 
-                    mapping.startObject("value");
-                    mapping.field("type", "long");
-                    mapping.endObject();
-                }
+                mapping.startObject("value");
+                mapping.field("type", "long");
                 mapping.endObject();
             }
             mapping.endObject();
@@ -106,9 +103,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         mapping.endObject();
 
         final String index = "test-index";
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setMapping(mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
@@ -121,7 +116,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
+            prepareIndex(index).setId("id-" + i).setSource(doc).get();
         }
         final boolean forceNorms = randomBoolean();
         if (forceNorms) {
@@ -129,11 +124,13 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .startObject()
                 .field("english_text", "A long sentence to make sure that norms is non-zero")
                 .endObject();
-            client().prepareIndex(index).setId("id").setSource(doc).get();
+            prepareIndex(index).setId("id").setSource(doc).get();
         }
-        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = PlainActionFuture.newFuture();
+        // Force merge to ensure that there are more than one numeric value to justify doc value.
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = new PlainActionFuture<>();
         client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true),
             future
         );
@@ -159,71 +156,10 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertMetadataFields(stats);
     }
 
-    public void testGeoShape() throws Exception {
-        final XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject("_doc");
-            {
-                mapping.startObject("properties");
-                {
-                    mapping.startObject("location");
-                    mapping.field("type", "geo_shape");
-                    mapping.endObject();
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        final String index = "test-index";
-        client().admin()
-            .indices()
-            .prepareCreate(index)
-            .setMapping(mapping)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
-            .get();
-
-        int numDocs = randomIntBetween(10, 100);
-        for (int i = 0; i < numDocs; i++) {
-            final XContentBuilder doc = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("location")
-                .field("type", "point")
-                .field("coordinates", new double[] { GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude() })
-                .endObject()
-                .endObject();
-            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
-        }
-        AnalyzeIndexDiskUsageResponse resp = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
-            new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
-        ).actionGet();
-
-        final IndexDiskUsageStats stats = resp.getStats().get(index);
-        logger.info("--> stats {}", stats);
-        assertNotNull(stats);
-        assertThat(stats.getIndexSizeInBytes(), greaterThan(100L));
-
-        final IndexDiskUsageStats.PerFieldDiskUsage locationField = stats.getFields().get("location");
-        assertThat(locationField.totalBytes(), greaterThan(0L));
-        assertThat(locationField.getPointsBytes(), greaterThan(0L));
-        assertMetadataFields(stats);
-    }
-
     public void testFailOnFlush() throws Exception {
         final String indexName = "test-index";
         int numberOfShards = between(1, 5);
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-            )
-            .get();
+        createIndex(indexName, numberOfShards, between(0, 1));
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             int value = randomIntBetween(1, 10);
@@ -232,7 +168,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
         }
         Index index = clusterService().state().metadata().index(indexName).getIndex();
         List<ShardId> failedShards = randomSubsetOf(
@@ -241,7 +177,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         );
         failOnFlushShards.addAll(failedShards);
         AnalyzeIndexDiskUsageResponse resp = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { indexName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         assertThat(resp.getTotalShards(), equalTo(numberOfShards));
@@ -253,14 +189,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         int totalShards = 0;
         for (String indexName : indices) {
             int numberOfShards = between(10, 30);
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                        .put("index.shard.check_on_startup", false)
+                    indexSettings(numberOfShards, between(0, 1)).put("index.shard.check_on_startup", false)
                         .put("index.routing.rebalance.enable", "none")
                 )
                 .get();
@@ -273,12 +204,12 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                     .field("english_text", English.intToEnglish(value))
                     .field("value", value)
                     .endObject();
-                client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+                prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
             }
         }
 
         AnalyzeIndexDiskUsageResponse resp = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { "index_*" }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         assertThat(Arrays.toString(resp.getShardFailures()), resp.getShardFailures(), emptyArray());
@@ -296,15 +227,8 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String indexName = "test-index";
         int numberOfShards = between(1, 5);
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put("index.routing.rebalance.enable", "none")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+        indicesAdmin().prepareCreate(indexName)
+            .setSettings(indexSettings(numberOfShards, 0).put("index.routing.rebalance.enable", "none"))
             .get();
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
@@ -314,7 +238,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
         }
         final Index index = resolveIndex(indexName);
         final List<ShardId> failingShards = randomSubsetOf(
@@ -325,26 +249,29 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final AtomicInteger successfulShards = new AtomicInteger();
         try {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(AnalyzeIndexDiskUsageAction.NAME + "[s]", (handler, request, channel, task) -> {
-                    AnalyzeDiskUsageShardRequest shardRequest = (AnalyzeDiskUsageShardRequest) request;
-                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                    logger.info("--> handling shard request {} on node {}", shardRequest.shardId(), node);
-                    ShardId shardId = shardRequest.shardId();
-                    if (failingShards.contains(shardId)) {
-                        IndexShard indexShard = indicesService.getShardOrNull(shardId);
-                        assertNotNull("No shard found for shard " + shardId, indexShard);
-                        logger.info("--> failing shard {} on node {}", shardRequest.shardId(), node);
-                        indexShard.close("test", randomBoolean());
-                        failedShards.incrementAndGet();
-                    } else {
-                        successfulShards.incrementAndGet();
-                    }
-                    handler.messageReceived(request, channel, task);
-                });
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(
+                        TransportAnalyzeIndexDiskUsageAction.TYPE.name() + "[s]",
+                        (handler, request, channel, task) -> {
+                            AnalyzeDiskUsageShardRequest shardRequest = (AnalyzeDiskUsageShardRequest) request;
+                            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                            logger.info("--> handling shard request {} on node {}", shardRequest.shardId(), node);
+                            ShardId shardId = shardRequest.shardId();
+                            if (failingShards.contains(shardId)) {
+                                IndexShard indexShard = indicesService.getShardOrNull(shardId);
+                                assertNotNull("No shard found for shard " + shardId, indexShard);
+                                logger.info("--> failing shard {} on node {}", shardRequest.shardId(), node);
+                                closeShardNoCheck(indexShard, randomBoolean());
+                                failedShards.incrementAndGet();
+                            } else {
+                                successfulShards.incrementAndGet();
+                            }
+                            handler.messageReceived(request, channel, task);
+                        }
+                    );
             }
             AnalyzeIndexDiskUsageResponse resp = client().execute(
-                AnalyzeIndexDiskUsageAction.INSTANCE,
+                TransportAnalyzeIndexDiskUsageAction.TYPE,
                 new AnalyzeIndexDiskUsageRequest(new String[] { indexName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
             ).actionGet();
             assertThat(failedShards.get(), equalTo(failingShards.size()));
@@ -355,8 +282,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             assertThat(resp.getShardFailures(), arrayWithSize(failedShards.get()));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }

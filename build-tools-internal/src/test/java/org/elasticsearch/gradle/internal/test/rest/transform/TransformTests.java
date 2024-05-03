@@ -18,7 +18,6 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -38,7 +37,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
-public abstract class TransformTests extends GradleUnitTestCase {
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+public abstract class TransformTests {
 
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);

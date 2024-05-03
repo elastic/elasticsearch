@@ -28,7 +28,7 @@ import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
  *
  * @see Allocation
  */
-public class EnableAssignmentDecider {
+public final class EnableAssignmentDecider {
 
     public static final Setting<Allocation> CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING = new Setting<>(
         "cluster.persistent_tasks.allocation.enable",

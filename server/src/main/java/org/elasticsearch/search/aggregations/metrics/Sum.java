@@ -11,12 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -47,21 +47,30 @@ public class Sum extends InternalNumericMetricsAggregation.SingleValue {
         return SumAggregationBuilder.NAME;
     }
 
+    public static Sum empty(String name, DocValueFormat format, Map<String, Object> metadata) {
+        return new Sum(name, 0.0, format, metadata);
+    }
+
     @Override
     public double value() {
         return sum;
     }
 
     @Override
-    public Sum reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        // Compute the sum of double values with Kahan summation algorithm which is more
-        // accurate than naive summation.
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        for (InternalAggregation aggregation : aggregations) {
-            double value = ((Sum) aggregation).sum;
-            kahanSummation.add(value);
-        }
-        return new Sum(name, kahanSummation.value(), format, getMetadata());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                kahanSummation.add(((Sum) aggregation).sum);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new Sum(name, kahanSummation.value(), format, getMetadata());
+            }
+        };
     }
 
     @Override

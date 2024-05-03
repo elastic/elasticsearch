@@ -69,7 +69,7 @@
               percolate:
                 field: query
                 index: documents_index
-                id: some_id 
+                id: some_id
   - match:  { hits.total:     1  }
 
   - do:
@@ -83,3 +83,46 @@
                 index: documents_index
                 id: some_id
   - match:  { responses.0.hits.total:     1  }
+---
+"Query against field with dotted name":
+  - do:
+      indices.create:
+        index: queries_index
+        body:
+          mappings:
+            properties:
+              query:
+                type: percolator
+              foo.bar:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: documents_index
+        body:
+          mappings:
+            properties:
+              foo.bar:
+                type: keyword
+
+  - do:
+      index:
+        index: queries_index
+        id:   test_percolator
+        body:
+          query:
+            term:
+              foo.bar: value
+
+  - do:
+        indices.refresh: {}
+
+  - do:
+      search:
+        body:
+          - query:
+              percolate:
+                field: query
+                document:
+                  foo.bar: value
+  - match:  { hits.total.value: 1 }

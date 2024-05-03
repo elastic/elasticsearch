@@ -8,14 +8,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
@@ -54,11 +53,11 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var masterService = clusterService.getMasterService();
 
         // create some indices, and randomly close some of them
-        createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
-        createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
-        createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
+        createIndex("test-1", indicesAdmin().prepareCreate("test-1"));
+        createIndex("test-2", indicesAdmin().prepareCreate("test-2"));
+        createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         String[] closedIndices = randomSubsetOf(between(1, 3), "test-1", "test-2", "test-3").toArray(Strings.EMPTY_ARRAY);
-        assertAcked(client().admin().indices().prepareClose(closedIndices));
+        assertAcked(indicesAdmin().prepareClose(closedIndices));
         ensureGreen("test-1", "test-2", "test-3");
 
         final var assertingListener = closedIndexCountListener(closedIndices.length);
@@ -68,11 +67,11 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // wait for block
 
         // fire off some opens
-        final var future1 = client().admin().indices().prepareOpen("test-1").execute();
-        final var future2 = client().admin().indices().prepareOpen("test-2", "test-3").execute();
+        final var future1 = indicesAdmin().prepareOpen("test-1").execute();
+        final var future2 = indicesAdmin().prepareOpen("test-2", "test-3").execute();
 
         // check the queue for the open-indices tasks
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        assertThat(findPendingTasks(masterService, "open-indices"), hasSize(2));
 
         block1.run(); // release block
 
@@ -94,9 +93,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var masterService = clusterService.getMasterService();
 
         // create some indices
-        createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
-        createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
-        createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
+        createIndex("test-1", indicesAdmin().prepareCreate("test-1"));
+        createIndex("test-2", indicesAdmin().prepareCreate("test-2"));
+        createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
 
         final var assertingListener = closedIndexCountListener(3);
@@ -106,11 +105,11 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // wait for block
 
         // fire off some closes
-        final var future1 = client().admin().indices().prepareClose("test-1").execute();
-        final var future2 = client().admin().indices().prepareClose("test-2", "test-3").execute();
+        final var future1 = indicesAdmin().prepareClose("test-1").execute();
+        final var future2 = indicesAdmin().prepareClose("test-2", "test-3").execute();
 
         // check the queue for the first close tasks (the add-block-index-to-close tasks)
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        assertThat(findPendingTasks(masterService, "add-block-index-to-close"), hasSize(2));
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -119,7 +118,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block2.run(); // wait for block
 
         // wait for the queue to have the second close tasks (the close-indices tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertBusy(() -> assertThat(findPendingTasks(masterService, "close-indices"), hasSize(2)));
 
         block2.run(); // release block
 
@@ -148,9 +147,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var masterService = clusterService.getMasterService();
 
         // create some indices
-        createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
-        createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
-        createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
+        createIndex("test-1", indicesAdmin().prepareCreate("test-1"));
+        createIndex("test-2", indicesAdmin().prepareCreate("test-2"));
+        createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
 
         final var assertingListener = blockedIndexCountListener();
@@ -160,11 +159,11 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // wait for block
 
         // fire off some closes
-        final var future1 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-1").execute();
-        final var future2 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-2", "test-3").execute();
+        final var future1 = indicesAdmin().prepareAddBlock(APIBlock.WRITE, "test-1").execute();
+        final var future2 = indicesAdmin().prepareAddBlock(APIBlock.WRITE, "test-2", "test-3").execute();
 
         // check the queue for the first add-block tasks (the add-index-block tasks)
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        assertThat(findPendingTasks(masterService, "add-index-block-[write]"), hasSize(2));
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -173,7 +172,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block2.run(); // wait for block
 
         // wait for the queue to have the second add-block tasks (the finalize-index-block tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertBusy(() -> assertThat(findPendingTasks(masterService, "finalize-index-block-[write]"), hasSize(2)));
 
         block2.run(); // release block
 
@@ -199,20 +198,14 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
         final var executionBarrier = new CyclicBarrier(2);
-        masterService.submitStateUpdateTask(
-            "block",
-            new ExpectSuccessTask(),
-            ClusterStateTaskConfig.build(Priority.URGENT),
-            (currentState, taskContexts) -> {
-                executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
-                executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                for (final var taskContext : taskContexts) {
-                    taskContext.success(() -> {});
-                }
-                return currentState;
+        masterService.createTaskQueue("block", Priority.URGENT, batchExecutionContext -> {
+            executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
+            executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(() -> {});
             }
-        );
-
+            return batchExecutionContext.initialState();
+        }).submitTask("block", new ExpectSuccessTask(), null);
         return () -> executionBarrier.await(10, TimeUnit.SECONDS);
     }
 
@@ -227,6 +220,10 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         );
     }
 
+    private static List<PendingClusterTask> findPendingTasks(MasterService masterService, String taskSourcePrefix) {
+        return masterService.pendingTasks().stream().filter(task -> task.getSource().string().startsWith(taskSourcePrefix)).toList();
+    }
+
     /**
      * Task that asserts it does not fail.
      */
@@ -234,12 +231,6 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         @Override
         public void onFailure(Exception e) {
             throw new AssertionError("should not be called", e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            // see parent method javadoc, we use dedicated listeners rather than calling this method
-            throw new AssertionError("should not be called");
         }
     }
 }

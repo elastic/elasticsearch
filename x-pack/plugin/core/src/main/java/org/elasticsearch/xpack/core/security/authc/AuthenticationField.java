@@ -20,6 +20,7 @@ public final class AuthenticationField {
     public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
     public static final String API_KEY_NAME_KEY = "_security_api_key_name";
+    public static final String API_KEY_TYPE_KEY = "_security_api_key_type";
     public static final String API_KEY_METADATA_KEY = "_security_api_key_metadata";
     public static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     public static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
@@ -32,6 +33,11 @@ public final class AuthenticationField {
 
     public static final String ATTACH_REALM_NAME = "__attach";
     public static final String ATTACH_REALM_TYPE = "__attach";
+
+    public static final String CROSS_CLUSTER_ACCESS_REALM_NAME = "_es_cross_cluster_access";
+    public static final String CROSS_CLUSTER_ACCESS_REALM_TYPE = "_es_cross_cluster_access";
+    public static final String CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY = "_security_cross_cluster_access_authentication";
+    public static final String CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY = "_security_cross_cluster_access_role_descriptors";
 
     private AuthenticationField() {}
 }

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -36,16 +36,17 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(ctx);
+        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays().grow(sums, bucket + 1);
-                compensations = bigArrays().grow(compensations, bucket + 1);
-
                 if (values.advanceExact(doc)) {
+
+                    sums = bigArrays().grow(sums, bucket + 1);
+                    compensations = bigArrays().grow(compensations, bucket + 1);
+
                     final HistogramValue sketch = values.histogram();
                     while (sketch.next()) {
                         double sum = sums.get(bucket);

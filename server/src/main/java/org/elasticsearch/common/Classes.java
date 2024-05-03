@@ -12,25 +12,6 @@ import java.lang.reflect.Modifier;
 
 public class Classes {
 
-    /**
-     * The package separator character '.'
-     */
-    private static final char PACKAGE_SEPARATOR = '.';
-
-    /**
-     * Determine the name of the package of the given class:
-     * e.g. "java.lang" for the <code>java.lang.String</code> class.
-     *
-     * @param clazz the class
-     * @return the package name, or the empty String if the class
-     *         is defined in the default package
-     */
-    public static String getPackageName(Class<?> clazz) {
-        String className = clazz.getName();
-        int lastDotIndex = className.lastIndexOf(PACKAGE_SEPARATOR);
-        return (lastDotIndex != -1 ? className.substring(0, lastDotIndex) : "");
-    }
-
     public static boolean isInnerClass(Class<?> clazz) {
         return Modifier.isStatic(clazz.getModifiers()) == false && clazz.getEnclosingClass() != null;
     }

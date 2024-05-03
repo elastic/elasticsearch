@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -41,9 +39,9 @@ import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_TABLE;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_VIEW;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -368,12 +366,7 @@ public class SysTablesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration cfg) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(
-            SqlTestUtils.TEST_CFG,
-            new FunctionRegistry(),
-            IndexResolution.valid(test),
-            new Verifier(new Metrics())
-        );
+        Analyzer analyzer = analyzer(IndexResolution.valid(test));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId()), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
@@ -413,6 +406,6 @@ public class SysTablesTests extends ESTestCase {
             return Void.TYPE;
         }).when(resolver).resolveNames(any(), any(), any(), any(), any());
 
-        tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
+        tuple.v1().execute(tuple.v2(), ActionTestUtils.assertNoFailureListener(p -> consumer.accept((SchemaRowSet) p.rowSet())));
     }
 }

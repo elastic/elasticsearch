@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
@@ -25,6 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
     public RestSamlSpMetadataAction(Settings settings, XPackLicenseState licenseState) {
@@ -53,7 +55,7 @@ public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
                     builder.startObject();
                     builder.field("metadata", response.getXMLString());
                     builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             }
         );

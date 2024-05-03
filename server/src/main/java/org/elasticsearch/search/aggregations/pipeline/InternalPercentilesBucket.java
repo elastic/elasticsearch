@@ -12,9 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,7 +21,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -118,16 +116,19 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public double value(String name) {
+        if (this.percents.length == 1 && this.name.equals(name)) {
+            return percentile(this.percents[0]);
+        }
         return percentile(Double.parseDouble(name));
     }
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).toList();
+        return Arrays.stream(percents).mapToObj(String::valueOf).toList();
     }
 
     @Override
-    public Max reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Not supported");
     }
 

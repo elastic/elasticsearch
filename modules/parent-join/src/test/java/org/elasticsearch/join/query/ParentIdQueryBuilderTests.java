@@ -23,7 +23,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
@@ -48,7 +47,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -155,6 +154,11 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no relation found for child [unmapped]"));
+    }
+
+    public void testThrowsOnNullTypeOrId() {
+        expectThrows(IllegalArgumentException.class, () -> new ParentIdQueryBuilder(null, randomAlphaOfLength(5)));
+        expectThrows(IllegalArgumentException.class, () -> new ParentIdQueryBuilder(randomAlphaOfLength(5), null));
     }
 
     public void testDisallowExpensiveQueries() {

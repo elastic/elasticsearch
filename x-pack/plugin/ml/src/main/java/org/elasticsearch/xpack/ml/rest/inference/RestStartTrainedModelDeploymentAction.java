@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -23,12 +26,14 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.CACHE_SIZE;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.QUEUE_CAPACITY;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.THREADS_PER_ALLOCATION;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.TIMEOUT;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.WAIT_FOR;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
     @Override
@@ -52,11 +57,16 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
+        String deploymentId = restRequest.param(StartTrainedModelDeploymentAction.Request.DEPLOYMENT_ID.getPreferredName(), modelId);
         StartTrainedModelDeploymentAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
-            request = StartTrainedModelDeploymentAction.Request.parseRequest(modelId, restRequest.contentOrSourceParamParser());
+            request = StartTrainedModelDeploymentAction.Request.parseRequest(
+                modelId,
+                deploymentId,
+                restRequest.contentOrSourceParamParser()
+            );
         } else {
-            request = new StartTrainedModelDeploymentAction.Request(modelId);
+            request = new StartTrainedModelDeploymentAction.Request(modelId, deploymentId);
             if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
                 TimeValue openTimeout = restRequest.paramAsTime(
                     TIMEOUT.getPreferredName(),
@@ -84,6 +94,18 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
                 request::setThreadsPerAllocation
             );
             request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
+            if (restRequest.hasParam(CACHE_SIZE.getPreferredName())) {
+                request.setCacheSize(
+                    ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName())
+                );
+            }
+            request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
+            request.setPriority(
+                restRequest.param(
+                    StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName(),
+                    request.getPriority().toString()
+                )
+            );
         }
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

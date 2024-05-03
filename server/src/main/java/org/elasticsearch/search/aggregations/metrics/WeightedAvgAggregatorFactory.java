@@ -39,7 +39,8 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new WeightedAvgAggregator(name, null, format, context, parent, metadata);
+        final InternalWeightedAvg empty = InternalWeightedAvg.empty(name, format, metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

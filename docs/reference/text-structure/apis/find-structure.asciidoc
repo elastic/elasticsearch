@@ -1,6 +1,6 @@
 [role="xpack"]
 [[find-structure]]
-= Find structure API
+= Find text structure API
 
 Finds the structure of text. The text must
 contain data that is suitable to be ingested into the
@@ -55,175 +55,21 @@ chosen.
 [[find-structure-query-parms]]
 == {api-query-parms-title}
 
-`charset`::
-(Optional, string) The text's character set. It must be a character set that is
-supported by the JVM that {es} uses. For example, `UTF-8`, `UTF-16LE`,
-`windows-1252`, or `EUC-JP`. If this parameter is not specified, the structure
-finder chooses an appropriate character set.
-
-`column_names`::
-(Optional, string) If you have set `format` to `delimited`, you can specify the
-column names in a comma-separated list. If this parameter is not specified, the
-structure finder uses the column names from the header row of the text. If the
-text does not have a header role, columns are named "column1", "column2",
-"column3", etc.
-
-`delimiter`::
-(Optional, string) If you have set `format` to `delimited`, you can specify the
-character used to delimit the values in each row. Only a single character is
-supported; the delimiter cannot have multiple characters. By default, the API
-considers the following possibilities: comma, tab, semi-colon, and pipe (`|`).
-In this default scenario, all rows must have the same number of fields for the
-delimited format to be detected. If you specify a delimiter, up to 10% of the
-rows can have a different number of columns than the first row.
-
-`explain`::
-(Optional, Boolean) If this parameter is set to `true`, the response includes a
-field named `explanation`, which is an array of strings that indicate how the
-structure finder produced its result. The default value is `false`.
-
-`format`::
-(Optional, string) The high level structure of the text. Valid values are
-`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the API
-chooses the format. In this default scenario, all rows must have the same number
-of fields for a delimited format to be detected. If the `format` is set to
-`delimited` and the `delimiter` is not set, however, the API tolerates up to 5%
-of rows that have a different number of columns than the first row.
-
-`grok_pattern`::
-(Optional, string) If you have set `format` to `semi_structured_text`, you can
-specify a Grok pattern that is used to extract fields from every message in the
-text. The name of the timestamp field in the Grok pattern must match what is
-specified in the `timestamp_field` parameter. If that parameter is not
-specified, the name of the timestamp field in the Grok pattern must match
-"timestamp". If `grok_pattern` is not specified, the structure finder creates a
-Grok pattern.
-
-`has_header_row`::
-(Optional, Boolean) If you have set `format` to `delimited`, you can use this
-parameter to indicate whether the column names are in the first row of the text.
-If this parameter is not specified, the structure finder guesses based on the
-similarity of the first row of the text to other rows.
-
-`line_merge_size_limit`::
-(Optional, unsigned integer) The maximum number of characters in a message when
-lines are merged to form messages while analyzing semi-structured text. The
-default is `10000`. If you have extremely long messages you may need to increase
-this, but be aware that this may lead to very long processing times if the way
-to group lines into messages is misdetected.
-
-`lines_to_sample`::
-(Optional, unsigned integer) The number of lines to include in the structural
-analysis, starting from the beginning of the text. The minimum is 2; the default
-is `1000`. If the value of this parameter is greater than the number of lines in
-the text, the analysis proceeds (as long as there are at least two lines in the
-text) for all of the lines.
-+
---
-NOTE: The number of lines and the variation of the lines affects the speed of
-the analysis. For example, if you upload text where the first 1000 lines
-are all variations on the same message, the analysis will find more commonality
-than would be seen with a bigger sample. If possible, however, it is more
-efficient to upload sample text with more variety in the first 1000 lines than
-to request analysis of 100000 lines to achieve some variety.
-
---
-
-`quote`::
-(Optional, string) If you have set `format` to `delimited`, you can specify the
-character used to quote the values in each row if they contain newlines or the
-delimiter character. Only a single character is supported. If this parameter is
-not specified, the default value is a double quote (`"`). If your delimited text
-format does not use quoting, a workaround is to set this argument to a character
-that does not appear anywhere in the sample.
-
-`should_trim_fields`::
-(Optional, Boolean) If you have set `format` to `delimited`, you can specify
-whether values between delimiters should have whitespace trimmed from them. If
-this parameter is not specified and the delimiter is pipe (`|`), the default
-value is `true`. Otherwise, the default value is `false`.
-
-`timeout`::
-(Optional, <<time-units,time units>>) Sets the maximum amount of time that the
-structure analysis make take. If the analysis is still running when the timeout
-expires then it will be aborted. The default value is 25 seconds.
-
-`timestamp_field`::
-(Optional, string) The name of the field that contains the primary timestamp of
-each record in the text. In particular, if the text were ingested into an index,
-this is the field that would be used to populate the `@timestamp` field.
-+
---
-If the `format` is `semi_structured_text`, this field must match the name of the
-appropriate extraction in the `grok_pattern`. Therefore, for semi-structured
-text, it is best not to specify this parameter unless `grok_pattern` is
-also specified.
-
-For structured text, if you specify this parameter, the field must exist
-within the text.
-
-If this parameter is not specified, the structure finder makes a decision about
-which field (if any) is the primary timestamp field. For structured text,
-it is not compulsory to have a timestamp in the text.
---
-
-`timestamp_format`::
-(Optional, string) The Java time format of the timestamp field in the text.
-+
---
-Only a subset of Java time format letter groups are supported:
-
-* `a`
-* `d`
-* `dd`
-* `EEE`
-* `EEEE`
-* `H`
-* `HH`
-* `h`
-* `M`
-* `MM`
-* `MMM`
-* `MMMM`
-* `mm`
-* `ss`
-* `XX`
-* `XXX`
-* `yy`
-* `yyyy`
-* `zzz`
-
-Additionally `S` letter groups (fractional seconds) of length one to nine are
-supported providing they occur after `ss` and separated from the `ss` by a `.`,
-`,` or `:`. Spacing and punctuation is also permitted with the exception of `?`,
-newline and carriage return, together with literal text enclosed in single
-quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override
-format.
-
-One valuable use case for this parameter is when the format is semi-structured
-text, there are multiple timestamp formats in the text, and you know which
-format corresponds to the primary timestamp, but you do not want to specify the
-full `grok_pattern`. Another is when the timestamp format is one that the
-structure finder does not consider by default.
-
-If this parameter is not specified, the structure finder chooses the best
-format from a built-in set.
-
-The following table provides the appropriate `timeformat` values for some example timestamps:
-
-|===
-| Timeformat                 | Presentation
-
-| yyyy-MM-dd HH:mm:ssZ       | 2019-04-20 13:15:22+0000
-| EEE, d MMM yyyy HH:mm:ss Z | Sat, 20 Apr 2019 13:15:22 +0000
-| dd.MM.yy HH:mm:ss.SSS      | 20.04.19 13:15:22.285
-|===
-
-See
-https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[the Java date/time format documentation]
-for more information about date and time format syntax.
-
---
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-charset]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-column-names]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-delimiter]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-explain]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-format]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-grok-pattern]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-ecs-compatibility]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-has-header-row]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-line-merge-size-limit]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-lines-to-sample]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-quote]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-should-trim-fields]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-timeout]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-timestamp-field]
+include::{es-ref-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-timestamp-format]
 
 [discrete]
 [[find-structure-request-body]]
@@ -286,15 +132,16 @@ If the request does not encounter errors, you receive the following result:
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
   "format" : "ndjson", <6>
-  "timestamp_field" : "release_date", <7>
-  "joda_timestamp_formats" : [ <8>
+  "ecs_compatibility" : "disabled", <7>
+  "timestamp_field" : "release_date", <8>
+  "joda_timestamp_formats" : [ <9>
     "ISO8601"
   ],
-  "java_timestamp_formats" : [ <9>
+  "java_timestamp_formats" : [ <10>
     "ISO8601"
   ],
-  "need_client_timezone" : true, <10>
-  "mappings" : { <11>
+  "need_client_timezone" : true, <11>
+  "mappings" : { <12>
     "properties" : {
       "@timestamp" : {
         "type" : "date"
@@ -328,7 +175,7 @@ If the request does not encounter errors, you receive the following result:
       }
     ]
   },
-  "field_stats" : { <12>
+  "field_stats" : { <13>
     "author" : {
       "count" : 24,
       "cardinality" : 20,
@@ -536,19 +383,20 @@ may help diagnose parse errors or accidental uploads of the wrong text.
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
 text begins with a byte order marker.
 <6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
-<7> The `timestamp_field` names the field considered most likely to be the
+<7> `ecs_compatibility` is either `disabled` or `v1`, defaults to `disabled`.
+<8> The `timestamp_field` names the field considered most likely to be the
 primary timestamp of each document.
-<8> `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
-<9> `java_timestamp_formats` are the Java time formats recognized in the time
+<9> `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
+<10> `java_timestamp_formats` are the Java time formats recognized in the time
 fields. {es} mappings and ingest pipelines use this format.
-<10> If a timestamp format is detected that does not include a timezone,
+<11> If a timestamp format is detected that does not include a timezone,
 `need_client_timezone` will be `true`. The server that parses the text must
 therefore be told the correct timezone by the client.
-<11> `mappings` contains some suitable mappings for an index into which the data
+<12> `mappings` contains some suitable mappings for an index into which the data
 could be ingested. In this case, the `release_date` field has been given a
 `keyword` type as it is not considered specific enough to convert to the `date`
 type.
-<12> `field_stats` contains the most common values of each field, plus basic
+<13> `field_stats` contains the most common values of each field, plus basic
 numeric statistics for the numeric `page_count` field. This information may
 provide clues that the data needs to be cleaned or transformed prior to use by
 other {stack} functionality.
@@ -1534,7 +1382,8 @@ This is an example of analyzing an {es} log file:
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST
+"localhost:9200/_text_structure/find_structure?pretty&ecs_compatibility=disabled" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1553,6 +1402,7 @@ this:
   "format" : "semi_structured_text", <1>
   "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", <2>
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*", <3>
+  "ecs_compatibility" : "disabled", <4>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
@@ -1679,6 +1529,8 @@ in the first line of each multi-line log message.
 <3> A very simple `grok_pattern` has been created, which extracts the timestamp
 and recognizable fields that appear in every analyzed message. In this case the
 only field that was recognized beyond the timestamp was the log level.
+<4> The ECS Grok pattern compatibility mode used, may be one of either `disabled`
+(the default if not specified in the request) or `v1`
 
 [discrete]
 [[find-structure-example-grok]]
@@ -1715,6 +1567,7 @@ this:
   "format" : "semi_structured_text",
   "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", <1>
+  "ecs_compatibility" : "disabled", <2>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"
@@ -1769,7 +1622,7 @@ this:
       }
     ]
   },
-  "field_stats" : { <2>
+  "field_stats" : { <3>
     "class" : {
       "count" : 53,
       "cardinality" : 14,
@@ -1945,7 +1798,9 @@ this:
 
 <1> The `grok_pattern` in the output is now the overridden one supplied in the
 query parameter.
-<2> The returned `field_stats` include entries for the fields from the
+<2> The ECS Grok pattern compatibility mode used, may be one of either `disabled`
+(the default if not specified in the request) or `v1`
+<3> The returned `field_stats` include entries for the fields from the
 overridden `grok_pattern`.
 
 The URL escaping is hard, so if you are working interactively it is best to use

@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -21,11 +23,12 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
@@ -162,6 +165,34 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return f.iterator().hasNext() ? f : null;
     }
 
+    @Override
+    public TermVectors termVectors() throws IOException {
+        TermVectors termVectors = super.termVectors();
+        return new TermVectors() {
+            @Override
+            public Fields get(int doc) throws IOException {
+                Fields f = termVectors.get(doc);
+                if (f == null) {
+                    return null;
+                }
+                f = new FieldFilterFields(f);
+                // we need to check for emptyness, so we can return null:
+                return f.iterator().hasNext() ? f : null;
+            }
+        };
+    }
+
+    @Override
+    public StoredFields storedFields() throws IOException {
+        StoredFields storedFields = super.storedFields();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+            }
+        };
+    }
+
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
     @SuppressWarnings("unchecked")
     static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
@@ -278,13 +309,27 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public VectorValues getVectorValues(String field) throws IOException {
-        return hasField(field) ? super.getVectorValues(field) : null;
+    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getFloatVectorValues(field) : null;
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
+    public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        if (hasField(field)) {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
+    }
+
+    @Override
+    public ByteVectorValues getByteVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getByteVectorValues(field) : null;
+    }
+
+    @Override
+    public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        if (hasField(field)) {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
     }
 
     // we share core cache keys (for e.g. fielddata)
@@ -310,8 +355,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-            reader.visitDocument(docID, new FieldSubsetStoredFieldVisitor(visitor));
+        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
         }
 
         @Override

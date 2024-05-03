@@ -13,7 +13,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -30,8 +29,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -43,17 +40,36 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final NumericType numericType;
+        private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        private final boolean indexed;
 
-        public Builder(String name, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+        public Builder(
+            String name,
+            NumericType numericType,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            boolean indexed
+        ) {
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexed);
+        }
+
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            boolean indexed
+        ) {
             this.name = name;
             this.numericType = numericType;
+            this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
+            this.indexed = indexed;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, toScriptFieldFactory);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexed);
         }
     }
 
@@ -61,17 +77,21 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+    protected final boolean indexed;
 
     public SortedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+        boolean indexed
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
-        this.valuesSourceType = numericType.getValuesSourceType();
+        this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexed = indexed;
     }
 
     @Override
@@ -87,6 +107,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     @Override
     protected boolean sortRequiresCustomComparator() {
         return false;
+    }
+
+    @Override
+    public boolean isIndexed() {
+        return indexed;
     }
 
     @Override
@@ -231,11 +256,6 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
         }
 
         @Override

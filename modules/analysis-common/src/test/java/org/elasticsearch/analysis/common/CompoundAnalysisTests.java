@@ -11,18 +11,20 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
@@ -63,7 +65,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         AnalysisModule analysisModule = createAnalysisModule(settings);
-        IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
+        IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
         TokenStream stream = analyzer.tokenStream("", text);
@@ -85,14 +87,14 @@ public class CompoundAnalysisTests extends ESTestCase {
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
             }
-        }));
+        }), new StablePluginsRegistry());
     }
 
     private Settings getJsonSettings() throws IOException {
         String json = "/org/elasticsearch/analysis/common/test1.json";
         return Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
     }
@@ -101,7 +103,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         String yaml = "/org/elasticsearch/analysis/common/test1.yml";
         return Settings.builder()
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
     }

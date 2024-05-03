@@ -7,10 +7,11 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -27,6 +29,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats.AssignmentMemoryBasis;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -160,20 +164,20 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
-            if (invocationOnMock.getArguments()[0]instanceof ActionType<?> v) {
+            if (invocationOnMock.getArguments()[0] instanceof ActionType<?> v) {
                 ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
+                if (v == TransportClusterHealthAction.TYPE) {
+                    ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
+                    listener.onResponse(
+                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
+                    );
+                    return null;
+                }
                 ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
                 Type t = parameterizedType.getActualTypeArguments()[0];
                 if (t.getTypeName().contains("AcknowledgedResponse")) {
                     ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) l;
                     listener.onResponse(AcknowledgedResponse.TRUE);
-                    return null;
-                }
-                if (t.getTypeName().contains("ClusterHealthResponse")) {
-                    ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
-                    listener.onResponse(
-                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
-                    );
                     return null;
                 }
                 fail("Mock not configured to handle generic type " + t.getTypeName());
@@ -186,13 +190,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkPersisterBuilder = mock(JobResultsPersister.Builder.class);
-        when(bulkPersisterBuilder.shouldRetry(any())).thenReturn(bulkPersisterBuilder);
-        when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(bulkPersisterBuilder);
+        when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(bulkPersisterBuilder);
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         annotationPersister = mock(AnnotationPersister.class);
         AnnotationPersister.Builder bulkAnnotationsBuilder = mock(AnnotationPersister.Builder.class);
-        when(bulkAnnotationsBuilder.shouldRetry(any())).thenReturn(bulkAnnotationsBuilder);
-        when(annotationPersister.bulkPersisterBuilder(any())).thenReturn(bulkAnnotationsBuilder);
+        when(annotationPersister.bulkPersisterBuilder(any(), any())).thenReturn(bulkAnnotationsBuilder);
         autodetectCommunicator = mock(AutodetectCommunicator.class);
         autodetectFactory = mock(AutodetectProcessFactory.class);
         normalizerFactory = mock(NormalizerFactory.class);
@@ -213,7 +215,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                                 .put(SETTING_INDEX_HIDDEN, true)
-                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(SETTING_VERSION_CREATED, IndexVersion.current())
                                 .build()
                         )
                         .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
@@ -225,7 +227,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                                 .put(SETTING_INDEX_HIDDEN, true)
-                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(SETTING_VERSION_CREATED, IndexVersion.current())
                                 .build()
                         )
                         .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
@@ -269,7 +271,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
-        verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L, null)), any());
+        ArgumentCaptor<JobTaskState> captor = ArgumentCaptor.forClass(JobTaskState.class);
+        verify(jobTask).updatePersistentTaskState(captor.capture(), any());
+        JobTaskState state = captor.getValue();
+        assertThat(state.getState(), equalTo(JobState.OPENED));
+        assertThat(state.getAllocationId(), equalTo(1L));
+        assertNull(state.getReason());
     }
 
     public void testOpenJob_withoutVersion() {
@@ -420,6 +427,38 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(1, manager.numberOfOpenJobs());
         manager.closeJob(jobTask, null);
         assertEquals(0, manager.numberOfOpenJobs());
+        verify(autodetectCommunicator).setVacating(false);
+    }
+
+    public void testVacate() {
+        ExecutorService executorService = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(executorService).execute(any(Runnable.class));
+        when(threadPool.executor(anyString())).thenReturn(executorService);
+        AutodetectProcessManager manager = createSpyManager();
+        assertEquals(0, manager.numberOfOpenJobs());
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.triggerVacate()).thenReturn(true);
+        manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
+        manager.processData(
+            jobTask,
+            analysisRegistry,
+            createInputStream(""),
+            randomFrom(XContentType.values()),
+            mock(DataLoadParams.class),
+            (dataCounts1, e) -> {}
+        );
+
+        // job is created
+        assertEquals(1, manager.numberOfOpenJobs());
+        when(jobTask.isVacating()).thenReturn(true);
+        manager.vacateOpenJobsOnThisNode();
+        assertEquals(0, manager.numberOfOpenJobs());
+        verify(autodetectCommunicator).setVacating(true);
     }
 
     public void testCanCloseClosingJob() throws Exception {
@@ -545,7 +584,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         );
 
         FlushJobParams params = FlushJobParams.builder().build();
-        manager.flushJob(jobTask, params, ActionListener.wrap(flushAcknowledgement -> {}, e -> fail(e.getMessage())));
+        manager.flushJob(jobTask, params, ActionTestUtils.assertNoFailureListener(flushAcknowledgement -> {}));
 
         verify(autodetectCommunicator).flushJob(same(params), any());
     }
@@ -776,6 +815,35 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(auditor).warning("foo", "No model snapshot could be found for a job with processed records");
         verify(auditor).warning("foo", "No quantiles could be found for a job with processed records");
         verifyNoMoreInteractions(auditor);
+    }
+
+    public void testGetOpenProcessMemoryUsage() {
+        modelSnapshot = null;
+        quantiles = null;
+        dataCounts = new DataCounts("foo");
+        dataCounts.setLatestRecordTimeStamp(new Date(0L));
+        dataCounts.incrementProcessedRecordCount(42L);
+        long modelMemoryLimitBytes = ByteSizeValue.ofMb(randomIntBetween(10, 1000)).getBytes();
+        long peakModelBytes = randomLongBetween(100000, modelMemoryLimitBytes - 1);
+        long modelBytes = randomLongBetween(1, peakModelBytes - 1);
+        AssignmentMemoryBasis assignmentMemoryBasis = randomFrom(AssignmentMemoryBasis.values());
+        modelSizeStats = new ModelSizeStats.Builder("foo").setModelBytesMemoryLimit(modelMemoryLimitBytes)
+            .setPeakModelBytes(peakModelBytes)
+            .setModelBytes(modelBytes)
+            .setAssignmentMemoryBasis(assignmentMemoryBasis)
+            .build();
+        when(autodetectCommunicator.getModelSizeStats()).thenReturn(modelSizeStats);
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
+
+        long expectedSizeBytes = Job.PROCESS_MEMORY_OVERHEAD.getBytes() + switch (assignmentMemoryBasis) {
+            case MODEL_MEMORY_LIMIT -> modelMemoryLimitBytes;
+            case CURRENT_MODEL_BYTES -> modelBytes;
+            case PEAK_MODEL_BYTES -> peakModelBytes;
+        };
+        assertThat(manager.getOpenProcessMemoryUsage(), equalTo(ByteSizeValue.ofBytes(expectedSizeBytes)));
     }
 
     private AutodetectProcessManager createNonSpyManager(String jobId) {

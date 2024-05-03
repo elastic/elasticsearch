@@ -11,7 +11,6 @@ package org.elasticsearch.cluster;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -47,8 +46,8 @@ public class ClusterHealthIT extends ESIntegTestCase {
                 .prepareHealth()
                 .setLocal(true)
                 .setWaitForEvents(Priority.LANGUID)
-                .setTimeout("30s")
-                .get("10s");
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .get(TimeValue.timeValueSeconds(10));
             logger.info("--> got cluster health on [{}]", node);
             assertFalse("timed out on " + node, health.isTimedOut());
             assertThat("health status on " + node, health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -57,19 +56,16 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
     public void testHealth() {
         logger.info("--> running cluster health on an index that does not exists");
-        ClusterHealthResponse healthResponse = client().admin()
-            .cluster()
-            .prepareHealth("test1")
+        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth("test1")
             .setWaitForYellowStatus()
-            .setTimeout("1s")
-            .execute()
-            .actionGet();
+            .setTimeout(TimeValue.timeValueSeconds(1))
+            .get();
         assertThat(healthResponse.isTimedOut(), equalTo(true));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
 
         logger.info("--> running cluster wide health");
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
+        healthResponse = clusterAdmin().prepareHealth().setWaitForGreenStatus().setTimeout(TimeValue.timeValueSeconds(10)).get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
@@ -78,19 +74,16 @@ public class ClusterHealthIT extends ESIntegTestCase {
         createIndex("test1");
 
         logger.info("--> running cluster health on an index that does exists");
-        healthResponse = client().admin().cluster().prepareHealth("test1").setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
+        healthResponse = clusterAdmin().prepareHealth("test1").setWaitForGreenStatus().setTimeout(TimeValue.timeValueSeconds(10)).get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> running cluster health on an index that does exists and an index that doesn't exists");
-        healthResponse = client().admin()
-            .cluster()
-            .prepareHealth("test1", "test2")
+        healthResponse = clusterAdmin().prepareHealth("test1", "test2")
             .setWaitForYellowStatus()
-            .setTimeout("1s")
-            .execute()
-            .actionGet();
+            .setTimeout(TimeValue.timeValueSeconds(1))
+            .get();
         assertThat(healthResponse.isTimedOut(), equalTo(true));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -100,17 +93,17 @@ public class ClusterHealthIT extends ESIntegTestCase {
     public void testHealthWithClosedIndices() {
         createIndex("index-1");
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().get("index-1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
         }
 
         createIndex("index-2");
-        assertAcked(client().admin().indices().prepareClose("index-2"));
+        assertAcked(indicesAdmin().prepareClose("index-2"));
 
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(2));
@@ -118,21 +111,21 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-2").getStatus(), equalTo(ClusterHealthStatus.GREEN));
         }
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-1").get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-1").get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(1));
             assertThat(response.getIndices().get("index-1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
         }
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-2").get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-2").get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(1));
             assertThat(response.getIndices().get("index-2").getStatus(), equalTo(ClusterHealthStatus.GREEN));
         }
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-*").get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-*").get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(2));
@@ -140,9 +133,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-2").getStatus(), equalTo(ClusterHealthStatus.GREEN));
         }
         {
-            ClusterHealthResponse response = client().admin()
-                .cluster()
-                .prepareHealth("index-*")
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -152,9 +143,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-2"), nullValue());
         }
         {
-            ClusterHealthResponse response = client().admin()
-                .cluster()
-                .prepareHealth("index-*")
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-*")
                 .setIndicesOptions(IndicesOptions.fromOptions(true, true, false, true))
                 .get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -165,12 +154,10 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
 
         createIndex("index-3", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 50).build());
-        assertAcked(client().admin().indices().prepareClose("index-3"));
+        assertAcked(indicesAdmin().prepareClose("index-3"));
 
         {
-            ClusterHealthResponse response = client().admin()
-                .cluster()
-                .prepareHealth()
+            ClusterHealthResponse response = clusterAdmin().prepareHealth()
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForNoInitializingShards(true)
                 .setWaitForYellowStatus()
@@ -183,28 +170,28 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-3").getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         }
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-1").get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-1").get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(1));
             assertThat(response.getIndices().get("index-1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
         }
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-2").get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-2").get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(1));
             assertThat(response.getIndices().get("index-2").getStatus(), equalTo(ClusterHealthStatus.GREEN));
         }
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-3").get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-3").get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(1));
             assertThat(response.getIndices().get("index-3").getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         }
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-*").get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-*").get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(3));
@@ -213,9 +200,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-3").getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         }
         {
-            ClusterHealthResponse response = client().admin()
-                .cluster()
-                .prepareHealth("index-*")
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -226,9 +211,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-3"), nullValue());
         }
         {
-            ClusterHealthResponse response = client().admin()
-                .cluster()
-                .prepareHealth("index-*")
+            ClusterHealthResponse response = clusterAdmin().prepareHealth("index-*")
                 .setIndicesOptions(IndicesOptions.fromOptions(true, true, false, true))
                 .get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -239,14 +222,9 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-3").getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         }
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("index-3")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas()).build())
-        );
+        setReplicaCount(numberOfReplicas(), "index-3");
         {
-            ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+            ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.getIndices().size(), equalTo(3));
@@ -262,7 +240,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (finished.get() == false) {
-                    ClusterHealthResponse health = client().admin().cluster().prepareHealth().get();
+                    ClusterHealthResponse health = clusterAdmin().prepareHealth().get();
                     assertThat(health.getStatus(), not(equalTo(ClusterHealthStatus.RED)));
                 }
             }
@@ -276,9 +254,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
     }
 
     public void testWaitForEventsRetriesIfOtherConditionsNotMet() {
-        final ActionFuture<ClusterHealthResponse> healthResponseFuture = client().admin()
-            .cluster()
-            .prepareHealth("index")
+        final ActionFuture<ClusterHealthResponse> healthResponseFuture = clusterAdmin().prepareHealth("index")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .execute();
@@ -310,7 +286,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
         try {
             createIndex("index");
-            assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
+            assertFalse(clusterAdmin().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
 
             // at this point the original health response should not have returned: there was never a point where the index was green AND
             // the master had processed all pending tasks above LANGUID priority.
@@ -359,14 +335,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
         }
         if (withIndex) {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .updateSettings(
-                        new UpdateSettingsRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    )
-                    .get()
-            );
+            setReplicaCount(0, "test");
         }
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {
             assertSame(responseFuture.get().getStatus(), ClusterHealthStatus.GREEN);
@@ -400,9 +369,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         });
 
         try {
-            final ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth()
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(1))
                 .get(TimeValue.timeValueSeconds(30));

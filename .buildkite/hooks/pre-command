@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# On some distros, this directory ends up not readable by the `elasticsearch` user that gets created during tests
+# This fixes that
+chmod 755 ~
+
+WORKSPACE="$(pwd)"
+export WORKSPACE
+
+BUILD_NUMBER="$BUILDKITE_BUILD_NUMBER"
+export BUILD_NUMBER
+
+COMPOSE_HTTP_TIMEOUT="120"
+export COMPOSE_HTTP_TIMEOUT
+
+JOB_BRANCH="$BUILDKITE_BRANCH"
+export JOB_BRANCH
+
+GRADLEW="./gradlew --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW
+
+GRADLEW_BAT="./gradlew.bat --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW_BAT
+
+export $(cat .ci/java-versions.properties | grep '=' | xargs)
+
+JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
+export JAVA_HOME
+
+JAVA11_HOME="$HOME/.java/java11"
+export JAVA11_HOME
+
+JAVA16_HOME="$HOME/.java/openjdk16"
+export JAVA16_HOME
+
+if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
+  RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+  export RUNTIME_JAVA_HOME
+fi
+
+GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export GRADLE_BUILD_CACHE_USERNAME
+
+GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export GRADLE_BUILD_CACHE_PASSWORD
+
+BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
+export BUILDKITE_API_TOKEN
+
+if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
+  data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
+
+  AWS_ACCESS_KEY_ID=$(echo "$data" | jq -r .data.access_key)
+  export AWS_ACCESS_KEY_ID
+
+  AWS_SECRET_ACCESS_KEY=$(echo "$data" | jq -r .data.secret_key)
+  export AWS_SECRET_ACCESS_KEY
+
+  unset data
+fi
+
+if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
+  DRA_VAULT_ROLE_ID_SECRET=$(vault read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  export DRA_VAULT_ROLE_ID_SECRET
+
+  DRA_VAULT_SECRET_ID_SECRET=$(vault read -field=secret-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  export DRA_VAULT_SECRET_ID_SECRET
+
+  DRA_VAULT_ADDR=https://secrets.elastic.co:8200
+  export DRA_VAULT_ADDR
+fi
+
+source .buildkite/scripts/third-party-test-credentials.sh
+
+if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
+  SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
+  export SNYK_TOKEN
+fi
+
+if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
+  DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_USERNAME
+
+  DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_PASSWORD
+fi
+
+if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
+  # Run in the background, while the job continues
+  nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+fi
+
+# Initialize the build scan and gobld annotations with empty/open <details> tags
+# This ensures that they are collapsible when they get appended to
+if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* || "${BUILDKITE_LABEL:-}" == *"Upload Pipeline"* ]]; then
+  cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
+<details>
+
+<summary>Gradle build scan links</summary>
+EOF
+
+  cat << EOF | buildkite-agent annotate --context "ctx-gobld-metrics" --style "info"
+<details>
+
+<summary>Agent information from gobld</summary>
+EOF
+fi

@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
 
   - do:
@@ -10,8 +10,8 @@ setup:
 
 ---
 "Get missing template":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
 
   - do:
@@ -23,8 +23,8 @@ setup:
 
 ---
 "Get non-matching wildcard":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
 
   - do:
@@ -37,8 +37,8 @@ setup:
 
 ---
 "Reject request containing comma":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "validation only added in 7.16.0"
   - do:
       catch:  bad_request

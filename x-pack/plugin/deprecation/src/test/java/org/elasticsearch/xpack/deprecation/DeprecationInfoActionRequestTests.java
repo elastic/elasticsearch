@@ -17,6 +17,11 @@ public class DeprecationInfoActionRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
+    protected DeprecationInfoAction.Request mutateInstance(DeprecationInfoAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<DeprecationInfoAction.Request> instanceReader() {
         return DeprecationInfoAction.Request::new;
     }

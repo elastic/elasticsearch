@@ -8,7 +8,7 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -37,7 +37,6 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.
@@ -58,8 +57,8 @@ public class RoundTripTests extends ESTestCase {
             while (headers.size() < headersCount) {
                 headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
-            TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
-            TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
+            TimeValue socketTimeout = randomPositiveTimeValue();
+            TimeValue connectTimeout = randomPositiveTimeValue();
             reindex.setRemoteInfo(
                 new RemoteInfo(
                     randomAlphaOfLength(5),
@@ -121,7 +120,7 @@ public class RoundTripTests extends ESTestCase {
         }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
-        request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
+        request.setTimeout(randomTimeValue());
         request.setWaitForActiveShards(randomIntBetween(0, 10));
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
 
@@ -185,15 +184,15 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private StreamInput toInputByteStream(Writeable example) throws IOException {
-        return toInputByteStream(Version.CURRENT, example);
+        return toInputByteStream(TransportVersion.current(), example);
     }
 
-    private StreamInput toInputByteStream(Version version, Writeable example) throws IOException {
+    private StreamInput toInputByteStream(TransportVersion version, Writeable example) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         example.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
+        in.setTransportVersion(version);
         return new NamedWriteableAwareStreamInput(in, writableRegistry());
     }
 

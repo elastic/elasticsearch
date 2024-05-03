@@ -8,35 +8,13 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
-
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.netty4.Netty4Utils;
-
-public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpResponse {
-
-    private final int sequence;
-
-    Netty4HttpResponse(int sequence, HttpVersion version, RestStatus status, BytesReference content) {
-        super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty4Utils.toByteBuf(content));
-        this.sequence = sequence;
-    }
-
-    public int getSequence() {
-        return sequence;
-    }
-
-    @Override
-    public void addHeader(String name, String value) {
-        headers().add(name, value);
-    }
-
-    @Override
-    public boolean containsHeader(String name) {
-        return headers().contains(name);
-    }
+/**
+ * Super-interface for responses handled by the Netty4 HTTP transport.
+ */
+public sealed interface Netty4HttpResponse permits Netty4FullHttpResponse, Netty4ChunkedHttpResponse {
+    /**
+     * @return The sequence number for the request which corresponds with this response, for making sure that we send responses to pipelined
+     * requests in the correct order.
+     */
+    int getSequence();
 }

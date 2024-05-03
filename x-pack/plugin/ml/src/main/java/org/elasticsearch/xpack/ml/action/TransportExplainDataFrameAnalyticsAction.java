@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -21,18 +22,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
@@ -56,7 +59,7 @@ import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSe
  * Redirects to a different node if the current node is *not* an ML node.
  */
 public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAction<
-    PutDataFrameAnalyticsAction.Request,
+    ExplainDataFrameAnalyticsAction.Request,
     ExplainDataFrameAnalyticsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportExplainDataFrameAnalyticsAction.class);
@@ -80,7 +83,13 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
         Settings settings,
         ThreadPool threadPool
     ) {
-        super(ExplainDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
+        super(
+            ExplainDataFrameAnalyticsAction.NAME,
+            transportService,
+            actionFilters,
+            ExplainDataFrameAnalyticsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.transportService = transportService;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
@@ -96,7 +105,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
     @Override
     protected void doExecute(
         Task task,
-        PutDataFrameAnalyticsAction.Request request,
+        ExplainDataFrameAnalyticsAction.Request request,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
     ) {
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
@@ -122,12 +131,12 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
 
     private void explain(
         Task task,
-        PutDataFrameAnalyticsAction.Request request,
+        ExplainDataFrameAnalyticsAction.Request request,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
     ) {
-
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
-            new ParentTaskAssigningClient(client, task.getParentTaskId())
+            new ParentTaskAssigningClient(client, parentTaskId)
         );
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
@@ -138,25 +147,27 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
                 ).build();
                 extractedFieldsDetectorFactory.createFromSource(
                     config,
-                    ActionListener.wrap(
-                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, listener),
-                        listener::onFailure
+                    listener.delegateFailureAndWrap(
+                        (l, extractedFieldsDetector) -> explain(parentTaskId, config, extractedFieldsDetector, l)
                     )
                 );
             });
         } else {
+            var responseHeaderPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                listener,
+                threadPool.getThreadContext()
+            );
             extractedFieldsDetectorFactory.createFromSource(
                 request.getConfig(),
-                ActionListener.wrap(
-                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, listener),
-                    listener::onFailure
+                responseHeaderPreservingListener.delegateFailureAndWrap(
+                    (l, extractedFieldsDetector) -> explain(parentTaskId, request.getConfig(), extractedFieldsDetector, l)
                 )
             );
         }
     }
 
     private void explain(
-        Task task,
+        TaskId parentTaskId,
         DataFrameAnalyticsConfig config,
         ExtractedFieldsDetector extractedFieldsDetector,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
@@ -171,13 +182,14 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
             );
             return;
         }
-
-        ActionListener<MemoryEstimation> memoryEstimationListener = ActionListener.wrap(
-            memoryEstimation -> listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation)),
-            listener::onFailure
+        estimateMemoryUsage(
+            parentTaskId,
+            config,
+            fieldExtraction.v1(),
+            listener.delegateFailureAndWrap(
+                (l, memoryEstimation) -> l.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation))
+            )
         );
-
-        estimateMemoryUsage(task, config, fieldExtraction.v1(), memoryEstimationListener);
     }
 
     /**
@@ -186,14 +198,14 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
      * only available on nodes where the ML plugin is enabled.
      */
     private void estimateMemoryUsage(
-        Task task,
+        TaskId parentTaskId,
         DataFrameAnalyticsConfig config,
         ExtractedFields extractedFields,
         ActionListener<MemoryEstimation> listener
     ) {
-        final String estimateMemoryTaskId = "memory_usage_estimation_" + task.getId();
+        final String estimateMemoryTaskId = "memory_usage_estimation_" + parentTaskId.getId();
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(
-            new ParentTaskAssigningClient(client, task.getParentTaskId()),
+            new ParentTaskAssigningClient(client, parentTaskId),
             estimateMemoryTaskId,
             config,
             extractedFields
@@ -202,11 +214,8 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
             estimateMemoryTaskId,
             config,
             extractorFactory,
-            ActionListener.wrap(
-                result -> listener.onResponse(
-                    new MemoryEstimation(result.getExpectedMemoryWithoutDisk(), result.getExpectedMemoryWithDisk())
-                ),
-                listener::onFailure
+            listener.delegateFailureAndWrap(
+                (l, result) -> l.onResponse(new MemoryEstimation(result.getExpectedMemoryWithoutDisk(), result.getExpectedMemoryWithDisk()))
             )
         );
     }
@@ -216,7 +225,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
      * estimation process on, and redirect the request to this node.
      */
     private void redirectToSuitableNode(
-        PutDataFrameAnalyticsAction.Request request,
+        ExplainDataFrameAnalyticsAction.Request request,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
     ) {
         Optional<DiscoveryNode> node = findSuitableNode(clusterService.state());
@@ -225,7 +234,11 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
                 node.get(),
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, ExplainDataFrameAnalyticsAction.Response::new)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    ExplainDataFrameAnalyticsAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         } else {
             listener.onFailure(ExceptionsHelper.badRequestException("No ML, data or ingest node to run on"));

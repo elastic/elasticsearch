@@ -11,5 +11,5 @@ testClusters.configureEach {
 
 // JDBC client can only be configured for SSL with keystores, but we can't use JKS/PKCS12 keystores in FIPS 140-2 mode.
 tasks.withType(Test).configureEach {
-  onlyIf { BuildParams.inFipsJvm == false}
+  BuildParams.withFipsEnabledOnly(it)
 }

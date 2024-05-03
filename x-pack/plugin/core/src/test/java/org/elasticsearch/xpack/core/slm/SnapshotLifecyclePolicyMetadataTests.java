@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -19,7 +18,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotInvocationRecordTests.randomSnapshotInvocationRecord;
 
-public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicyMetadata> {
+public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerializingTestCase<SnapshotLifecyclePolicyMetadata> {
     private String policyId;
 
     @Override
@@ -48,7 +47,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
     }
 
     @Override
-    protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) throws IOException {
+    protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) {
         return switch (between(0, 5)) {
             case 0 -> SnapshotLifecyclePolicyMetadata.builder(instance)
                 .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))
@@ -84,11 +83,16 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         if (randomBoolean()) {
             builder.setHeaders(randomHeaders());
         }
-        if (randomBoolean()) {
+        boolean hasSuccess = randomBoolean();
+        if (hasSuccess) {
             builder.setLastSuccess(randomSnapshotInvocationRecord());
+            builder.setInvocationsSinceLastSuccess(0L);
         }
         if (randomBoolean()) {
             builder.setLastFailure(randomSnapshotInvocationRecord());
+            if (hasSuccess) {
+                builder.setInvocationsSinceLastSuccess(randomLongBetween(1, Long.MAX_VALUE));
+            }
         }
         return builder.build();
     }
@@ -112,7 +116,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         return rarely()
             ? null
             : new SnapshotRetentionConfiguration(
-                rarely() ? null : TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"),
+                rarely() ? null : randomTimeValue(),
                 rarely() ? null : randomIntBetween(1, 10),
                 rarely() ? null : randomIntBetween(15, 30)
             );

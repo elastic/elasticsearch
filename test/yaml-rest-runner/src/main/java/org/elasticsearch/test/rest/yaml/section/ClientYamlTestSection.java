@@ -28,7 +28,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
         List<ExecutableSection> executableSections = new ArrayList<>();
         try {
             parser.nextToken();
-            SkipSection skipSection = SkipSection.parseIfNext(parser);
+            PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser);
             while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
                 ParserUtils.advanceToFieldName(parser);
                 executableSections.add(ExecutableSection.parse(parser));
@@ -45,7 +45,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                 );
             }
             parser.nextToken();
-            return new ClientYamlTestSection(sectionLocation, sectionName, skipSection, executableSections);
+            return new ClientYamlTestSection(sectionLocation, sectionName, prerequisiteSection, executableSections);
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Error parsing test named [" + sectionName + "]", e);
         }
@@ -53,18 +53,18 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
 
     private final XContentLocation location;
     private final String name;
-    private final SkipSection skipSection;
+    private final PrerequisiteSection prerequisiteSection;
     private final List<ExecutableSection> executableSections;
 
     public ClientYamlTestSection(
         XContentLocation location,
         String name,
-        SkipSection skipSection,
+        PrerequisiteSection prerequisiteSection,
         List<ExecutableSection> executableSections
     ) {
         this.location = location;
         this.name = name;
-        this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
+        this.prerequisiteSection = Objects.requireNonNull(prerequisiteSection, "skip section cannot be null");
         this.executableSections = Collections.unmodifiableList(executableSections);
     }
 
@@ -76,8 +76,8 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
         return name;
     }
 
-    public SkipSection getSkipSection() {
-        return skipSection;
+    public PrerequisiteSection getPrerequisiteSection() {
+        return prerequisiteSection;
     }
 
     public List<ExecutableSection> getExecutableSections() {

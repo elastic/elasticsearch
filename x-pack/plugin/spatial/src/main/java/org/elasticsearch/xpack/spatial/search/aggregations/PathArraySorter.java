@@ -9,22 +9,51 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.function.BiFunction;
+
 /**
  * An {@link IntroSorter} that sorts <code>points</code> and <code>sortValues</code> using the
  */
-final class PathArraySorter extends IntroSorter {
+abstract class PathArraySorter extends IntroSorter {
 
     private final long[] points;
-    private final double[] sortValues;
-    private double sortValuePivot;
-    private final SortOrder sortOrder;
+    protected final double[] sortValues;
+    protected double sortValuePivot;
 
-    PathArraySorter(long[] points, double[] sortValues, SortOrder sortOrder) {
+    static BiFunction<long[], double[], PathArraySorter> forOrder(SortOrder sortOrder) {
+        return switch (sortOrder) {
+            case ASC -> Ascending::new;
+            case DESC -> Descending::new;
+        };
+    }
+
+    private static final class Ascending extends PathArraySorter {
+        private Ascending(long[] points, double[] sortValues) {
+            super(points, sortValues);
+        }
+
+        @Override
+        protected int comparePivot(int j) {
+            return Double.compare(sortValuePivot, sortValues[j]);
+        }
+    }
+
+    private static final class Descending extends PathArraySorter {
+        private Descending(long[] points, double[] sortValues) {
+            super(points, sortValues);
+        }
+
+        @Override
+        protected int comparePivot(int j) {
+            return Double.compare(sortValues[j], sortValuePivot);
+        }
+    }
+
+    protected PathArraySorter(long[] points, double[] sortValues) {
         assert points.length == sortValues.length;
         this.points = points;
         this.sortValues = sortValues;
         this.sortValuePivot = 0;
-        this.sortOrder = sortOrder;
     }
 
     public void sort() {
@@ -44,13 +73,5 @@ final class PathArraySorter extends IntroSorter {
     @Override
     protected void setPivot(int i) {
         sortValuePivot = sortValues[i];
-    }
-
-    @Override
-    protected int comparePivot(int j) {
-        if (SortOrder.ASC.equals(sortOrder)) {
-            return Double.compare(sortValuePivot, sortValues[j]);
-        }
-        return Double.compare(sortValues[j], sortValuePivot);
     }
 }

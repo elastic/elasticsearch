@@ -1,6 +1,6 @@
 #  REST API compatibility developers guide
 
-REST API compatibility is intended to minimize the impact for breaking changes applied to the REST API. Compatibility is implemented in a best effort to strike a balance between preserving the REST API contract across major versions while still allowing for breaking changes. URL paths, parameters, HTTP verbs, request bodies and response bodies are all covered by REST API compatibility.
+REST API compatibility is intended to minimize the impact for breaking changes applied to the REST API. Compatibility is implemented to strike a balance between preserving the REST API contract across major versions while still allowing for breaking changes. URL paths, parameters, HTTP verbs, request bodies and response bodies are all covered by REST API compatibility.
 
 ### Example use case
 
@@ -10,7 +10,7 @@ For example, assume a REST request requires a consumer to send a "limit" paramet
 
 ### Workflow
 
-REST API compatibility is opt-in per request using a specialized value for the `Accept` or `Content-Type` HTTP header.  The intent is that this header may be sent prior to a major version upgrade resulting in no differences with the standard header values when the client and server match versions. For example, assume the consumer/client using the REST API for Elasticsearch version 7.  If the client sends the specialized header value(s) for compatibility with version 7, then it will have no effect when talking with Elasticsearch version 7. However, once Elasticsearch is upgraded to version 8, and the compatibility with version 7 headers are sent, then Elasticsearch version 8 will do a best effort honor the version 7 REST API contract. This allows Elasticsearch to be upgraded to version 8 while the clients can generally remain on version 7. Since compatibility is best effort, it is not always guaranteed to fix all upgrade issues but should provide an additional level of confidence during/post upgrade.
+REST API compatibility is opt-in per request using a specialized value for the `Accept` or `Content-Type` HTTP header.  The intent is that this header may be sent prior to a major version upgrade resulting in no differences with the standard header values when the client and server match versions. For example, assume the consumer/client using the REST API for Elasticsearch version 7.  If the client sends the specialized header value(s) for compatibility with version 7, then it will have no effect when talking with Elasticsearch version 7. However, once Elasticsearch is upgraded to version 8, and the compatibility with version 7 headers are sent, then Elasticsearch version 8 attempts to honor the version 7 REST API contract. This allows Elasticsearch to be upgraded to version 8 while the clients can generally remain on version 7. It is not always guaranteed to fix all upgrade issues but should provide an additional level of confidence during/post upgrade.
 
 Breaking changes always follow a life-cycle of deprecation (documentation and warnings) in the current version before implementing the breaking change in the next major version. This give users an opportunity to adopt the non-deprecated variants in the current version. It is the still recommended approach to stop the usage of all deprecated functionality prior to a major version upgrade. However, in practice this can be a difficult, error prone, and a time consuming task. So it also recommended that consumers/clients send the specialized header to enable REST API compatibility before an upgrade to help catch any missed usages of deprecated functionality.
 
@@ -99,7 +99,7 @@ PARSER.declareInt(MyPojo::setMax, new ParseField("maximum").forRestApiVersion(Re
 
 The above example is for code that live in the version 8 branch of code. In this example, `limit` has been deprecated in version 7 and removed in version 8.  The above code reads use the `maximum` value from the request for both version 7 and version 8. However, if compatibility is requested it will also allow `limit` in the payload.  If `limit` is used a warning will be emitted.
 
-The version in `forRestApiVersion` is reference to when the declaration is valid. Assuming version 8 is the master branch and all changes start in the master branch then get back ported. The above text is what would be applicable for the v8 branch of code. The first line of code is essentially ignored except for when compatibility with version 7 is requested. When back-porting this change to the 7.x branch, the first line would be identical, and the second line would be omitted.
+The version in `forRestApiVersion` is reference to when the declaration is valid. Assuming version 8 is the main branch and all changes start in the main branch then get back ported. The above text is what would be applicable for the v8 branch of code. The first line of code is essentially ignored except for when compatibility with version 7 is requested. When back-porting this change to the 7.x branch, the first line would be identical, and the second line would be omitted.
 
 The above strategy works well for single fields, but could get overly complex very fast for large multiple field changes. For more complex de-serialization changes there is also support to construct a `NamedXContentRegistry` with some "normal" entries as well some entries that are only applied when compatibility with the prior version is requested. The syntax is very similar where can express the desired version from the required `ParseField` when adding an entry to the `NamedXContentRegistry`.
 
@@ -172,7 +172,7 @@ In some cases the prior version of the YAML REST tests are not sufficient to ful
 
 ### Developer's workflow
 
-There should not be much, if any, deviation in a developers normal workflow to introduce and back-port changes. Changes should be applied in master, then back ported as needed.
+There should not be much, if any, deviation in a developers normal workflow to introduce and back-port changes. Changes should be applied in main, then back ported as needed.
 
 Most of the compatibility will work correctly when back-porting as-is, but some care is needed that the logic is correct for that version when back-porting.  For example, both the route (URL) and field (de-serialization) declarations with version awareness will behave differently if the declared version is the current version or the prior version. This allows the same line of code to be back ported as-is with differing behavior.  Additionally the compatible version is always populated (even when not requested, defaulting to the current version), so conditional logic comparing against a specific version is safe across branches.
 
@@ -180,7 +180,7 @@ Mixed clusters are not explicitly tested since the change should be applied at t
 
 ### Troubleshooting compatibility test failures
 
-By far the most common reason that compatibility tests can seemingly randomly fail is that your master branch is out of date with the upstream master. For this reason, it always suggested to ensure that your PR branch is up to date.
+By far the most common reason that compatibility tests can seemingly randomly fail is that your main branch is out of date with the upstream main. For this reason, it always suggested to ensure that your PR branch is up to date.
 
 Test failure reproduction lines should behave identical to the non-compatible variant. However, to assure you are referencing the correct line number when reading the test, be sure to look at the line number from the transformed test on disk.  Generally the fully transformed tests can be found at `build/restResources/v7/yamlTests/transformed/rest-api-spec/test/*` (where v7 will change with different versions).
 

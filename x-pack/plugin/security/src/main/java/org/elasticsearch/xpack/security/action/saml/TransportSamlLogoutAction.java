@@ -8,11 +8,14 @@ package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Transport action responsible for generating a SAML {@code &lt;LogoutRequest&gt;} as a redirect binding URL.
@@ -38,6 +42,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
 
     private final Realms realms;
     private final TokenService tokenService;
+    private final Executor genericExecutor;
 
     @Inject
     public TransportSamlLogoutAction(
@@ -46,25 +51,34 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         Realms realms,
         TokenService tokenService
     ) {
-        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
+        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
         this.tokenService = tokenService;
+        this.genericExecutor = transportService.getThreadPool().generic();
     }
 
     @Override
     protected void doExecute(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        genericExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {
                 final String token = request.getToken();
                 tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(tuple -> {
                     Authentication authentication = tuple.v1();
+                    assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
                     final Map<String, Object> tokenMetadata = tuple.v2();
                     SamlLogoutResponse response = buildResponse(authentication, tokenMetadata);
                     tokenService.invalidateAccessToken(token, ActionListener.wrap(created -> {
                         if (logger.isTraceEnabled()) {
                             logger.trace(
                                 "SAML Logout User [{}], Token [{}...{}]",
-                                authentication.getUser().principal(),
+                                authentication.getEffectiveSubject().getUser().principal(),
                                 token.substring(0, 8),
                                 token.substring(token.length() - 8)
                             );
@@ -91,7 +105,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         if (authentication == null) {
             throw SamlUtils.samlException("No active authentication");
         }
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         if (user == null) {
             throw SamlUtils.samlException("No active user");
         }
@@ -118,7 +132,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         return new SamlLogoutResponse(logout.getID(), uri);
     }
 
-    private String getMetadataString(Map<String, Object> metadata, String key) {
+    private static String getMetadataString(Map<String, Object> metadata, String key) {
         final Object value = metadata.get(key);
         if (value == null) {
             if (metadata.containsKey(key)) {
@@ -134,9 +148,9 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
     }
 
     private SamlRealm findRealm(Authentication authentication) {
-        final Authentication.RealmRef ref = authentication.getAuthenticatedBy();
+        final Authentication.RealmRef ref = authentication.getEffectiveSubject().getRealm();
         if (ref == null || Strings.isNullOrEmpty(ref.getName())) {
-            throw SamlUtils.samlException("Authentication {} has no authenticating realm", authentication);
+            throw SamlUtils.samlException("Authentication {} has no effective realm", authentication);
         }
         final Realm realm = realms.realm(ref.getName());
         if (realm == null) {

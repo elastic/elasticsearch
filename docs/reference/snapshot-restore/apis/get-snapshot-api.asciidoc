@@ -83,7 +83,7 @@ Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to re
 [[get-snapshot-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[get-snapshot-api-ignore-unavailable]]
 `ignore_unavailable`::
@@ -110,6 +110,11 @@ If `true`, returns additional information about each index in the snapshot
 comprising the number of shards in the index, the total size of the index in
 bytes, and the maximum number of segments per shard in the index. Defaults to
 `false`, meaning that this information is omitted.
+
+`include_repository`::
+(Optional, Boolean)
+If `true`, returns the repository name for each snapshot in the response.
+Defaults to `true`.
 
 `sort`::
 (Optional, string)

@@ -19,6 +19,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -42,13 +43,14 @@ public class NestedDocuments {
      * Create a new NestedDocuments object for an index
      * @param mappingLookup     the index's mapping
      * @param filterProducer    a function to build BitSetProducers from filter queries
+     * @param indexVersionCreated the index creation version
      */
-    public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer) {
+    public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer, IndexVersion indexVersionCreated) {
         this.nestedLookup = mappingLookup.nestedLookup();
         if (this.nestedLookup == NestedLookup.EMPTY) {
             this.parentDocumentFilter = null;
         } else {
-            this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
+            this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter(indexVersionCreated));
             nestedLookup.getNestedParentFilters().forEach((k, v) -> parentObjectFilters.put(k, filterProducer.apply(v)));
             for (String nestedPath : nestedLookup.getNestedMappers().keySet()) {
                 childObjectFilters.put(nestedPath, null);

@@ -14,6 +14,7 @@ import org.gradle.testkit.runner.TaskOutcome
 class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {
+        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             import org.elasticsearch.gradle.Version;

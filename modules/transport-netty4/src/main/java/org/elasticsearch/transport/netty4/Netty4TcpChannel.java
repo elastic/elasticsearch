@@ -11,84 +11,37 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPromise;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.CompletableContext;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
+
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
+import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4TcpChannel implements TcpChannel {
 
     private final Channel channel;
     private final boolean isServer;
     private final String profile;
-    private final CompletableContext<Void> connectContext;
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final ListenableFuture<Void> connectContext;
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
 
-    Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, @Nullable ChannelFuture connectFuture) {
+    Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, ChannelFuture connectFuture) {
         this.channel = channel;
         this.isServer = isServer;
         this.profile = profile;
-        this.connectContext = new CompletableContext<>();
+        this.connectContext = new ListenableFuture<>();
         this.rstOnClose = rstOnClose;
         addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
-    }
-
-    /**
-     * Adds a listener that completes the given {@link CompletableContext} to the given {@link ChannelFuture}.
-     * @param channelFuture Channel future
-     * @param context Context to complete
-     */
-    public static void addListener(ChannelFuture channelFuture, CompletableContext<Void> context) {
-        channelFuture.addListener(f -> {
-            if (f.isSuccess()) {
-                context.complete(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    context.completeExceptionally(new Exception(cause));
-                } else {
-                    context.completeExceptionally((Exception) cause);
-                }
-            }
-        });
-    }
-
-    /**
-     * Creates a {@link ChannelPromise} for the given {@link Channel} and adds a listener that invokes the given {@link ActionListener}
-     * on its completion.
-     * @param listener lister to invoke
-     * @param channel channel
-     * @return write promise
-     */
-    public static ChannelPromise addPromise(ActionListener<Void> listener, Channel channel) {
-        ChannelPromise writePromise = channel.newPromise();
-        writePromise.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                final Throwable cause = f.cause();
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                if (cause instanceof Error) {
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
-        return writePromise;
     }
 
     @Override
@@ -133,12 +86,12 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override
     public void addConnectListener(ActionListener<Void> listener) {
-        connectContext.addListener(ActionListener.toBiConsumer(listener));
+        connectContext.addListener(listener);
     }
 
     @Override
@@ -163,11 +116,7 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), addPromise(listener, channel));
-
-        if (channel.eventLoop().isShutdown()) {
-            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
-        }
+        safeWriteAndFlush(channel, reference, listener);
     }
 
     public Channel getNettyChannel() {

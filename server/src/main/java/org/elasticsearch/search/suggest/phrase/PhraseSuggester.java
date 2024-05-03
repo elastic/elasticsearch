@@ -133,7 +133,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                         XContentParser parser = XContentFactory.xContent(querySource)
                             .createParser(searchExecutionContext.getParserConfig(), querySource)
                     ) {
-                        QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                        QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser);
                         final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
                     }
@@ -159,7 +159,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
-    private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
+    private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) {
         spare.copyUTF8Bytes(query);
         return analyzer.tokenStream(field, new CharArrayReader(spare.chars(), 0, spare.length()));
     }
@@ -174,7 +174,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         String name,
         PhraseSuggestionContext suggestion,
         CharsRefBuilder spare
-    ) throws IOException {
+    ) {
         PhraseSuggestion phraseSuggestion = new PhraseSuggestion(name, suggestion.getSize());
         spare.copyUTF8Bytes(suggestion.getText());
         phraseSuggestion.addTerm(new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length()));

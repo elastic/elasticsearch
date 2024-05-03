@@ -186,6 +186,13 @@ public class TypesTests extends ESTestCase {
         assertThat(dt.getDataType().typeName(), is("ip"));
     }
 
+    public void testVersionField() {
+        Map<String, EsField> mapping = loadMapping("mapping-version.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("version_number");
+        assertThat(dt.getDataType().typeName(), is("version"));
+    }
+
     public void testConstantKeywordField() {
         Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
         assertThat(mapping.size(), is(1));
@@ -231,7 +238,8 @@ public class TypesTests extends ESTestCase {
     private static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
         boolean order = ordered != null ? ordered.booleanValue() : randomBoolean();
         try (InputStream in = stream) {
-            return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order));
+            Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order);
+            return Types.fromEs(registry, map);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

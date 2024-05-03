@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -33,6 +34,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     TransportNodesUsageAction.NodeUsageRequest,
     NodeUsage> {
 
+    public static final ActionType<NodesUsageResponse> TYPE = new ActionType<>("cluster:monitor/nodes/usage");
     private final UsageService restUsageService;
     private final AggregationUsageService aggregationUsageService;
     private final long sinceTime;
@@ -47,15 +49,12 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         AggregationUsageService aggregationUsageService
     ) {
         super(
-            NodesUsageAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            NodesUsageRequest::new,
             NodeUsageRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeUsage.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.restUsageService = restUsageService;
         this.aggregationUsageService = aggregationUsageService;
@@ -87,6 +86,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
 
     public static class NodeUsageRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesUsageRequest request;
 
         public NodeUsageRequest(StreamInput in) throws IOException {

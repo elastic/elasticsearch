@@ -195,11 +195,9 @@ public class MeanReciprocalRank implements EvaluationMetric {
             return builder.field(FIRST_RELEVANT_RANK_FIELD.getPreferredName(), firstRelevantRank);
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
-            NAME,
-            true,
-            args -> { return new Detail((Integer) args[0]); }
-        );
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Detail((Integer) args[0]);
+        });
 
         static {
             PARSER.declareInt(constructorArg(), FIRST_RELEVANT_RANK_FIELD);

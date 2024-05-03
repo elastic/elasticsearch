@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
@@ -16,6 +17,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.api.Augmentation;
+import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
@@ -163,7 +165,6 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
 
@@ -174,6 +175,15 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_BOOLEAN;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_BYTE;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_CHAR;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_DOUBLE;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_FLOAT;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_INT;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_LONG;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_NEXT_SHORT;
+import static org.elasticsearch.painless.WriterConstants.VALUE_ITERATOR_TYPE;
 
 public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
@@ -551,6 +561,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(irForEachSubIterableNode.getLocation());
 
+        PainlessMethod painlessMethod = irForEachSubIterableNode.getDecorationValue(IRDMethod.class);
+
         Variable variable = writeScope.defineVariable(
             irForEachSubIterableNode.getDecorationValue(IRDVariableType.class),
             irForEachSubIterableNode.getDecorationValue(IRDVariableName.class)
@@ -562,10 +574,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
-        PainlessMethod painlessMethod = irForEachSubIterableNode.getDecorationValue(IRDMethod.class);
-
         if (painlessMethod == null) {
-            Type methodType = Type.getMethodType(Type.getType(Iterator.class), Type.getType(Object.class));
+            Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
             methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
             methodWriter.invokeMethodCall(painlessMethod);
@@ -583,8 +593,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.ifZCmp(MethodWriter.EQ, end);
 
         methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
-        methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
-        methodWriter.writeCast(irForEachSubIterableNode.getDecorationValue(IRDCast.class));
+        if (painlessMethod != null || variable.getType().isPrimitive() == false) {
+            methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
+            methodWriter.writeCast(irForEachSubIterableNode.getDecorationValue(IRDCast.class));
+        } else {
+            switch (variable.getAsmType().getSort()) {
+                case Type.BOOLEAN -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_BOOLEAN);
+                case Type.BYTE -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_BYTE);
+                case Type.SHORT -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_SHORT);
+                case Type.CHAR -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_CHAR);
+                case Type.INT -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_INT);
+                case Type.LONG -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_LONG);
+                case Type.FLOAT -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_FLOAT);
+                case Type.DOUBLE -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_DOUBLE);
+                default -> throw new IllegalArgumentException("Unknown primitive iteration variable type " + variable.getAsmType());
+            }
+        }
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         visit(irForEachSubIterableNode.getBlockNode(), writeScope.newLoopScope(begin, end));
@@ -788,12 +812,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                         methodWriter.push(-1L);
                     } else {
                         throw new IllegalStateException(
-                            "unexpected unary math operation ["
-                                + operation
-                                + "] "
-                                + "for type ["
-                                + irUnaryMathNode.getDecorationString(IRDExpressionType.class)
-                                + "]"
+                            Strings.format(
+                                "unexpected unary math operation [%s] for type [%s]",
+                                operation,
+                                irUnaryMathNode.getDecorationString(IRDExpressionType.class)
+                            )
                         );
                     }
 
@@ -813,12 +836,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 }
             } else {
                 throw new IllegalStateException(
-                    "unexpected unary math operation ["
-                        + operation
-                        + "] "
-                        + "for type ["
-                        + irUnaryMathNode.getDecorationString(IRDExpressionType.class)
-                        + "]"
+                    Strings.format(
+                        "unexpected unary math operation [%s] for type [%s]",
+                        operation,
+                        irUnaryMathNode.getDecorationString(IRDExpressionType.class)
+                    )
                 );
             }
         }
@@ -845,12 +867,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 methodWriter.invokeVirtual(Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
             } else {
                 throw new IllegalStateException(
-                    "unexpected binary math operation ["
-                        + operation
-                        + "] "
-                        + "for type ["
-                        + irBinaryMathNode.getDecorationString(IRDExpressionType.class)
-                        + "]"
+                    Strings.format(
+                        "unexpected binary math operation [%s] for type [%s]",
+                        operation,
+                        irBinaryMathNode.getDecorationString(IRDExpressionType.class)
+                    )
                 );
             }
         } else {
@@ -973,24 +994,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (comparisonType == void.class || comparisonType == byte.class || comparisonType == short.class || comparisonType == char.class) {
             throw new IllegalStateException(
-                "unexpected comparison operation ["
-                    + operation
-                    + "] "
-                    + "for type ["
-                    + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                    + "]"
+                Strings.format(
+                    "unexpected comparison operation [%s] for type [%s]",
+                    operation,
+                    irComparisonNode.getDecorationString(IRDExpressionType.class)
+                )
             );
         } else if (comparisonType == boolean.class) {
             if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
             else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
             else {
                 throw new IllegalStateException(
-                    "unexpected comparison operation ["
-                        + operation
-                        + "] "
-                        + "for type ["
-                        + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                        + "]"
+                    Strings.format(
+                        "unexpected comparison operation [%s] for type [%s]",
+                        operation,
+                        irComparisonNode.getDecorationString(IRDExpressionType.class)
+                    )
                 );
             }
         } else if (comparisonType == int.class
@@ -1005,12 +1024,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
                 else {
                     throw new IllegalStateException(
-                        "unexpected comparison operation ["
-                            + operation
-                            + "] "
-                            + "for type ["
-                            + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                            + "]"
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
                     );
                 }
 
@@ -1054,12 +1072,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     writejump = false;
                 } else {
                     throw new IllegalStateException(
-                        "unexpected comparison operation ["
-                            + operation
-                            + "] "
-                            + "for type ["
-                            + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                            + "]"
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
                     );
                 }
             } else {
@@ -1083,12 +1100,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     }
                 } else {
                     throw new IllegalStateException(
-                        "unexpected comparison operation ["
-                            + operation
-                            + "] "
-                            + "for type ["
-                            + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                            + "]"
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
                     );
                 }
             }

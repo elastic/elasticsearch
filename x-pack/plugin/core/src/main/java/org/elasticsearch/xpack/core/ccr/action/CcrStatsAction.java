@@ -7,17 +7,22 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Objects;
 
 public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
@@ -26,13 +31,18 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
     public static final CcrStatsAction INSTANCE = new CcrStatsAction();
 
     private CcrStatsAction() {
-        super(NAME, CcrStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
 
+        private TimeValue timeout;
+
         public Request(StreamInput in) throws IOException {
             super(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM)) {
+                timeout = in.readOptionalTimeValue();
+            }
         }
 
         public Request() {}
@@ -45,10 +55,43 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM)) {
+                out.writeOptionalTimeValue(timeout);
+            }
+        }
+
+        public TimeValue getTimeout() {
+            return this.timeout;
+        }
+
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Request that = (Request) o;
+            return Objects.equals(this.timeout, that.timeout) && Objects.equals(this.masterNodeTimeout(), that.masterNodeTimeout());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.timeout, this.masterNodeTimeout());
+        }
+
+        @Override
+        public String toString() {
+            return "CcrStatsAction.Request[timeout=" + timeout + ", masterNodeTimeout=" + masterNodeTimeout() + "]";
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         private final AutoFollowStats autoFollowStats;
         private final FollowStatsAction.StatsResponses followStats;
@@ -79,14 +122,14 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("auto_follow_stats", autoFollowStats, params);
-                builder.field("follow_stats", followStats, params);
-            }
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                Iterators.single(
+                    (builder, params) -> builder.startObject().field("auto_follow_stats", autoFollowStats, params).field("follow_stats")
+                ),
+                followStats.toXContentChunked(outerParams),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         @Override

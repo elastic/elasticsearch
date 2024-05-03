@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Calculate statistics for a set of scalar field values.
@@ -246,7 +245,7 @@ public class FieldStatsCalculator {
             .stream()
             .sorted(Comparator.comparing(Map.Entry<T, Integer>::getValue, Comparator.reverseOrder()).thenComparing(secondarySort))
             .limit(numTopHits)
-            .collect(Collectors.toList());
+            .toList();
 
         List<Map<String, Object>> topHits = new ArrayList<>(sortedByCount.size());
 

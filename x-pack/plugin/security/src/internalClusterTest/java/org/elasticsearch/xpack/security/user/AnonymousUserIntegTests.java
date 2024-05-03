@@ -8,17 +8,25 @@ package org.elasticsearch.xpack.security.user;
 
 import org.apache.http.Header;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
@@ -31,7 +39,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -57,12 +69,21 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
             .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
     @Override
     public String configRoles() {
-        return super.configRoles() + "\n" + "anonymous:\n" + "  indices:\n" + "    - names: '*'\n" + "      privileges: [ READ ]\n";
+        return Strings.format("""
+            %s
+            anonymous:
+              cluster: [ manage_token ]
+              indices:
+                - names: '*'
+                  privileges: [ READ ]
+              run_as: [ test_user ]
+            """, super.configRoles());
     }
 
     public void testAnonymousViaHttp() throws Exception {
@@ -89,10 +110,9 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
     }
 
     public void testAnonymousRoleShouldBeCaptureWhenCreatingApiKey() throws IOException {
-        final CreateApiKeyResponse createApiKeyResponse = client().execute(
-            CreateApiKeyAction.INSTANCE,
-            new CreateApiKeyRequest(randomAlphaOfLength(8), null, null)
-        ).actionGet();
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
+        createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, WAIT_UNTIL, IMMEDIATE));
+        final CreateApiKeyResponse createApiKeyResponse = client().execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).actionGet();
 
         final Map<String, Object> apiKeyDocument = getApiKeyDocument(createApiKeyResponse.getId());
 
@@ -112,9 +132,11 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
             createServiceAccountTokenRequest
         ).actionGet();
 
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
+        createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, IMMEDIATE, WAIT_UNTIL));
         final CreateApiKeyResponse createApiKeyResponse = client().filterWithHeader(
             Map.of("Authorization", "Bearer " + createServiceAccountTokenResponse.getValue())
-        ).execute(CreateApiKeyAction.INSTANCE, new CreateApiKeyRequest(randomAlphaOfLength(8), null, null)).actionGet();
+        ).execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).actionGet();
 
         final Map<String, Object> apiKeyDocument = getApiKeyDocument(createApiKeyResponse.getId());
 
@@ -123,8 +145,31 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
         assertThat(limitedByRoleDescriptors, not(hasKey("anonymous")));
     }
 
+    public void testGrantApiKeyForAnonymousUserTokenWithRunAsWillFail() throws IOException {
+        final TestSecurityClient.OAuth2Token oAuth2Token = getSecurityClient(RequestOptions.DEFAULT)
+            .createTokenWithClientCredentialsGrant();
+        assertThat(
+            getSecurityClient(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + oAuth2Token.accessToken()).build())
+                .authenticate()
+                .get("username"),
+            equalTo("_anonymous")
+        );
+
+        final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+        grantApiKeyRequest.getApiKeyRequest().setName("granted-api-key-cannot-have-anonymous-user-token-with-run-as");
+        grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
+        grantApiKeyRequest.getGrant().setType("access_token");
+        grantApiKeyRequest.getGrant().setAccessToken(new SecureString(oAuth2Token.accessToken().toCharArray()));
+        grantApiKeyRequest.getGrant().setRunAsUsername("test_user");
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()
+        );
+        assertThat(e.getMessage(), containsString("the provided grant credentials do not support run-as"));
+    }
+
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
-        final GetResponse getResponse = client().execute(GetAction.INSTANCE, new GetRequest(".security-7", apiKeyId)).actionGet();
+        final GetResponse getResponse = client().execute(TransportGetAction.TYPE, new GetRequest(".security-7", apiKeyId)).actionGet();
         return getResponse.getSource();
     }
 }

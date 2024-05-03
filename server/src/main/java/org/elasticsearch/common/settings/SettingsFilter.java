@@ -89,7 +89,7 @@ public final class SettingsFilter {
             }
         }
         if (simpleMatchPatternList.isEmpty() == false) {
-            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
+            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(String[]::new);
             builder.keys().removeIf(key -> Regex.simpleMatch(simpleMatchPatterns, key));
         }
         return builder.build();

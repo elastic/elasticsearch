@@ -8,46 +8,43 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.IntPredicate;
 
 /**
  * Adapts a Lucene {@link Query} to the behaviors used be the
  * {@link FiltersAggregator}. In general we try to delegate to {@linkplain Query}
  * when we don't have a special optimization.
  */
-public class QueryToFilterAdapter<Q extends Query> {
+public class QueryToFilterAdapter {
     /**
      * Build a filter for the query against the provided searcher.
      * <p>
      * Note: This method rewrites the query against the {@link IndexSearcher}
      */
-    public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
+    public static QueryToFilterAdapter build(IndexSearcher searcher, String key, Query query) throws IOException {
         // Wrapping with a ConstantScoreQuery enables a few more rewrite
         // rules as of Lucene 9.2
         query = searcher.rewrite(new ConstantScoreQuery(query));
@@ -60,31 +57,20 @@ public class QueryToFilterAdapter<Q extends Query> {
              */
             query = ((ConstantScoreQuery) query).getQuery();
         }
-        if (query instanceof TermQuery) {
-            return new TermQueryToFilterAdapter(searcher, key, (TermQuery) query);
-        }
-        if (query instanceof DocValuesFieldExistsQuery) {
-            return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) query);
-        }
-        if (query instanceof MatchAllDocsQuery) {
-            return new MatchAllQueryToFilterAdapter(searcher, key, (MatchAllDocsQuery) query);
-        }
-        if (query instanceof MatchNoDocsQuery) {
-            return new MatchNoneQueryToFilterAdapter(searcher, key, (MatchNoDocsQuery) query);
-        }
-        return new QueryToFilterAdapter<>(searcher, key, query);
+        return new QueryToFilterAdapter(searcher, key, query);
     }
 
     private final IndexSearcher searcher;
     private final String key;
-    private final Q query;
+    private final Query query;
     /**
      * The weight for the query or {@code null} if we haven't built it. Use
      * {@link #weight()} to build it when needed.
      */
     private Weight weight;
+    protected int segmentsCountedInConstantTime;
 
-    QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
+    QueryToFilterAdapter(IndexSearcher searcher, String key, Query query) {
         this.searcher = searcher;
         this.key = key;
         this.query = query;
@@ -96,7 +82,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Subclasses should use this to fetch the query when making query
      * specific optimizations.
      */
-    Q query() {
+    Query query() {
         return query;
     }
 
@@ -125,36 +111,11 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Would using index metadata like {@link IndexReader#docFreq}
-     * or {@link IndexReader#maxDoc} to count the number of matching documents
-     * produce the same answer as collecting the results with a sequence like
-     * {@code searcher.collect(counter); return counter.readAndReset();}?
-     */
-    protected static boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
-        if (live != null) {
-            /*
-             * We can only use metadata if all of the documents in the reader
-             * are visible. This is done by returning a null `live` bits. The
-             * name `live` is traditional because most of the time a non-null
-             * `live` bits means that there are deleted documents. But `live`
-             * might also be non-null if document level security is enabled.
-             */
-            return false;
-        }
-        /*
-         * We can only use metadata if we're not using the special docCount
-         * field. Otherwise we wouldn't know how many documents each lucene
-         * document represents.
-         */
-        return counter.docCount.alwaysOne();
-    }
-
-    /**
      * Make a filter that matches this filter and the provided query.
      * <p>
      * Note: This method rewrites the query against the {@link IndexSearcher}.
      */
-    QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
+    QueryToFilterAdapter union(Query extraQuery) throws IOException {
         /*
          * Wrapping with a ConstantScoreQuery enables a few more rewrite
          * rules as of Lucene 9.2.
@@ -167,23 +128,26 @@ public class QueryToFilterAdapter<Q extends Query> {
          */
         extraQuery = searcher().rewrite(new ConstantScoreQuery(extraQuery));
         Query unwrappedExtraQuery = unwrap(extraQuery);
-        if (unwrappedExtraQuery instanceof MatchAllDocsQuery) {
-            return this;
-        }
         Query unwrappedQuery = unwrap(query);
         if (unwrappedQuery instanceof PointRangeQuery && unwrappedExtraQuery instanceof PointRangeQuery) {
             Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedQuery, (PointRangeQuery) unwrappedExtraQuery);
             if (merged != null) {
                 // Should we rewrap here?
-                return new QueryToFilterAdapter<>(searcher(), key(), merged);
+                return new QueryToFilterAdapter(searcher(), key(), merged);
             }
         }
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.FILTER);
         builder.add(extraQuery, BooleanClause.Occur.FILTER);
-        return new QueryToFilterAdapter<>(searcher(), key(), builder.build()) {
+        Query rewrittenUnion = searcher().rewrite(new ConstantScoreQuery(builder.build()));
+        if (rewrittenUnion instanceof ConstantScoreQuery) {
+            rewrittenUnion = ((ConstantScoreQuery) rewrittenUnion).getQuery();
+        }
+        // This union is inefficient if Lucene cannot merge clauses of the boolean query through a rewrite.
+        final boolean inefficientUnion = rewrittenUnion instanceof BooleanQuery;
+        return new QueryToFilterAdapter(searcher(), key(), rewrittenUnion) {
             public boolean isInefficientUnion() {
-                return true;
+                return inefficientUnion;
             }
         };
     }
@@ -207,22 +171,44 @@ public class QueryToFilterAdapter<Q extends Query> {
     }
 
     /**
-     * Build a predicate that the "compatible" implementation of the
-     * {@link FiltersAggregator} will use to figure out if the filter matches.
-     * <p>
-     * Consumers of this method will always call it with non-negative,
-     * increasing {@code int}s. A sequence like {@code 0, 1, 7, 8, 10} is fine.
-     * It won't call with {@code 0, 1, 0} or {@code -1, 0, 1}.
+     * Returns the {@link Scorer} that the "compatible" implementation of the {@link FiltersAggregator} will use
+     * to get an iterator over the docs matching the filter. The scorer is optimized for random access, since
+     * it will be skipping documents that don't match the main query or other filters.
+     * If the passed context contains no scorer, it returns a dummy scorer that matches no docs.
      */
-    @SuppressWarnings("resource")  // Closing the reader is someone else's problem
-    IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-        return Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), weight().scorerSupplier(ctx))::get;
+    Scorer randomAccessScorer(LeafReaderContext ctx) throws IOException {
+        Weight weight = weight();
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
+        if (scorerSupplier == null) {
+            return null;
+        }
+
+        // A leading cost of 0 instructs the scorer to optimize for random access as opposed to sequential access
+        return scorerSupplier.get(0L);
     }
 
     /**
      * Count the number of documents that match this filter in a leaf.
      */
     long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
+        /*
+         * weight().count will return the count of matches for ctx if it can do
+         * so in constant time, otherwise -1. The Weight is responsible for
+         * all of the cases where it can't return an accurate count *except*
+         * the doc_count field. That thing is ours, not Lucene's.
+         *
+         * For example, TermQuery will return -1 if there are deleted docs,
+         * otherwise it'll return number of documents with the term from the
+         * term statistics. MatchAllDocs will call `ctx.reader().numdocs()`
+         * to get the number of live docs.
+         */
+        if (counter.docCount.alwaysOne()) {
+            int count = weight().count(ctx);
+            if (count != -1) {
+                segmentsCountedInConstantTime++;
+                return count;
+            }
+        }
         BulkScorer scorer = weight().bulkScorer(ctx);
         if (scorer == null) {
             // No hits in this segment.
@@ -257,6 +243,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("query", query.toString());
+        add.accept("segments_counted_in_constant_time", segmentsCountedInConstantTime);
     }
 
     private Weight weight() throws IOException {
@@ -264,5 +251,20 @@ public class QueryToFilterAdapter<Q extends Query> {
             weight = searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         }
         return weight;
+    }
+
+    /**
+     * Checks if all passed filters contain MatchNoDocsQuery queries. In this case, filter aggregation produces
+     * no docs for the given segment.
+     * @param filters list of filters to check
+     * @return true if all filters match no docs, otherwise false
+     */
+    static boolean matchesNoDocs(List<QueryToFilterAdapter> filters) {
+        for (QueryToFilterAdapter filter : filters) {
+            if (filter.query() instanceof MatchNoDocsQuery == false) {
+                return false;
+            }
+        }
+        return true;
     }
 }

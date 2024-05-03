@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -29,16 +30,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -53,11 +60,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -68,6 +77,15 @@ public class TransportService extends AbstractLifecycleComponent
         TransportConnectionListener {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
+
+    /**
+     * A feature flag enabling transport upgrades for serverless.
+     */
+    private static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
+    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG = Booleans.parseBoolean(
+        System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY),
+        false
+    );
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -89,14 +107,12 @@ public class TransportService extends AbstractLifecycleComponent
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
-    final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers = Collections.synchronizedMap(
-        new LinkedHashMap<Long, TimeoutInfoHolder>(100, .75F, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Long, TimeoutInfoHolder> eldest) {
-                return size() > 100;
-            }
+    final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers = Collections.synchronizedMap(new LinkedHashMap<>(100, .75F, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Long, TimeoutInfoHolder> eldest) {
+            return size() > 100;
         }
-    );
+    });
 
     public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {
     };
@@ -104,6 +120,7 @@ public class TransportService extends AbstractLifecycleComponent
     // tracer log
 
     private final Logger tracerLog;
+    private final Tracer tracer;
 
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
@@ -116,6 +133,11 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public DiscoveryNode getNode() {
             return localNode;
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -168,6 +190,18 @@ public class TransportService extends AbstractLifecycleComponent
         }
     };
 
+    public TransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor transportInterceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
+        this(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders, Tracer.NOOP);
+    }
+
     /**
      * Build the service.
      *
@@ -181,7 +215,8 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        TaskManager taskManager,
+        Tracer tracer
     ) {
         this(
             settings,
@@ -190,11 +225,13 @@ public class TransportService extends AbstractLifecycleComponent
             transportInterceptor,
             localNodeFactory,
             clusterSettings,
-            taskHeaders,
-            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
+            taskManager,
+            tracer
         );
     }
 
+    // NOTE: Only for use in tests
     public TransportService(
         Settings settings,
         Transport transport,
@@ -203,18 +240,44 @@ public class TransportService extends AbstractLifecycleComponent
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
-        ConnectionManager connectionManager
+        Tracer tracer
+    ) {
+        this(
+            settings,
+            transport,
+            threadPool,
+            transportInterceptor,
+            localNodeFactory,
+            clusterSettings,
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
+            new TaskManager(settings, threadPool, taskHeaders),
+            tracer
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    public TransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor transportInterceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        ConnectionManager connectionManager,
+        TaskManager taskManger,
+        Tracer tracer
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
+        this.tracer = tracer;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
-        taskManager = createTaskManager(settings, threadPool, taskHeaders);
+        this.taskManager = taskManger;
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
@@ -230,12 +293,12 @@ public class TransportService extends AbstractLifecycleComponent
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
-                new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)
+                new HandshakeResponse(localNode.getVersion(), Build.current().hash(), localNode, clusterName)
             )
         );
     }
@@ -254,10 +317,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     public TaskManager getTaskManager() {
         return taskManager;
-    }
-
-    protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        return new TaskManager(settings, threadPool, taskHeaders);
     }
 
     void setTracerLogInclude(List<String> tracerLogInclude) {
@@ -295,15 +354,30 @@ public class TransportService extends AbstractLifecycleComponent
             throw new UncheckedIOException(e);
         } finally {
             // The underlying transport has stopped which closed all the connections to remote nodes and hence completed all their handlers,
-            // but there may still be pending handlers for node-local requests since this connection is not closed. We complete them here:
-            for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
+            // but there may still be pending handlers for node-local requests since this connection is not closed, and we may also
+            // (briefly) track handlers for requests which are sent concurrently with stopping even though the underlying connection is
+            // now closed. We complete all these outstanding handlers here:
+            for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(Predicates.always())) {
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
+                    final long requestId = holderToNotify.requestId();
+                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                        tracerLog.trace("[{}][{}] pruning request for node [{}]", requestId, holderToNotify.action(), targetNode);
+                    }
 
-                    // Assertion only holds for TcpTransport only because other transports (used in tests) may not implement the proper
-                    // close-connection behaviour. TODO fix this.
-                    assert transport instanceof TcpTransport == false || targetNode.equals(localNode) : targetNode + " vs " + localNode;
+                    assert transport instanceof TcpTransport == false
+                        /* other transports (used in tests) may not implement the proper close-connection behaviour. TODO fix this. */
+                        || targetNode.equals(localNode)
+                        /* local node connection cannot be closed so may still have pending handlers */
+                        || holderToNotify.connection().isClosed()
+                        /* connections to remote nodes must be closed by this point but could still have pending handlers */
+                        : "expected only responses for local "
+                            + localNode
+                            + " but found handler for ["
+                            + holderToNotify.action()
+                            + "] on open connection to "
+                            + targetNode;
 
                     final var exception = new SendRequestTransportException(
                         targetNode,
@@ -311,10 +385,10 @@ public class TransportService extends AbstractLifecycleComponent
                         new NodeClosedException(localNode)
                     );
                     final var executor = handler.executor();
-                    if (executor.equals(ThreadPool.Names.SAME)) {
+                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         handler.handleException(exception);
                     } else {
-                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, exception) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception) {
                             @Override
                             protected void doRun() {
                                 handler.handleException(exception);
@@ -353,7 +427,16 @@ public class TransportService extends AbstractLifecycleComponent
         if (boundTransportAddress == null) {
             return null;
         }
-        return new TransportInfo(boundTransportAddress, transport.profileBoundAddresses());
+        final Map<String, BoundTransportAddress> profileAddresses = transport.profileBoundAddresses();
+        if (remoteClusterService.isRemoteClusterServerEnabled()) {
+            final Map<String, BoundTransportAddress> filteredProfileAddress = profileAddresses.entrySet()
+                .stream()
+                .filter(entry -> false == RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(entry.getKey()))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            return new TransportInfo(boundTransportAddress, filteredProfileAddress);
+        } else {
+            return new TransportInfo(boundTransportAddress, profileAddresses);
+        }
     }
 
     public TransportStats stats() {
@@ -366,6 +449,10 @@ public class TransportService extends AbstractLifecycleComponent
 
     public BoundTransportAddress boundAddress() {
         return transport.boundAddress();
+    }
+
+    public BoundTransportAddress boundRemoteAccessAddress() {
+        return transport.boundRemoteIngressAddress();
     }
 
     public List<String> getDefaultSeedAddresses() {
@@ -398,7 +485,11 @@ public class TransportService extends AbstractLifecycleComponent
      * @param connectionProfile the connection profile to use when connecting to this node
      * @param listener the action listener to notify
      */
-    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Releasable> listener) {
+    public void connectToNode(
+        final DiscoveryNode node,
+        @Nullable ConnectionProfile connectionProfile,
+        ActionListener<Releasable> listener
+    ) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
@@ -409,7 +500,7 @@ public class TransportService extends AbstractLifecycleComponent
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, listener.map(resp -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout(), Predicates.always(), listener.map(resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
@@ -512,7 +603,7 @@ public class TransportService extends AbstractLifecycleComponent
                 } else {
                     l.onResponse(response);
                 }
-            }), HandshakeResponse::new, ThreadPool.Names.GENERIC)
+            }), HandshakeResponse::new, threadPool.generic())
         );
     }
 
@@ -540,7 +631,6 @@ public class TransportService extends AbstractLifecycleComponent
 
         private final Version version;
 
-        @Nullable // if version < BUILD_HASH_HANDSHAKE_VERSION
         private final String buildHash;
 
         private final DiscoveryNode discoveryNode;
@@ -574,7 +664,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private void maybeThrowOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
-            if (isIncompatibleBuild(version, buildHash)) {
+            if (SERVERLESS_TRANSPORT_FEATURE_FLAG == false && isIncompatibleBuild(version, buildHash)) {
                 throwOnIncompatibleBuild(node, e);
             }
         }
@@ -588,9 +678,9 @@ public class TransportService extends AbstractLifecycleComponent
                     + "] of version ["
                     + version
                     + "] but this node is build ["
-                    + Build.CURRENT.hash()
+                    + Build.current().hash()
                     + "] of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] which has an incompatible wire format",
                 e
             );
@@ -621,7 +711,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private static boolean isIncompatibleBuild(Version version, String buildHash) {
-            return version == Version.CURRENT && Build.CURRENT.hash().equals(buildHash) == false;
+            return version == Version.CURRENT && Build.current().hash().equals(buildHash) == false;
         }
     }
 
@@ -636,8 +726,8 @@ public class TransportService extends AbstractLifecycleComponent
         messageListener.listeners.add(listener);
     }
 
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        return messageListener.listeners.remove(listener);
+    public void removeMessageListener(TransportMessageListener listener) {
+        messageListener.listeners.remove(listener);
     }
 
     public void addConnectionListener(TransportConnectionListener listener) {
@@ -664,15 +754,38 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (final NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
-            return;
+        final Transport.Connection connection = getConnectionOrFail(node, action, handler);
+        if (connection != null) {
+            sendRequest(connection, action, request, options, handler);
         }
-        sendRequest(connection, action, request, options, handler);
+    }
+
+    /**
+     * Get connection to the given {@code node} if possible and fail {@code handler} otherwise.
+     *
+     * @return connection if one could be found to {@code node} or null otherwise
+     */
+    @Nullable
+    private Transport.Connection getConnectionOrFail(DiscoveryNode node, String action, TransportResponseHandler<?> handler) {
+        try {
+            var connection = getConnection(node);
+            if (connection == null) {
+                final var ex = new NodeNotConnectedException(node, "Node not connected");
+                assert false : ex;
+                throw ex;
+            }
+            return connection;
+        } catch (TransportException transportException) {
+            // should only be a NodeNotConnectedException in practice, but handle all cases anyway to be sure
+            assert transportException instanceof NodeNotConnectedException : transportException;
+            handleSendRequestException(handler, transportException);
+            return null;
+        } catch (Exception exception) {
+            // shouldn't happen in practice, but handle it anyway to be sure
+            assert false : exception;
+            handleSendRequestException(handler, new SendRequestTransportException(node, action, exception));
+            return null;
+        }
     }
 
     /**
@@ -680,8 +793,8 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public static Transport.Connection unwrapConnection(Transport.Connection connection) {
         Transport.Connection unwrapped = connection;
-        while (unwrapped instanceof RemoteConnectionManager.ProxyConnection) {
-            unwrapped = ((RemoteConnectionManager.ProxyConnection) unwrapped).getConnection();
+        while (unwrapped instanceof RemoteConnectionManager.ProxyConnection proxyConnection) {
+            unwrapped = proxyConnection.getConnection();
         }
         return unwrapped;
     }
@@ -721,31 +834,35 @@ public class TransportService extends AbstractLifecycleComponent
                 if (unregisterChildNode == null) {
                     delegate = handler;
                 } else {
-                    delegate = new UnregisterChildTransportResponseHandler<>(unregisterChildNode, handler, action);
+                    delegate = new UnregisterChildTransportResponseHandler<>(
+                        unregisterChildNode,
+                        handler,
+                        action,
+                        request,
+                        unwrappedConn,
+                        taskManager
+                    );
                 }
             } else {
                 delegate = handler;
             }
             asyncSender.sendRequest(connection, action, request, options, delegate);
-        } catch (final Exception ex) {
-            handleSendRequestException(connection, action, handler, ex);
+        } catch (TransportException transportException) {
+            handleSendRequestException(handler, transportException);
+        } catch (Exception exception) {
+            handleSendRequestException(handler, new SendRequestTransportException(connection.getNode(), action, exception));
         }
     }
 
-    private <T extends TransportResponse> void handleSendRequestException(
-        Transport.Connection connection,
-        String action,
-        TransportResponseHandler<T> handler,
-        Exception ex
-    ) {
-        // the caller might not handle this so we invoke the handler
-        final TransportException te;
-        if (ex instanceof TransportException tex) {
-            te = tex;
-        } else {
-            te = new SendRequestTransportException(connection.getNode(), action, ex);
+    private static void handleSendRequestException(TransportResponseHandler<?> handler, TransportException transportException) {
+        try {
+            handler.handleException(transportException);
+        } catch (Exception innerException) {
+            // should not happen
+            innerException.addSuppressed(transportException);
+            logger.error("unexpected exception from handler.handleException", innerException);
+            assert false : innerException;
         }
-        handler.handleException(te);
     }
 
     /**
@@ -768,15 +885,10 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (final NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
-            return;
+        final Transport.Connection connection = getConnectionOrFail(node, action, handler);
+        if (connection != null) {
+            sendChildRequest(connection, action, request, parentTask, options, handler);
         }
-        sendChildRequest(connection, action, request, parentTask, options, handler);
     }
 
     public <T extends TransportResponse> void sendChildRequest(
@@ -816,7 +928,8 @@ public class TransportService extends AbstractLifecycleComponent
         Supplier<ThreadContext.StoredContext> storedContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         ContextRestoreResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
         // TODO we can probably fold this entire request ID dance into connection.sendRequest but it will be a bigger refactoring
-        final long requestId = responseHandlers.add(new Transport.ResponseContext<>(responseHandler, connection, action));
+        final long requestId = responseHandlers.add(responseHandler, connection, action).requestId();
+        request.setRequestId(requestId);
         final TimeoutHandler timeoutHandler;
         if (options.timeout() != null) {
             timeoutHandler = new TimeoutHandler(requestId, connection.getNode(), action);
@@ -837,13 +950,14 @@ public class TransportService extends AbstractLifecycleComponent
                 assert options.timeout() != null;
                 timeoutHandler.scheduleTimeout(options.timeout());
             }
+            logger.trace("sending internal request id [{}] action [{}] request [{}] options [{}]", requestId, action, request, options);
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
             handleInternalSendException(action, node, requestId, timeoutHandler, e);
         }
     }
 
-    private void handleInternalSendException(
+    protected void handleInternalSendException(
         String action,
         DiscoveryNode node,
         long requestId,
@@ -851,40 +965,82 @@ public class TransportService extends AbstractLifecycleComponent
         Exception failure
     ) {
         final Transport.ResponseContext<? extends TransportResponse> contextToNotify = responseHandlers.remove(requestId);
-        // If holderToNotify == null then handler has already been taken care of.
         if (contextToNotify == null) {
+            // handler has already been completed somehow, nothing to do here
             logger.debug("Exception while sending request, handler likely already notified due to timeout", failure);
             return;
         }
         if (timeoutHandler != null) {
             timeoutHandler.cancel();
         }
-        // callback that an exception happened, but on a different thread since we don't
-        // want handlers to worry about stack overflows. In the special case of running into a closing node we run on the current
-        // thread on a best effort basis though.
-        final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, failure);
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        final var sendRequestException = new SendRequestTransportException(node, action, failure);
+        final var handler = contextToNotify.handler();
+        final var executor = getInternalSendExceptionExecutor(handler.executor());
+        executor.execute(new AbstractRunnable() {
             @Override
-            public void onRejection(Exception e) {
-                // if we get rejected during node shutdown we don't wanna bubble it up
-                logger.debug(() -> format("failed to notify response handler on rejection, action: %s", contextToNotify.action()), e);
+            protected void doRun() {
+                if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+                    tracerLog.trace("[{}][{}] failed to send request to node [{}]", requestId, action, node);
+                }
+                try {
+                    handler.handleException(sendRequestException);
+                } catch (Exception e) {
+                    assert false : e;
+                    if (e != sendRequestException) {
+                        e.addSuppressed(sendRequestException);
+                    }
+                    logger.error(
+                        Strings.format(
+                            "[%d][%s] failed to notify handler [%s] of failure to send request to node [%s]",
+                            requestId,
+                            action,
+                            handler,
+                            node
+                        ),
+                        e
+                    );
+                    // indicates a bug in the handler but there's not much else we can do about it now, just carry on
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> format("failed to notify response handler on exception, action: %s", contextToNotify.action()), e);
+                assert false : e;
+                logger.error(() -> format("failed to notify response handler on exception, action: %s", contextToNotify.action()), e);
             }
 
             @Override
-            protected void doRun() throws Exception {
-                contextToNotify.handler().handleException(sendRequestException);
+            public boolean isForceExecution() {
+                return true; // must complete every waiting listener
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (e != sendRequestException) {
+                    sendRequestException.addSuppressed(e);
+                }
+                // force-execution means we won't be rejected unless we're shutting down
+                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                // in this case it's better to complete the handler on the calling thread rather than leaking it
+                doRun();
             }
         });
     }
 
+    private Executor getInternalSendExceptionExecutor(Executor handlerExecutor) {
+        if (lifecycle.stoppedOrClosed()) {
+            // too late to try and dispatch anywhere else, let's just use the calling thread
+            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        } else if (handlerExecutor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            // if the handler is non-forking then dispatch to GENERIC to avoid a possible stack overflow
+            return threadPool.generic();
+        } else {
+            return handlerExecutor;
+        }
+    }
+
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
-        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
+        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
@@ -894,18 +1050,20 @@ public class TransportService extends AbstractLifecycleComponent
                 assert false : action;
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
-            final String executor = reg.getExecutor();
-            if (ThreadPool.Names.SAME.equals(executor)) {
-                try {
-                    reg.processMessageReceived(request, channel);
-                } catch (Exception e) {
-                    handleSendToLocalException(channel, e, action);
+            final Executor executor = reg.getExecutor();
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                    try {
+                        reg.processMessageReceived(request, channel);
+                    } catch (Exception e) {
+                        handleSendToLocalException(channel, e, action);
+                    }
                 }
             } else {
                 boolean success = false;
-                request.incRef();
+                request.mustIncRef();
                 try {
-                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                    executor.execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
                             reg.processMessageReceived(request, channel);
@@ -930,7 +1088,7 @@ public class TransportService extends AbstractLifecycleComponent
                         public void onAfter() {
                             request.decRef();
                         }
-                    });
+                    }));
                     success = true;
                 } finally {
                     if (success == false) {
@@ -1020,7 +1178,7 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public <Request extends TransportRequest> void registerRequestHandler(
         String action,
-        String executor,
+        Executor executor,
         Writeable.Reader<Request> requestReader,
         TransportRequestHandler<Request> handler
     ) {
@@ -1033,7 +1191,8 @@ public class TransportService extends AbstractLifecycleComponent
             handler,
             executor,
             false,
-            true
+            true,
+            tracer
         );
         transport.registerRequestHandler(reg);
     }
@@ -1050,7 +1209,7 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public <Request extends TransportRequest> void registerRequestHandler(
         String action,
-        String executor,
+        Executor executor,
         boolean forceExecution,
         boolean canTripCircuitBreaker,
         Writeable.Reader<Request> requestReader,
@@ -1065,7 +1224,8 @@ public class TransportService extends AbstractLifecycleComponent
             handler,
             executor,
             forceExecution,
-            canTripCircuitBreaker
+            canTripCircuitBreaker,
+            tracer
         );
         transport.registerRequestHandler(reg);
     }
@@ -1182,15 +1342,21 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
 
-        // Callback that an exception happened, but on a different thread since we don't
-        // want handlers to worry about stack overflows.
-        // Execute on the current thread in the special case of a node shut down to notify the listener even when the threadpool has
-        // already been shut down.
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
+        final var executor = threadPool.generic();
+        assert executor.isShutdown() == false : "connections should all be closed before threadpool shuts down";
+        executor.execute(new AbstractRunnable() {
             @Override
             public void doRun() {
                 for (Transport.ResponseContext<?> holderToNotify : pruned) {
+                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                        tracerLog.trace(
+                            "[{}][{}] pruning request because connection to node [{}] closed",
+                            holderToNotify.requestId(),
+                            holderToNotify.action(),
+                            connection.getNode()
+                        );
+                    }
                     holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
                 }
             }
@@ -1265,40 +1431,11 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private void scheduleTimeout(TimeValue timeout) {
-            this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
+            this.cancellable = threadPool.schedule(this, timeout, threadPool.generic());
         }
     }
 
-    static class TimeoutInfoHolder {
-
-        private final DiscoveryNode node;
-        private final String action;
-        private final long sentTime;
-        private final long timeoutTime;
-
-        TimeoutInfoHolder(DiscoveryNode node, String action, long sentTime, long timeoutTime) {
-            this.node = node;
-            this.action = action;
-            this.sentTime = sentTime;
-            this.timeoutTime = timeoutTime;
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String action() {
-            return action;
-        }
-
-        public long sentTime() {
-            return sentTime;
-        }
-
-        public long timeoutTime() {
-            return timeoutTime;
-        }
-    }
+    record TimeoutInfoHolder(DiscoveryNode node, String action, long sentTime, long timeoutTime) {}
 
     /**
      * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the handle methods
@@ -1341,19 +1478,27 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String executor() {
+        public Executor executor() {
             return delegate.executor();
         }
 
         @Override
         public String toString() {
-            return getClass().getName() + "/" + delegate.toString();
+            return getClass().getSimpleName() + "[" + delegate.toString() + "]";
         }
 
         void setTimeoutHandler(TimeoutHandler timeoutHandler) {
             this.handler = timeoutHandler;
         }
 
+        // for tests
+        TransportResponseHandler<T> unwrap() {
+            return delegate;
+        }
+    }
+
+    public static boolean isDirectResponseChannel(TransportChannel transportChannel) {
+        return transportChannel instanceof DirectResponseChannel;
     }
 
     static class DirectResponseChannel implements TransportChannel {
@@ -1361,14 +1506,12 @@ public class TransportService extends AbstractLifecycleComponent
         private final String action;
         private final long requestId;
         final TransportService service;
-        final ThreadPool threadPool;
 
-        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service, ThreadPool threadPool) {
+        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service) {
             this.localNode = localNode;
             this.action = action;
             this.requestId = requestId;
             this.service = service;
-            this.threadPool = threadPool;
         }
 
         @Override
@@ -1377,7 +1520,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             service.onResponseSent(requestId, action, response);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
@@ -1389,14 +1532,20 @@ public class TransportService extends AbstractLifecycleComponent
                     // handler already completed, likely by a timeout which is logged elsewhere
                     return;
                 }
-                final String executor = handler.executor();
-                if (ThreadPool.Names.SAME.equals(executor)) {
+                final var executor = handler.executor();
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     processResponse(handler, response);
                 } else {
-                    threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+                    response.mustIncRef();
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                         @Override
                         protected void doRun() {
                             processResponse(handler, response);
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            response.decRef();
                         }
 
                         @Override
@@ -1418,7 +1567,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             service.onResponseSent(requestId, action, exception);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
@@ -1431,11 +1580,11 @@ public class TransportService extends AbstractLifecycleComponent
                     return;
                 }
                 final RemoteTransportException rtx = wrapInRemote(exception);
-                final String executor = handler.executor();
-                if (ThreadPool.Names.SAME.equals(executor)) {
+                final var executor = handler.executor();
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, rtx) {
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx) {
                         @Override
                         protected void doRun() {
                             processException(handler, rtx);
@@ -1465,13 +1614,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String getChannelType() {
-            return "direct";
-        }
-
-        @Override
-        public Version getVersion() {
-            return localNode.getVersion();
+        public String toString() {
+            return Strings.format("DirectResponseChannel{req=%d}{%s}", requestId, action);
         }
     }
 
@@ -1483,7 +1627,10 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private boolean isLocalNode(DiscoveryNode discoveryNode) {
-        return Objects.requireNonNull(discoveryNode, "discovery node must not be null").equals(localNode);
+        if (discoveryNode == null) {
+            throw new NodeNotConnectedException(discoveryNode, "discovery node must not be null");
+        }
+        return discoveryNode.equals(localNode);
     }
 
     private static final class DelegatingTransportMessageListener implements TransportMessageListener {
@@ -1574,17 +1721,20 @@ public class TransportService extends AbstractLifecycleComponent
 
     static {
         // Ensure that this property, introduced and immediately deprecated in 7.11, is not used in 8.x
+        @UpdateForV9 // we can remove this whole block in v9
         final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
         if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
             throw new IllegalArgumentException("system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] must not be set");
         }
-        assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // we can remove this whole block in v9
     }
 
-    private record UnregisterChildTransportResponseHandler<T extends TransportResponse> (
+    private record UnregisterChildTransportResponseHandler<T extends TransportResponse>(
         Releasable unregisterChildNode,
         TransportResponseHandler<T> handler,
-        String action
+        String action,
+        TransportRequest childRequest,
+        Transport.Connection childConnection,
+        TaskManager taskManager
     ) implements TransportResponseHandler<T> {
 
         @Override
@@ -1595,12 +1745,15 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void handleException(TransportException exp) {
+            assert childRequest.getParentTask().isSet();
+            taskManager.cancelChildRemote(childRequest.getParentTask(), childRequest.getRequestId(), childConnection, exp.toString());
+
             unregisterChildNode.close();
             handler.handleException(exp);
         }
 
         @Override
-        public String executor() {
+        public Executor executor() {
             return handler.executor();
         }
 

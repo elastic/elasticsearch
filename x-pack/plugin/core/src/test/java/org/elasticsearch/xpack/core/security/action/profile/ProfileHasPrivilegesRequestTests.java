@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -40,7 +39,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
     }
 
     @Override
-    protected ProfileHasPrivilegesRequest mutateInstance(ProfileHasPrivilegesRequest instance) throws IOException {
+    protected ProfileHasPrivilegesRequest mutateInstance(ProfileHasPrivilegesRequest instance) {
         if (randomBoolean()) {
             if (instance.profileUids() == null || instance.profileUids().isEmpty()) {
                 return new ProfileHasPrivilegesRequest(

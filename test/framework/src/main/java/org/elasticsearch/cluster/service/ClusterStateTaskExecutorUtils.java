@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
 
+import java.util.Collection;
 import java.util.function.Consumer;
-import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
@@ -33,15 +35,15 @@ public class ClusterStateTaskExecutorUtils {
     public static <T extends ClusterStateTaskListener> ClusterState executeAndAssertSuccessful(
         ClusterState originalState,
         ClusterStateTaskExecutor<T> executor,
-        Iterable<T> tasks
+        Collection<T> tasks
     ) throws Exception {
-        return executeHandlingResults(originalState, executor, tasks, task -> {}, (task, e) -> { throw new AssertionError(e); });
+        return executeHandlingResults(originalState, executor, tasks, task -> {}, (task, e) -> fail(e));
     }
 
     public static <T extends ClusterStateTaskListener> ClusterState executeAndThrowFirstFailure(
         ClusterState originalState,
         ClusterStateTaskExecutor<T> executor,
-        Iterable<T> tasks
+        Collection<T> tasks
     ) throws Exception {
         return executeHandlingResults(originalState, executor, tasks, task -> {}, (task, e) -> { throw e; });
     }
@@ -49,7 +51,7 @@ public class ClusterStateTaskExecutorUtils {
     public static <T extends ClusterStateTaskListener> ClusterState executeIgnoringFailures(
         ClusterState originalState,
         ClusterStateTaskExecutor<T> executor,
-        Iterable<T> tasks
+        Collection<T> tasks
     ) throws Exception {
         return executeHandlingResults(originalState, executor, tasks, task -> {}, (task, e) -> {});
     }
@@ -57,24 +59,30 @@ public class ClusterStateTaskExecutorUtils {
     public static <T extends ClusterStateTaskListener> ClusterState executeHandlingResults(
         ClusterState originalState,
         ClusterStateTaskExecutor<T> executor,
-        Iterable<T> tasks,
+        Collection<T> tasks,
         CheckedConsumer<T, Exception> onTaskSuccess,
         CheckedBiConsumer<T, Exception, Exception> onTaskFailure
     ) throws Exception {
-        final var taskContexts = StreamSupport.stream(tasks.spliterator(), false).<ClusterStateTaskExecutor.TaskContext<T>>map(
-            TestTaskContext::new
-        ).toList();
-        final var resultingState = executor.execute(originalState, taskContexts);
+        final var taskContexts = tasks.stream().map(TestTaskContext::new).toList();
+        ClusterState resultingState = executor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(originalState, taskContexts, () -> null)
+        );
         assertNotNull(resultingState);
-        for (final var taskContext : taskContexts) {
-            final var testTaskContext = (TestTaskContext<T>) taskContext;
-            assertFalse(taskContext + " should have completed", testTaskContext.incomplete());
+        boolean allSuccess = true;
+        for (final var testTaskContext : taskContexts) {
+            assertFalse(testTaskContext + " should have completed", testTaskContext.incomplete());
             if (testTaskContext.succeeded()) {
                 onTaskSuccess.accept(testTaskContext.getTask());
             } else {
                 onTaskFailure.accept(testTaskContext.getTask(), testTaskContext.getFailure());
+                allSuccess = false;
             }
         }
+
+        if (allSuccess) {
+            taskContexts.forEach(TestTaskContext::onPublishSuccess);
+        }
+
         return resultingState;
     }
 
@@ -82,6 +90,7 @@ public class ClusterStateTaskExecutorUtils {
         private final T task;
         private Exception failure;
         private boolean succeeded;
+        private Runnable onPublishSuccess;
 
         TestTaskContext(T task) {
             this.task = task;
@@ -105,6 +114,11 @@ public class ClusterStateTaskExecutorUtils {
             return failure;
         }
 
+        void onPublishSuccess() {
+            assert onPublishSuccess != null;
+            onPublishSuccess.run();
+        }
+
         @Override
         public void onFailure(Exception failure) {
             assert incomplete();
@@ -119,6 +133,7 @@ public class ClusterStateTaskExecutorUtils {
             assert clusterStateAckListener != null;
             assert task == clusterStateAckListener || (task instanceof ClusterStateAckListener == false);
             this.succeeded = true;
+            this.onPublishSuccess = onPublishSuccess;
         }
 
         @Override
@@ -127,6 +142,7 @@ public class ClusterStateTaskExecutorUtils {
             assert onPublishSuccess != null;
             assert task instanceof ClusterStateAckListener == false;
             this.succeeded = true;
+            this.onPublishSuccess = onPublishSuccess;
         }
 
         @Override
@@ -144,6 +160,11 @@ public class ClusterStateTaskExecutorUtils {
             assert publishedStateListener != null;
             assert task instanceof ClusterStateAckListener == false;
             this.succeeded = true;
+        }
+
+        @Override
+        public Releasable captureResponseHeaders() {
+            return () -> {};
         }
 
         @Override

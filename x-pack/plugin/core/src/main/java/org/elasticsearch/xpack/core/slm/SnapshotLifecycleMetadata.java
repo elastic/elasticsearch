@@ -7,24 +7,29 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,7 +70,9 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> SnapshotLifecyclePolicyMetadata.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported"); },
+            v -> {
+                throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
+            },
             POLICIES_FIELD
         );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
@@ -87,7 +94,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {
-        this.snapshotConfigurations = in.readMap(StreamInput::readString, SnapshotLifecyclePolicyMetadata::new);
+        this.snapshotConfigurations = in.readMap(SnapshotLifecyclePolicyMetadata::new);
         this.operationMode = in.readEnum(OperationMode.class);
         this.slmStats = new SnapshotLifecycleStats(in);
     }
@@ -96,6 +103,10 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         return Collections.unmodifiableMap(this.snapshotConfigurations);
     }
 
+    /**
+     * @deprecated use {@link LifecycleOperationMetadata#getSLMOperationMode()} instead. This may be incorrect.
+     */
+    @Deprecated(since = "8.7.0")
     public OperationMode getOperationMode() {
         return operationMode;
     }
@@ -120,23 +131,27 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_4_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.snapshotConfigurations, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(this.snapshotConfigurations, StreamOutput::writeWriteable);
         out.writeEnum(this.operationMode);
         this.slmStats.writeTo(out);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations);
-        builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
-        builder.field(STATS_FIELD.getPreferredName(), this.slmStats);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentValuesMap(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations),
+            Iterators.single((builder, params) -> {
+                builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
+                builder.field(STATS_FIELD.getPreferredName(), this.slmStats);
+                return builder;
+            })
+        );
     }
 
     @Override
@@ -215,8 +230,8 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_4_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_7_4_0;
         }
 
     }

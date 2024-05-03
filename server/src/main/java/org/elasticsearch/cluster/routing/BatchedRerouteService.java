@@ -19,12 +19,12 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -39,17 +39,21 @@ public class BatchedRerouteService implements RerouteService {
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 
     private final ClusterService clusterService;
-    private final BiFunction<ClusterState, String, ClusterState> reroute;
+    private final RerouteAction reroute;
 
     private final Object mutex = new Object();
     @Nullable // null if no reroute is currently pending
-    private List<ActionListener<ClusterState>> pendingRerouteListeners;
+    private List<ActionListener<Void>> pendingRerouteListeners;
     private Priority pendingTaskPriority = Priority.LANGUID;
+
+    public interface RerouteAction {
+        ClusterState reroute(ClusterState state, String reason, ActionListener<Void> listener);
+    }
 
     /**
      * @param reroute Function that computes the updated cluster state after it has been rerouted.
      */
-    public BatchedRerouteService(ClusterService clusterService, BiFunction<ClusterState, String, ClusterState> reroute) {
+    public BatchedRerouteService(ClusterService clusterService, RerouteAction reroute) {
         this.clusterService = clusterService;
         this.reroute = reroute;
     }
@@ -58,12 +62,12 @@ public class BatchedRerouteService implements RerouteService {
      * Initiates a reroute.
      */
     @Override
-    public final void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
-        final ActionListener<ClusterState> wrappedListener = ContextPreservingActionListener.wrapPreservingContext(
+    public final void reroute(String reason, Priority priority, ActionListener<Void> listener) {
+        final ActionListener<Void> wrappedListener = ContextPreservingActionListener.wrapPreservingContext(
             listener,
             clusterService.getClusterApplierService().threadPool().getThreadContext()
         );
-        final List<ActionListener<ClusterState>> currentListeners;
+        final List<ActionListener<Void>> currentListeners;
         synchronized (mutex) {
             if (pendingRerouteListeners != null) {
                 if (priority.sameOrAfter(pendingTaskPriority)) {
@@ -98,6 +102,7 @@ public class BatchedRerouteService implements RerouteService {
             }
         }
         try {
+            var future = new ListenableFuture<Void>();
             final String source = CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")";
             submitUnbatchedTask(source, new ClusterStateUpdateTask(priority) {
 
@@ -114,9 +119,11 @@ public class BatchedRerouteService implements RerouteService {
                     }
                     if (currentListenersArePending) {
                         logger.trace("performing batched reroute [{}]", reason);
-                        return reroute.apply(currentState, reason);
+                        return reroute.reroute(currentState, reason, future);
                     } else {
                         logger.trace("batched reroute [{}] was promoted", reason);
+                        // reroute was batched and completed in other branch
+                        future.onResponse(null);
                         return currentState;
                     }
                 }
@@ -140,12 +147,12 @@ public class BatchedRerouteService implements RerouteService {
                             e
                         );
                     }
-                    ActionListener.onFailure(currentListeners, new ElasticsearchException("delayed reroute [" + reason + "] failed", e));
+                    ActionListener.onFailure(currentListeners, e);
                 }
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    ActionListener.onResponse(currentListeners, newState);
+                    future.addListener(ActionListener.running(() -> ActionListener.onResponse(currentListeners, null)));
                 }
             });
         } catch (Exception e) {

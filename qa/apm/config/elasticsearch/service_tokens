@@ -1,0 +1,2 @@
+elastic/fleet-server/elastic-package-fleet-server-token:{PBKDF2_STRETCH}10000$PNiVyY96dHwRfoDszBvYPAz+mSLbC+NhtPh63dblDZU=$dAY1tXX1U5rXB+2Lt7m0L2LUNSb1q5nRaIqPNZTBxb8=
+elastic/kibana/elastic-package-kibana-token:{PBKDF2_STRETCH}10000$wIEFHIIIZ2ap0D0iQsyw0MfB7YuFA1bHnXAmlCoL4Gg=$YxvIJnasjLZyDQZpmFBiJHdR/CGXd5BnVm013Jty6p0=

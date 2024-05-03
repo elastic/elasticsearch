@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,8 +26,13 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+public class ForbiddenPatternsTaskTests {
+
+    @Test
     public void testCheckInvalidPatternsWhenNoSourceFilesExist() throws Exception {
         Project project = createProject();
         ForbiddenPatternsTask task = createTask(project);
@@ -35,6 +40,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         checkAndAssertTaskSuccessful(task);
     }
 
+    @Test
     public void testCheckInvalidPatternsWhenSourceFilesExistNoViolation() throws Exception {
         Project project = createProject();
         ForbiddenPatternsTask task = createTask(project);
@@ -43,6 +49,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         checkAndAssertTaskSuccessful(task);
     }
 
+    @Test
     public void testCheckInvalidPatternsWhenSourceFilesExistHavingTab() throws Exception {
         Project project = createProject();
         ForbiddenPatternsTask task = createTask(project);
@@ -51,6 +58,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         checkAndAssertTaskThrowsException(task);
     }
 
+    @Test
     public void testCheckInvalidPatternsWithCustomRule() throws Exception {
         Map<String, String> rule = new HashMap<>();
         rule.put("name", "TODO comments are not allowed");
@@ -64,6 +72,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         checkAndAssertTaskThrowsException(task);
     }
 
+    @Test
     public void testCheckInvalidPatternsWhenExcludingFiles() throws Exception {
         Project project = createProject();
         ForbiddenPatternsTask task = createTask(project);

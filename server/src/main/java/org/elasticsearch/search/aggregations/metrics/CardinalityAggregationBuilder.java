@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -16,7 +17,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class CardinalityAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
-    ValuesSource,
     CardinalityAggregationBuilder> {
 
     public static final String NAME = "cardinality";
@@ -39,6 +38,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
 
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
+    public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
 
     public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -48,6 +48,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
         PARSER.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
         PARSER.declareLong((b, v) -> {/*ignore*/}, REHASH);
+        PARSER.declareString(CardinalityAggregationBuilder::executionHint, EXECUTION_HINT_FIELD_NAME);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -55,6 +56,8 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     private Long precisionThreshold = null;
+
+    private String executionHint = null;
 
     public CardinalityAggregationBuilder(String name) {
         super(name);
@@ -67,6 +70,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     ) {
         super(clone, factoriesBuilder, metadata);
         this.precisionThreshold = clone.precisionThreshold;
+        this.executionHint = clone.executionHint;
     }
 
     @Override
@@ -82,6 +86,9 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            executionHint = in.readOptionalString();
+        }
     }
 
     @Override
@@ -96,10 +103,18 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (hasPrecisionThreshold) {
             out.writeLong(precisionThreshold);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeOptionalString(executionHint);
+        }
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }
 
@@ -118,12 +133,13 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     /**
-     * Get the precision threshold. Higher values improve accuracy but also
-     * increase memory usage. Will return <code>null</code> if the
-     * precisionThreshold has not been set yet.
+     * Set the execution hint.  This is an optional user specified hint that
+     * will be used to decide on the specific collection algorithm.  Since this
+     * is a hint, the implementation may choose to ignore it (typically when
+     * the specified method is not applicable to the given field type)
      */
-    public Long precisionThreshold() {
-        return precisionThreshold;
+    public void executionHint(String executionHint) {
+        this.executionHint = executionHint;
     }
 
     @Override
@@ -139,6 +155,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
             name,
             config,
             precisionThreshold,
+            executionHint,
             context,
             parent,
             subFactoriesBuilder,
@@ -152,12 +169,15 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (precisionThreshold != null) {
             builder.field(PRECISION_THRESHOLD_FIELD.getPreferredName(), precisionThreshold);
         }
+        if (executionHint != null) {
+            builder.field(EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
+        }
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), precisionThreshold);
+        return Objects.hash(super.hashCode(), precisionThreshold, executionHint);
     }
 
     @Override
@@ -166,7 +186,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         CardinalityAggregationBuilder other = (CardinalityAggregationBuilder) obj;
-        return Objects.equals(precisionThreshold, other.precisionThreshold);
+        return Objects.equals(precisionThreshold, other.precisionThreshold) && Objects.equals(executionHint, other.executionHint);
     }
 
     @Override
@@ -175,12 +195,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

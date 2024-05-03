@@ -1,0 +1,13 @@
+[discrete]
+[[esql-coalesce]]
+=== `COALESCE`
+
+*Syntax*
+
+[source,esql]
+----
+COALESCE(expression1 [, ..., expressionN])
+----
+include::parameters/coalesce.asciidoc[]
+include::description/coalesce.asciidoc[]
+include::examples/coalesce.asciidoc[]

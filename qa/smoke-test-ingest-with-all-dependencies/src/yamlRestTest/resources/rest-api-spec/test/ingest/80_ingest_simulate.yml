@@ -1,0 +1,214 @@
+setup:
+  - skip:
+      version: ' - 8.11.99'
+      reason: 'ingest simulate added in 8.12'
+
+---
+"Test ingest simulate with reroute":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "my-pipeline-1-ran",
+                  "value": true
+                }
+              },
+              {
+                "reroute": {
+                  "destination": "index-2-a"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "my-final-pipeline-1-ran",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_template:
+        name: my-template-1
+        body:
+          index_patterns: index-1-*
+          settings:
+            default_pipeline: "my-pipeline-1"
+            final_pipeline: "my-final-pipeline-1"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline-2"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "my-pipeline-2-ran",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline-2"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "my-final-pipeline-2-ran",
+                  "value": true
+                }
+              },
+              {
+                "uppercase": {
+                  "field": "foo"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_template:
+        name: my-template-2
+        body:
+          index_patterns: index-2-*
+          settings:
+            default_pipeline: "my-pipeline-2"
+            final_pipeline: "my-final-pipeline-2"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1-a",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index-1-a",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "index-2-a" }
+  - match: { docs.0.doc._source.foo: "BAR" }
+  - match: { docs.0.doc._source.my-pipeline-1-ran: true }
+  - match: { docs.0.doc._source.my-final-pipeline-1-ran: null }
+  - match: { docs.0.doc._source.my-pipeline-2-ran: true }
+  - match: { docs.0.doc._source.my-final-pipeline-2-ran: true }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline-1", "my-pipeline-2", "my-final-pipeline-2"] }
+  - match: { docs.0.doc._index: "index-2-a" }
+  - match: { docs.1.doc._source.foo: "RAB" }
+  - match: { docs.0.doc._source.my-pipeline-1-ran: true }
+  - match: { docs.0.doc._source.my-final-pipeline-1-ran: null }
+  - match: { docs.0.doc._source.my-pipeline-2-ran: true }
+  - match: { docs.0.doc._source.my-final-pipeline-2-ran: true }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline-1", "my-pipeline-2", "my-final-pipeline-2"] }
+
+---
+"Test ingest simulate with errors":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "uppercase": {
+                  "field": "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: index
+        body:
+          settings:
+            default_pipeline: "my-pipeline"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_source": {
+                  "field1": true
+                }
+              },
+              {
+                "_index": "index",
+                "_source": {
+                  "field1": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "index" }
+  - match: { docs.0.doc.error.type: "illegal_argument_exception" }
+  - match: { docs.0.doc.executed_pipelines: null }
+  - match: { docs.1.doc._index: "index" }
+  - match: { docs.1.doc._source.field1: "BAR" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline"] }

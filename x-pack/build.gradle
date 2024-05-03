@@ -20,11 +20,10 @@ subprojects {
     }
   }
 
-  group = 'org.elasticsearch.plugin'
-  ext.xpackRootProject = xpackRootProject
-  ext.xpackProject = { String projectName -> xpackRootProject.project(projectName) }
+  group = xpackProjectGroup(path)
+
   // helper method to find the path to a module
-  ext.xpackModule = { String moduleName -> xpackProject("plugin:${moduleName}").path }
+  ext.xpackModule = { String moduleName -> ":x-pack:plugin:${moduleName}" }
 
   plugins.withType(PluginBuildPlugin).whenPluginAdded {
     project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt')
@@ -45,3 +44,13 @@ subprojects {
     project.ext.noticeFile.set(xpackRootProject.file('NOTICE.txt'))
   }
 }
+
+// helper method to calculate unique group id for qa projects and
+// use org.elasticsearch.plugin for all productive projects
+// generates e.g. for path `x-pack:plugin:ccr:qa:rest` the project group id `org.elasticsearch.plugin.ccr.qa`
+def xpackProjectGroup(String path) {
+  return path.contains(":qa:") ?
+    'org.elasticsearch' + path.substring(":x-pack".length(), path.lastIndexOf(":")).replace(":", ".") :
+    'org.elasticsearch.plugin'
+}
+

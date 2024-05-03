@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -26,12 +25,15 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -54,7 +56,8 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         );
         final FakeRestRequest request = new FakeRestRequest();
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = new NoOpNodeClient(threadPool);
             action.handleRequest(request, channel, nodeClient);
         }
         assertThat(channel.capturedResponse(), notNullValue());
@@ -102,18 +105,132 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                 )
             )
         );
+        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = randomBoolean()
+            ? Set.of()
+            : new LinkedHashSet<>(
+                Arrays.asList(
+                    new GetUserPrivilegesResponse.RemoteIndices(
+                        new GetUserPrivilegesResponse.Indices(
+                            Arrays.asList("remote-index-1", "remote-index-2", "remote-index-3-*"),
+                            List.of("read"),
+                            new LinkedHashSet<>(
+                                Arrays.asList(
+                                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "public.*" }, new String[0]),
+                                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(
+                                        new String[] { "*" },
+                                        new String[] { "private.*" }
+                                    )
+                                )
+                            ),
+                            new LinkedHashSet<>(
+                                List.of(
+                                    new BytesArray("{ \"term\": { \"access\": \"public\" } }"),
+                                    new BytesArray("{ \"term\": { \"access\": \"standard\" } }")
+                                )
+                            ),
+                            false
+                        ),
+                        new LinkedHashSet<>(List.of("remote-*"))
+                    ),
+                    new GetUserPrivilegesResponse.RemoteIndices(
+                        new GetUserPrivilegesResponse.Indices(
+                            List.of("remote-index-4"),
+                            Collections.singleton("all"),
+                            Collections.emptySet(),
+                            Collections.emptySet(),
+                            true
+                        ),
+                        new LinkedHashSet<>(Arrays.asList("*", "remote-2"))
+                    )
+                )
+            );
+
+        boolean hasRemoteClusterPermissions = randomBoolean();
+        RemoteClusterPermissions remoteClusterPermissions = hasRemoteClusterPermissions
+            ? new RemoteClusterPermissions()
+            : RemoteClusterPermissions.NONE;
+        if (hasRemoteClusterPermissions) {
+            remoteClusterPermissions.addGroup(
+                new RemoteClusterPermissionGroup(
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                    new String[] { "remote-1" }
+                )
+            )
+                .addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { "remote-2", "remote-3" }
+                    )
+                );
+        }
+
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(
             ApplicationResourcePrivileges.builder().application("app01").privileges("read", "write").resources("*").build(),
             ApplicationResourcePrivileges.builder().application("app01").privileges("admin").resources("department/1").build(),
             ApplicationResourcePrivileges.builder().application("app02").privileges("all").resources("tenant/42", "tenant/99").build()
         );
         final Set<String> runAs = new LinkedHashSet<>(Arrays.asList("app-user-*", "backup-user"));
-        final GetUserPrivilegesResponse response = new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+        final GetUserPrivilegesResponse response = new GetUserPrivilegesResponse(
+            cluster,
+            conditionalCluster,
+            index,
+            application,
+            runAs,
+            remoteIndex,
+            remoteClusterPermissions
+        );
         XContentBuilder builder = jsonBuilder();
         listener.buildResponse(response, builder);
 
         String json = Strings.toString(builder);
-        assertThat(json, equalTo(XContentHelper.stripWhitespace("""
+        String remoteIndicesSection = remoteIndex.isEmpty() ? "" : """
+            , "remote_indices": [
+                {
+                  "names": [ "remote-index-1", "remote-index-2", "remote-index-3-*" ],
+                  "privileges": [ "read" ],
+                  "field_security": [
+                    {
+                      "grant": [ "*" ],
+                      "except": [ "private.*" ]
+                    },
+                    {
+                      "grant": [ "public.*" ]
+                    }
+                  ],
+                  "query": [ "{ \\"term\\": { \\"access\\": \\"public\\" } }", "{ \\"term\\": { \\"access\\": \\"standard\\" } }" ],
+                  "allow_restricted_indices": false,
+                  "clusters": [ "remote-*" ]
+                },
+                {
+                  "names": [ "remote-index-4" ],
+                  "privileges": [ "all" ],
+                  "allow_restricted_indices": true,
+                  "clusters": [ "*", "remote-2" ]
+                }
+              ]""";
+
+        String remoteClusterPermissionsSection = hasRemoteClusterPermissions ? """
+            ,"remote_cluster":[
+                    {
+                       "privileges":[
+                          "monitor_enrich"
+                       ],
+                       "clusters":[
+                          "remote-1"
+                       ]
+                    },
+                    {
+                       "privileges":[
+                          "monitor_enrich"
+                       ],
+                       "clusters":[
+                          "remote-2",
+                          "remote-3"
+                       ]
+                    }
+                 ]""" : "";
+
+        assertThat(json, equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
               "global": [
@@ -171,8 +288,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                   "resources": [ "tenant/42", "tenant/99" ]
                 }
               ],
-              "run_as": [ "app-user-*", "backup-user" ]
-            }""")));
+              "run_as": [ "app-user-*", "backup-user" ]%s%s
+            }""", remoteIndicesSection, remoteClusterPermissionsSection))));
     }
-
 }

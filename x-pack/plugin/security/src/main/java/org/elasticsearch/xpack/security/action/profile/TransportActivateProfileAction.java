@@ -16,8 +16,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 
 public class TransportActivateProfileAction extends TransportGrantAction<ActivateProfileRequest, ActivateProfileResponse> {
@@ -30,26 +32,27 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
         ActionFilters actionFilters,
         ProfileService profileService,
         AuthenticationService authenticationService,
+        AuthorizationService authorizationService,
         ThreadPool threadPool
     ) {
         super(
             ActivateProfileAction.NAME,
             transportService,
             actionFilters,
-            ActivateProfileRequest::new,
             authenticationService,
+            authorizationService,
             threadPool.getThreadContext()
         );
         this.profileService = profileService;
     }
 
     @Override
-    protected void doExecute(Task task, ActivateProfileRequest request, ActionListener<ActivateProfileResponse> listener) {
-        executeWithGrantAuthentication(
-            request,
-            listener.delegateFailure(
-                (l, authentication) -> profileService.activateProfile(authentication, l.map(ActivateProfileResponse::new))
-            )
-        );
+    protected void doExecuteWithGrantAuthentication(
+        Task task,
+        ActivateProfileRequest request,
+        Authentication authentication,
+        ActionListener<ActivateProfileResponse> listener
+    ) {
+        profileService.activateProfile(authentication, listener.map(ActivateProfileResponse::new));
     }
 }

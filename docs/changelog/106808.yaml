@@ -1,0 +1,5 @@
+pr: 106808
+summary: Make OpenAI embeddings parser more flexible
+area: Machine Learning
+type: bug
+issues: []

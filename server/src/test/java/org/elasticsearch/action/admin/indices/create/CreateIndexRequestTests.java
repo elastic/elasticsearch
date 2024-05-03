@@ -181,4 +181,9 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
     protected CreateIndexRequest createTestInstance() {
         return RandomCreateIndexGenerator.randomCreateIndexRequest();
     }
+
+    @Override
+    protected CreateIndexRequest mutateInstance(CreateIndexRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

@@ -15,7 +15,7 @@ import java.io.IOException;
 public class ErrorResultTests extends AbstractXContentTestCase<ErrorResult> {
 
     public static ErrorResult createRandom() {
-        return new ErrorResult(randomBoolean() ? null : randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new ErrorResult(randomAlphaOfLength(50));
     }
 
     @Override

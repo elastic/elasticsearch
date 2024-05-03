@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,6 +30,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
@@ -56,7 +58,7 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
                     : XContentType.JSON;
                 XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, false);
                 response.toXContent(builder, request);
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

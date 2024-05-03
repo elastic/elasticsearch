@@ -28,6 +28,11 @@ import java.util.Map;
 public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     private final List<Whitelist> whitelists;
 
+    // we don't use ServiceProvider directly, but module-info wants this
+    public RuntimeFieldsPainlessExtension() {
+        throw new UnsupportedOperationException();
+    }
+
     public RuntimeFieldsPainlessExtension(RuntimeFieldsCommonPlugin plugin) {
         Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
         Whitelist grokWhitelist = new Whitelist(

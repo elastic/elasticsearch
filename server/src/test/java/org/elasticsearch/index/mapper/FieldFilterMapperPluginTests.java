@@ -17,10 +17,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
 import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
@@ -43,48 +42,44 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(FieldFilterPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(FieldFilterPlugin.class);
     }
 
     @Before
     public void putMappings() {
-        assertAcked(client().admin().indices().prepareCreate("index1"));
-        assertAcked(client().admin().indices().prepareCreate("filtered"));
-        assertAcked(client().admin().indices().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
+        assertAcked(indicesAdmin().prepareCreate("index1"));
+        assertAcked(indicesAdmin().prepareCreate("filtered"));
+        assertAcked(indicesAdmin().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
     }
 
     public void testGetMappings() {
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings().get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings().get();
         assertExpectedMappings(getMappingsResponse.mappings());
     }
 
     public void testGetIndex() {
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .prepareGetIndex()
-            .setFeatures(GetIndexRequest.Feature.MAPPINGS)
-            .get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setFeatures(GetIndexRequest.Feature.MAPPINGS).get();
         assertExpectedMappings(getIndexResponse.mappings());
     }
 
     public void testGetFieldMappings() {
-        GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldMappings().setFields("*").get();
+        GetFieldMappingsResponse getFieldMappingsResponse = indicesAdmin().prepareGetFieldMappings().setFields("*").get();
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
         assertEquals(2, mappings.size());
         assertFieldMappings(mappings.get("index1"), ALL_FLAT_FIELDS);
         assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
         // double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
         // as the one coming from a filtered index with same mappings
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("filtered").get();
         MappingMetadata filtered = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
-        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
+        GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
     }
 
     public void testGetNonExistentFieldMapping() {
-        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index1").setFields("non-existent").get();
+        GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings("index1").setFields("non-existent").get();
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = response.mappings();
         assertEquals(1, mappings.size());
         Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldmapping = mappings.get("index1");
@@ -102,9 +97,9 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertFieldCaps(filtered, filteredFields);
         // double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
         // as the one coming from a filtered index with same mappings
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("filtered").get();
         MappingMetadata filteredMapping = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filteredMapping.getSourceAsMap()));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(filteredMapping.getSourceAsMap()));
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
         // properties.value is an object field in the new mapping
         filteredFields.add("properties.value");
@@ -126,8 +121,9 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     private static Set<String> builtInMetadataFields() {
         Set<String> builtInMetadataFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
-        // Index is not a time-series index, and it will not contain a _tsid field
+        // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
         builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
+        builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
         return builtInMetadataFields;
     }
 
@@ -157,8 +153,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
         // check that the returned filtered mappings are still valid mappings by submitting them and retrieving them back
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(sourceAsMap));
-        GetMappingsResponse testMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(sourceAsMap));
+        GetMappingsResponse testMappingsResponse = indicesAdmin().prepareGetMappings("test").get();
         assertEquals(1, testMappingsResponse.getMappings().size());
         // the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered
         assertFiltered(testMappingsResponse.getMappings().get("test"));
@@ -189,7 +185,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         Map<String, Object> addressProperties = (Map<String, Object>) address.get("properties");
         assertNotNull(addressProperties);
         assertEquals(1, addressProperties.size());
-        assertLeafs(addressProperties, "area_visible");
+        assertLeafs(addressProperties, "location_visible");
 
         Map<String, Object> properties = (Map<String, Object>) typeProperties.get("properties");
         assertNotNull(properties);
@@ -234,7 +230,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         Map<String, Object> addressProperties = (Map<String, Object>) address.get("properties");
         assertNotNull(addressProperties);
         assertEquals(3, addressProperties.size());
-        assertLeafs(addressProperties, "street", "location", "area_visible");
+        assertLeafs(addressProperties, "street", "location", "location_visible");
 
         Map<String, Object> properties = (Map<String, Object>) typeProperties.get("properties");
         assertNotNull(properties);
@@ -250,8 +246,23 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
 
         @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> index.equals("filtered") ? field -> field.endsWith("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> false == index.equals("filtered") ? FieldPredicate.ACCEPT_ALL : new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.endsWith("visible");
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "only-visible:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
         }
     }
 
@@ -262,7 +273,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         "age_visible",
         "address.street",
         "address.location",
-        "address.area_visible",
+        "address.location_visible",
         "properties.key_visible",
         "properties.key_visible.keyword",
         "properties.value",
@@ -274,7 +285,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     private static final Collection<String> FILTERED_FLAT_FIELDS = Arrays.asList(
         "name.last_visible",
         "age_visible",
-        "address.area_visible",
+        "address.location_visible",
         "properties.key_visible",
         "properties.value.keyword_visible"
     );
@@ -314,8 +325,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
                     "location": {
                       "type": "geo_point"
                     },
-                    "area_visible": {
-                      "type": "geo_shape"
+                    "location_visible": {
+                      "type": "geo_point"
                     }
                   }
                 },

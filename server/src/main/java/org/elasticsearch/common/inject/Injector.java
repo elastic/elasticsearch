@@ -29,7 +29,6 @@ import java.util.List;
  * <li>This {@link Injector} instance itself
  * <li>A {@code Provider<T>} for each binding of type {@code T}
  * <li>The {@link java.util.logging.Logger} for the class being injected
- * <li>The {@link Stage} in which the Injector was created
  * </ul>
  * <p>
  * Injectors are created using the facade class {@link Guice}.
@@ -54,14 +53,6 @@ public interface Injector {
      * @see Binder#getProvider(Key) for an alternative that offers up front error detection
      */
     <T> Provider<T> getProvider(Key<T> key);
-
-    /**
-     * Returns the provider used to obtain instances for the given type. When feasible, avoid
-     * using this method, in favor of having Guice inject your dependencies ahead of time.
-     *
-     * @throws ConfigurationException if this injector cannot find or create the provider.
-     */
-    <T> Provider<T> getProvider(Class<T> type);
 
     /**
      * Returns the appropriate instance for the given injection key; equivalent to {@code

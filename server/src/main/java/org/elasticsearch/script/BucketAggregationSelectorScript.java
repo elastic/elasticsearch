@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * A script used in bucket aggregations that returns a {@code boolean} value.
  */
-public abstract class BucketAggregationSelectorScript {
+public abstract class BucketAggregationSelectorScript {  // TODO move to the aggregation module
 
     public static final String[] PARAMETERS = {};
 

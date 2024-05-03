@@ -17,10 +17,12 @@ import com.nimbusds.openid.connect.sdk.OIDCScopeValue;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.oidc.C2IdOpTestCase;
 import org.hamcrest.Matchers;
@@ -65,14 +67,14 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         clientId = randomFrom(ALLOWED_AUDIENCES);
         redirectUri = "https://" + randomAlphaOfLength(4) + ".rp.example.com/" + randomAlphaOfLength(6);
         String clientSecret = randomAlphaOfLength(24);
-        String clientSetup = """
+        String clientSetup = Strings.format("""
             {
               "grant_types": [ "implicit" ],
               "response_types": [ "token id_token" ],
               "preferred_client_id": "%s",
               "preferred_client_secret": "%s",
               "redirect_uris": [ "%s" ]
-            }""".formatted(clientId, clientSecret, redirectUri);
+            }""", clientId, clientSecret, redirectUri);
         registerClients(clientSetup);
     }
 
@@ -80,7 +82,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
     public void setupRoleMapping() throws Exception {
         try (var restClient = getElasticsearchClient()) {
             var client = new TestSecurityClient(restClient);
-            final String mappingJson = """
+            final String mappingJson = Strings.format("""
                 {
                   "roles": [ "%s" ],
                   "enabled": true,
@@ -91,7 +93,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
                     ]
                   }
                 }
-                """.formatted(ROLE_NAME, JWT_REALM_NAME, TEST_SUBJECT_ID);
+                """, ROLE_NAME, JWT_REALM_NAME, TEST_SUBJECT_ID);
             client.putRoleMapping(getTestName(), mappingJson);
         }
     }
@@ -104,7 +106,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
             new Scope(OIDCScopeValue.OPENID),
             new ClientID(clientId),
             new URI(redirectUri)
-        ).endpointURI(new URI(C2ID_AUTH_ENDPOINT)).state(new State(state)).nonce(new Nonce(nonce)).build();
+        ).endpointURI(new URI(c2id.getC2OPUrl() + "/c2id-login")).state(new State(state)).nonce(new Nonce(nonce)).build();
 
         final String implicitFlowURI = authenticateAtOP(oidcAuthRequest.toURI());
 
@@ -150,7 +152,10 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         final Map<String, Object> authenticateResponse = super.callAuthenticateApiUsingBearerToken(
             idJwt,
             RequestOptions.DEFAULT.toBuilder()
-                .addHeader(JwtRealm.HEADER_CLIENT_AUTHENTICATION, JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret)
+                .addHeader(
+                    JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+                    JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret
+                )
                 .build()
         );
         return authenticateResponse;

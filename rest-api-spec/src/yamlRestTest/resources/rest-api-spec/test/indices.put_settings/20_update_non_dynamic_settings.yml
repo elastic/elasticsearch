@@ -1,0 +1,58 @@
+setup:
+  - skip:
+      version: ' - 8.11.99'
+      reason: 'ability to update non-dynamic settings added in 8.12'
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+---
+"Test update non dynamic settings":
+  - do:
+      indices.put_settings:
+        index: test-index
+        body:
+          number_of_replicas: 1
+
+  - do:
+      catch: bad_request
+      indices.put_settings:
+        index: test-index
+        body:
+          index.codec: best_compression
+
+  - do:
+      catch: bad_request
+      indices.put_settings:
+        index: test-index
+        reopen: false
+        body:
+          index.codec: best_compression
+
+  - do:
+      indices.get_settings:
+        index: test-index
+        flat_settings: false
+  - match:
+      test-index.settings.index.codec: null
+
+  - do:
+      indices.put_settings:
+        index: test-index
+        reopen: true
+        body:
+          index.codec: best_compression
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_settings:
+        index: test-index
+        flat_settings: false
+  - match:
+      test-index.settings.index.codec: "best_compression"
+

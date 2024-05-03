@@ -13,7 +13,7 @@ import org.elasticsearch.gradle.internal.test.AntFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 final int gceNumberOfNodes = 3
 

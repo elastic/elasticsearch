@@ -11,8 +11,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 
 import java.io.IOException;
 
@@ -31,9 +31,7 @@ public abstract class IdpBaseRestHandler extends BaseRestHandler {
         if (isIdpFeatureAllowed()) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(
-                new BytesRestResponse(channel, LicenseUtils.newComplianceException("Identity Provider"))
-            );
+            return channel -> channel.sendResponse(new RestResponse(channel, LicenseUtils.newComplianceException("Identity Provider")));
         }
     }
 

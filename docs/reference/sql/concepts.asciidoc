@@ -48,7 +48,7 @@ In practice this means that while in SQL one can potentially have multiple catal
 
 |`cluster`
 |`cluster` (federated)
-|Traditionally in SQL, _cluster_ refers to a single RDMBS instance which contains a number of ++catalog++s or ++database++s (see above). The same word can be reused inside {es} as well however its semantic clarified a bit.
+|Traditionally in SQL, _cluster_ refers to a single RDBMS instance which contains a number of ++catalog++s or ++database++s (see above). The same word can be reused inside {es} as well however its semantic clarified a bit.
 
 While RDBMS tend to have only one running instance, on a single machine (_not_ distributed), {es} goes the opposite way and by default, is distributed and multi-instance.
 

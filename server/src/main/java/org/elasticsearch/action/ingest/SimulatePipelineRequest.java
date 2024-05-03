@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
@@ -38,8 +39,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
-    private BytesReference source;
-    private XContentType xContentType;
+    private final BytesReference source;
+    private final XContentType xContentType;
     private RestApiVersion restApiVersion;
 
     /**
@@ -54,8 +55,6 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         this.xContentType = Objects.requireNonNull(xContentType);
         this.restApiVersion = restApiVersion;
     }
-
-    SimulatePipelineRequest() {}
 
     SimulatePipelineRequest(StreamInput in) throws IOException {
         super(in);
@@ -178,7 +177,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                     "[types removal] specifying _type in pipeline simulation requests is deprecated"
                 );
             }
-            Long version = null;
+            long version = Versions.MATCH_ANY;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
                 String versionValue = ConfigurationUtils.readOptionalStringOrLongProperty(
                     null,
@@ -187,7 +186,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                     Metadata.VERSION.getFieldName()
                 );
                 if (versionValue != null) {
-                    version = Long.valueOf(versionValue);
+                    version = Long.parseLong(versionValue);
                 } else {
                     throw new IllegalArgumentException("[_version] cannot be null");
                 }
@@ -198,7 +197,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                     ConfigurationUtils.readStringProperty(null, null, dataMap, Metadata.VERSION_TYPE.getFieldName())
                 );
             }
-            IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, document);
+            IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
                 String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrLongProperty(
                     null,

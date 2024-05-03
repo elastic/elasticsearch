@@ -29,4 +29,9 @@ public class AutoscalingDeciderResultWireSerializingTests extends AbstractWireSe
         return AutoscalingTestCase.randomAutoscalingDeciderResult();
     }
 
+    @Override
+    protected AutoscalingDeciderResult mutateInstance(AutoscalingDeciderResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
 }

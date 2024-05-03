@@ -9,9 +9,10 @@ package org.elasticsearch.plugin.noop.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
 
@@ -38,6 +39,10 @@ public class RestNoopSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         SearchRequest searchRequest = new SearchRequest();
-        return channel -> client.execute(NoopSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            NoopPlugin.NOOP_SEARCH_ACTION,
+            searchRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 }

@@ -1,5 +1,0 @@
-pr: 86114
-summary: Faster string writes by saving stream flushes
-area: Infra/Core
-type: enhancement
-issues: []

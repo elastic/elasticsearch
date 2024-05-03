@@ -14,6 +14,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
+/**
+ * Query that inverts the set of matched documents.
+ */
 public class NotQuery extends Query {
     private final Query child;
 
@@ -70,5 +73,10 @@ public class NotQuery extends Query {
     @Override
     protected String innerToString() {
         return child.toString();
+    }
+
+    @Override
+    public Query negate(Source source) {
+        return child;
     }
 }

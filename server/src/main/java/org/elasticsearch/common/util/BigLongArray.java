@@ -10,7 +10,10 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -125,5 +128,34 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     @Override
     public void set(long index, byte[] buf, int offset, int len) {
         set(index, buf, offset, len, pages, 3);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writePages(out, size, pages, Long.BYTES);
+    }
+
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
+        readPages(in, pages);
+    }
+
+    static void readPages(StreamInput in, byte[][] pages) throws IOException {
+        int remainedBytes = in.readVInt();
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[0].length);
+            in.readBytes(pages[i], 0, len);
+            remainedBytes -= len;
+        }
+    }
+
+    static void writePages(StreamOutput out, long size, byte[][] pages, int bytesPerValue) throws IOException {
+        int remainedBytes = Math.toIntExact(size * bytesPerValue);
+        out.writeVInt(remainedBytes);
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[i].length);
+            out.writeBytes(pages[i], 0, len);
+            remainedBytes -= len;
+        }
     }
 }

@@ -16,6 +16,7 @@ Converts a JSON string into a structured JSON object.
 | `add_to_root`                   | no        | false     | Flag that forces the parsed JSON to be added at the top level of the document. `target_field` must not be set when this option is chosen.
 | `add_to_root_conflict_strategy` | no        | `replace` | When set to `replace`, root fields that conflict with fields from the parsed JSON will be overridden. When set to `merge`, conflicting fields will be merged. Only applicable if `add_to_root` is set to `true`.
 | `allow_duplicate_keys`          | no        | false     | When set to `true`, the JSON parser will not fail if the JSON contains duplicate keys. Instead, the last encountered value for any duplicate key wins.
+| `strict_json_parsing`           | no        | true      | When set to `true`, the JSON parser will strictly parse the field value. When set to `false`, the JSON parser will be more lenient but also more likely to drop parts of the field value. For example if `strict_json_parsing` is set to `true` and the field value is `123 "foo"` then the processor will throw an IllegalArgumentException. But if `strict_json_parsing` is set to `false` then the field value will be parsed as `123`.
 include::common-options.asciidoc[]
 |======
 

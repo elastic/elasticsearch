@@ -17,8 +17,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.AbstractObjectParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -301,11 +301,10 @@ public final class Script implements ToXContentObject, Writeable {
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             try (
-                InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    stream
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    BytesReference.bytes(builder),
+                    XContentType.JSON
                 )
             ) {
                 return parse(parser);
@@ -557,9 +556,9 @@ public final class Script implements ToXContentObject, Writeable {
         this.lang = in.readOptionalString();
         this.idOrCode = in.readString();
         @SuppressWarnings("unchecked")
-        Map<String, String> options = (Map<String, String>) (Map) in.readMap();
+        Map<String, String> options = (Map<String, String>) (Map) in.readGenericMap();
         this.options = options;
-        this.params = in.readMap();
+        this.params = in.readGenericMap();
     }
 
     @Override

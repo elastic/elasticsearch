@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -30,14 +30,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * ForceMerge index/indices action.
  */
 public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,
-    ForceMergeResponse,
+    BroadcastResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
@@ -58,7 +57,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             actionFilters,
             indexNameExpressionResolver,
             ForceMergeRequest::new,
-            ThreadPool.Names.SAME
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT) // just for coordination work
         );
         this.indicesService = indicesService;
         this.threadPool = transportService.getThreadPool();
@@ -66,20 +65,17 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected EmptyResult readShardResult(StreamInput in) throws IOException {
-        return EmptyResult.readEmptyResultFrom(in);
+        return EmptyResult.INSTANCE;
     }
 
     @Override
-    protected ForceMergeResponse newResponse(
-        ForceMergeRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<EmptyResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
-    ) {
-        return new ForceMergeResponse(totalShards, successfulShards, failedShards, shardFailures);
+    protected ResponseFactory<BroadcastResponse, EmptyResult> getResponseFactory(ForceMergeRequest request, ClusterState clusterState) {
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new BroadcastResponse(
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -104,7 +100,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     }
 
     /**
-     * The refresh request works against *all* shards.
+     * The force merge request works against *all* shards.
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ForceMergeRequest request, String[] concreteIndices) {

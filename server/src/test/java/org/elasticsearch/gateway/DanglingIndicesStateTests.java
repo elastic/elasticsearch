@@ -7,17 +7,16 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Files;
@@ -34,11 +33,7 @@ import static org.mockito.Mockito.when;
 
 public class DanglingIndicesStateTests extends ESTestCase {
 
-    private static final Settings indexSettings = Settings.builder()
-        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-        .build();
+    private static final Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
 
     public void testDanglingIndicesAreDiscovered() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
@@ -115,9 +110,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
             IndexMetadata existingIndex = IndexMetadata.builder("test_index").settings(existingSettings).build();
             MetaStateWriterUtils.writeIndex(env, "test_write", existingIndex);
 
-            final ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-                .fPut(dangledIndex.getIndex().getName(), existingIndex)
-                .build();
+            Map<String, IndexMetadata> indices = Map.of(dangledIndex.getIndex().getName(), existingIndex);
             final Metadata metadata = Metadata.builder().indices(indices).build();
 
             DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);

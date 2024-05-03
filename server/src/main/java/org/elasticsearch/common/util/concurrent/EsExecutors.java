@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
@@ -32,18 +33,41 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * A collection of static methods to help create different ES Executor types.
+ */
 public class EsExecutors {
+
+    // although the available processors may technically change, for node sizing we use the number available at launch
+    private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
 
     /**
      * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
      * default value is {@link Runtime#availableProcessors()} but should be manually controlled if not all processors on the machine are
-     * available to Elasticsearch (e.g., because of CPU limits).
+     * available to Elasticsearch (e.g., because of CPU limits). Note that this setting accepts floating point processors.
+     * If a rounded number is needed, always use {@link EsExecutors#allocatedProcessors(Settings)}.
      */
-    public static final Setting<Integer> NODE_PROCESSORS_SETTING = Setting.intSetting(
+    public static final Setting<Processors> NODE_PROCESSORS_SETTING = new Setting<>(
         "node.processors",
-        Runtime.getRuntime().availableProcessors(),
-        1,
-        Runtime.getRuntime().availableProcessors(),
+        Double.toString(MAX_NUM_PROCESSORS),
+        textValue -> {
+            double numberOfProcessors = Double.parseDouble(textValue);
+            if (Double.isNaN(numberOfProcessors) || Double.isInfinite(numberOfProcessors)) {
+                String err = "Failed to parse value [" + textValue + "] for setting [node.processors]";
+                throw new IllegalArgumentException(err);
+            }
+
+            if (numberOfProcessors <= 0.0) {
+                String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be > 0";
+                throw new IllegalArgumentException(err);
+            }
+
+            if (numberOfProcessors > MAX_NUM_PROCESSORS) {
+                String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be <= " + MAX_NUM_PROCESSORS;
+                throw new IllegalArgumentException(err);
+            }
+            return Processors.of(numberOfProcessors);
+        },
         Property.NodeScope
     );
 
@@ -55,6 +79,10 @@ public class EsExecutors {
      * @return the number of allocated processors
      */
     public static int allocatedProcessors(final Settings settings) {
+        return NODE_PROCESSORS_SETTING.get(settings).roundUp();
+    }
+
+    public static Processors nodeProcessors(final Settings settings) {
         return NODE_PROCESSORS_SETTING.get(settings);
     }
 
@@ -62,20 +90,9 @@ public class EsExecutors {
         String name,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        ScheduledExecutorService timer,
-        PrioritizedEsThreadPoolExecutor.StarvationWatcher starvationWatcher
+        ScheduledExecutorService timer
     ) {
-        return new PrioritizedEsThreadPoolExecutor(
-            name,
-            1,
-            1,
-            0L,
-            TimeUnit.MILLISECONDS,
-            threadFactory,
-            contextHolder,
-            timer,
-            starvationWatcher
-        );
+        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
     public static EsThreadPoolExecutor newScaling(
@@ -110,16 +127,19 @@ public class EsExecutors {
         int queueCapacity,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        boolean trackEWMA
+        TaskTrackingConfig config
     ) {
-        BlockingQueue<Runnable> queue;
+        final BlockingQueue<Runnable> queue;
+        final EsRejectedExecutionHandler rejectedExecutionHandler;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
+            rejectedExecutionHandler = new RejectOnShutdownOnlyPolicy();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
+            rejectedExecutionHandler = new EsAbortPolicy();
         }
-        if (trackEWMA) {
-            return new EWMATrackingEsThreadPoolExecutor(
+        if (config.trackExecutionTime()) {
+            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
                 size,
@@ -128,8 +148,9 @@ public class EsExecutors {
                 queue,
                 TimedRunnable::new,
                 threadFactory,
-                new EsAbortPolicy(),
-                contextHolder
+                rejectedExecutionHandler,
+                contextHolder,
+                config
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -140,7 +161,7 @@ public class EsExecutors {
                 TimeUnit.MILLISECONDS,
                 queue,
                 threadFactory,
-                new EsAbortPolicy(),
+                rejectedExecutionHandler,
                 contextHolder
             );
         }
@@ -314,6 +335,29 @@ public class EsExecutors {
             }
         }
 
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public void put(E e) {
+            // As the queue is unbounded, this method will always add to the queue.
+            super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean add(E e) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean offer(E e, long timeout, TimeUnit unit) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
     }
 
     /**
@@ -370,6 +414,49 @@ public class EsExecutors {
         private void reject(ThreadPoolExecutor executor, Runnable task) {
             incrementRejections();
             throw newRejectedException(task, executor, true);
+        }
+    }
+
+    static class RejectOnShutdownOnlyPolicy extends EsRejectedExecutionHandler {
+        @Override
+        public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
+            assert executor.isShutdown() : executor;
+            incrementRejections();
+            throw newRejectedException(task, executor, true);
+        }
+    }
+
+    public static class TaskTrackingConfig {
+        // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
+        public static double DEFAULT_EWMA_ALPHA = 0.3;
+
+        private final boolean trackExecutionTime;
+        private final boolean trackOngoingTasks;
+        private final double ewmaAlpha;
+
+        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, false, DEFAULT_EWMA_ALPHA);
+        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, false, DEFAULT_EWMA_ALPHA);
+
+        public TaskTrackingConfig(boolean trackOngoingTasks, double ewmaAlpha) {
+            this(true, trackOngoingTasks, ewmaAlpha);
+        }
+
+        private TaskTrackingConfig(boolean trackExecutionTime, boolean trackOngoingTasks, double EWMAAlpha) {
+            this.trackExecutionTime = trackExecutionTime;
+            this.trackOngoingTasks = trackOngoingTasks;
+            this.ewmaAlpha = EWMAAlpha;
+        }
+
+        public boolean trackExecutionTime() {
+            return trackExecutionTime;
+        }
+
+        public boolean trackOngoingTasks() {
+            return trackOngoingTasks;
+        }
+
+        public double getEwmaAlpha() {
+            return ewmaAlpha;
         }
     }
 

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
@@ -30,7 +31,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public SecurityNetty4ServerTransport(
         final Settings settings,
-        final Version version,
+        final TransportVersion version,
         final ThreadPool threadPool,
         final NetworkService networkService,
         final PageCacheRecycler pageCacheRecycler,
@@ -38,7 +39,8 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
         final CircuitBreakerService circuitBreakerService,
         @Nullable final IPFilter authenticator,
         final SSLService sslService,
-        final SharedGroupFactory sharedGroupFactory
+        final SharedGroupFactory sharedGroupFactory,
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService
     ) {
         super(
             settings,
@@ -49,7 +51,8 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             namedWriteableRegistry,
             circuitBreakerService,
             sslService,
-            sharedGroupFactory
+            sharedGroupFactory,
+            crossClusterAccessAuthenticationService
         );
         this.authenticator = authenticator;
     }

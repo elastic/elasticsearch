@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper.size;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -23,7 +23,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.nullValue;
 
-public class SizeMappingTests extends MapperServiceTestCase {
+public class SizeMappingTests extends MetadataMapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -31,13 +31,13 @@ public class SizeMappingTests extends MapperServiceTestCase {
     }
 
     private static void enabled(XContentBuilder b) throws IOException {
-        b.startObject("_size");
+        b.startObject(SizeFieldMapper.NAME);
         b.field("enabled", true);
         b.endObject();
     }
 
     private static void disabled(XContentBuilder b) throws IOException {
-        b.startObject("_size");
+        b.startObject(SizeFieldMapper.NAME);
         b.field("enabled", false);
         b.endObject();
     }
@@ -72,7 +72,6 @@ public class SizeMappingTests extends MapperServiceTestCase {
     }
 
     public void testThatDisablingWorksWhenMerging() throws Exception {
-
         MapperService mapperService = createMapperService(topMapping(SizeMappingTests::enabled));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "value")));
         assertNotNull(doc.rootDoc().getField(SizeFieldMapper.NAME));
@@ -82,4 +81,27 @@ public class SizeMappingTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField(SizeFieldMapper.NAME));
     }
 
+    @Override
+    protected String fieldName() {
+        return SizeFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return true;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(
+            topMapping(SizeMappingTests::disabled),
+            topMapping(SizeMappingTests::enabled),
+            dm -> assertTrue(dm.metadataMapper(SizeFieldMapper.class).enabled())
+        );
+        checker.registerUpdateCheck(
+            topMapping(SizeMappingTests::enabled),
+            topMapping(SizeMappingTests::disabled),
+            dm -> assertFalse(dm.metadataMapper(SizeFieldMapper.class).enabled())
+        );
+    }
 }

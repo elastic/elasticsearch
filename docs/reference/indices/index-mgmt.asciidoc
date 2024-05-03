@@ -3,21 +3,15 @@
 == Index management in {kib}
 
 {kib}'s *Index Management* features are an easy, convenient way to manage your
-cluster's indices, <<data-streams,data streams>>, and <<index-templates,index
-templates>>. Practicing good index management ensures your data is stored
+cluster's indices, <<data-streams,data streams>>, <<index-templates,index
+templates>>, and <<ingest-enriching-data,enrich policies>>. Practicing good index management ensures your data is stored
 correctly and in the most cost-effective way possible.
+
+To use these features, go to *Stack Management* > *Index Management*.
 
 [discrete]
 [[index-mgmt-wyl]]
-=== What you'll learn
 
-You'll learn how to:
-
-* View and edit index settings.
-* View mappings and statistics for an index.
-* Perform index-level operations, such as refreshes.
-* View and manage data streams.
-* Create index templates to automatically configure new data streams and indices.
 
 [discrete]
 [[index-mgm-req-permissions]]
@@ -31,77 +25,67 @@ If you use {es} {security-features}, the following
 or index's data.
 * The `manage_index_templates` cluster privilege to manage index templates.
 
-To add these privileges in {kib}, go to *Stack Management > Security > Roles*.
+To add these privileges, go to *Stack Management > Security > Roles* or use the <<security-api-put-role,Create or update roles API>>.
 
 [discrete]
 [[view-edit-indices]]
-=== View and edit indices
+=== Manage indices
 
-Open {kib}'s main menu and click *Stack Management > Index Management*.
+Investigate your indices and perform operations from the *Indices* view.
 
 [role="screenshot"]
 image::images/index-mgmt/management_index_labels.png[Index Management UI]
 
-The *Index Management* page contains an overview of your indices.
+* To show details and perform operations such as close, forcemerge, and flush,
+click the index name.  To perform operations
+on multiple indices, select their checkboxes and then open the *Manage* menu.
+For more information on managing indices, refer to <<indices, Index APIs>>.
+
+* To filter the list of indices, use the search bar or click a badge.
 Badges indicate if an index is a <<ccr-put-follow,follower index>>, a
 <<rollup-get-rollup-index-caps,rollup index>>, or <<unfreeze-index-api,frozen>>.
 
-Clicking a badge narrows the list to only indices of that type.
-You can also filter indices using the search bar.
-
-You can drill down into each index to investigate the index
-<<index-modules-settings,settings>>, <<mapping,mapping>>, and statistics.
-From this view, you can also edit the index settings.
-
+* To drill down into the index
+<<mapping,mappings>>, <<index-modules-settings,settings>>, and statistics,
+click an index name. From this view, you can navigate to *Discover* to
+further explore the documents in the index.
++
 [role="screenshot"]
 image::images/index-mgmt/management_index_details.png[Index Management UI]
 
-[float]
-=== Perform index-level operations
-
-Use the *Manage* menu to perform index-level operations. This menu
-is available in the index details view, or when you select the checkbox of one or more
-indices on the overview page. The menu includes the following actions:
-
-* <<indices-close,*Close index*>>
-* <<indices-forcemerge,*Force merge index*>>
-* <<indices-refresh,*Refresh index*>>
-* <<indices-flush,*Flush index*>>
-* <<indices-delete-index,*Delete index*>>
-* <<set-up-lifecycle-policy,*Add lifecycle policy*>>
 
 [float]
 [[manage-data-streams]]
 === Manage data streams
 
-The *Data Streams* view lists your data streams and lets you examine or delete
-them.
+Investigate your data streams and address lifecycle management needs in the *Data Streams* view.
 
-To view more information about a data stream, such as its generation or its
-current index lifecycle policy, click the stream's name.
+The value in the *Indices* column indicates the number of backing indices. Click this number to drill down into details.
 
-[role="screenshot"]
-image::images/index-mgmt/management_index_data_stream_stats.png[Data stream details]
-
-To view information about the stream's backing indices, click the number in the
-*Indices* column.
+A value in the data retention column indicates that the data stream is managed by a <<data-stream-lifecycle,data stream lifecycle policy>>.
+This value is the time period for which your data is guaranteed to be stored. Data older than this period can be deleted by
+Elasticsearch at a later time.
 
 [role="screenshot"]
-image::images/index-mgmt/management_index_data_stream_backing_index.png[Backing index]
+image::images/index-mgmt/management-data-stream.png[Data stream details]
+
+* To view more information about a data stream, such as its generation or its
+current index lifecycle policy, click the stream's name. From this view, you can navigate to *Discover* to
+further explore data within the data stream.
+
+* preview:[]To edit the data retention value, open the *Manage* menu, and then click *Edit data retention*.
+This action is only available if your data stream is not managed by an ILM policy.
 
 [float]
 [[manage-index-templates]]
 === Manage index templates
 
-The *Index Templates* view lists your templates and lets you examine,
-edit, clone, and delete them. Changes made to an index template do not
+Create,
+edit, clone, and delete your index templates in the *Index Templates* view. Changes made to an index template do not
 affect existing indices.
 
 [role="screenshot"]
 image::images/index-mgmt/management-index-templates.png[Index templates]
-
-If you don't have any templates, you can create one using the *Create template*
-wizard.
 
 [float]
 ==== Try it: Create an index template
@@ -232,3 +216,32 @@ earlier.
 GET /my-index-000001,my-index-000002
 --------------------------------------------------
 // TEST[continued]
+
+[float]
+[[manage-enrich-policies]]
+=== Manage enrich policies
+
+Use the *Enrich Policies* view to add data from your existing indices to incoming documents during ingest.
+An enrich policy contains:
+
+* The policy type that determines how the policy matches the enrich data to incoming documents
+* The source indices that store enrich data as documents
+* The fields from the source indices used to match incoming documents
+* The enrich fields containing enrich data from the source indices that you want to add to incoming documents
+* An optional <<query-dsl-match-all-query,query>>.
+
+[role="screenshot"]
+image::images/index-mgmt/management-enrich-policies.png[Enrich policies]
+
+
+When creating an enrich policy, the UI walks you through the configuration setup and selecting the fields.
+Before you can use the policy with an enrich processor or {esql} query, you must execute the policy.
+
+When executed, an enrich policy uses enrich data from the policy’s source indices
+to create a streamlined system index called the enrich index. The policy uses this index to match and enrich incoming documents.
+
+Check out these examples:
+
+* <<geo-match-enrich-policy-type>>
+* <<match-enrich-policy-type>>
+* <<range-enrich-policy-type>>

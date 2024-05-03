@@ -10,7 +10,10 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 group = 'org.elasticsearch.plugin'
-archivesBaseName = 'elasticsearch-scripting-painless-spi'
+
+base {
+  archivesName = 'elasticsearch-scripting-painless-spi'
+}
 
 dependencies {
   compileOnly project(":server")

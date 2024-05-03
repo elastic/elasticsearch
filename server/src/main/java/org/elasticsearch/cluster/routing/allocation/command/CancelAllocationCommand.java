@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,6 +36,8 @@ import java.util.Objects;
  * A command that cancels relocation, or recovery of a given shard on a node.
  */
 public class CancelAllocationCommand implements AllocationCommand {
+
+    private static final Logger logger = LogManager.getLogger(CancelAllocationCommand.class);
 
     public static final String NAME = "cancel";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
@@ -167,10 +170,9 @@ public class CancelAllocationCommand implements AllocationCommand {
             }
         }
         routingNodes.failShard(
-            LogManager.getLogger(CancelAllocationCommand.class),
+            logger,
             shardRouting,
             new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null),
-            indexMetadata,
             allocation.changes()
         );
         // TODO: We don't have to remove a cancelled shard from in-sync set once we have a strict resync implementation.

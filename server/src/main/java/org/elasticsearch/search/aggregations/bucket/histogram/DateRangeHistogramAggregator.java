@@ -7,17 +7,17 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -59,6 +59,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     private final long minDocCount;
+    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
 
@@ -71,6 +72,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -82,11 +84,12 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
+        this.preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
+        this.downsampledResultsOffset = downsampledResultsOffset;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
@@ -110,57 +113,48 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        RangeType rangeType = valuesSource.rangeType();
+        // Is it possible for multiple values here? Multiple ranges are encoded into the same BytesRef in the binary doc values
+        final BinaryDocValues values = FieldData.unwrapSingleton(valuesSource.bytesValues(aggCtx.getLeafReaderContext()));
+        assert values != null;
+        final RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    // Is it possible for valuesCount to be > 1 here? Multiple ranges are encoded into the same BytesRef in the binary doc
-                    // values, so it isn't clear what we'd be iterating over.
-                    int valuesCount = values.docValueCount();
-                    assert valuesCount == 1 : "Value count for ranges should always be 1";
                     long previousKey = Long.MIN_VALUE;
-
-                    for (int i = 0; i < valuesCount; i++) {
-                        BytesRef encodedRanges = values.nextValue();
-                        List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
-                        long previousFrom = Long.MIN_VALUE;
-                        for (RangeFieldMapper.Range range : ranges) {
-                            Long from = (Long) range.getFrom();
-                            // The encoding should ensure that this assert is always true.
-                            assert from >= previousFrom : "Start of range not >= previous start";
-                            final Long to = (Long) range.getTo();
-                            final long effectiveFrom = (hardBounds != null && hardBounds.getMin() != null)
-                                ? max(from, hardBounds.getMin())
-                                : from;
-                            final long effectiveTo = (hardBounds != null && hardBounds.getMax() != null)
-                                ? min(to, hardBounds.getMax())
-                                : to;
-                            final long startKey = preparedRounding.round(effectiveFrom);
-                            final long endKey = preparedRounding.round(effectiveTo);
-                            for (long key = max(startKey, previousKey); key <= endKey; key = preparedRounding.nextRoundingValue(key)) {
-                                if (key == previousKey) {
-                                    continue;
-                                }
-                                // Bucket collection identical to NumericHistogramAggregator, could be refactored
-                                long bucketOrd = bucketOrds.add(owningBucketOrd, key);
-                                if (bucketOrd < 0) { // already seen
-                                    bucketOrd = -1 - bucketOrd;
-                                    collectExistingBucket(sub, doc, bucketOrd);
-                                } else {
-                                    collectBucket(sub, doc, bucketOrd);
-                                }
+                    final List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(values.binaryValue());
+                    long previousFrom = Long.MIN_VALUE;
+                    for (RangeFieldMapper.Range range : ranges) {
+                        Long from = (Long) range.getFrom();
+                        // The encoding should ensure that this assert is always true.
+                        assert from >= previousFrom : "Start of range not >= previous start";
+                        final Long to = (Long) range.getTo();
+                        final long effectiveFrom = (hardBounds != null && hardBounds.getMin() != null)
+                            ? max(from, hardBounds.getMin())
+                            : from;
+                        final long effectiveTo = (hardBounds != null && hardBounds.getMax() != null) ? min(to, hardBounds.getMax()) : to;
+                        final long startKey = preparedRounding.round(effectiveFrom);
+                        final long endKey = preparedRounding.round(effectiveTo);
+                        for (long key = max(startKey, previousKey); key <= endKey; key = preparedRounding.nextRoundingValue(key)) {
+                            if (key == previousKey) {
+                                continue;
                             }
-                            if (endKey > previousKey) {
-                                previousKey = endKey;
+                            // Bucket collection identical to NumericHistogramAggregator, could be refactored
+                            long bucketOrd = bucketOrds.add(owningBucketOrd, key);
+                            if (bucketOrd < 0) { // already seen
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                collectBucket(sub, doc, bucketOrd);
                             }
                         }
-
+                        if (endKey > previousKey) {
+                            previousKey = endKey;
+                        }
                     }
                 }
             }
@@ -197,6 +191,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                     emptyBucketInfo,
                     formatter,
                     keyed,
+                    downsampledResultsOffset,
                     metadata()
                 );
             }
@@ -217,6 +212,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
             emptyBucketInfo,
             formatter,
             keyed,
+            downsampledResultsOffset,
             metadata()
         );
     }

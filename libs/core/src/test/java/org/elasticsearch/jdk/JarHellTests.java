@@ -119,11 +119,9 @@ public class JarHellTests extends ESTestCase {
     }
 
     public void testNonJDKModuleURLs() throws Throwable {
-        // Temporarily skip on JDK 19, until this issue is resolved https://bugs.openjdk.java.net/browse/JDK-8287097
-        assumeTrue("Skip on 19", Runtime.version().feature() < 19);
         var bootLayer = ModuleLayer.boot();
 
-        Path fooDir = createTempDir(getTestName());
+        Path fooDir = createTempDir();
         Path fooJar = PathUtils.get(makeJar(fooDir, "foo.jar", null, "p/Foo.class").toURI());
         var fooConfiguration = bootLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(fooJar), List.of("foo"));
         Set<URL> urls = JarHell.nonJDKModuleURLs(fooConfiguration).collect(Collectors.toSet());

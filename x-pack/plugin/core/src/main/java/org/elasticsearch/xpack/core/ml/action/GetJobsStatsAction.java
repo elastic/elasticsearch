@@ -19,7 +19,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -38,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> {
 
     public static final GetJobsStatsAction INSTANCE = new GetJobsStatsAction();
@@ -53,14 +57,14 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
-        super(NAME, GetJobsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String jobId;
+        private final String jobId;
         private boolean allowNoMatch = true;
 
         // used internally to expand _all jobid to encapsulate all jobs in cluster:
@@ -74,7 +78,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            expandedJobsIds = in.readStringList();
+            expandedJobsIds = in.readStringCollectionAsList();
             allowNoMatch = in.readBoolean();
         }
 
@@ -133,6 +137,11 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             return Objects.equals(jobId, other.jobId)
                 && Objects.equals(allowNoMatch, other.allowNoMatch)
                 && Objects.equals(getTimeout(), other.getTimeout());
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_job_stats[%s]", id), parentTaskId, headers);
         }
     }
 
@@ -325,7 +334,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             }
         }
 
-        private QueryPage<JobStats> jobsStats;
+        private final QueryPage<JobStats> jobsStats;
 
         public Response(QueryPage<JobStats> jobsStats) {
             super(Collections.emptyList(), Collections.emptyList());

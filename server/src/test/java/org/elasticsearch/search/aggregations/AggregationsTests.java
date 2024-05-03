@@ -8,19 +8,12 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrixTests;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogramTests;
@@ -59,34 +52,17 @@ import org.elasticsearch.search.aggregations.metrics.MaxTests;
 import org.elasticsearch.search.aggregations.metrics.MinTests;
 import org.elasticsearch.search.aggregations.metrics.SumTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
-import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeriesTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 /**
  * This class tests that aggregations parsing works properly. It checks that we can parse
@@ -109,7 +85,6 @@ public class AggregationsTests extends ESTestCase {
         new SumTests(),
         new InternalValueCountTests(),
         new InternalSimpleValueTests(),
-        new InternalDerivativeTests(),
         new InternalBucketMetricValueTests(),
         new InternalStatsTests(),
         new InternalStatsBucketTests(),
@@ -119,7 +94,6 @@ public class AggregationsTests extends ESTestCase {
         new InternalGeoCentroidTests(),
         new InternalHistogramTests(),
         new InternalDateHistogramTests(),
-        new InternalAutoDateHistogramTests(),
         new InternalVariableWidthHistogramTests(),
         new LongTermsTests(),
         new DoubleTermsTests(),
@@ -138,21 +112,14 @@ public class AggregationsTests extends ESTestCase {
         new InternalDateRangeTests(),
         new InternalGeoDistanceTests(),
         new InternalFiltersTests(),
-        new InternalAdjacencyMatrixTests(),
         new SignificantLongTermsTests(),
         new SignificantStringTermsTests(),
         new InternalScriptedMetricTests(),
         new InternalBinaryRangeTests(),
         new InternalTopHitsTests(),
         new InternalCompositeTests(),
-        new InternalMedianAbsoluteDeviationTests(),
-        new InternalTimeSeriesTests()
+        new InternalMedianAbsoluteDeviationTests()
     );
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(InternalAggregationTestCase.getDefaultNamedXContents());
-    }
 
     @Before
     public void init() throws Exception {
@@ -170,99 +137,6 @@ public class AggregationsTests extends ESTestCase {
     public void cleanUp() throws Exception {
         for (InternalAggregationTestCase<?> aggsTest : aggsTests) {
             aggsTest.tearDown();
-        }
-    }
-
-    public void testAllAggsAreBeingTested() {
-        assertEquals(InternalAggregationTestCase.getDefaultNamedXContents().size(), aggsTests.size());
-        Set<String> aggs = aggsTests.stream().map((testCase) -> testCase.createTestInstance().getType()).collect(Collectors.toSet());
-        for (NamedXContentRegistry.Entry entry : InternalAggregationTestCase.getDefaultNamedXContents()) {
-            assertTrue(aggs.contains(entry.name.getPreferredName()));
-        }
-    }
-
-    public void testFromXContent() throws IOException {
-        parseAndAssert(false);
-    }
-
-    public void testFromXContentWithRandomFields() throws IOException {
-        parseAndAssert(true);
-    }
-
-    /**
-     * Test that parsing works for a randomly created Aggregations object with a
-     * randomized aggregation tree. The test randomly chooses an
-     * {@link XContentType}, randomizes the order of the {@link XContent} fields
-     * and randomly sets the `humanReadable` flag when rendering the
-     * {@link XContent}.
-     *
-     * @param addRandomFields
-     *            if set, this will also add random {@link XContent} fields to
-     *            tests that the parsers are lenient to future additions to rest
-     *            responses
-     */
-    private void parseAndAssert(boolean addRandomFields) throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        Aggregations aggregations = createTestInstance();
-        BytesReference originalBytes = toShuffledXContent(aggregations, xContentType, params, randomBoolean());
-        BytesReference mutated;
-        if (addRandomFields) {
-            /*
-             * - don't insert into the root object because it should only contain the named aggregations to test
-             *
-             * - don't insert into the "meta" object, because we pass on everything we find there
-             *
-             * - we don't want to directly insert anything random into "buckets"  objects, they are used with
-             * "keyed" aggregations and contain named bucket objects. Any new named object on this level should
-             * also be a bucket and be parsed as such.
-             *
-             * - we cannot insert randomly into VALUE or VALUES objects e.g. in Percentiles, the keys need to be numeric there
-             *
-             * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields, their syntax is strict
-             *
-             * - we cannot insert random values in top_hits, as all unknown fields
-             * on a root level of SearchHit are interpreted as meta-fields and will be kept
-             *
-             * - exclude "key", it can be an array of objects and we need strict values
-             */
-            Predicate<String> excludes = path -> (path.isEmpty()
-                || path.endsWith("aggregations")
-                || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
-                || path.endsWith(CommonFields.VALUES.getPreferredName())
-                || path.endsWith("covariance")
-                || path.endsWith("correlation")
-                || path.contains(CommonFields.VALUE.getPreferredName())
-                || path.endsWith(CommonFields.KEY.getPreferredName())) || path.contains("top_hits");
-            mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
-        } else {
-            mutated = originalBytes;
-        }
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            assertEquals(Aggregations.AGGREGATIONS_FIELD, parser.currentName());
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            Aggregations parsedAggregations = Aggregations.fromXContent(parser);
-            BytesReference parsedBytes = XContentHelper.toXContent(parsedAggregations, xContentType, randomBoolean());
-            ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
-        }
-    }
-
-    public void testParsingExceptionOnUnknownAggregation() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        {
-            builder.startObject("unknownAggregation");
-            builder.endObject();
-        }
-        builder.endObject();
-        BytesReference originalBytes = BytesReference.bytes(builder);
-        try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            ParsingException ex = expectThrows(ParsingException.class, () -> Aggregations.fromXContent(parser));
-            assertEquals("Could not parse aggregation keyed as [unknownAggregation]", ex.getMessage());
         }
     }
 

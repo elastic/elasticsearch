@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.YearTimes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -61,11 +62,7 @@ public class YearlySchedule extends CronnableSchedule {
 
     static String[] crons(YearTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        Set<String> crons = new HashSet<>(times.length);
-        for (YearTimes time : times) {
-            crons.addAll(time.crons());
-        }
-        return crons.toArray(new String[crons.size()]);
+        return Arrays.stream(times).flatMap(yt -> yt.crons().stream()).distinct().toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<YearlySchedule> {
@@ -94,7 +91,7 @@ public class YearlySchedule extends CronnableSchedule {
                         throw new ElasticsearchParseException("could not parse [{}] schedule. invalid year times", pe, TYPE);
                     }
                 }
-                return times.isEmpty() ? new YearlySchedule() : new YearlySchedule(times.toArray(new YearTimes[times.size()]));
+                return times.isEmpty() ? new YearlySchedule() : new YearlySchedule(times.toArray(YearTimes[]::new));
             }
             throw new ElasticsearchParseException(
                 "could not parse [{}] schedule. expected either an object or an array "
@@ -121,7 +118,7 @@ public class YearlySchedule extends CronnableSchedule {
         }
 
         public YearlySchedule build() {
-            return times.isEmpty() ? new YearlySchedule() : new YearlySchedule(times.toArray(new YearTimes[times.size()]));
+            return times.isEmpty() ? new YearlySchedule() : new YearlySchedule(times.toArray(YearTimes[]::new));
         }
     }
 

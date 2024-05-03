@@ -12,12 +12,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
-
-import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.containsString;
@@ -129,7 +128,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         final Hasher passwdHasher = getFastStoredHashAlgoForTests();
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
-        return super.configUsers() + """
+        return super.configUsers() + Strings.format("""
             admin:%1$s
             u1:%1$s
             u2:%1$s
@@ -145,7 +144,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             u13:%1$s
             u14:%1$s
             u15:%1$s
-            """.formatted(usersPasswdHashed);
+            """, usersPasswdHashed);
     }
 
     @Override
@@ -560,7 +559,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "DELETE", "/" + index);
                     assertUserIsAllowed(user, "create_index", index);
                     // wait until index ready, but as admin
-                    assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
+                    assertNoTimeout(clusterAdmin().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", "{ \"text\" : \"test\" }");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
@@ -570,7 +569,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_cache/clear");
                     // indexing a document to have the mapping available, and wait for green state to make sure index is created
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/_doc/1", jsonDoc);
-                    assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
+                    assertNoTimeout(clusterAdmin().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/field/name");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
                     assertAccessIsAllowed(user, randomFrom("GET", "POST"), "/" + index + "/_field_caps?fields=*");
@@ -662,30 +661,30 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
-                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", """
-                        { "%s" : "foo" }""".formatted(UUIDs.randomBase64UUID()));
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", Strings.format("""
+                        { "%s" : "foo" }""", UUIDs.randomBase64UUID()));
                     String warningHeader = response.getHeader("Warning");
-                    assertThat(warningHeader, containsString("""
+                    assertThat(warningHeader, containsString(Strings.format("""
                         the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
                         this privilege will not permit mapping updates in the next major release - users who require access to update \
-                        mappings must be granted explicit privileges""".formatted(index)));
+                        mappings must be granted explicit privileges""", index)));
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
                         { "doc" : { "foo" : "baz" } }
                         """);
-                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", Strings.format("""
                         { "doc" : { "%s" : "baz" } }
-                        """.formatted(UUIDs.randomBase64UUID()));
+                        """, UUIDs.randomBase64UUID()));
                     warningHeader = response.getHeader("Warning");
-                    assertThat(warningHeader, containsString("""
+                    assertThat(warningHeader, containsString(Strings.format("""
                         the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
                         this privilege will not permit mapping updates in the next major release - users who require access to update \
                         mappings must be granted explicit privileges\
-                        """.formatted(index)));
-                    assertThat(warningHeader, containsString("""
+                        """, index)));
+                    assertThat(warningHeader, containsString(Strings.format("""
                         the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
                         this privilege will not permit mapping updates in the next major release - users who require access to update \
                         mappings must be granted explicit privileges\
-                        """.formatted(index)));
+                        """, index)));
                 } else {
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
@@ -712,8 +711,8 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
-                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", """
-                        { "%s" : "foo" }""".formatted(UUIDs.randomBase64UUID()));
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", Strings.format("""
+                        { "%s" : "foo" }""", UUIDs.randomBase64UUID()));
                     String warningHeader = response.getHeader("Warning");
                     assertThat(
                         warningHeader,
@@ -727,9 +726,9 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
                         { "doc" : { "foo" : "baz" } }
                         """);
-                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", Strings.format("""
                         { "doc" : { "%s" : "baz" } }
-                        """.formatted(UUIDs.randomBase64UUID()));
+                        """, UUIDs.randomBase64UUID()));
                     warningHeader = response.getHeader("Warning");
                     assertThat(
                         warningHeader,
@@ -747,7 +746,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                 break;
 
             default:
-                fail(String.format(Locale.ROOT, "Unknown action %s to execute", action));
+                fail(Strings.format("Unknown action %s to execute", action));
         }
 
     }

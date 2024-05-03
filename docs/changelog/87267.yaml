@@ -1,6 +1,0 @@
-pr: 87267
-summary: Fields API to allow fetching values when `_source` is disabled
-area: Search
-type: bug
-issues:
- - 87072

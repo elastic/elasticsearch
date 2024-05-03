@@ -8,23 +8,30 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,7 +40,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class IndicesStatsResponse extends BroadcastResponse {
+public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     private final Map<String, ClusterHealthStatus> indexHealthMap;
 
@@ -46,9 +53,9 @@ public class IndicesStatsResponse extends BroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
-            indexHealthMap = in.readMap(StreamInput::readString, ClusterHealthStatus::readFrom);
-            indexStateMap = in.readMap(StreamInput::readString, IndexMetadata.State::readFrom);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
         } else {
             indexHealthMap = Map.of();
             indexStateMap = Map.of();
@@ -61,21 +68,23 @@ public class IndicesStatsResponse extends BroadcastResponse {
         int successfulShards,
         int failedShards,
         List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        Metadata metadata,
+        RoutingTable routingTable
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
-        Objects.requireNonNull(clusterState);
+        Objects.requireNonNull(metadata);
+        Objects.requireNonNull(routingTable);
         Objects.requireNonNull(shards);
         Map<String, ClusterHealthStatus> indexHealthModifiableMap = new HashMap<>();
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+            IndexMetadata indexMetadata = metadata.index(index);
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),
-                    ignored -> new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus()
+                    ignored -> new ClusterIndexHealth(indexMetadata, routingTable.index(index)).getStatus()
                 );
                 indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
             }
@@ -164,70 +173,90 @@ public class IndicesStatsResponse extends BroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-            out.writeMap(indexHealthMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
-            out.writeMap(indexStateMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }
     }
 
     @Override
-    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", "indices");
-        final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
-        }
+    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
+        final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
+            return Iterators.concat(
 
+                ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                    commonStats(builder, p);
+                    return builder.startObject(Fields.INDICES);
+                }),
+                Iterators.flatMap(
+                    getIndices().values().iterator(),
+                    indexStats -> Iterators.concat(
+
+                        ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                            builder.startObject(indexStats.getIndex());
+                            builder.field("uuid", indexStats.getUuid());
+                            if (indexStats.getHealth() != null) {
+                                builder.field("health", indexStats.getHealth().toString().toLowerCase(Locale.ROOT));
+                            }
+                            if (indexStats.getState() != null) {
+                                builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
+                            }
+                            builder.startObject("primaries");
+                            indexStats.getPrimaries().toXContent(builder, p);
+                            builder.endObject();
+
+                            builder.startObject("total");
+                            indexStats.getTotal().toXContent(builder, p);
+                            builder.endObject();
+                            return builder;
+                        }),
+
+                        level == ClusterStatsLevel.SHARDS
+                            ? Iterators.concat(
+                                ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                                Iterators.flatMap(
+                                    indexStats.iterator(),
+                                    indexShardStats -> Iterators.concat(
+                                        ChunkedToXContentHelper.startArray(Integer.toString(indexShardStats.getShardId().id())),
+                                        Iterators.<ShardStats, ToXContent>map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
+                                            builder.startObject();
+                                            shardStats.toXContent(builder, p);
+                                            builder.endObject();
+                                            return builder;
+                                        }),
+                                        ChunkedToXContentHelper.endArray()
+                                    )
+                                ),
+                                ChunkedToXContentHelper.endObject()
+                            )
+                            : Collections.emptyIterator(),
+
+                        ChunkedToXContentHelper.endObject()
+                    )
+                ),
+                ChunkedToXContentHelper.endObject()
+            );
+        } else {
+            return ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                commonStats(builder, p);
+                return builder;
+            });
+        }
+    }
+
+    private void commonStats(XContentBuilder builder, ToXContent.Params p) throws IOException {
         builder.startObject("_all");
 
         builder.startObject("primaries");
-        getPrimaries().toXContent(builder, params);
+        getPrimaries().toXContent(builder, p);
         builder.endObject();
 
         builder.startObject("total");
-        getTotal().toXContent(builder, params);
+        getTotal().toXContent(builder, p);
         builder.endObject();
 
         builder.endObject();
-
-        if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
-            builder.startObject(Fields.INDICES);
-            for (IndexStats indexStats : getIndices().values()) {
-                builder.startObject(indexStats.getIndex());
-                builder.field("uuid", indexStats.getUuid());
-                if (indexStats.getHealth() != null) {
-                    builder.field("health", indexStats.getHealth().toString().toLowerCase(Locale.ROOT));
-                }
-                if (indexStats.getState() != null) {
-                    builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
-                }
-                builder.startObject("primaries");
-                indexStats.getPrimaries().toXContent(builder, params);
-                builder.endObject();
-
-                builder.startObject("total");
-                indexStats.getTotal().toXContent(builder, params);
-                builder.endObject();
-
-                if ("shards".equalsIgnoreCase(level)) {
-                    builder.startObject(Fields.SHARDS);
-                    for (IndexShardStats indexShardStats : indexStats) {
-                        builder.startArray(Integer.toString(indexShardStats.getShardId().id()));
-                        for (ShardStats shardStats : indexShardStats) {
-                            builder.startObject();
-                            shardStats.toXContent(builder, params);
-                            builder.endObject();
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-        }
     }
 
     static final class Fields {

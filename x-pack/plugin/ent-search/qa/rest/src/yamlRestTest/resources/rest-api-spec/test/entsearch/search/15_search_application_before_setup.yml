@@ -1,0 +1,21 @@
+---
+"Get Search Application returns a 404 when no Search Applications exist":
+  - do:
+      catch: "missing"
+      search_application.get:
+        name: test-no-search-applications
+
+---
+"Delete Search Application returns a 404 when no Search Applications exist":
+  - do:
+      catch: "missing"
+      search_application.delete:
+        name: test-no-search-applications
+
+---
+"List Search Application returns an empty list when no Search Applications exist":
+  - do:
+      search_application.list: { }
+
+  - match: { count: 0 }
+

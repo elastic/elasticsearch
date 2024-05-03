@@ -12,15 +12,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -32,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,12 +43,10 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
-public class ClusterBootstrapService {
+public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
 
-    public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.stringListSetting(
         "cluster.initial_master_nodes",
-        emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -70,6 +68,7 @@ public class ClusterBootstrapService {
     private final BooleanSupplier isBootstrappedSupplier;
     private final Consumer<VotingConfiguration> votingConfigurationConsumer;
     private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);
+    private final boolean singleNodeDiscovery;
 
     public ClusterBootstrapService(
         Settings settings,
@@ -78,7 +77,8 @@ public class ClusterBootstrapService {
         BooleanSupplier isBootstrappedSupplier,
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
-        if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
+        singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
+        if (singleNodeDiscovery) {
             if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
                 throw new IllegalArgumentException(
                     "setting ["
@@ -126,17 +126,16 @@ public class ClusterBootstrapService {
     void logBootstrapState(Metadata metadata) {
         if (metadata.clusterUUIDCommitted()) {
             final var clusterUUID = metadata.clusterUUID();
-            if (bootstrapRequirements.isEmpty()) {
+            if (singleNodeDiscovery || bootstrapRequirements.isEmpty()) {
                 logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
             } else {
-                logger.warn(
-                    """
-                        this node is locked into cluster UUID [{}] but [{}] is set to {}; \
-                        remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts""",
-                    clusterUUID,
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
-                    bootstrapRequirements
-                );
+                transportService.getThreadPool()
+                    .scheduleWithFixedDelay(
+                        () -> logRemovalWarning(clusterUUID),
+                        TimeValue.timeValueHours(12),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    );
+                logRemovalWarning(clusterUUID);
             }
         } else {
             logger.info(
@@ -147,7 +146,21 @@ public class ClusterBootstrapService {
         }
     }
 
-    void onFoundPeersUpdated() {
+    private void logRemovalWarning(String clusterUUID) {
+        logger.warn(
+            """
+                this node is locked into cluster UUID [{}] but [{}] is set to {}; \
+                remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; \
+                for further information see {}""",
+            clusterUUID,
+            INITIAL_MASTER_NODES_SETTING.getKey(),
+            bootstrapRequirements,
+            ReferenceDocs.INITIAL_MASTER_NODES
+        );
+    }
+
+    @Override
+    public void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()
             && transportService.getLocalNode().isMasterNode()
@@ -202,19 +215,20 @@ public class ClusterBootstrapService {
             unconfiguredBootstrapTimeout
         );
 
-        transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.GENERIC, new Runnable() {
-            @Override
-            public void run() {
-                final Set<DiscoveryNode> discoveredNodes = getDiscoveredNodes();
-                logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
-                startBootstrap(discoveredNodes, emptyList());
-            }
+        transportService.getThreadPool()
+            .scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, transportService.getThreadPool().generic(), new Runnable() {
+                @Override
+                public void run() {
+                    final Set<DiscoveryNode> discoveredNodes = getDiscoveredNodes();
+                    logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
+                    startBootstrap(discoveredNodes, emptyList());
+                }
 
-            @Override
-            public String toString() {
-                return "unconfigured-discovery delayed bootstrap";
-            }
-        });
+                @Override
+                public String toString() {
+                    return "unconfigured-discovery delayed bootstrap";
+                }
+            });
     }
 
     private Set<DiscoveryNode> getDiscoveredNodes() {
@@ -250,17 +264,18 @@ public class ClusterBootstrapService {
             votingConfigurationConsumer.accept(votingConfiguration);
         } catch (Exception e) {
             logger.warn(() -> "exception when bootstrapping with " + votingConfiguration + ", rescheduling", e);
-            transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.GENERIC, new Runnable() {
-                @Override
-                public void run() {
-                    doBootstrap(votingConfiguration);
-                }
+            transportService.getThreadPool()
+                .scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), transportService.getThreadPool().generic(), new Runnable() {
+                    @Override
+                    public void run() {
+                        doBootstrap(votingConfiguration);
+                    }
 
-                @Override
-                public String toString() {
-                    return "retry of failed bootstrapping with " + votingConfiguration;
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return "retry of failed bootstrapping with " + votingConfiguration;
+                    }
+                });
         }
     }
 

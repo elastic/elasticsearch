@@ -34,13 +34,13 @@ public class GetShardSnapshotResponse extends ActionResponse {
     GetShardSnapshotResponse(StreamInput in) throws IOException {
         super(in);
         this.latestShardSnapshot = in.readOptionalWriteable(ShardSnapshotInfo::new);
-        this.repositoryFailures = in.readMap(StreamInput::readString, RepositoryException::new);
+        this.repositoryFailures = in.readMap(RepositoryException::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(latestShardSnapshot);
-        out.writeMap(repositoryFailures, StreamOutput::writeString, (o, err) -> err.writeTo(o));
+        out.writeMap(repositoryFailures, StreamOutput::writeWriteable);
     }
 
     public Optional<RepositoryException> getFailureForRepository(String repository) {

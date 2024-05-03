@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.InternalBucket;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -18,7 +19,6 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.search.aggregations.DelayedBucketTests.mockReduce;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,7 +136,7 @@ public class TopBucketBuilderTests extends ESTestCase {
     }
 
     private String bucketKey(int index) {
-        return String.format(Locale.ROOT, "%06d", index);
+        return Strings.format("%06d", index);
     }
 
     private InternalBucket bucket(int index) {

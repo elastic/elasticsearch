@@ -13,6 +13,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -61,16 +63,13 @@ public class RepositoryDataTests extends ESTestCase {
             final List<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
             return snapshotIds.contains(randomSnapshot) && snapshotIds.size() > 1;
         }).toArray(IndexId[]::new);
-        assertThat(
-            repositoryData.indicesToUpdateAfterRemovingSnapshot(Collections.singleton(randomSnapshot)),
-            containsInAnyOrder(indicesToUpdate)
-        );
+        assertThat(getIndicesToUpdateAfterRemovingSnapshot(repositoryData, randomSnapshot), containsInAnyOrder(indicesToUpdate));
     }
 
     public void testXContent() throws IOException {
         RepositoryData repositoryData = generateRandomRepoData().withClusterUuid(UUIDs.randomBase64UUID(random()));
         XContentBuilder builder = JsonXContent.contentBuilder();
-        repositoryData.snapshotsToXContent(builder, Version.CURRENT);
+        repositoryData.snapshotsToXContent(builder, IndexVersion.current());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             long gen = (long) randomIntBetween(0, 500);
             RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen, randomBoolean());
@@ -110,7 +109,7 @@ public class RepositoryDataTests extends ESTestCase {
             newSnapshot,
             new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -142,7 +141,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId.getUUID(),
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                    randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -210,7 +209,7 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotId,
             new RepositoryData.SnapshotDetails(
                 state,
-                randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -228,7 +227,7 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData repositoryData = generateRandomRepoData().withClusterUuid(UUIDs.randomBase64UUID(random()));
 
         XContentBuilder builder = XContentBuilder.builder(xContent);
-        repositoryData.snapshotsToXContent(builder, Version.CURRENT);
+        repositoryData.snapshotsToXContent(builder, IndexVersion.current());
         RepositoryData parsedRepositoryData;
         try (XContentParser xParser = createParser(builder)) {
             parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId(), randomBoolean());
@@ -281,7 +280,7 @@ public class RepositoryDataTests extends ESTestCase {
         );
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
-        corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, Version.CURRENT);
+        corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, IndexVersion.current());
 
         try (XContentParser xParser = createParser(corruptedBuilder)) {
             ElasticsearchParseException e = expectThrows(
@@ -346,7 +345,7 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData repositoryData = generateRandomRepoData();
         final SnapshotId snapshotId = randomFrom(repositoryData.getSnapshotIds());
         final IndexMetaDataGenerations indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();
-        final Collection<IndexId> indicesToUpdate = repositoryData.indicesToUpdateAfterRemovingSnapshot(Collections.singleton(snapshotId));
+        final Collection<IndexId> indicesToUpdate = getIndicesToUpdateAfterRemovingSnapshot(repositoryData, snapshotId);
         final Map<IndexId, Collection<String>> identifiersToRemove = indexMetaDataGenerations.lookup.get(snapshotId)
             .entrySet()
             .stream()
@@ -392,7 +391,7 @@ public class RepositoryDataTests extends ESTestCase {
 
         final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
             SnapshotState.SUCCESS,
-            Version.CURRENT,
+            IndexVersion.current(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomAlphaOfLength(10)
@@ -408,7 +407,7 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public void testFailsIfMinVersionNotSatisfied() throws IOException {
-        final Version futureVersion = Version.fromString((Version.CURRENT.major + 1) + ".0.0");
+        final String futureVersion = Version.fromId(IndexVersion.current().id() + 1_000_000).toString();
 
         final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
         builder.startObject();
@@ -455,7 +454,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId,
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                    randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -483,5 +482,11 @@ public class RepositoryDataTests extends ESTestCase {
             indices.put(indexId, List.copyOf(indexSnapshots));
         }
         return indices;
+    }
+
+    private static Collection<IndexId> getIndicesToUpdateAfterRemovingSnapshot(RepositoryData repositoryData, SnapshotId snapshotToDelete) {
+        final var result = new ArrayList<IndexId>();
+        repositoryData.indicesToUpdateAfterRemovingSnapshot(List.of(snapshotToDelete)).forEachRemaining(result::add);
+        return result;
     }
 }

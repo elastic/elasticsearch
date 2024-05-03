@@ -8,13 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -30,12 +30,14 @@ import java.util.Map;
 public class RandomSamplerAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     private final int seed;
+    private final Integer shardSeed;
     private final double probability;
     private final CheckedSupplier<Weight, IOException> weightSupplier;
 
     RandomSamplerAggregator(
         String name,
         int seed,
+        Integer shardSeed,
         double probability,
         CheckedSupplier<Weight, IOException> weightSupplier,
         AggregatorFactories factories,
@@ -53,6 +55,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
             );
         }
         this.weightSupplier = weightSupplier;
+        this.shardSeed = shardSeed;
     }
 
     @Override
@@ -63,6 +66,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
                 name,
                 bucketDocCount(owningBucketOrd),
                 seed,
+                shardSeed,
                 probability,
                 subAggregationResults,
                 metadata()
@@ -72,7 +76,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalRandomSampler(name, 0, seed, probability, buildEmptySubAggregations(), metadata());
+        return new InternalRandomSampler(name, 0, seed, shardSeed, probability, buildEmptySubAggregations(), metadata());
     }
 
     /**
@@ -83,13 +87,13 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
      * allows this aggregation to sample documents in the background. This provides a dramatic speed improvement, especially when a
      * non-trivial {@link RandomSamplerAggregator#topLevelQuery()} is provided.
      *
-     * @param ctx reader context
+     * @param aggCtx aggregation context
      * @param sub collector
      * @return returns {@link LeafBucketCollector#NO_OP_COLLECTOR} if sampling was done. Otherwise, it is a simple pass through collector
      * @throws IOException when building the query or extracting docs fails
      */
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         // Certain leaf collectors can aggregate values without seeing any documents, even when sampled
         // To handle this, exit early if the sub collector is a no-op
         if (sub.isNoop()) {
@@ -97,27 +101,29 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         }
         // No sampling is being done, collect all docs
         if (probability >= 1.0) {
+            grow(1);
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
-                    collectBucket(sub, doc, 0);
+                    collectExistingBucket(sub, doc, 0);
                 }
             };
         }
         // TODO know when sampling would be much slower and skip sampling: https://github.com/elastic/elasticsearch/issues/84353
-        Scorer scorer = weightSupplier.get().scorer(ctx);
+        Scorer scorer = weightSupplier.get().scorer(aggCtx.getLeafReaderContext());
         // This means there are no docs to iterate, possibly due to the fields not existing
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final DocIdSetIterator docIt = scorer.iterator();
-        final Bits liveDocs = ctx.reader().getLiveDocs();
+        final Bits liveDocs = aggCtx.getLeafReaderContext().reader().getLiveDocs();
         try {
+            grow(1);
             // Iterate every document provided by the scorer iterator
             for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
                 // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
                 if (liveDocs == null || liveDocs.get(docIt.docID())) {
-                    collectBucket(sub, docIt.docID(), 0);
+                    collectExistingBucket(sub, docIt.docID(), 0);
                 }
             }
             // This collector could throw `CollectionTerminatedException` if the last leaf collector has stopped collecting

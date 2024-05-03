@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
 import java.time.OffsetTime;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -95,7 +97,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(10L, conversion.convert(10.0));
             assertEquals(10L, conversion.convert(10.1));
             assertEquals(11L, conversion.convert(10.6));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
@@ -137,7 +139,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertNull(conversion.convert(null));
             assertEquals(1L, conversion.convert("1"));
             assertEquals(0L, conversion.convert("-0"));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [long]", e.getMessage());
         }
     }
@@ -150,7 +152,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(date(10L), conversion.convert(10.0));
             assertEquals(date(10L), conversion.convert(10.1));
             assertEquals(date(11L), conversion.convert(10.6));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
@@ -160,7 +162,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(date(bi.longValue()), conversion.convert(bi));
 
             BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(tooLarge));
             assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
         }
         {
@@ -211,15 +213,15 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter forward = converterFor(DATE, KEYWORD);
             Converter back = converterFor(KEYWORD, DATE);
             assertEquals(asDateOnly(zdt), back.convert(forward.convert(zdt)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [date]: Text '0xff' could not be parsed at index 0", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-02-"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("2020-02-"));
             assertEquals("cannot cast [2020-02-] to [date]: Text '2020-02-' could not be parsed at index 8", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("2020-"));
             assertEquals("cannot cast [2020-] to [date]: Text '2020-' could not be parsed at index 5", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("-2020-02-"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("-2020-02-"));
             assertEquals("cannot cast [-2020-02-] to [date]: Text '-2020-02-' could not be parsed at index 9", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("-2020-"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("-2020-"));
             assertEquals("cannot cast [-2020-] to [date]: Text '-2020-' could not be parsed at index 6", e.getMessage());
         }
     }
@@ -232,7 +234,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(time(10L), conversion.convert(10.0));
             assertEquals(time(10L), conversion.convert(10.1));
             assertEquals(time(11L), conversion.convert(10.6));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
@@ -242,7 +244,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(time(bi.longValue()), conversion.convert(bi));
 
             BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(tooLarge));
             assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
         }
         {
@@ -283,7 +285,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter forward = converterFor(TIME, KEYWORD);
             Converter back = converterFor(KEYWORD, TIME);
             assertEquals(ot, back.convert(forward.convert(ot)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [time]: Text '0xff' could not be parsed at index 0", e.getMessage());
         }
     }
@@ -296,7 +298,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(dateTime(10L), conversion.convert(10.0));
             assertEquals(dateTime(10L), conversion.convert(10.1));
             assertEquals(dateTime(11L), conversion.convert(10.6));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
@@ -347,7 +349,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter forward = converterFor(DATETIME, KEYWORD);
             Converter back = converterFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0", e.getMessage());
         }
     }
@@ -401,7 +403,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(1.0f, (float) conversion.convert("1"), 0);
             assertEquals(0.0f, (float) conversion.convert("-0"), 0);
             assertEquals(12.776f, (float) conversion.convert("12.776"), 0.00001);
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [float]", e.getMessage());
         }
     }
@@ -455,7 +457,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(1.0, (double) conversion.convert("1"), 0);
             assertEquals(0.0, (double) conversion.convert("-0"), 0);
             assertEquals(12.776, (double) conversion.convert("12.776"), 0.00001);
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [double]", e.getMessage());
         }
     }
@@ -520,17 +522,17 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(true, conversion.convert("True"));
             assertEquals(false, conversion.convert("fAlSe"));
             // Everything else should fail
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("10"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("10"));
             assertEquals("cannot cast [10] to [boolean]", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("-1"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("-1"));
             assertEquals("cannot cast [-1] to [boolean]", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0"));
             assertEquals("cannot cast [0] to [boolean]", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("blah"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("blah"));
             assertEquals("cannot cast [blah] to [boolean]", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("Yes"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("Yes"));
             assertEquals("cannot cast [Yes] to [boolean]", e.getMessage());
-            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("nO"));
+            e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("nO"));
             assertEquals("cannot cast [nO] to [boolean]", e.getMessage());
         }
     }
@@ -546,7 +548,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(BigInteger.valueOf(zdt.toEpochSecond() * 1000), conversion.convert(zdt));
 
             ZonedDateTime zdtn = asDateOnly(-l);
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(zdtn));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(zdtn));
             assertEquals("[" + zdtn.toEpochSecond() * 1000 + "] out of [unsigned_long] range", e.getMessage());
         }
         {
@@ -567,7 +569,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(10, conversion.convert(10.0));
             assertEquals(10, conversion.convert(10.1));
             assertEquals(11, conversion.convert(10.6));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
             assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
         }
         {
@@ -577,7 +579,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(86400000, conversion.convert(asDateOnly(123456789L)));
             assertEquals(172800000, conversion.convert(asDateOnly(223456789L)));
             assertEquals(-172800000, conversion.convert(asDateOnly(-123456789L)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateOnly(Long.MAX_VALUE)));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asDateOnly(Long.MAX_VALUE)));
             assertEquals("[9223372036828800000] out of [integer] range", e.getMessage());
         }
         {
@@ -598,7 +600,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             // Nanos are ignored, only millis are used
             assertEquals(62123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:01:02.123456789Z")));
             Exception e = expectThrows(
-                QlIllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> conversion.convert(DateUtils.asDateTimeWithMillis(Long.MAX_VALUE))
             );
             assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
@@ -613,23 +615,23 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals((short) 10, conversion.convert(10.0));
             assertEquals((short) 10, conversion.convert(10.1));
             assertEquals((short) 11, conversion.convert(10.6));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Integer.MAX_VALUE));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Integer.MAX_VALUE));
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals((short) 0, conversion.convert(asDateOnly(12345678L)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateOnly(123456789L)));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asDateOnly(123456789L)));
             assertEquals("[86400000] out of [short] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(TIME, to);
             assertNull(conversion.convert(null));
             assertEquals((short) 12345, conversion.convert(asTimeOnly(12345L)));
-            Exception e1 = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asTimeOnly(-123456789L)));
+            Exception e1 = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asTimeOnly(-123456789L)));
             assertEquals("[49343211] out of [short] range", e1.getMessage());
-            Exception e2 = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asTimeOnly(123456789L)));
+            Exception e2 = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asTimeOnly(123456789L)));
             assertEquals("[37056789] out of [short] range", e2.getMessage());
         }
         {
@@ -640,7 +642,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             // Nanos are ignored, only millis are used
             assertEquals((short) 1123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:00:01.123456789Z")));
             Exception e = expectThrows(
-                QlIllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE))
             );
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
@@ -655,23 +657,23 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals((byte) 10, conversion.convert(10.0));
             assertEquals((byte) 10, conversion.convert(10.1));
             assertEquals((byte) 11, conversion.convert(10.6));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Short.MAX_VALUE));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Short.MAX_VALUE));
             assertEquals("[" + Short.MAX_VALUE + "] out of [byte] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(DATE, to);
             assertNull(conversion.convert(null));
             assertEquals((byte) 0, conversion.convert(asDateOnly(12345678L)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateOnly(123456789L)));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asDateOnly(123456789L)));
             assertEquals("[86400000] out of [byte] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(TIME, to);
             assertNull(conversion.convert(null));
             assertEquals((byte) 123, conversion.convert(asTimeOnly(123L)));
-            Exception e1 = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asTimeOnly(-123L)));
+            Exception e1 = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asTimeOnly(-123L)));
             assertEquals("[86399877] out of [byte] range", e1.getMessage());
-            Exception e2 = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asTimeOnly(123456789L)));
+            Exception e2 = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asTimeOnly(123456789L)));
             assertEquals("[37056789] out of [byte] range", e2.getMessage());
         }
         {
@@ -682,7 +684,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             // Nanos are ignored, only millis are used
             assertEquals((byte) 123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:00:00.123456789Z")));
             Exception e = expectThrows(
-                QlIllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE))
             );
             assertEquals("[" + Integer.MAX_VALUE + "] out of [byte] range", e.getMessage());
@@ -762,7 +764,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         Converter conversion = converterFor(KEYWORD, IP);
         assertNull(conversion.convert(null));
         assertEquals("192.168.1.1", conversion.convert("192.168.1.1"));
-        Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("10.1.1.300"));
+        Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("10.1.1.300"));
         assertEquals("[10.1.1.300] is not a valid IPv4 or IPv6 address", e.getMessage());
     }
 
@@ -772,6 +774,27 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Converter stringToIp = converterFor(KEYWORD, IP);
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
+    }
+
+    public void testStringToVersion() {
+        Converter conversion = converterFor(randomFrom(KEYWORD, TEXT), VERSION);
+        assertNull(conversion.convert(null));
+        assertEquals(new Version("2.1.4").toString(), conversion.convert("2.1.4").toString());
+        assertEquals(new Version("2.1.4").toBytesRef(), ((Version) conversion.convert("2.1.4")).toBytesRef());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toString(), conversion.convert("2.1.4-SNAPSHOT").toString());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toBytesRef(), ((Version) conversion.convert("2.1.4-SNAPSHOT")).toBytesRef());
+    }
+
+    public void testVersionToString() {
+        Source s = new Source(Location.EMPTY, "2.1.4");
+        Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
+        final DataType stringType = randomFrom(KEYWORD, TEXT);
+        Converter versionToString = converterFor(VERSION, stringType);
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        Converter stringToVersion = converterFor(stringType, VERSION);
+        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, "2.1.4", stringType))));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToVersion.convert(new Literal(s2, "2.1.4-SNAPSHOT", stringType))));
     }
 
     private DataType randomInterval() {

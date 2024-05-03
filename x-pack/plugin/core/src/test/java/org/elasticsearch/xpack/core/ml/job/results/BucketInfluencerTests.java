@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -16,7 +16,7 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInfluencer> {
+public class BucketInfluencerTests extends AbstractXContentSerializingTestCase<BucketInfluencer> {
 
     @Override
     protected BucketInfluencer createTestInstance() {
@@ -44,6 +44,11 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
             bucketInfluencer.setIsInterim(randomBoolean());
         }
         return bucketInfluencer;
+    }
+
+    @Override
+    protected BucketInfluencer mutateInstance(BucketInfluencer instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

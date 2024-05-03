@@ -16,6 +16,7 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
@@ -41,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -109,7 +109,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         final List<Thread> listenThreads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(ldapServersToKill.size());
         final CountDownLatch closeLatch = new CountDownLatch(1);
-        final Set<Integer> shutdownPorts = new HashSet<>(numberToKill);
+        final Set<Integer> shutdownPorts = Sets.newHashSetWithExpectedSize(numberToKill);
         try {
             final AtomicBoolean success = new AtomicBoolean(true);
             for (InMemoryDirectoryServer ldapServerToKill : ldapServersToKill) {
@@ -470,6 +470,11 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         @Override
         public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
             listener.onResponse(null);
+        }
+
+        @Override
+        public void reload(Settings settings) {
+            // no-op
         }
     }
 }

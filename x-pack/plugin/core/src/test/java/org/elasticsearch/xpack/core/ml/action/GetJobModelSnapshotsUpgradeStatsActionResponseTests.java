@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -35,6 +34,11 @@ public class GetJobModelSnapshotsUpgradeStatsActionResponseTests extends Abstrac
     }
 
     @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Response> instanceReader() {
         return Response::new;
     }
@@ -45,7 +49,7 @@ public class GetJobModelSnapshotsUpgradeStatsActionResponseTests extends Abstrac
             randomAlphaOfLengthBetween(1, 20)
         ).setUpgradeState(randomFrom(SnapshotUpgradeState.values()));
         if (randomBoolean()) {
-            builder.setNode(new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT));
+            builder.setNode(DiscoveryNodeUtils.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)));
         } else {
             builder.setAssignmentExplanation(randomAlphaOfLengthBetween(20, 50));
         }

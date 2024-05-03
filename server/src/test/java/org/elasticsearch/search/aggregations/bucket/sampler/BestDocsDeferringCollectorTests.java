@@ -50,7 +50,7 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
 
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
 
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
@@ -65,7 +65,7 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();
-        indexSearcher.search(termQuery, collector);
+        indexSearcher.search(termQuery, collector.asCollector());
         collector.postCollection();
         collector.prepareSelectedBuckets(0);
 

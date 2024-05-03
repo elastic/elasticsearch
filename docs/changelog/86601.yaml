@@ -1,6 +1,0 @@
-pr: 86601
-summary: Get hidden indices stats in `GET _cat/shards`
-area: CAT APIs
-type: bug
-issues:
- - 84656

@@ -60,24 +60,6 @@ public enum DistanceUnit implements Writeable {
     }
 
     /**
-     * Measures the radius of earth in this unit
-     *
-     * @return length of earth radius in this unit
-     */
-    public double getEarthRadius() {
-        return GeoUtils.EARTH_SEMI_MAJOR_AXIS / meters;
-    }
-
-    /**
-     * Measures a longitude in this unit
-     *
-     * @return length of a longitude degree in this unit
-     */
-    public double getDistancePerDegree() {
-        return GeoUtils.EARTH_EQUATOR / (360.0 * meters);
-    }
-
-    /**
      * Convert a value into meters
      *
      * @param distance distance in this unit
@@ -179,24 +161,6 @@ public enum DistanceUnit implements Writeable {
             }
         }
         throw new IllegalArgumentException("No distance unit match [" + unit + "]");
-    }
-
-    /**
-     * Parses the suffix of a given distance string and return the corresponding {@link DistanceUnit}
-     *
-     * @param distance string representing a distance
-     * @param defaultUnit default unit to use, if no unit is provided by the string
-     * @return unit of the given distance
-     */
-    public static DistanceUnit parseUnit(String distance, DistanceUnit defaultUnit) {
-        for (DistanceUnit unit : values()) {
-            for (String name : unit.names) {
-                if (distance.endsWith(name)) {
-                    return unit;
-                }
-            }
-        }
-        return defaultUnit;
     }
 
     /**

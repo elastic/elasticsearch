@@ -8,9 +8,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -78,39 +80,56 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-
                     double previousKey = Double.NEGATIVE_INFINITY;
-                    for (int i = 0; i < valuesCount; ++i) {
-                        double value = values.nextValue();
-                        double key = Math.floor((value - offset) / interval);
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        final double key = Math.floor((values.nextValue() - offset) / interval);
                         assert key >= previousKey;
                         if (key == previousKey) {
                             continue;
                         }
-                        if (hardBounds == null || hardBounds.contain(key * interval)) {
-                            long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
-                            if (bucketOrd < 0) { // already seen
-                                bucketOrd = -1 - bucketOrd;
-                                collectExistingBucket(sub, doc, bucketOrd);
-                            } else {
-                                collectBucket(sub, doc, bucketOrd);
-                            }
-                        }
+                        addKey(key, doc, owningBucketOrd, sub);
                         previousKey = key;
                     }
                 }
             }
         };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    addKey(Math.floor((values.doubleValue() - offset) / interval), doc, owningBucketOrd, sub);
+                }
+            }
+        };
+    }
+
+    private void addKey(double key, int doc, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
+        if (hardBounds == null || hardBounds.contain(key * interval)) {
+            long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
+            if (bucketOrd < 0) { // already seen
+                bucketOrd = -1 - bucketOrd;
+                collectExistingBucket(sub, doc, bucketOrd);
+            } else {
+                collectBucket(sub, doc, bucketOrd);
+            }
+        }
     }
 }

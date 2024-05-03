@@ -88,6 +88,11 @@ public class ScriptConfigTests extends AbstractSerializingTransformTestCase<Scri
         return lenient ? randomBoolean() ? randomScriptConfig() : randomInvalidScriptConfig() : randomScriptConfig();
     }
 
+    @Override
+    protected ScriptConfig mutateInstance(ScriptConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testFailOnStrictPassOnLenient() throws IOException {
         // use a wrong syntax to trigger a parsing exception for strict parsing
         String source = """

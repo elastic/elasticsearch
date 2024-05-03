@@ -5,7 +5,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.textstructure.TextStructurePlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-text-structure'
+base {
+  archivesName = 'x-pack-text-structure'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -15,6 +17,4 @@ dependencies {
   api "net.sf.supercsv:super-csv:${versions.supercsv}"
 }
 
-addQaCheckDependencies()
-
-tasks.named("testingConventions").configure { enabled = false }
+addQaCheckDependencies(project)

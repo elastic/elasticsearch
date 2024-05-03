@@ -35,6 +35,11 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
     }
 
     @Override
+    protected InProcessor mutateInstance(InProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<InProcessor> instanceReader() {
         return InProcessor::new;
     }

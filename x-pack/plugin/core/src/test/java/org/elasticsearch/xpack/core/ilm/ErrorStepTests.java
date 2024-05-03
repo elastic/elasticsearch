@@ -21,7 +21,7 @@ public class ErrorStepTests extends AbstractStepTestCase<ErrorStep> {
         StepKey key = instance.getKey();
         assertSame(instance.getNextStepKey(), instance.getKey());
 
-        key = new StepKey(key.getPhase(), key.getAction() + randomAlphaOfLength(5), key.getName());
+        key = new StepKey(key.phase(), key.action() + randomAlphaOfLength(5), key.name());
 
         return new ErrorStep(key);
     }

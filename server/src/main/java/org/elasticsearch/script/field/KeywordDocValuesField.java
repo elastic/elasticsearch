@@ -10,7 +10,7 @@ package org.elasticsearch.script.field;
 
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
-public class KeywordDocValuesField extends AbstractKeywordDocValuesField {
+public class KeywordDocValuesField extends BaseKeywordDocValuesField {
     public KeywordDocValuesField(SortedBinaryDocValues input, String name) {
         super(input, name);
     }

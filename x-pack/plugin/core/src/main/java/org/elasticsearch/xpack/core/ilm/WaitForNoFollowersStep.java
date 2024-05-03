@@ -17,14 +17,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Objects;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -37,8 +37,10 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     private static final Logger logger = LogManager.getLogger(WaitForNoFollowersStep.class);
 
-    static final String NAME = "wait-for-shard-history-leases";
+    public static final String NAME = "wait-for-shard-history-leases";
     static final String CCR_LEASE_KEY = "ccr";
+    private static final String WAIT_MESSAGE = "this index is a leader index; waiting for all following indices to cease "
+        + "following before proceeding";
 
     WaitForNoFollowersStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
@@ -51,10 +53,24 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        XPackInfoRequest xPackInfoRequest = new XPackInfoRequest();
+        xPackInfoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+        getClient().execute(XPackInfoFeatureAction.CCR, xPackInfoRequest, ActionListener.wrap((xPackInfoResponse) -> {
+            XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = xPackInfoResponse.getInfo();
+            if (featureSet != null && featureSet.enabled() == false) {
+                listener.onResponse(true, null);
+                return;
+            }
+            leaderIndexCheck(metadata, index, listener, masterTimeout);
+        }, listener::onFailure));
+    }
+
+    private void leaderIndexCheck(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         String indexName = index.getName();
         request.indices(indexName);
+
         getClient().admin().indices().stats(request, ActionListener.wrap((response) -> {
             IndexStats indexStats = response.getIndex(indexName);
             if (indexStats == null) {
@@ -73,48 +89,10 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
                 .anyMatch(lease -> lease.isPresent() && lease.get().anyMatch(l -> CCR_LEASE_KEY.equals(l.source())));
 
             if (isCurrentlyLeaderIndex) {
-                listener.onResponse(false, new Info());
+                listener.onResponse(false, new SingleMessageFieldInfo(WAIT_MESSAGE));
             } else {
                 listener.onResponse(true, null);
             }
         }, listener::onFailure));
-    }
-
-    static final class Info implements ToXContentObject {
-
-        static final ParseField MESSAGE_FIELD = new ParseField("message");
-
-        private static final String message = "this index is a leader index; waiting for all following indices to cease "
-            + "following before proceeding";
-
-        Info() {}
-
-        static String getMessage() {
-            return message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE_FIELD.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(getMessage());
-        }
     }
 }

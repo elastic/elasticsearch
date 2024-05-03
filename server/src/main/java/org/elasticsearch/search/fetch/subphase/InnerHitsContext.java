@@ -24,7 +24,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,7 +75,7 @@ public final class InnerHitsContext {
         private Weight innerHitQueryWeight;
 
         private String rootId;
-        private SourceLookup rootLookup;
+        private Source rootSource;
 
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
@@ -86,6 +87,11 @@ public final class InnerHitsContext {
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            return null;
         }
 
         @Override
@@ -128,12 +134,12 @@ public final class InnerHitsContext {
          *
          * This shared lookup allows inner hits to avoid re-loading the root _source.
          */
-        public SourceLookup getRootLookup() {
-            return rootLookup;
+        public Source getRootLookup() {
+            return rootSource;
         }
 
-        public void setRootLookup(SourceLookup rootLookup) {
-            this.rootLookup = rootLookup;
+        public void setRootLookup(Source rootSource) {
+            this.rootSource = rootSource;
         }
     }
 
@@ -172,7 +178,11 @@ public final class InnerHitsContext {
                 }
             }
         } catch (CollectionTerminatedException e) {
-            // ignore and continue
+            // collection was terminated prematurely
+            // continue with the following leaf
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 }

@@ -1,6 +1,0 @@
-pr: 85380
-summary: Reduce resource needs of join validation
-area: Cluster Coordination
-type: enhancement
-issues:
- - 83204

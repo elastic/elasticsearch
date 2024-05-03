@@ -23,8 +23,8 @@ import java.nio.ByteOrder;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
- * http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf and its appendix
- * https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen
+ * <a href="http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf">this paper</a> and
+ * <a href="https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen">its appendix</a>
  *
  * This implementation is different from the original implementation in that it uses a hash table instead of a sorted list for linear
  * counting. Although this requires more space and makes hyperloglog (which is less accurate) used sooner, this is also considerably faster.
@@ -202,7 +202,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
         private final BigArrays bigArrays;
-        private final int precision;
         // array for holding the runlens.
         private ByteArray runLens;
 
@@ -210,7 +209,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             super(precision);
             this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
-            this.precision = precision;
         }
 
         public long maxOrd() {
@@ -246,7 +244,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         private final HyperLogLog hll;
         int pos;
-        long start;
+        final long start;
         private byte value;
 
         HyperLogLogIterator(HyperLogLog hll, long bucket) {

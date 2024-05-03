@@ -35,7 +35,7 @@ separated list.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-reset-job-query-parms]]
 == {api-query-parms-title}
@@ -43,6 +43,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `wait_for_completion`::
   (Optional, Boolean) Specifies whether the request should return immediately or
   wait until the job reset completes. Defaults to `true`.
+
+`delete_user_annotations`::
+  (Optional, Boolean) Specifies whether annotations that have been added by the 
+  user should be deleted along with any auto-generated annotations when the job is
+  reset. Defaults to `false`.
 
 [[ml-reset-job-example]]
 == {api-examples-title}

@@ -52,8 +52,9 @@ public final class ProtocolUtils {
      */
     public static int hashCode(Map<String, String[]> a) {
         int hash = 0;
-        for (Map.Entry<String, String[]> entry : a.entrySet())
+        for (Map.Entry<String, String[]> entry : a.entrySet()) {
             hash += Arrays.hashCode(entry.getValue());
+        }
         return hash;
     }
 }

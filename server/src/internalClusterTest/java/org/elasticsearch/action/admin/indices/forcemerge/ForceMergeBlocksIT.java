@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -43,14 +44,14 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("test", "init").execute().actionGet();
+            prepareIndex("test").setId("" + i).setSource("test", "init").get();
         }
 
         // Request is not blocked
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                ForceMergeResponse response = client().admin().indices().prepareForceMerge("test").execute().actionGet();
+                BaseBroadcastResponse response = indicesAdmin().prepareForceMerge("test").get();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {
@@ -62,7 +63,7 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareForceMerge("test"));
+                assertBlocked(indicesAdmin().prepareForceMerge("test"));
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -70,12 +71,12 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
 
         // Merging all indices is blocked when the cluster is read-only
         try {
-            ForceMergeResponse response = client().admin().indices().prepareForceMerge().execute().actionGet();
+            BaseBroadcastResponse response = indicesAdmin().prepareForceMerge().get();
             assertNoFailures(response);
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
             setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareForceMerge());
+            assertBlocked(indicesAdmin().prepareForceMerge());
         } finally {
             setClusterReadOnly(false);
         }

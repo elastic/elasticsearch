@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -86,19 +85,8 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         for (double value : values) {
             aggregations.add(new InternalAvg("dummy1", value, 1, null, null));
         }
-        InternalAvg internalAvg = new InternalAvg("dummy2", 0, 0, null, null);
-        InternalAvg reduced = internalAvg.reduce(aggregations, null);
+        InternalAvg reduced = (InternalAvg) InternalAggregationTestCase.reduce(aggregations, null);
         assertEquals(expected, reduced.getValue(), delta);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalAvg avg, ParsedAggregation parsedAggregation) {
-        ParsedAvg parsed = ((ParsedAvg) parsedAggregation);
-        assertEquals(avg.getValue(), parsed.getValue(), Double.MIN_VALUE);
-        // we don't print out VALUE_AS_STRING for avg.getCount() == 0, so we cannot get the exact same value back
-        if (avg.getCount() != 0) {
-            assertEquals(avg.getValueAsString(), parsed.getValueAsString());
-        }
     }
 
     @Override
@@ -108,34 +96,31 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         long count = instance.getCount();
         DocValueFormat formatter = instance.getFormatter();
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+        switch (between(0, 3)) {
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 if (Double.isFinite(sum)) {
                     sum += between(1, 100);
                 } else {
                     sum = between(1, 100);
                 }
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (Double.isFinite(count)) {
                     count += between(1, 100);
                 } else {
                     count = between(1, 100);
                 }
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAvg(name, sum, count, formatter, metadata);
     }

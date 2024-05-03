@@ -15,7 +15,7 @@ features.
 // tag::action-destructive-requires-name-tag[]
 `action.destructive_requires_name` {ess-icon}::
 (<<dynamic-cluster-setting,Dynamic>>)
-When set to `true`, you must specify the index name to <<indices-delete-index,delete an index>>. It is not possible to delete all indices with `_all` or use wildcards.
+When set to `true`, you must specify the index name to <<indices-delete-index,delete an index>>. It is not possible to delete all indices with `_all` or use wildcards. Defaults to `true`.
 // end::action-destructive-requires-name-tag[]
 
 [[cluster-indices-close-enable]]
@@ -46,9 +46,9 @@ to `true`.
 
 This setting affects the following built-in index templates:
 
-include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-template-patterns]
+include::{es-ref-dir}/indices/index-templates.asciidoc[tag=built-in-index-template-patterns]
 
 This setting also affects the following built-in component templates:
 
-include::{es-repo-dir}/indices/put-component-template.asciidoc[tag=built-in-component-templates]
+include::{es-ref-dir}/indices/put-component-template.asciidoc[tag=built-in-component-templates]
 --

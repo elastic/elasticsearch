@@ -2,6 +2,11 @@
 [[index-lifecycle-and-snapshots]]
 == Restore a managed data stream or index
 
+To <<restore-snapshot-api,restore>> managed indices, ensure that the {ilm-init}
+policies referenced by the indices exist. If necessary, you can restore
+{ilm-init} policies by setting
+<<restore-snapshot-api-request-body,`include_global_state`>> to `true`. 
+
 When you restore a managed index or a data stream with managed backing indices, 
 {ilm-init} automatically resumes executing the restored indices' policies.
 A restored index's `min_age` is relative to when it was originally created or rolled over, 

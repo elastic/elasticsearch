@@ -90,8 +90,8 @@
 
 ---
 "Test disable source":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: "behaviour of fields when source is disabled changed in 8.4.0"
 
   - do:
@@ -263,8 +263,8 @@
 
 ---
 "Test token count":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "support for token_count was instroduced in 7.10"
   - do:
       indices.create:
@@ -1065,3 +1065,98 @@ test fetching metadata fields:
   - match: { hits.hits.0.fields._id.0: "1" }
   - match: { hits.hits.0.fields._index.0: "test" }
   - match: { hits.hits.0.fields._version.0: 1 }
+
+---
+fetch geo_point:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              field:
+                type: geo_point
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          field:
+            lat: 41.12
+            lon: -71.34
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.field.0.type: Point }
+  - match: { hits.hits.0.fields.field.0.coordinates.0: -71.34 }
+  - match: { hits.hits.0.fields.field.0.coordinates.1:  41.12 }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: field
+              format: geojson
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.field.0.type: Point }
+  - match: { hits.hits.0.fields.field.0.coordinates.0: -71.34 }
+  - match: { hits.hits.0.fields.field.0.coordinates.1:  41.12 }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: field
+              format: wkt
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.field.0: "POINT (-71.34 41.12)" }
+
+---
+"Test with subobjects: false":
+  - skip:
+      version: ' - 8.9.99'
+      reason: 'https://github.com/elastic/elasticsearch/issues/96700 fixed in 8.10.0'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: false
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body: >
+          {
+            "root": "parent",
+            "root.subfield": "child"
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              root.subfield:
+                value: 'child'
+          fields:
+            - field: 'root*'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.root.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
+  - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }

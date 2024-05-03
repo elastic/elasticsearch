@@ -55,10 +55,10 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 null,
                 new ShardStats[] {
                     // Primaries
-                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
-                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
+                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null, false, 0),
+                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null, false, 0),
                     // Replica
-                    new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null, null) }
+                    new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null, null, false, 0) }
             )
         );
     }
@@ -183,7 +183,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong()));
         commonStats.getStore().add(new StoreStats(2L, 0L, 0L));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L, 0, 0);
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);

@@ -49,6 +49,8 @@ import static org.elasticsearch.xpack.ql.TestUtils.readResource;
  */
 public class EqlSearchIT extends ESRestTestCase {
 
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
     private static final String index = "test_eql_mixed_versions";
     private static int numShards;
     private static int numReplicas = 1;
@@ -59,7 +61,7 @@ public class EqlSearchIT extends ESRestTestCase {
 
     @Before
     public void createIndex() throws IOException {
-        nodes = buildNodeAndVersions(client());
+        nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
         numShards = nodes.size();
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
@@ -118,10 +120,7 @@ public class EqlSearchIT extends ESRestTestCase {
         // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), newNodes.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._id";
@@ -282,10 +281,7 @@ public class EqlSearchIT extends ESRestTestCase {
         final String event = randomEvent();
         Map<String, Object> expectedResponse = prepareEventsTestData(event);
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
@@ -299,10 +295,7 @@ public class EqlSearchIT extends ESRestTestCase {
     private void assertSequncesQueryOnNodes(List<TestNode> nodesList) throws Exception {
         Map<String, Object> expectedResponse = prepareSequencesTestData();
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             String filterPath = "filter_path=hits.sequences.join_keys,hits.sequences.events._id,hits.sequences.events._source";
             String query = "sequence by `sequence` with maxspan=100ms [success where true] by correlation_success1, correlation_success2 "
@@ -450,7 +443,7 @@ public class EqlSearchIT extends ESRestTestCase {
         }
 
         List<Object> actualList = new ArrayList<>();
-        events.stream().forEach(m -> actualList.add(m.get("_id")));
+        events.forEach(m -> actualList.add(m.get("_id")));
 
         if (false == expected.equals(actualList)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();

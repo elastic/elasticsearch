@@ -53,6 +53,7 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
+    @SuppressWarnings("this-escape")
     public ReaderContext(
         ShardSearchContextId id,
         IndexService indexService,
@@ -111,7 +112,7 @@ public class ReaderContext implements Releasable {
     }
 
     private void tryUpdateKeepAlive(long keepAlive) {
-        this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
+        this.keepAlive.accumulateAndGet(keepAlive, Math::max);
     }
 
     /**

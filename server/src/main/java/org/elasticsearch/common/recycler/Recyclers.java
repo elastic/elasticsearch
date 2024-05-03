@@ -92,6 +92,10 @@ public enum Recyclers {
                 };
             }
 
+            @Override
+            public int pageSize() {
+                return getDelegate().pageSize();
+            }
         };
     }
 
@@ -134,10 +138,11 @@ public enum Recyclers {
                 return recyclers[slot()];
             }
 
+            @Override
+            public int pageSize() {
+                return recyclers[slot()].pageSize();
+            }
         };
     }
 
-    public static <T> Recycler<T> concurrent(final Recycler.Factory<T> factory) {
-        return concurrent(factory, Runtime.getRuntime().availableProcessors());
-    }
 }

@@ -6,16 +6,17 @@
  */
 package org.elasticsearch.xpack.spatial.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.SpatialUsage;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -46,18 +49,25 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void mockServices() {
+    public void setup() {
+        threadPool = new TestThreadPool("SpatialStatsTransportActionTests");
         transportService = mock(TransportService.class);
-        threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
 
-        DiscoveryNode discoveryNode = new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");
         when(clusterService.localNode()).thenReturn(discoveryNode);
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
     public void testUsage() throws IOException {
@@ -86,7 +96,7 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
     private ObjectPath buildSpatialStatsResponse(SpatialUsage... nodeUsages) throws IOException {
         SpatialStatsAction.Request request = new SpatialStatsAction.Request();
         List<SpatialStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-            .map(usage -> toAction(usage).nodeOperation(new SpatialStatsAction.NodeRequest(request), null))
+            .map(usage -> toAction(usage).nodeOperation(new SpatialStatsAction.NodeRequest(), null))
             .collect(Collectors.toList());
         SpatialStatsAction.Response response = new SpatialStatsAction.Response(new ClusterName("cluster_name"), nodeResponses, emptyList());
         try (XContentBuilder builder = jsonBuilder()) {

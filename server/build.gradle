@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 publishing {
   publications {
@@ -20,17 +21,27 @@ publishing {
   }
 }
 
-archivesBaseName = 'elasticsearch'
+base {
+  archivesName = 'elasticsearch'
+}
 
 dependencies {
 
   api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-logging')
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
   api project(":libs:elasticsearch-lz4")
+  api project(":libs:elasticsearch-plugin-api")
+  api project(":libs:elasticsearch-plugin-analysis-api")
+  api project(':libs:elasticsearch-grok')
+  api project(":libs:elasticsearch-tdigest")
+  implementation project(":libs:elasticsearch-vec")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
+  // no compile dependency by server, but server defines security policy for this codebase so it i>
+  runtimeOnly project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -50,8 +61,6 @@ dependencies {
   api project(":libs:elasticsearch-cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
-  // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
@@ -59,6 +68,8 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
+  // access to native functions
+  implementation project(':libs:elasticsearch-native')
   api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
@@ -72,6 +83,12 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
+}
+
+spotless {
+  java {
+    targetExclude "src/main/java/org/elasticsearch/index/IndexVersion.java"
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -89,17 +106,10 @@ tasks.named('forbiddenApisTest').configure {
   addSignatureFiles 'hppc-signatures'
 }
 
-tasks.named("testingConventions").configure {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
-        }
-        IT {
-            baseClass "org.elasticsearch.test.ESIntegTestCase"
-            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
-        }
-    }
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
 }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
@@ -134,10 +144,16 @@ sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
+        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
+        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
+}
+
+tasks.named("test").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -184,7 +200,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.LifecycleAware',
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceBarrier',
             'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.TimeoutException',
             'com.lmax.disruptor.WaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
@@ -221,6 +239,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleWire',
@@ -234,6 +253,7 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /log4j-.*/, to: 'log4j'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
         it.group.startsWith('org.elasticsearch') == false ||
                 // keep the following org.elasticsearch jars in
@@ -249,3 +269,5 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
+
+tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }

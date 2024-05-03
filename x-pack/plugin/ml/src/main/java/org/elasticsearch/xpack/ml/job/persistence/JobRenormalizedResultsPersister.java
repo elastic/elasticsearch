@@ -84,7 +84,7 @@ public class JobRenormalizedResultsPersister {
         }
     }
 
-    private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
+    private static XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
         XContentBuilder builder = jsonBuilder();
         obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder;

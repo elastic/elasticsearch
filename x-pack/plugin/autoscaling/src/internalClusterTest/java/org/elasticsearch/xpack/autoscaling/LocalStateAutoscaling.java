@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -42,8 +41,8 @@ public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin {
         }
 
         @Override
-        public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders allocationDeciders) {
-            Set<AutoscalingDeciderService> deciderServices = new HashSet<>(super.createDeciderServices(allocationDeciders));
+        public Set<AutoscalingDeciderService> createDeciderServices() {
+            Set<AutoscalingDeciderService> deciderServices = new HashSet<>(super.createDeciderServices());
             deciderServices.add(syncDeciderService);
             deciderServices.add(new AutoscalingCountTestDeciderService());
             return deciderServices;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -22,8 +23,11 @@ import org.elasticsearch.transport.TransportService;
 @Deprecated
 public class TransportDeleteAction extends TransportSingleItemBulkWriteAction<DeleteRequest, DeleteResponse> {
 
+    public static final String NAME = "indices:data/write/delete";
+    public static final ActionType<DeleteResponse> TYPE = new ActionType<>(NAME);
+
     @Inject
     public TransportDeleteAction(TransportService transportService, ActionFilters actionFilters, TransportBulkAction bulkAction) {
-        super(DeleteAction.NAME, transportService, actionFilters, DeleteRequest::new, bulkAction);
+        super(NAME, transportService, actionFilters, DeleteRequest::new, bulkAction);
     }
 }

@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
 public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
@@ -76,12 +77,22 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
                 .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
+                .waitForCompletionTimeout(randomTimeValue())
+                .keepAlive(randomTimeValue())
+                .keepOnCompletion(randomBoolean())
                 .fetchFields(randomFetchFields)
-                .runtimeMappings(randomRuntimeMappings());
+                .runtimeMappings(randomRuntimeMappings())
+                .resultPosition(randomFrom("tail", "head"))
+                .maxSamplesPerKey(randomIntBetween(1, 1000));
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
         return null;
+    }
+
+    @Override
+    protected EqlSearchRequest mutateInstance(EqlSearchRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     protected QueryBuilder parseFilter(String filter) throws IOException {
@@ -90,7 +101,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     }
 
     protected QueryBuilder parseFilter(XContentParser parser) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }
@@ -106,7 +117,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     }
 
     @Override
-    protected EqlSearchRequest mutateInstanceForVersion(EqlSearchRequest instance, Version version) {
+    protected EqlSearchRequest mutateInstanceForVersion(EqlSearchRequest instance, TransportVersion version) {
         EqlSearchRequest mutatedInstance = new EqlSearchRequest();
         mutatedInstance.indices(instance.indices());
         mutatedInstance.indicesOptions(instance.indicesOptions());
@@ -117,12 +128,14 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.size(instance.size());
         mutatedInstance.fetchSize(instance.fetchSize());
         mutatedInstance.query(instance.query());
-        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(Version.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
+        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(TransportVersions.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
-        mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
-        mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
+        mutatedInstance.fetchFields(version.onOrAfter(TransportVersions.V_7_13_0) ? instance.fetchFields() : null);
+        mutatedInstance.runtimeMappings(version.onOrAfter(TransportVersions.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
+        mutatedInstance.resultPosition(version.onOrAfter(TransportVersions.V_7_17_8) ? instance.resultPosition() : "tail");
+        mutatedInstance.maxSamplesPerKey(version.onOrAfter(TransportVersions.V_8_7_0) ? instance.maxSamplesPerKey() : 1);
 
         return mutatedInstance;
     }

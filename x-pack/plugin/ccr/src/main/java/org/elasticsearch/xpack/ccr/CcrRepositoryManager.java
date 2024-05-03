@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryA
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryRequest;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 
-import java.io.IOException;
 import java.util.Set;
 
 class CcrRepositoryManager extends AbstractLifecycleComponent {
@@ -45,18 +44,18 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
     protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 
     private void putRepository(String repositoryName) {
         ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);
-        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = new PlainActionFuture<>();
         client.execute(PutInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }
 
     private void deleteRepository(String repositoryName) {
         DeleteInternalCcrRepositoryRequest request = new DeleteInternalCcrRepositoryRequest(repositoryName);
-        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = new PlainActionFuture<>();
         client.execute(DeleteInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }

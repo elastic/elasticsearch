@@ -13,8 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 
@@ -22,12 +26,34 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("mapper-extras")
+        .module("rest-root")
+        .module("reindex")
+        .module("analysis-common")
+        .module("health-shards-availability")
+        .module("data-streams")
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
+    @UpdateForV9 // remove restCompat check
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+        String restCompatProperty = System.getProperty("tests.restCompat");
+        if ("true".equals(restCompatProperty)) {
+            return createParametersWithLegacyNodeSelectorSupport();
+        } else {
+            return createParameters();
+        }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

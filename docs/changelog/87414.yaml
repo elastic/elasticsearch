@@ -1,6 +1,0 @@
-pr: 87414
-summary: Handle ordering in plain highlighter for multiple inputs
-area: Highlighting
-type: bug
-issues:
- - 87210

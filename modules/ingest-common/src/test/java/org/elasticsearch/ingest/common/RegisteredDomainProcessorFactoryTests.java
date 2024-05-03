@@ -15,7 +15,7 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RegisteredDomainProcessorFactoryTests extends ESTestCase {
 

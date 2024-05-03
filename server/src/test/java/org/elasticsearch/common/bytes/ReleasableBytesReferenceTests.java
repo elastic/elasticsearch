@@ -28,46 +28,45 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
 
     @Override
     protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
+        return newBytesReference(randomByteArrayOfLength(length));
+    }
+
+    @Override
+    protected BytesReference newBytesReference(byte[] content) throws IOException {
         BytesReference delegate;
         String composite = "composite";
         String paged = "paged";
         String array = "array";
         String type = randomFrom(composite, paged, array);
         if (array.equals(type)) {
-            final BytesStreamOutput out = new BytesStreamOutput(length);
-            for (int i = 0; i < length; i++) {
-                out.writeByte((byte) random().nextInt(1 << 8));
-            }
-            assertThat(length, equalTo(out.size()));
-            BytesArray ref = new BytesArray(out.bytes().toBytesRef().bytes, 0, length);
-            assertThat(length, equalTo(ref.length()));
-            assertThat(ref.length(), Matchers.equalTo(length));
+            final BytesStreamOutput out = new BytesStreamOutput(content.length);
+            out.writeBytes(content, 0, content.length);
+            assertThat(content.length, equalTo(out.size()));
+            BytesArray ref = new BytesArray(out.bytes().toBytesRef().bytes, 0, content.length);
+            assertThat(content.length, equalTo(ref.length()));
+            assertThat(ref.length(), Matchers.equalTo(content.length));
             delegate = ref;
         } else if (paged.equals(type)) {
-            ByteArray byteArray = bigarrays.newByteArray(length);
-            for (int i = 0; i < length; i++) {
-                byteArray.set(i, (byte) random().nextInt(1 << 8));
-            }
-            assertThat(byteArray.size(), Matchers.equalTo((long) length));
-            BytesReference ref = BytesReference.fromByteArray(byteArray, length);
-            assertThat(ref.length(), Matchers.equalTo(length));
+            ByteArray byteArray = bigarrays.newByteArray(content.length);
+            byteArray.set(0, content, 0, content.length);
+            assertThat(byteArray.size(), Matchers.equalTo((long) content.length));
+            BytesReference ref = BytesReference.fromByteArray(byteArray, content.length);
+            assertThat(ref.length(), Matchers.equalTo(content.length));
             delegate = ref;
         } else {
             assert composite.equals(type);
             List<BytesReference> referenceList = new ArrayList<>();
-            for (int i = 0; i < length;) {
-                int remaining = length - i;
+            for (int i = 0; i < content.length;) {
+                int remaining = content.length - i;
                 int sliceLength = randomIntBetween(1, remaining);
                 ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, bigarrays);
-                for (int j = 0; j < sliceLength; j++) {
-                    out.writeByte((byte) random().nextInt(1 << 8));
-                }
+                out.writeBytes(content, content.length - remaining, sliceLength);
                 assertThat(sliceLength, equalTo(out.size()));
                 referenceList.add(out.bytes());
                 i += sliceLength;
             }
             BytesReference ref = CompositeBytesReference.of(referenceList.toArray(new BytesReference[0]));
-            assertThat(length, equalTo(ref.length()));
+            assertThat(content.length, equalTo(ref.length()));
             delegate = ref;
         }
         return ReleasableBytesReference.wrap(delegate);

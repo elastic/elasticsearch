@@ -1,0 +1,216 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            runtime:
+              first_char:
+                type: keyword
+                script: |
+                  emit(doc['name'].value.substring(0,1));
+                on_script_error: continue
+              first_char_strict_error:
+                type: keyword
+                script: |
+                  emit(doc['name'].value.substring(0,1));
+                on_script_error: fail
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: testindex
+        refresh: true
+        body: |
+          {"index":{}}
+          {"name": "foo"}
+          {"index":{}}
+          {"name": ""}
+
+---
+"Query rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char: "f"
+          fields: [ name, first_char ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.first_char: [ f ] }
+
+---
+"Query rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char_strict_error: "f"
+          fields: [ name, first_char_strict_error ]
+
+---
+"Aggregate on rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          aggs:
+            firstchar:
+              terms:
+                field: first_char
+  - length: { aggregations.firstchar.buckets: 1 }
+  - match: { aggregations.firstchar.buckets.0.key: "f" }
+
+---
+"Aggregate on rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          aggs:
+            firstchar:
+              terms:
+                field: first_char_strict_error
+
+---
+"Fields retrieval with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name, first_char ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.first_char: [ f ] }
+  - match: { hits.hits.1.fields.name: [ "" ] }
+  - is_false: hits.hits.1.fields.first_char
+
+---
+"Fields retrieval with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name, first_char_strict_error ]
+
+---
+"Sorting with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name ]
+          sort: first_char
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.1.fields.name: [ "" ] }
+
+---
+"Sorting with with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name ]
+          sort: first_char_strict_error
+
+---
+"Query search time rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char_search: "f"
+          fields: [ name, first_char_search ]
+          runtime_mappings:
+            first_char_search:
+              type: keyword
+              script: |
+                emit(doc['name'].value.substring(0,1));
+              on_script_error: continue
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.first_char_search: [ f ] }
+
+---
+"Query search time rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char_search: "f"
+          fields: [ name, first_char_search ]
+          runtime_mappings:
+            first_char_search:
+              type: keyword
+              script: |
+                emit(doc['name'].value.substring(0,1));
+              on_script_error: fail
+
+---
+"Change error behaviour for lenient runtime field":
+
+  - do:
+      indices.put_mapping:
+        index: testindex
+        body:
+          runtime:
+            first_char_variant:
+              type: keyword
+              script: |
+                emit(doc['name'].value.substring(0,1));
+
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char_variant: "f"
+
+  - do:
+      indices.put_mapping:
+        index: testindex
+        body:
+          runtime:
+            first_char_variant:
+              type: keyword
+              script: |
+                emit(doc['name'].value.substring(0,1));
+              on_script_error: continue
+
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char_variant: "f"
+          fields: [ name, first_char_variant ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.first_char_variant: [ f ] }

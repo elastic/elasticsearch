@@ -1,0 +1,5 @@
+pr: 105768
+summary: Add two new OGC functions ST_X and ST_Y
+area: "ES|QL"
+type: enhancement
+issues: []

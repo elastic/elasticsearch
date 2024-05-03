@@ -8,10 +8,13 @@
 
 package org.elasticsearch.test.readiness;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.readiness.ReadinessService;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
@@ -20,8 +23,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.fail;
 
 /**
@@ -29,14 +30,16 @@ import static org.junit.Assert.fail;
  * the readiness service for testing purposes
  */
 public interface ReadinessClientProbe {
+    Logger probeLogger = LogManager.getLogger(ReadinessClientProbe.class);
+
     default void tcpReadinessProbeTrue(ReadinessService readinessService) throws Exception {
         tcpReadinessProbeTrue(readinessService.boundAddress().publishAddress().getPort());
     }
 
     // extracted because suppress forbidden checks have issues with lambdas
     @SuppressForbidden(reason = "Intentional socket open")
-    default void channelConnect(SocketChannel channel, InetSocketAddress socketAddress) throws IOException {
-        channel.connect(socketAddress);
+    default boolean channelConnect(SocketChannel channel, InetSocketAddress socketAddress) throws IOException {
+        return channel.connect(socketAddress);
     }
 
     @SuppressForbidden(reason = "Intentional socket open")
@@ -66,8 +69,10 @@ public interface ReadinessClientProbe {
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                String message = expectThrows(IOException.class, () -> channelConnect(channel, socketAddress)).getMessage();
-                assertThat(message, containsString("Connection refused"));
+                expectThrows(ConnectException.class, () -> {
+                    var result = channelConnect(channel, socketAddress);
+                    probeLogger.info("No exception on channel connect, connection success [{}]", result);
+                });
                 return null;
             });
         }

@@ -28,6 +28,11 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         return new Request(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidateRequest() {
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "my-data-stream" });
         ActionRequestValidationException e = req.validate();

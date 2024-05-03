@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,8 +22,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-public class PhaseTests extends AbstractSerializingTestCase<Phase> {
+public class PhaseTests extends AbstractXContentSerializingTestCase<Phase> {
     private String phaseName;
 
     @Before
@@ -39,7 +40,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     static Phase randomTestPhase(String phaseName) {
         TimeValue after = null;
         if (randomBoolean()) {
-            after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
         }
         Map<String, LifecycleAction> actions = Collections.emptyMap();
         if (randomBoolean()) {
@@ -75,7 +76,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     }
 
     @Override
-    protected Phase mutateInstance(Phase instance) throws IOException {
+    protected Phase mutateInstance(Phase instance) {
         String name = instance.getName();
         TimeValue after = instance.getMinimumAge();
         Map<String, LifecycleAction> actions = instance.getActions();

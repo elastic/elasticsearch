@@ -11,8 +11,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 
-import java.io.IOException;
 import java.util.Locale;
+
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.MAX_RESULT_LENGTH;
 
 public class StringFunctionProcessorTests extends AbstractWireSerializingTestCase<StringProcessor> {
     public static StringProcessor randomStringFunctionProcessor() {
@@ -30,7 +31,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected StringProcessor mutateInstance(StringProcessor instance) throws IOException {
+    protected StringProcessor mutateInstance(StringProcessor instance) {
         return new StringProcessor(randomValueOtherThan(instance.processor(), () -> randomFrom(StringOperation.values())));
     }
 
@@ -197,7 +198,18 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals("", proc.process(0));
         assertNull(proc.process(-1));
 
+        assertEquals(MAX_RESULT_LENGTH, proc.process(MAX_RESULT_LENGTH).toString().length());
+        maxResultLengthTest(MAX_RESULT_LENGTH + 1, () -> proc.process(MAX_RESULT_LENGTH + 1));
+
         numericInputValidation(proc);
+    }
+
+    static void maxResultLengthTest(long required, ThrowingRunnable runnable) {
+        Exception e = expectThrows(SqlIllegalArgumentException.class, runnable);
+        assertEquals(
+            "Required result length [" + required + "] exceeds implementation limit [" + MAX_RESULT_LENGTH + "] bytes",
+            e.getMessage()
+        );
     }
 
     public void testBitLength() {

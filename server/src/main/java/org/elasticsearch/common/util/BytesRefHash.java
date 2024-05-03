@@ -30,8 +30,9 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
 
     private final BytesRefArray bytesRefs;
-    private IntArray hashes; // we cache hashes for faster re-hashing
     private final BytesRef spare;
+
+    private IntArray hashes; // we cache hashes for faster re-hashing
 
     // Constructor with configurable capacity and default maximum load factor.
     public BytesRefHash(long capacity, BigArrays bigArrays) {
@@ -40,7 +41,20 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
 
     // Constructor with configurable capacity and load factor.
     public BytesRefHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
-        this(null, capacity, maxLoadFactor, bigArrays);
+        super(capacity, maxLoadFactor, bigArrays);
+
+        boolean success = false;
+        try {
+            // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
+            this.hashes = bigArrays.newIntArray(capacity, false);
+            this.bytesRefs = new BytesRefArray(capacity, bigArrays);
+            success = true;
+        } finally {
+            if (false == success) {
+                close();
+            }
+        }
+        spare = new BytesRef();
     }
 
     /**
@@ -77,25 +91,13 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
      * Iff the BytesRefHash instance got created successfully, it is managed by BytesRefHash and does not need to be closed.
      */
     public BytesRefHash(BytesRefArray bytesRefs, float maxLoadFactor, BigArrays bigArrays) {
-        this(bytesRefs, bytesRefs.size() + 1, maxLoadFactor, bigArrays);
-
-        // recreate hashes
-        for (int i = 0; i < bytesRefs.size(); ++i) {
-            bytesRefs.get(i, spare);
-            reset(rehash(spare.hashCode()), i);
-        }
-
-        size = bytesRefs.size();
-    }
-
-    private BytesRefHash(BytesRefArray byteRefs, long capacity, float maxLoadFactor, BigArrays bigArrays) {
-        super(capacity, maxLoadFactor, bigArrays);
+        super(bytesRefs.size() + 1, maxLoadFactor, bigArrays);
 
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            hashes = bigArrays.newIntArray(capacity, false);
-            this.bytesRefs = byteRefs != null ? byteRefs : new BytesRefArray(capacity, bigArrays);
+            this.hashes = bigArrays.newIntArray(bytesRefs.size() + 1, false);
+            this.bytesRefs = BytesRefArray.takeOwnershipOf(bytesRefs);
             success = true;
         } finally {
             if (false == success) {
@@ -103,6 +105,14 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
             }
         }
         spare = new BytesRef();
+
+        // recreate hashes
+        for (int i = 0; i < this.bytesRefs.size(); ++i) {
+            this.bytesRefs.get(i, spare);
+            reset(rehash(spare.hashCode()), i);
+        }
+
+        size = this.bytesRefs.size();
     }
 
     // BytesRef has a weak hashCode function so we try to improve it by rehashing using Murmur3
@@ -123,10 +133,14 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
      * Get the id associated with <code>key</code>
      */
     public long find(BytesRef key, int code) {
+        return find(key, code, spare);
+    }
+
+    private long find(BytesRef key, int code, BytesRef intermediate) {
         final long slot = slot(rehash(code), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
-            if (id == -1L || key.bytesEquals(get(id, spare))) {
+            if (id == -1L || key.bytesEquals(get(id, intermediate))) {
                 return id;
             }
         }
@@ -135,6 +149,15 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     /** Sugar for {@link #find(BytesRef, int) find(key, key.hashCode()} */
     public long find(BytesRef key) {
         return find(key, key.hashCode());
+    }
+
+    /**
+     * Allows finding a key in the hash in a thread safe manner, by providing an intermediate
+     * BytesRef reference to storing intermediate results. As long as each thread provides
+     * its own intermediate instance, this method is thread safe.
+     */
+    private long threadSafeFind(BytesRef key, BytesRef intermediate) {
+        return find(key, key.hashCode(), intermediate);
     }
 
     private long set(BytesRef key, int code, long id) {
@@ -215,9 +238,30 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         return bytesRefs;
     }
 
+    public BytesRefArray takeBytesRefsOwnership() {
+        try (Releasable releasable = Releasables.wrap(this)) {
+            return BytesRefArray.takeOwnershipOf(bytesRefs);
+        }
+    }
+
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + ids.ramBytesUsed() + hashes.ramBytesUsed() + spare.bytes.length;
+    }
+
+    /**
+     * Returns a finder class that can be used to find keys in the hash in a thread-safe manner
+     */
+    public Finder newFinder() {
+        return new Finder();
+    }
+
+    public class Finder {
+        private final BytesRef intermediate = new BytesRef();
+
+        public long find(BytesRef key) {
+            return threadSafeFind(key, intermediate);
+        }
     }
 
 }

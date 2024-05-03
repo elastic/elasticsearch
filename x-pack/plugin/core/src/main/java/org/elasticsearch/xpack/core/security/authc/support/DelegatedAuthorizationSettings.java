@@ -23,7 +23,7 @@ public class DelegatedAuthorizationSettings {
     public static final String AUTHZ_REALMS_SUFFIX = "authorization_realms";
     public static final Function<String, Setting.AffixSetting<List<String>>> AUTHZ_REALMS = RealmSettings.affixSetting(
         AUTHZ_REALMS_SUFFIX,
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
     );
 
     public static Collection<Setting.AffixSetting<?>> getSettings(String realmType) {

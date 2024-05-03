@@ -167,8 +167,13 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             resizeRequest.setTargetIndex(RandomCreateIndexGenerator.randomCreateIndexRequest());
         }
         if (randomBoolean()) {
-            resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+            resizeRequest.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(randomIntBetween(1, 100)));
         }
         return resizeRequest;
+    }
+
+    @Override
+    protected ResizeRequest mutateInstance(ResizeRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

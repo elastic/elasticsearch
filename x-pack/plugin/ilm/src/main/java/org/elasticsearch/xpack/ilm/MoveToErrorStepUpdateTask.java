@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
 
@@ -95,17 +95,21 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
 
     @Override
     protected void handleFailure(Exception e) {
-        final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
-            "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.",
-            policy,
-            index.getName(),
-            currentStepKey
-        );
+        Level level;
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-            logger.debug(messageSupplier, e);
+            level = Level.DEBUG;
         } else {
-            logger.error(messageSupplier, e);
+            level = Level.ERROR;
             assert false : new AssertionError("unexpected exception", e);
         }
+        logger.log(
+            level,
+            () -> Strings.format(
+                "policy [%s] for index [%s] failed trying to move from step [%s] to the ERROR step.",
+                policy,
+                index.getName(),
+                currentStepKey
+            )
+        );
     }
 }

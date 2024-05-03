@@ -207,7 +207,7 @@ public abstract class AbstractNumberNestedSortingTestCase extends AbstractFieldD
         MultiValueMode sortMode = MultiValueMode.SUM;
         DirectoryReader directoryReader = DirectoryReader.open(writer);
         directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader, false);
         Query parentFilter = new TermQuery(new Term("__type", "parent"));
         Query childFilter = Queries.not(parentFilter);
         XFieldComparatorSource nestedComparatorSource = createFieldComparator(

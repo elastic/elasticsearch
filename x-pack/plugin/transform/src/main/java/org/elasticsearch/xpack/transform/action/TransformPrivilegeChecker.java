@@ -13,19 +13,25 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
@@ -37,6 +43,7 @@ final class TransformPrivilegeChecker {
 
     static void checkPrivileges(
         String operationName,
+        Settings settings,
         SecurityContext securityContext,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
@@ -45,6 +52,8 @@ final class TransformPrivilegeChecker {
         boolean checkDestIndexPrivileges,
         ActionListener<Void> listener
     ) {
+        assert XPackSettings.SECURITY_ENABLED.get(settings);
+
         useSecondaryAuthIfAvailable(securityContext, () -> {
             final String username = securityContext.getUser().principal();
 
@@ -60,7 +69,11 @@ final class TransformPrivilegeChecker {
                 username,
                 checkDestIndexPrivileges
             );
-            client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, hasPrivilegesResponseListener);
+            if (hasPrivilegesRequest.indexPrivileges().length == 0) {
+                listener.onResponse(null);
+            } else {
+                client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, hasPrivilegesResponseListener);
+            }
         });
     }
 
@@ -73,13 +86,20 @@ final class TransformPrivilegeChecker {
     ) {
         List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>(2);
 
-        RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-            .indices(config.getSource().getIndex())
-            // We need to read the source indices mapping to deduce the destination mapping, hence the need for view_index_metadata
-            .privileges("read", "view_index_metadata")
-            .build();
-        indicesPrivileges.add(sourceIndexPrivileges);
+        // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
+        String[] sourceIndex = Arrays.stream(config.getSource().getIndex())
+            .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+            .toArray(String[]::new);
 
+        if (sourceIndex.length > 0) {
+            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                .indices(sourceIndex)
+                // We need to read the source indices mapping to deduce the destination mapping, hence the need for view_index_metadata
+                .privileges("read", "view_index_metadata")
+                .allowRestrictedIndices(true)
+                .build();
+            indicesPrivileges.add(sourceIndexPrivileges);
+        }
         if (checkDestIndexPrivileges) {
             final String destIndex = config.getDestination().getIndex();
             final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(
@@ -100,9 +120,21 @@ final class TransformPrivilegeChecker {
                 && config.getRetentionPolicyConfig() instanceof NullRetentionPolicyConfig == false) {
                 destPrivileges.add("delete");
             }
+            if (config.getDestination().getAliases() != null && config.getDestination().getAliases().isEmpty() == false) {
+                destPrivileges.add("manage");
+
+                RoleDescriptor.IndicesPrivileges destAliasPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(config.getDestination().getAliases().stream().map(DestAlias::getAlias).toList())
+                    .privileges("manage")
+                    .allowRestrictedIndices(true)
+                    .build();
+                indicesPrivileges.add(destAliasPrivileges);
+            }
+
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
                 .privileges(destPrivileges)
+                .allowRestrictedIndices(true)
                 .build();
             indicesPrivileges.add(destIndexPrivileges);
         }

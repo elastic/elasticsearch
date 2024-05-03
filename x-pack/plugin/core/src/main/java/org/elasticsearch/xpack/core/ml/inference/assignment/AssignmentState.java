@@ -13,7 +13,8 @@ import java.util.Locale;
 public enum AssignmentState {
     STARTING,
     STARTED,
-    STOPPING;
+    STOPPING,
+    FAILED; // Not persisted, calculated via route states
 
     public static AssignmentState fromString(String value) {
         return valueOf(value.toUpperCase(Locale.ROOT));

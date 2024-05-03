@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
@@ -27,15 +28,18 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
         TransportService transportService,
         NativeRoleMappingStore roleMappingStore
     ) {
-        super(DeleteRoleMappingAction.NAME, transportService, actionFilters, DeleteRoleMappingRequest::new);
+        super(
+            DeleteRoleMappingAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteRoleMappingRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.roleMappingStore = roleMappingStore;
     }
 
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
-        roleMappingStore.deleteRoleMapping(
-            request,
-            listener.delegateFailure((l, found) -> l.onResponse(new DeleteRoleMappingResponse(found)))
-        );
+        roleMappingStore.deleteRoleMapping(request, listener.safeMap(DeleteRoleMappingResponse::new));
     }
 }

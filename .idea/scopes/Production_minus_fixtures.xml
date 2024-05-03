@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Production minus fixtures" pattern="src:*..*&amp;&amp;!file[elasticsearch.test*]:*//*" />
+</component>

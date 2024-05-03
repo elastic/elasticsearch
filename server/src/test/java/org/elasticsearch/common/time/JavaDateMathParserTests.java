@@ -9,6 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -33,15 +34,19 @@ public class JavaDateMathParserTests extends ESTestCase {
     public void testRoundUpParserBasedOnList() {
         DateFormatter formatter = new JavaDateFormatter(
             "test",
-            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd").toFormatter(Locale.ROOT),
-            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
-                .appendZoneOrOffsetId()
-                .toFormatter(Locale.ROOT)
-                .withResolverStyle(ResolverStyle.STRICT),
-            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
-                .appendOffset("+HHmm", "Z")
-                .toFormatter(Locale.ROOT)
-                .withResolverStyle(ResolverStyle.STRICT)
+            new JavaTimeDateTimePrinter(new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd").toFormatter(Locale.ROOT)),
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
+                    .appendZoneOrOffsetId()
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            ),
+            new JavaTimeDateTimeParser(
+                new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
+                    .appendOffset("+HHmm", "Z")
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT)
+            )
         );
         Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+0000", () -> 0L, true, (ZoneId) null);
         assertThat(parsed.toEpochMilli(), equalTo(0L));
@@ -83,6 +88,38 @@ public class JavaDateMathParserTests extends ESTestCase {
         parser = formatter.toDateMathParser();
         gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
         assertDateEquals(gotMillis, "297276785531", "297276785531");
+    }
+
+    public void testWeekBasedDate() {
+        DateFormatter formatter = DateFormatter.forPattern("strict_basic_week_date");// YYYY'W'wwe
+        // first week of 2022 is starting on Monday 3rd Jan
+        assertDateMathEquals(formatter.toDateMathParser(), "2022W0101", "2022-01-03T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+
+        // defaulting missing day of week
+        formatter = DateFormatter.forPattern("YYYY'W'ww[e]");// YYYY'W'wwe
+        // second week of 2022 is starting on Monday 10th Jan
+        assertDateMathEquals(formatter.toDateMathParser(), "2022W02", "2022-01-10T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
+    public void testDayOfYear() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-DDD'T'HH:mm:ss.SSS");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022-104T14:08:30.293", "2022-04-14T14:08:30.293", 0, true, ZoneOffset.UTC);
+    }
+
+    public void testAMPM() {
+        DateFormatter formatter = DateFormatter.forPattern("MM/dd/yyyy hh:mm a"); // h clock-hour-of-am-pm (1-12)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020 12:48 AM", "2020-04-30T00:48:59.999Z", 0, true, ZoneOffset.UTC);
+
+        formatter = DateFormatter.forPattern("MM/dd/yyyy KK:mm a"); // K hour-of-am-pm (0-11)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020 00:48 AM", "2020-04-30T00:48:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
+    public void testAMPMWithTimeMissing() {
+        DateFormatter formatter = DateFormatter.forPattern("MM/dd/yyyy[ hh:mm a]"); // h clock-hour-of-am-pm (1-12)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020", "2020-04-30T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+
+        formatter = DateFormatter.forPattern("MM/dd/yyyy[ KK:mm a]"); // K hour-of-am-pm (0-11)
+        assertDateMathEquals(formatter.toDateMathParser(), "04/30/2020", "2020-04-30T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
     public void testWeekDates() {
@@ -371,14 +408,14 @@ public class JavaDateMathParserTests extends ESTestCase {
         long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
-            fail("""
+            fail(Strings.format("""
                 Date math not equal
                 Original              : %s
                 Parsed                : %s
                 Expected              : %s
                 Expected milliseconds : %s
                 Actual milliseconds   : %s
-                """.formatted(original, formatter.format(zonedDateTime), expected, expectedMillis, gotMillis));
+                """, original, formatter.format(zonedDateTime), expected, expectedMillis, gotMillis));
         }
     }
 }

@@ -77,7 +77,7 @@ public class RetentionPolicyConfigToDeleteByQueryTests extends ESTestCase {
         assertNotNull(deleteByQueryRequest.getSearchRequest().source());
         assertNotNull(deleteByQueryRequest.getSearchRequest().source().query());
 
-        assertTrue(deleteByQueryRequest.isRefresh());
+        assertFalse(deleteByQueryRequest.isRefresh());
         assertEquals(0, deleteByQueryRequest.getMaxRetries());
         assertEquals(1, deleteByQueryRequest.getSearchRequest().indices().length);
         assertEquals(destConfig.getIndex(), deleteByQueryRequest.getSearchRequest().indices()[0]);

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,7 +26,7 @@ public interface VersionedNamedWriteable extends NamedWriteable {
     /**
      * The minimal version of the recipient this object can be sent to
      */
-    Version getMinimalSupportedVersion();
+    TransportVersion getMinimalSupportedVersion();
 
     /**
      * Tests whether or not the custom should be serialized. The criteria is the output stream must be at least the minimum supported
@@ -39,7 +39,7 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * @return true if the custom should be serialized and false otherwise
      */
     static <T extends VersionedNamedWriteable> boolean shouldSerialize(final StreamOutput out, final T custom) {
-        return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
+        return out.getTransportVersion().onOrAfter(custom.getMinimalSupportedVersion());
     }
 
     /**

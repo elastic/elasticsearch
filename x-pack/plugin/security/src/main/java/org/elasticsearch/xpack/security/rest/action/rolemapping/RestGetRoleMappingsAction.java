@@ -10,16 +10,16 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +29,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest endpoint to retrieve a role-mapping from the org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.INTERNAL)
+public class RestGetRoleMappingsAction extends NativeRoleMappingBaseRestHandler {
 
     public RestGetRoleMappingsAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -64,9 +65,9 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
 
                 // if the request specified mapping names, but nothing was found then return a 404 result
                 if (names.length != 0 && response.mappings().length == 0) {
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    return new RestResponse(RestStatus.NOT_FOUND, builder);
                 } else {
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             }
         });

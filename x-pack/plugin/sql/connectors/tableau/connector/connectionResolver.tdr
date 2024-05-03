@@ -7,14 +7,13 @@
     <connection-normalizer>
       <required-attributes>
         <attribute-list>
-          <attr>class</attr>
           <attr>server</attr>
           <attr>port</attr>
+          <attr>authentication</attr>
           <attr>username</attr>
           <attr>password</attr>
-          <attr>dbname</attr>
           <attr>sslmode</attr>
-          <attr>warehouse</attr>
+          <attr>vendor1</attr>
         </attribute-list>
       </required-attributes>
     </connection-normalizer>

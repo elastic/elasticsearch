@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * PainlessLookupUtility contains methods shared by {@link PainlessLookupBuilder}, {@link PainlessLookup}, and other classes within
@@ -114,7 +115,7 @@ public final class PainlessLookupUtility {
             type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
             if (type != null) {
-                char arrayBraces[] = new char[arrayDimensions];
+                char[] arrayBraces = new char[arrayDimensions];
                 Arrays.fill(arrayBraces, '[');
                 String javaTypeName = new String(arrayBraces);
 
@@ -174,24 +175,7 @@ public final class PainlessLookupUtility {
      * of classes or a mixed list of classes and types to a list of canonical type names as a string as well.
      */
     public static String typesToCanonicalTypeNames(List<Class<?>> types) {
-        StringBuilder typesStringBuilder = new StringBuilder("[");
-
-        int anyTypesSize = types.size();
-        int anyTypesIndex = 0;
-
-        for (Class<?> painlessType : types) {
-            String canonicalTypeName = typeToCanonicalTypeName(painlessType);
-
-            typesStringBuilder.append(canonicalTypeName);
-
-            if (++anyTypesIndex < anyTypesSize) {
-                typesStringBuilder.append(",");
-            }
-        }
-
-        typesStringBuilder.append("]");
-
-        return typesStringBuilder.toString();
+        return types.stream().map(PainlessLookupUtility::typeToCanonicalTypeName).collect(Collectors.joining(",", "[", "]"));
     }
 
     /**
@@ -356,11 +340,12 @@ public final class PainlessLookupUtility {
      * derived from an {@link org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation}.
      */
     public static Object[] buildInjections(PainlessMethod painlessMethod, Map<String, Object> constants) {
-        if (painlessMethod.annotations().containsKey(InjectConstantAnnotation.class) == false) {
+        InjectConstantAnnotation injects = (InjectConstantAnnotation) painlessMethod.annotations().get(InjectConstantAnnotation.class);
+        if (injects == null) {
             return new Object[0];
         }
 
-        List<String> names = ((InjectConstantAnnotation) painlessMethod.annotations().get(InjectConstantAnnotation.class)).injects();
+        List<String> names = injects.injects();
         Object[] injections = new Object[names.size()];
 
         for (int i = 0; i < names.size(); i++) {

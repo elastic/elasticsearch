@@ -13,13 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
@@ -34,9 +36,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -46,6 +52,7 @@ import java.util.Map;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
+    public static final ActionType<ClusterRerouteResponse> TYPE = new ActionType<>("cluster:admin/reroute");
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
     private final AllocationService allocationService;
@@ -60,7 +67,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterRerouteAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -68,7 +75,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             ClusterRerouteRequest::new,
             indexNameExpressionResolver,
             ClusterRerouteResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.allocationService = allocationService;
     }
@@ -105,9 +112,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     ) {
         transportService.sendRequest(
             transportService.getLocalNode(),
-            IndicesShardStoresAction.NAME,
+            TransportIndicesShardStoresAction.TYPE.name(),
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
-            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((delegate, response) -> {
                 Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> status = response.getStoreStatuses();
                 Exception e = null;
                 for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
@@ -148,11 +155,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                     }
                 }
                 if (e == null) {
-                    submitStateUpdate(request, listener);
+                    submitStateUpdate(request, delegate);
                 } else {
-                    listener.onFailure(e);
+                    delegate.onFailure(e);
                 }
-            }, listener::onFailure), IndicesShardStoresResponse::new)
+            }), IndicesShardStoresResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 
@@ -161,12 +168,18 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         submitUnbatchedTask(
             TASK_SOURCE,
-            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(response -> {
-                if (request.dryRun() == false) {
-                    response.getExplanations().getYesDecisionMessages().forEach(logger::info);
-                }
-                return response;
-            }))
+            new ClusterRerouteResponseAckedClusterStateUpdateTask(
+                logger,
+                allocationService,
+                threadPool.getThreadContext(),
+                request,
+                listener.map(response -> {
+                    if (request.dryRun() == false) {
+                        response.getExplanations().getYesDecisionMessages().forEach(logger::info);
+                    }
+                    return response;
+                })
+            )
         );
     }
 
@@ -175,10 +188,10 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask {
+    static class ClusterRerouteResponseAckedClusterStateUpdateTask extends ClusterStateUpdateTask implements ClusterStateAckListener {
 
         private final ClusterRerouteRequest request;
-        private final ActionListener<ClusterRerouteResponse> listener;
+        private final AllocationActionListener<ClusterRerouteResponse> listener;
         private final Logger logger;
         private final AllocationService allocationService;
         private volatile ClusterState clusterStateToSend;
@@ -187,46 +200,61 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         ClusterRerouteResponseAckedClusterStateUpdateTask(
             Logger logger,
             AllocationService allocationService,
+            ThreadContext context,
             ClusterRerouteRequest request,
             ActionListener<ClusterRerouteResponse> listener
         ) {
-            super(Priority.IMMEDIATE, request, listener);
+            super(Priority.IMMEDIATE);
             this.request = request;
-            this.listener = listener;
+            this.listener = new AllocationActionListener<>(listener, context);
             this.logger = logger;
             this.allocationService = allocationService;
         }
 
         @Override
-        protected ClusterRerouteResponse newResponse(boolean acknowledged) {
-            return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return request.ackTimeout();
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(true, clusterStateToSend, explanations));
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, clusterStateToSend, explanations));
         }
 
         @Override
         public void onAckTimeout() {
-            listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
+            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
         }
 
         @Override
         public void onFailure(Exception e) {
             logger.debug("failed to perform [" + TASK_SOURCE + "]", e);
-            super.onFailure(e);
+            listener.clusterStateUpdate().onFailure(e);
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            AllocationService.CommandsResult commandsResult = allocationService.reroute(
+            var result = allocationService.reroute(
                 currentState,
                 request.getCommands(),
                 request.explain(),
-                request.isRetryFailed()
+                request.isRetryFailed(),
+                request.dryRun(),
+                listener.reroute()
             );
-            clusterStateToSend = commandsResult.clusterState();
-            explanations = commandsResult.explanations();
-            if (request.dryRun()) {
-                return currentState;
-            }
-            return commandsResult.clusterState();
+            clusterStateToSend = result.clusterState();
+            explanations = result.explanations();
+            return request.dryRun() ? currentState : result.clusterState();
         }
     }
 }

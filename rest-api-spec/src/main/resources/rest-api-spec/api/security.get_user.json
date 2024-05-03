@@ -31,6 +31,12 @@
         }
       ]
     },
-    "params":{}
+    "params":{
+      "with_profile_uid": {
+        "type":"boolean",
+        "default":false,
+        "description":"flag to retrieve profile uid (if exists) associated to the user"
+      }
+    }
   }
 }

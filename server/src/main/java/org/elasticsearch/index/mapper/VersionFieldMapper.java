@@ -11,18 +11,21 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.VersionDocValuesField;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
-import java.util.function.Supplier;
 
-/** Mapper for the _version field. */
+/** Mapper for the _version field.
+ *
+ *  This is the field mapper for the monotonically increasing document version.  If you are looking for the field that stores semver style
+ *  strings in a sortable binary format, you want VersionStringFieldMapper in the xpack VersionField plugin
+ */
 public class VersionFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_version";
@@ -52,13 +55,18 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockDocValuesReader.LongsBlockLoader(name());
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new, isIndexed());
         }
     }
 
@@ -92,5 +100,10 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

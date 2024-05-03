@@ -36,6 +36,11 @@ public class MockLicenseState extends XPackLicenseState {
         super.disableUsageTracking(feature, contextName);
     }
 
+    @Override
+    public void featureUsed(LicensedFeature feature) {
+        super.featureUsed(feature);
+    }
+
     public static MockLicenseState createMock() {
         MockLicenseState mock = Mockito.mock(MockLicenseState.class);
         Mockito.when(mock.copyCurrentLicenseState()).thenReturn(mock);

@@ -14,13 +14,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -28,6 +27,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -41,12 +41,11 @@ public class NodeClient extends AbstractClient {
 
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}.
      */
     private Supplier<String> localNodeId;
     private Transport.Connection localConnection;
     private RemoteClusterService remoteClusterService;
-    private NamedWriteableRegistry namedWriteableRegistry;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
@@ -57,15 +56,13 @@ public class NodeClient extends AbstractClient {
         TaskManager taskManager,
         Supplier<String> localNodeId,
         Transport.Connection localConnection,
-        RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry
+        RemoteClusterService remoteClusterService
     ) {
         this.actions = actions;
         this.taskManager = taskManager;
         this.localNodeId = localNodeId;
         this.localConnection = localConnection;
         this.remoteClusterService = remoteClusterService;
-        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     /**
@@ -73,11 +70,6 @@ public class NodeClient extends AbstractClient {
      */
     public List<String> getActionNames() {
         return actions.keySet().stream().map(ActionType::name).toList();
-    }
-
-    @Override
-    public void close() {
-        // nothing really to do
     }
 
     @Override
@@ -115,27 +107,13 @@ public class NodeClient extends AbstractClient {
             transportAction(action),
             request,
             localConnection,
-            new ActionResponseTaskListener<>(listener)
+            ActionListener.assertOnce(listener)
         );
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}.
-     * Prefer this method if you need access to the task when listening for the response.
-     *
-     * @throws TaskCancelledException if the request's parent task has been cancelled already
-     */
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
-        ActionType<Response> action,
-        Request request,
-        TaskListener<Response> listener
-    ) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, listener);
-    }
-
-    /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}.
      */
     public String getLocalNodeId() {
         return localNodeId.get();
@@ -159,35 +137,11 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, true);
-    }
-
-    public NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    private record ActionResponseTaskListener<Response> (ActionListener<Response> listener) implements TaskListener<Response> {
-
-        @Override
-        public void onResponse(Task task, Response response) {
-            try {
-                listener.onResponse(response);
-            } catch (Exception e) {
-                assert false : new AssertionError("callback must handle its own exceptions", e);
-                throw e;
-            }
-        }
-
-        @Override
-        public void onFailure(Task task, Exception e) {
-            try {
-                listener.onFailure(e);
-            } catch (Exception ex) {
-                ex.addSuppressed(e);
-                assert false : new AssertionError("callback must handle its own exceptions", ex);
-                throw ex;
-            }
-        }
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        return remoteClusterService.getRemoteClusterClient(clusterAlias, responseExecutor, disconnectedStrategy);
     }
 }

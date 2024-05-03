@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -62,9 +63,10 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private ShardChangesAction() {
-        super(NAME, ShardChangesAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends SingleShardRequest<Request> implements RawIndexingDataTransportRequest {
@@ -91,7 +93,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             shardId = new ShardId(in);
             expectedHistoryUUID = in.readString();
             pollTimeout = in.readTimeValue();
-            maxBatchSize = new ByteSizeValue(in);
+            maxBatchSize = ByteSizeValue.readFrom(in);
 
             // Starting the clock in order to know how much time is spent on fetching operations:
             relativeStartNanos = System.nanoTime();
@@ -214,61 +216,59 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     public static final class Response extends ActionResponse {
 
-        private long mappingVersion;
+        private final long mappingVersion;
 
         public long getMappingVersion() {
             return mappingVersion;
         }
 
-        private long settingsVersion;
+        private final long settingsVersion;
 
         public long getSettingsVersion() {
             return settingsVersion;
         }
 
-        private long aliasesVersion;
+        private final long aliasesVersion;
 
         public long getAliasesVersion() {
             return aliasesVersion;
         }
 
-        private long globalCheckpoint;
+        private final long globalCheckpoint;
 
         public long getGlobalCheckpoint() {
             return globalCheckpoint;
         }
 
-        private long maxSeqNo;
+        private final long maxSeqNo;
 
         public long getMaxSeqNo() {
             return maxSeqNo;
         }
 
-        private long maxSeqNoOfUpdatesOrDeletes;
+        private final long maxSeqNoOfUpdatesOrDeletes;
 
         public long getMaxSeqNoOfUpdatesOrDeletes() {
             return maxSeqNoOfUpdatesOrDeletes;
         }
 
-        private Translog.Operation[] operations;
+        private final Translog.Operation[] operations;
 
         public Translog.Operation[] getOperations() {
             return operations;
         }
 
-        private long tookInMillis;
+        private final long tookInMillis;
 
         public long getTookInMillis() {
             return tookInMillis;
         }
 
-        Response() {}
-
         Response(StreamInput in) throws IOException {
             super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 0;
@@ -304,13 +304,13 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
-            out.writeArray(Translog.Operation::writeOperation, operations);
+            out.writeArray(operations);
             out.writeVLong(tookInMillis);
         }
 
@@ -365,7 +365,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 actionFilters,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.SEARCH
+                threadPool.executor(ThreadPool.Names.SEARCH)
             );
             this.indicesService = indicesService;
         }
@@ -449,11 +449,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final ActionListener<Response> listener
         ) {
             logger.trace("{} global checkpoint advanced to [{}] after waiting for [{}]", shardId, globalCheckpoint, request.getFromSeqNo());
-            try {
-                super.asyncShardOperation(request, shardId, listener);
-            } catch (final IOException caught) {
-                listener.onFailure(caught);
-            }
+            ActionListener.run(listener, l -> super.asyncShardOperation(request, shardId, l));
         }
 
         private void globalCheckpointAdvancementFailure(
@@ -563,7 +559,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]"
             );
         }
-        int seenBytes = 0;
+        long seenBytes = 0;
         // - 1 is needed, because toSeqNo is inclusive
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";

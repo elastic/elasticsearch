@@ -10,33 +10,42 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Per-segment version of {@link SearchLookup}.
  */
 public class LeafSearchLookup {
 
-    private final LeafReaderContext ctx;
+    private int doc;
     private final LeafDocLookup docMap;
-    private final SourceLookup sourceLookup;
     private final LeafStoredFieldsLookup fieldsLookup;
     private final Map<String, Object> asMap;
+    private final Supplier<Source> source;
 
-    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafStoredFieldsLookup fieldsLookup) {
-        this.ctx = ctx;
+    public LeafSearchLookup(
+        LeafReaderContext ctx,
+        LeafDocLookup docMap,
+        SourceProvider sourceProvider,
+        LeafStoredFieldsLookup fieldsLookup
+    ) {
         this.docMap = docMap;
-        this.sourceLookup = sourceLookup;
         this.fieldsLookup = fieldsLookup;
-        this.asMap = Map.of("doc", docMap, "_doc", docMap, "_source", sourceLookup, "_fields", fieldsLookup);
+        this.source = () -> {
+            try {
+                return sourceProvider.getSource(ctx, doc);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Couldn't load source", e);
+            }
+        };
+        this.asMap = Map.of("doc", docMap, "_doc", docMap, "_source", source, "_fields", fieldsLookup);
     }
 
     public Map<String, Object> asMap() {
         return this.asMap;
-    }
-
-    public SourceLookup source() {
-        return this.sourceLookup;
     }
 
     public LeafStoredFieldsLookup fields() {
@@ -47,9 +56,13 @@ public class LeafSearchLookup {
         return this.docMap;
     }
 
+    public Supplier<Source> source() {
+        return this.source;
+    }
+
     public void setDocument(int docId) {
+        this.doc = docId;
         docMap.setDocument(docId);
-        sourceLookup.setSegmentAndDocument(ctx, docId);
         fieldsLookup.setDocument(docId);
     }
 }

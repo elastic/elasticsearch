@@ -37,11 +37,11 @@ SELECT 9223372036854775807::unsigned_long * 2 AS x;
 ;
 
 arithmeticDivide
-SELECT 18446744073709551614 / 2 AS x;
+SELECT 18446744073709551614 / 2 AS x, 18446744073709551614 / 7306.0 AS y,  18446744073709551614 / 7306 AS z  ;
 
-       x:ul
----------------
-9223372036854775807
+       x:ul         |          y:d            |        z:ul
+--------------------+-------------------------+-------------------------
+9223372036854775807 |  2.5248760024239735E15  |   2524876002423973
 ;
 
 arithmeticModulo
@@ -255,9 +255,9 @@ GROUP BY gender ORDER BY gender;
 
    percentile    | percentile_rank  |    gender
 -----------------+------------------+---------------
-86857.79999999999|32.69659025378865 |null
-94042.92000000001|37.03569653103581 |F
-87348.36         |44.337514210592246|M
+85906.32         |32.69659025378865 |null
+93503.28         |37.03569653103581 |F
+86754.72         |44.337514210592246|M
 ;
 
 extendedStatsAggregateFunctionsWithScalars
@@ -348,12 +348,12 @@ SELECT languages, PERCENTILE(salary_ul, 95) AS "95th" FROM test_emp_copy GROUP B
 
    languages:bt|      95th:d
 ---------------+-----------------
-null           |74999.0
-1              |72790.5
-2              |71924.70000000001
-3              |73638.25
-4              |72115.59999999999
-5              |61071.7
+null           |74482.4
+1              |71122.8
+2              |70271.4
+3              |71926.0
+4              |69352.15
+5              |56371.0
 ;
 
 mathPowerNegative
@@ -487,10 +487,10 @@ null
 medianAbsoluteDeviationLargeInput
 SELECT status, MAD(bytes_in) AS mad FROM logs_unsigned_long GROUP BY status ORDER BY status;
 
-    status     |         mad
----------------+---------------------
-Error          |3.0183732936229658E18
-OK             |4.5240953206634045E18
+    status:s     |         mad:d
+-----------------+---------------------
+Error            |3.0183732936229658E18
+OK               |4.5240953206634045E18
 ;
 
 
@@ -565,10 +565,10 @@ FROM logs_unsigned_long
 GROUP BY status
 ORDER BY status;
 
-     percentile      | percentile_rank  |    status
----------------------+------------------+---------------
-1.8836190713044468E19|1.970336796004502 |Error
-1.7957483822449326E19|26.644793296251386|OK
+     percentile:d    | percentile_rank:d |    status:s
+---------------------+-------------------+---------------
+1.8618876151530934E19|0.0                |Error
+1.7923220123812004E19|26.644793296251386 |OK
 ;
 
 extendedStatsAggregateFunctionsWithScalarsLargeInput
@@ -582,7 +582,7 @@ FROM logs_unsigned_long
 GROUP BY status
 ORDER BY status;
 
-     stddev_pop      |     stddev_samp     |   sum_of_squares    |       var_pop       |      var_samp      |    status
+     stddev_pop:d    |     stddev_samp:d   |   sum_of_squares:d  |       var_pop:d     |      var_samp:d    |    status:s
 ---------------------+---------------------+---------------------+---------------------+--------------------+---------------
 5.1879845114777528E18|5.6831522898475694E18|1.1113551085273773E39|2.9979868907159907E37|3.597584268859189E37|Error
 6.7116742512203459E18|6.7484508237837148E18|1.4906887301541836E40|4.304729535850427E37 |4.352034256024607E37|OK
@@ -639,8 +639,8 @@ SELECT status, PERCENTILE(bytes_in, 95) AS "95th" FROM logs_unsigned_long GROUP 
 
     status:s   |        95th:d
 ---------------+---------------------
-Error          |1.8345360876889252E19
-OK             |1.8295214210102768E19
+Error          |1.666616785254379E19
+OK             |1.8196840183187124E19
 ;
 
 mathPowerNegativeLargeInput
@@ -662,7 +662,7 @@ SELECT POWER(bytes_in, -1) m, id FROM logs_unsigned_long WHERE id < 10 ORDER BY 
 averageWithOneValueAndOrderLargeInput
 SELECT * FROM (SELECT id, status, bytes_out FROM logs_unsigned_long) PIVOT (AVG(bytes_out + 1) FOR status IN ('OK', 'Error')) ORDER BY id DESC LIMIT 4;
 
-      id:i       |        'OK':d       |    'Error':d
+      id:i     |        'OK':d       |    'Error':d
 ---------------+---------------------+---------------
 101            |null                 |null
 100            |1.5616395223975498E19|null

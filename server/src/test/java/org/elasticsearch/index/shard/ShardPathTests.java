@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +16,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -190,7 +190,7 @@ public class ShardPathTests extends ESTestCase {
             assertThat(List.of(paths), hasItem(ShardPath.getPathWithMostFreeSpace(env)));
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
 
-            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
 
             ShardPath shardPath = ShardPath.selectNewPathForShard(env, shardId, idxSettings, 1L, new HashMap<>());
@@ -239,7 +239,7 @@ public class ShardPathTests extends ESTestCase {
                     is("[foo][0] index UUID in shard state was: 0xDEADF00D expected: 0xDEADBEEF on shard path: " + badPath)
                 );
 
-                Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
                 IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
 
                 for (Path path : envPaths) {

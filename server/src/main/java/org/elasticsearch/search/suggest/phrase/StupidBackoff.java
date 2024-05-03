@@ -11,7 +11,8 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
@@ -42,7 +43,7 @@ public final class StupidBackoff extends SmoothingModel {
     private static final ParseField DISCOUNT_FIELD = new ParseField("discount");
     static final ParseField PARSE_FIELD = new ParseField(NAME);
 
-    private double discount = DEFAULT_BACKOFF_DISCOUNT;
+    private final double discount;
 
     /**
      * Creates a Stupid-Backoff smoothing model.
@@ -123,7 +124,7 @@ public final class StupidBackoff extends SmoothingModel {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

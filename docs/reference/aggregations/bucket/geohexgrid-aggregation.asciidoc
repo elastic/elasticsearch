@@ -5,8 +5,8 @@
 <titleabbrev>Geohex grid</titleabbrev>
 ++++
 
-A multi-bucket aggregation that groups <<geo-point,`geo_point`>>
-values into buckets that represent a grid.
+A multi-bucket aggregation that groups <<geo-point,`geo_point`>> and
+<<geo-shape,`geo_shape`>> values into buckets that represent a grid.
 The resulting grid can be sparse and only
 contains cells that have matching data. Each cell corresponds to a
 https://h3geo.org/docs/core-library/h3Indexing#h3-cell-indexp[H3 cell index] and is
@@ -18,7 +18,7 @@ Precision for this aggregation can be between 0 and 15, inclusive.
 
 WARNING: High-precision requests can be very expensive in terms of RAM and
 result sizes. For example, the highest-precision geohex with a precision of 15
-produces cells that cover less than 10cm by 10cm. We recommend you use a
+produces cells that cover less than one square meter. We recommend you use a
 filter to limit high-precision requests to a smaller geographic area. For an example,
 refer to <<geohexgrid-high-precision>>.
 
@@ -220,21 +220,45 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
-[[geohexgrid-options]]
+[discrete]
+[role="xpack"]
+[[geohexgrid-aggregating-geo-shape]]
+==== Aggregating `geo_shape` fields
+
+Aggregating on <<geo-shape>> fields works almost as it does for points. There are two key differences:
+
+* When aggregating over `geo_point` data, points are considered within a hexagonal tile if they lie
+within the edges defined by great circles. In other words the calculation is done using spherical coordinates.
+However, when aggregating over `geo_shape` data, the shapes are considered within a hexagon if they lie
+within the edges defined as straight lines on an equirectangular projection.
+The reason is that Elasticsearch and Lucene treat edges using the equirectangular projection at index and search time.
+In order to ensure that search results and aggregation results are aligned, we therefore also use equirectangular
+projection in aggregations.
+For most data, the difference is subtle or not noticed.
+However, for low zoom levels (low precision), especially far from the equator,  this can be noticeable.
+For example, if the same point data is indexed as `geo_point` and `geo_shape`, it is possible  to get
+different results when aggregating at lower resolutions.
+* As is the case with <<geotilegrid-aggregating-geo-shape,`geotile_grid`>>,
+a single shape can be counted for in multiple tiles. A shape will contribute to the count of matching values
+if any part of its shape intersects with that tile. Below is an image that demonstrates this:
+
+
+image:images/spatial/geoshape_hexgrid.png[]
+
 ==== Options
 
 [horizontal]
 field::
-(Required, string) Field containing indexed geo-point values. Must be explicitly
-mapped as a <<geo-point,`geo_point`>> field. If the field contains an array,
-`geohex_grid` aggregates all array values.
+(Required, string) Field containing indexed geo-point or geo-shape values.
+Must be explicitly mapped as a <<geo-point,`geo_point`>> or a <<geo-shape,`geo_shape`>> field.
+If the field contains an array, `geohex_grid` aggregates all array values.
 
 precision::
 (Optional, integer) Integer zoom of the key used to define cells/buckets in
 the results. Defaults to `6`. Values outside of [`0`,`15`] will be rejected.
 
 bounds::
-(Optional, object) Bounding box used to filter the geo-points in each bucket.
+(Optional, object) Bounding box used to filter the geo-points or geo-shapes in each bucket.
 Accepts the same bounding box formats as the
 <<query-dsl-geo-bounding-box-query-accepted-formats,geo-bounding box query>>.
 
@@ -245,5 +269,6 @@ documents they contain.
 
 shard_size::
 (Optional, integer) Number of buckets returned from each shard. Defaults to
-`max(10,(size x number-of-shards))` to allow for more a accurate count of the
-top cells in the final result.
+`max(10,(size x number-of-shards))` to allow for a more accurate count of the
+top cells in the final result. Since each shard could have a different top result order,
+using a larger number here reduces the risk of inaccurate counts, but incurs a performance cost.

@@ -101,7 +101,7 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         }
     }
 
-    private byte[] findNextObject(byte marker, InputStream data) throws IOException {
+    private static byte[] findNextObject(byte marker, InputStream data) throws IOException {
         // The underlying stream, MarkSupportingStreamInputWrapper, doesn't care about
         // readlimit, so just set to -1. We could pick a value, but I worry that if the
         // underlying implementation changes it may cause strange behavior, whereas -1 should
@@ -154,12 +154,17 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
             for (InputOutputMap inOut : inputOutputMap) {
                 String field = input[inOut.inputIndex];
-                record[inOut.outputIndex] = (field == null) ? "" : field;
+                field = (field == null) ? "" : field;
+                if (categorizationFieldIndex != null && inOut.inputIndex == categorizationFieldIndex) {
+                    field = maybeTruncateCatgeorizationField(field);
+                }
+                record[inOut.outputIndex] = field;
             }
 
             if (categorizationAnalyzer != null && categorizationFieldIndex != null) {
                 tokenizeForCategorization(categorizationAnalyzer, input[categorizationFieldIndex], record);
             }
+
             transformTimeAndWrite(record, inputFieldCount);
 
             inputFieldCount = recordReader.read(input, gotFields);

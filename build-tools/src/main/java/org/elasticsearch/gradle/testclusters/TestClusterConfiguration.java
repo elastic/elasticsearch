@@ -121,6 +121,8 @@ public interface TestClusterConfiguration {
 
     List<String> getAllReadinessPortURI();
 
+    List<String> getAllRemoteAccessPortURI();
+
     void stop(boolean tailLogs);
 
     void setNameCustomization(Function<String, String> nameSupplier);

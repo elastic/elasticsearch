@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.rest.RestStatus;
@@ -45,16 +46,24 @@ public class ExceptionsHelper {
         return new ResourceAlreadyExistsException("A data frame analytics with id [{}] already exists", id);
     }
 
-    public static ResourceNotFoundException missingTrainedModel(String modelId) {
-        return new ResourceNotFoundException("No known trained model with model_id [{}]", modelId);
+    public static ResourceNotFoundException missingModelDeployment(String deploymentId) {
+        return new ResourceNotFoundException("No known model deployment with id [{}]", deploymentId);
     }
 
-    public static ResourceNotFoundException missingDeployment(String deploymentId) {
-        return new ResourceNotFoundException("No known trained model with deployment with id [{}]", deploymentId);
+    public static ResourceNotFoundException missingTrainedModel(String modelId) {
+        return new ResourceNotFoundException(
+            "No known trained model with model_id [{}], you may need to create it or load it into the cluster with eland",
+            modelId
+        );
     }
 
     public static ResourceNotFoundException missingTrainedModel(String modelId, Exception cause) {
-        return new ResourceNotFoundException("No known trained model with model_id [{}]", cause, modelId);
+        return new ResourceNotFoundException(
+            "Failure due to [{}]. No known trained model with model_id [{}], "
+                + "you may need to create it or load it into the cluster with eland",
+            cause,
+            modelId
+        );
     }
 
     public static ElasticsearchException serverError(String msg) {
@@ -89,13 +98,8 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
     }
 
-    public static ElasticsearchStatusException configHasNotBeenMigrated(String verb, String id) {
-        return new ElasticsearchStatusException(
-            "cannot {} as the configuration [{}] is temporarily pending migration",
-            RestStatus.SERVICE_UNAVAILABLE,
-            verb,
-            id
-        );
+    public static ElasticsearchStatusException taskOperationFailureToStatusException(TaskOperationFailure failure) {
+        return new ElasticsearchStatusException(failure.getCause().getMessage(), failure.getStatus(), failure.getCause());
     }
 
     /**

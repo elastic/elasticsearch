@@ -8,13 +8,15 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -44,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
+import static org.elasticsearch.inference.InferenceResults.writeResult;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
@@ -80,6 +82,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             randomFrom(License.OperationMode.values()),
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -118,6 +121,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -170,6 +174,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -187,7 +192,7 @@ public class LocalModelTests extends ESTestCase {
             new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING)
         );
 
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("no"));
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);
@@ -197,7 +202,7 @@ public class LocalModelTests extends ESTestCase {
 
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.NUMBER));
 
-        document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.0));
         list = document.getFieldValue("result_field.top_classes", List.class);
@@ -207,7 +212,7 @@ public class LocalModelTests extends ESTestCase {
 
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.BOOLEAN));
 
-        document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", Boolean.class), equalTo(false));
         list = document.getFieldValue("result_field.top_classes", List.class);
@@ -232,6 +237,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("bar", "bar.keyword"),
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -264,6 +270,7 @@ public class LocalModelTests extends ESTestCase {
             null,
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -299,6 +306,7 @@ public class LocalModelTests extends ESTestCase {
             null,
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
+            TrainedModelType.TREE_ENSEMBLE,
             modelStatsService,
             mock(CircuitBreaker.class)
         );
@@ -358,6 +366,7 @@ public class LocalModelTests extends ESTestCase {
                 null,
                 ClassificationConfig.EMPTY_PARAMS,
                 License.OperationMode.PLATINUM,
+                TrainedModelType.TREE_ENSEMBLE,
                 modelStatsService,
                 breaker
             );
@@ -384,6 +393,7 @@ public class LocalModelTests extends ESTestCase {
                 null,
                 ClassificationConfig.EMPTY_PARAMS,
                 License.OperationMode.PLATINUM,
+                TrainedModelType.TREE_ENSEMBLE,
                 modelStatsService,
                 breaker
             );

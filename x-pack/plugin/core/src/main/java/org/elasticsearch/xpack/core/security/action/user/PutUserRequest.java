@@ -44,7 +44,7 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         roles = in.readStringArray();
         fullName = in.readOptionalString();
         email = in.readOptionalString();
-        metadata = in.readBoolean() ? in.readMap() : null;
+        metadata = in.readBoolean() ? in.readGenericMap() : null;
         refreshPolicy = RefreshPolicy.readFrom(in);
         enabled = in.readBoolean();
     }
@@ -163,7 +163,7 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     }
 
     private static char[] readCharArrayFromStream(StreamInput in) throws IOException {
-        BytesReference charBytesRef = in.readBytesReference();
+        BytesReference charBytesRef = in.readSlicedBytesReference();
         if (charBytesRef == BytesArray.EMPTY) {
             return null;
         } else {

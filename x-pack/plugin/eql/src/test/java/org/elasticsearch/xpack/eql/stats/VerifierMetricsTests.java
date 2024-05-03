@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.eql.optimizer.OptimizerTests;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
+import java.util.Arrays;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.eql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -179,7 +181,7 @@ public class VerifierMetricsTests extends ESTestCase {
     private Counters eql(String query) {
         Metrics metrics = new Metrics();
         Verifier verifier = new Verifier(metrics);
-        Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier);
+        Analyzer analyzer = analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier);
         analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(query), index));
         return metrics.stats();
     }
@@ -189,9 +191,7 @@ public class VerifierMetricsTests extends ESTestCase {
 
         MetricsHolder() {
             this.metrics = new long[FeatureMetric.values().length];
-            for (int i = 0; i < this.metrics.length; i++) {
-                this.metrics[i] = 0;
-            }
+            Arrays.fill(this.metrics, 0);
         }
 
         void set(Set<FeatureMetric> metricSet) {

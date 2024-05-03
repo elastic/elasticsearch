@@ -23,7 +23,7 @@ public abstract class TTestAggregator<T extends TTestState> extends NumericMetri
     protected final MultiValuesSource.NumericMultiValuesSource valuesSources;
     protected final int tails;
 
-    private DocValueFormat format;
+    private final DocValueFormat format;
 
     TTestAggregator(
         String name,

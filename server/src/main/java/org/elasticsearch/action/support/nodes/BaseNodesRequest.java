@@ -40,6 +40,8 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     private TimeValue timeout;
 
     protected BaseNodesRequest(StreamInput in) throws IOException {
+        // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
+        // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.
         super(in);
         nodesIds = in.readStringArray();
         concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
@@ -75,12 +77,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         return (Request) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public final Request timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (Request) this;
-    }
-
     public DiscoveryNode[] concreteNodes() {
         return concreteNodes;
     }
@@ -96,6 +92,8 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // A bare `BaseNodesRequest` is never sent over the wire, but several implementations send the full top-level request to each node
+        // (wrapped up in another request). They shouldn't, but until we fix that we must keep this. See #100878.
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
         out.writeOptionalArray(concreteNodes);

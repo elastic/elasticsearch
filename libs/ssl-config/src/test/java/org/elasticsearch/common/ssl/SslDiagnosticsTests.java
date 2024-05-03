@@ -11,6 +11,7 @@ package org.elasticsearch.common.ssl;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -21,10 +22,14 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +38,8 @@ import java.util.stream.Stream;
 
 import javax.net.ssl.SSLSession;
 import javax.security.auth.x500.X500Principal;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class SslDiagnosticsTests extends ESTestCase {
 
@@ -45,12 +52,26 @@ public class SslDiagnosticsTests extends ESTestCase {
     private static final String MOCK_FINGERPRINT_3 = "da8e062d74919f549a9764c24ab0fcde3af3719f";
     private static final byte[] MOCK_ENCODING_4 = { 0x64, 0x65, 0x66, 0x67, 0x68, 0x69 };
     private static final String MOCK_FINGERPRINT_4 = "5d96965bfae50bf2be0d6259eb87a6cc9f5d0b26";
+    private static final String MOCK_NOW = "2022-12-30T12:34:56.789Z";
+    private static final String MOCK_NOT_BEFORE = "2022-12-01T00:00:00Z";
+    private static final String MOCK_NOT_AFTER = "2023-02-01T00:00:00Z";
+
+    private SslDiagnostics diagnostics;
+
+    @Before
+    public void setUpDiagnostics() {
+        this.diagnostics = buildSslDiagnostics(MOCK_NOW);
+    }
+
+    private SslDiagnostics buildSslDiagnostics(String mockTime) {
+        return new SslDiagnostics(Clock.fixed(Instant.parse(mockTime), ZoneOffset.UTC));
+    }
 
     public void testDiagnosticMessageWhenServerProvidesAFullCertChainThatIsTrusted() throws Exception {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt", "ca1/ca.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -64,6 +85,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -78,7 +103,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt", "ca1/ca.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca2/ca.crt", "ca3/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -92,6 +117,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -105,7 +134,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = null;
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -119,6 +148,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -131,7 +164,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt", "ca1/ca.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = null;
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -145,6 +178,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -158,7 +195,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt", "ca1/ca.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1-b/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -172,6 +209,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -187,7 +228,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -201,6 +242,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -215,7 +260,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca2/ca.crt", "ca3/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -229,6 +274,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -248,7 +297,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         for (int i = 0; i < numberOfCAs; i++) {
             trustIssuers.put("CN=Authority-" + i + ",OU=security,DC=example,DC=net", randomList(1, 3, () -> dummyCa));
         }
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.CLIENT,
             session,
@@ -262,6 +311,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the client provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the client did not provide a copy of the issuing certificate in the certificate chain;"
@@ -277,7 +330,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1-b/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -291,6 +344,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -306,7 +363,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final SSLSession session = session("192.168.1.9");
         final X509Certificate ca1b = loadCertificate("ca1-b/ca.crt");
         final Map<String, List<X509Certificate>> trustIssuers = trust(ca1b, cloneCertificateAsMock(ca1b));
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -320,6 +377,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1]"
@@ -363,7 +424,7 @@ public class SslDiagnosticsTests extends ESTestCase {
 
         final SSLSession session = session("192.168.1.5");
         final Map<String, List<X509Certificate>> trustIssuers = trust(issuingCA, rootCA);
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -379,6 +440,14 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + MOCK_FINGERPRINT_4
                     + "],"
                     + " keyUsage [digitalSignature, nonRepudiation] and extendedKeyUsage [serverAuth, codeSigning];"
+                    + " the certificate is valid between ["
+                    + MOCK_NOT_BEFORE
+                    + "] and ["
+                    + MOCK_NOT_AFTER
+                    + "]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is issued by [CN=ca,OU=windows,DC=example,DC=com];"
@@ -428,7 +497,7 @@ public class SslDiagnosticsTests extends ESTestCase {
 
         final SSLSession session = session("192.168.1.6");
         final Map<String, List<X509Certificate>> trustIssuers = trust(Collections.emptyList());
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -444,6 +513,14 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + MOCK_FINGERPRINT_4
                     + "],"
                     + " keyUsage [digitalSignature, nonRepudiation] and extendedKeyUsage [serverAuth, codeSigning];"
+                    + " the certificate is valid between ["
+                    + MOCK_NOT_BEFORE
+                    + "] and ["
+                    + MOCK_NOT_AFTER
+                    + "]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is issued by [CN=ca,OU=windows,DC=example,DC=com];"
@@ -465,7 +542,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("ca1/ca.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt", "ca2/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -477,7 +554,12 @@ public class SslDiagnosticsTests extends ESTestCase {
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
                     + " the server provided a certificate with subject name [CN=Test CA 1]"
-                    + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc], no keyUsage and no extendedKeyUsage;"
+                    + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc],"
+                    + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:38:26Z] and [2046-05-20T07:38:26Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued; the [CN=Test CA 1]"
@@ -490,7 +572,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("ca1/ca.crt");
         final SSLSession session = session("192.168.10.10");
         final Map<String, List<X509Certificate>> trustIssuers = Collections.emptyMap();
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -503,6 +585,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                 "failed to establish trust with server at [192.168.10.10];"
                     + " the server provided a certificate with subject name [CN=Test CA 1]"
                     + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc], no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:38:26Z] and [2046-05-20T07:38:26Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued; the [CN=Test CA 1]"
@@ -515,7 +601,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = loadCertChain("ca1/ca.crt");
         final SSLSession session = session("192.168.1.1");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1-b/ca.crt", "ca2/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -527,7 +613,12 @@ public class SslDiagnosticsTests extends ESTestCase {
             Matchers.equalTo(
                 "failed to establish trust with server at [192.168.1.1];"
                     + " the server provided a certificate with subject name [CN=Test CA 1]"
-                    + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc], no keyUsage and no extendedKeyUsage;"
+                    + ", fingerprint [2b7b0416391bdf86502505c23149022d2213dadc],"
+                    + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:38:26Z] and [2046-05-20T07:38:26Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued; the [CN=Test CA 1]"
@@ -542,7 +633,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         X509Certificate[] chain = new X509Certificate[0];
         final SSLSession session = session("192.168.1.2");
         final Map<String, List<X509Certificate>> trustIssuers = Collections.emptyMap();
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -567,7 +658,7 @@ public class SslDiagnosticsTests extends ESTestCase {
 
         final SSLSession session = session("192.168.1.3");
         final Map<String, List<X509Certificate>> trustIssuers = trust(certificate);
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -583,6 +674,14 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + MOCK_FINGERPRINT_1
                     + "],"
                     + " keyUsage [digitalSignature, nonRepudiation] and extendedKeyUsage [serverAuth, codeSigning];"
+                    + " the certificate is valid between ["
+                    + MOCK_NOT_BEFORE
+                    + "] and ["
+                    + MOCK_NOT_AFTER
+                    + "]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any DNS/IP subject alternative names;"
                     + " the certificate is self-issued;"
@@ -610,7 +709,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String protocol = randomFrom(SslConfigurationLoader.DEFAULT_PROTOCOLS);
         final SSLSession session = session(peerHost, cipherSuite, protocol);
         final Map<String, List<X509Certificate>> trustIssuers = trust(certificate);
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -628,6 +727,14 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + ", fingerprint ["
                     + MOCK_FINGERPRINT_1
                     + "], no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between ["
+                    + MOCK_NOT_BEFORE
+                    + "] and ["
+                    + MOCK_NOT_AFTER
+                    + "]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -660,7 +767,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String protocol = randomFrom(SslConfigurationLoader.DEFAULT_PROTOCOLS);
         final SSLSession session = session(peerHost, cipherSuite, protocol);
         final Map<String, List<X509Certificate>> trustIssuers = trust(certificate);
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -680,6 +787,14 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + "],"
                     + " keyUsage [digitalSignature, keyEncipherment, dataEncipherment, keyAgreement]"
                     + " and no extendedKeyUsage;"
+                    + " the certificate is valid between ["
+                    + MOCK_NOT_BEFORE
+                    + "] and ["
+                    + MOCK_NOT_AFTER
+                    + "]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -712,7 +827,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String protocol = randomFrom(SslConfigurationLoader.DEFAULT_PROTOCOLS);
         final SSLSession session = session(peerHost, cipherSuite, protocol);
         final Map<String, List<X509Certificate>> trustIssuers = trust(certificate);
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -731,6 +846,14 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + MOCK_FINGERPRINT_1
                     + "],"
                     + " keyUsage [encipherOnly] and extendedKeyUsage [serverAuth, clientAuth];"
+                    + " the certificate is valid between ["
+                    + MOCK_NOT_BEFORE
+                    + "] and ["
+                    + MOCK_NOT_AFTER
+                    + "]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -763,7 +886,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String protocol = randomFrom(SslConfigurationLoader.DEFAULT_PROTOCOLS);
         final SSLSession session = session(peerHost, cipherSuite, protocol);
         final Map<String, List<X509Certificate>> trustIssuers = trust(certificate);
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -782,6 +905,14 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + MOCK_FINGERPRINT_1
                     + "],"
                     + " keyUsage [keyCertSign, #9, #11] and extendedKeyUsage [timeStamping, 1.3.6.1.5.5.7.3.12];"
+                    + " the certificate is valid between ["
+                    + MOCK_NOT_BEFORE
+                    + "] and ["
+                    + MOCK_NOT_AFTER
+                    + "]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite ["
                     + cipherSuite
                     + "] and protocol ["
@@ -803,7 +934,7 @@ public class SslDiagnosticsTests extends ESTestCase {
 
         final SSLSession session = session("192.168.1.6");
         final Map<String, List<X509Certificate>> trustIssuers = trust(Collections.emptyList());
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -817,6 +948,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=foo,DC=example,DC=com],"
                     + " invalid encoding [java.security.cert.CertificateEncodingException: MOCK INVALID ENCODING],"
                     + " keyUsage [digitalSignature, nonRepudiation] and extendedKeyUsage [serverAuth, codeSigning];"
+                    + (" the certificate is valid between [" + MOCK_NOT_BEFORE + "] and [" + MOCK_NOT_AFTER + "]")
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate does not have any subject alternative names;"
                     + " the certificate is self-issued;"
@@ -826,12 +961,60 @@ public class SslDiagnosticsTests extends ESTestCase {
         );
     }
 
+    public void testDiagnosticMessageWhenCurrentTimeIsBeforeCertificateNotBefore() throws Exception {
+        final String mockTime = "2000-01-23T01:23:45.678Z";
+        this.diagnostics = buildSslDiagnostics(mockTime);
+        X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
+        final SSLSession session = session("192.168.1.1");
+        final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt");
+        final String message = diagnostics.getTrustDiagnosticFailure(
+            chain,
+            SslDiagnostics.PeerType.SERVER,
+            session,
+            "xpack.http.ssl",
+            trustIssuers
+        );
+        assertThat(
+            message,
+            containsString(
+                " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + mockTime
+                    + "], ** certificate is not yet valid);"
+            )
+        );
+    }
+
+    public void testDiagnosticMessageWhenCurrentTimeIsAfterCertificateNotAfter() throws Exception {
+        final String mockTime = "2050-05-05T05:05:05Z";
+        this.diagnostics = buildSslDiagnostics(mockTime);
+        X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
+        final SSLSession session = session("192.168.1.1");
+        final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt");
+        final String message = diagnostics.getTrustDiagnosticFailure(
+            chain,
+            SslDiagnostics.PeerType.SERVER,
+            session,
+            "xpack.http.ssl",
+            trustIssuers
+        );
+        assertThat(
+            message,
+            containsString(
+                " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + mockTime
+                    + "], ** certificate has expired);"
+            )
+        );
+    }
+
     public void testDiagnosticMessageForClientCertificate() throws Exception {
         X509Certificate[] chain = loadCertChain("cert1/cert1.crt");
 
         final SSLSession session = session("192.168.1.7");
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt");
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.CLIENT,
             session,
@@ -844,6 +1027,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                 "failed to establish trust with client at [192.168.1.7];"
                     + " the client provided a certificate with subject name [CN=cert1]"
                     + ", fingerprint [3bebe388a66362784afd6c51a9000961a4e10050], no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate is issued by [CN=Test CA 1]"
                     + " but the client did not provide a copy of the issuing certificate in the certificate chain;"
@@ -866,7 +1053,7 @@ public class SslDiagnosticsTests extends ESTestCase {
 
         final SSLSession session = session("192.168.1.4");
         final Map<String, List<X509Certificate>> trustIssuers = trust(oldCaCert);
-        final String message = SslDiagnostics.getTrustDiagnosticFailure(
+        final String message = diagnostics.getTrustDiagnosticFailure(
             chain,
             SslDiagnostics.PeerType.SERVER,
             session,
@@ -880,6 +1067,10 @@ public class SslDiagnosticsTests extends ESTestCase {
                     + " the server provided a certificate with subject name [CN=cert1],"
                     + " fingerprint [3bebe388a66362784afd6c51a9000961a4e10050],"
                     + " no keyUsage and no extendedKeyUsage;"
+                    + " the certificate is valid between [2019-01-03T07:40:42Z] and [2046-05-20T07:40:42Z]"
+                    + " (current time is ["
+                    + MOCK_NOW
+                    + "], certificate dates are valid);"
                     + " the session uses cipher suite [TLS_ECDHE_RSA_WITH_RC4_128_SHA] and protocol [SSLv3];"
                     + " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];"
                     + " the certificate is issued by [CN=Test CA 1];"
@@ -929,6 +1120,9 @@ public class SslDiagnosticsTests extends ESTestCase {
         final X500Principal x500Principal = new X500Principal(principal);
         final PublicKey key = Mockito.mock(PublicKey.class);
 
+        final Date notBefore = new Date(Instant.parse(MOCK_NOT_BEFORE).toEpochMilli());
+        final Date notAfter = new Date(Instant.parse(MOCK_NOT_AFTER).toEpochMilli());
+
         Mockito.when(cert.getSubjectX500Principal()).thenReturn(x500Principal);
         Mockito.when(cert.getSubjectAlternativeNames()).thenReturn(subjAltNames);
         final X500Principal issuerPrincipal = issuer == null ? x500Principal : issuer.getSubjectX500Principal();
@@ -937,6 +1131,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         Mockito.when(cert.getEncoded()).thenReturn(encoding);
         Mockito.when(cert.getExtendedKeyUsage()).thenReturn(extendedKeyUsage);
         Mockito.when(cert.getKeyUsage()).thenReturn(keyUsage);
+        Mockito.when(cert.getNotBefore()).thenReturn(notBefore);
+        Mockito.when(cert.getNotAfter()).thenReturn(notAfter);
         return cert;
     }
 

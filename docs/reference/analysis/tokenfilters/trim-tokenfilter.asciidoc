@@ -9,7 +9,7 @@ can change the length of a token, the `trim` filter does _not_ change a token's
 offsets.
 
 The `trim` filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/TrimFilter.html[TrimFilter].
+https://lucene.apache.org/core/{lucene_version_path}/analysis/common/org/apache/lucene/analysis/miscellaneous/TrimFilter.html[TrimFilter].
 
 [TIP]
 ====

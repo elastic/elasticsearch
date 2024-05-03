@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -32,7 +32,7 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
     public void testValidate_jobVersionCannonBeBefore61() {
         Job.Builder jobBuilder = createTestJob("forecast-it-test-job-version");
 
-        jobBuilder.setJobVersion(Version.fromString("6.0.1"));
+        jobBuilder.setJobVersion(MlConfigVersion.fromString("6.0.1"));
         ForecastJobAction.Request request = new ForecastJobAction.Request();
         Exception e = expectThrows(
             ElasticsearchStatusException.class,

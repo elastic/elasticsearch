@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -23,10 +24,16 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
+    @Override
+    protected Settings nodeSettings() {
+        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
+    }
+
     public void testWaitForMetadataVersion() throws Exception {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.waitForTimeout(TimeValue.timeValueHours(1));
-        ClusterStateResponse response = client().admin().cluster().state(clusterStateRequest).get(10L, TimeUnit.SECONDS);
+        ClusterStateResponse response = clusterAdmin().state(clusterStateRequest).get(10L, TimeUnit.SECONDS);
         assertThat(response.isWaitForTimedOut(), is(false));
         long metadataVersion = response.getState().getMetadata().version();
 
@@ -34,13 +41,13 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.waitForMetadataVersion(metadataVersion + 1);
 
-        ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(clusterStateRequest);
+        ActionFuture<ClusterStateResponse> future2 = clusterAdmin().state(clusterStateRequest);
         assertThat(future2.isDone(), is(false));
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         // Pick an arbitrary dynamic cluster setting and change it. Just to get metadata version incremented:
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", 999));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
         response = future2.get(10L, TimeUnit.SECONDS);
         assertThat(response.isWaitForTimedOut(), is(false));
@@ -50,7 +57,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         metadataVersion = response.getState().getMetadata().version();
         clusterStateRequest.waitForMetadataVersion(metadataVersion + 1);
         clusterStateRequest.waitForTimeout(TimeValue.timeValueMillis(500)); // Fail fast
-        ActionFuture<ClusterStateResponse> future3 = client().admin().cluster().state(clusterStateRequest);
+        ActionFuture<ClusterStateResponse> future3 = clusterAdmin().state(clusterStateRequest);
         response = future3.get(10L, TimeUnit.SECONDS);
         assertThat(response.isWaitForTimedOut(), is(true));
         assertThat(response.getState(), nullValue());
@@ -58,7 +65,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         // Remove transient setting, otherwise test fails with the reason that this test leaves state behind:
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", (String) null));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
     }
 
 }

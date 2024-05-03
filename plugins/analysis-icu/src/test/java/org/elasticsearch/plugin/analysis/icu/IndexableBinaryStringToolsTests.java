@@ -18,6 +18,7 @@
 package org.elasticsearch.plugin.analysis.icu;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
@@ -25,6 +26,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.BeforeClass;
 
@@ -35,6 +37,7 @@ import java.util.Locale;
  */
 @Deprecated
 @Listeners({ ReproduceInfoPrinter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")

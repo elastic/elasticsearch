@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLimits> {
+public class AnalysisLimitsTests extends AbstractXContentSerializingTestCase<AnalysisLimits> {
 
     @Override
     protected AnalysisLimits createTestInstance() {
@@ -172,7 +172,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
     }
 
     @Override
-    protected AnalysisLimits mutateInstance(AnalysisLimits instance) throws IOException {
+    protected AnalysisLimits mutateInstance(AnalysisLimits instance) {
         Long memoryModelLimit = instance.getModelMemoryLimit();
         Long categorizationExamplesLimit = instance.getCategorizationExamplesLimit();
         switch (between(0, 1)) {

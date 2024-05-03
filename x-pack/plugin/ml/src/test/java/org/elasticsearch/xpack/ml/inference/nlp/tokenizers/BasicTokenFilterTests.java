@@ -67,6 +67,7 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
     public void testStripAccents() throws Exception {
         Analyzer analyzer = basicAnalyzerFromSettings(true, true, List.of("[UNK]"));
         assertAnalyzesToNoCharFilter(analyzer, "HäLLo how are you", new String[] { "HaLLo", "how", "are", "you" });
+        assertAnalyzesToNoCharFilter(analyzer, "ÎÎÎÏÎ½ÎÎÎÎ±Î¿Ï", new String[] { "IIIII½IIII±I", "¿", "I" });
     }
 
     private static void assertAnalyzesToNoCharFilter(Analyzer a, String input, String[] output) throws IOException {

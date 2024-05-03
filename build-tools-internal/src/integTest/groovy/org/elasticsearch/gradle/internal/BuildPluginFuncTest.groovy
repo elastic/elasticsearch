@@ -10,7 +10,10 @@ package org.elasticsearch.gradle.internal
 
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.ClassRule
+import spock.lang.Shared
 
 import java.nio.charset.StandardCharsets
 import java.util.zip.ZipEntry
@@ -20,11 +23,15 @@ import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarHellJ
 
 class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
+    @Shared
+    @ClassRule
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
+
     def EXAMPLE_LICENSE = """\
         Redistribution and use in source and binary forms, with or without
         modification, are permitted provided that the following conditions
         are met:
-        
+
          1. Redistributions of source code must retain the above copyright
             notice, this list of conditions and the following disclaimer.
          2. Redistributions in binary form must reproduce the above copyright
@@ -32,7 +39,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             documentation and/or other materials provided with the distribution.
          3. The name of the author may not be used to endorse or promote products
             derived from this software without specific prior written permission.
-        
+
         THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
         IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
         OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
@@ -45,16 +52,17 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripIndent()
 
     def setup() {
+        configurationCacheCompatible = false
         buildFile << """
         plugins {
           id 'java'
           id 'elasticsearch.global-build-info'
         }
-       
+
         apply plugin:'elasticsearch.build'
         group = 'org.acme'
         description = "some example project"
-        
+
         repositories {
           maven {
             name = "local-test"
@@ -65,7 +73,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
           }
           mavenCentral()
         }
-        
+
         dependencies {
           jarHell 'org.elasticsearch:elasticsearch-core:current'
         }
@@ -81,7 +89,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
            * Side Public License, v 1.
            */
           package org.elasticsearch;
-          
+
           public class SampleClass {
           }
         """.stripIndent()
@@ -109,7 +117,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             noticeFile.set(file("NOTICE"))
             """
         when:
-        def result = gradleRunner("assemble").build()
+        def result = gradleRunner("assemble", "-x", "generateHistoricalFeaturesMetadata").build()
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world.jar").exists()
@@ -120,6 +128,9 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def "applies checks"() {
         given:
+        withVersionCatalogue()
+        repository.generateJar("org.elasticsearch", "build-conventions", "unspecified", 'org.acme.CheckstyleStuff')
+        repository.configureBuild(buildFile)
         setupJarHellJar(dir('local-repo/org/elasticsearch/elasticsearch-core/current/'))
         file("licenses/hamcrest-core-1.3.jar.sha1").text = "42a25dc3219429f0e5d060061f71acb49bf010a0"
         file("licenses/hamcrest-core-LICENSE.txt").text = EXAMPLE_LICENSE
@@ -132,11 +143,10 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
               api "junit:junit:4.12"
               // missing classes in thirdparty audit
               api 'org.hamcrest:hamcrest-core:1.3'
-
             }
             licenseFile.set(file("LICENSE"))
             noticeFile.set(file("NOTICE"))
-            
+
             tasks.named("forbiddenApisMain").configure {enabled = false }
             tasks.named('checkstyleMain').configure { enabled = false }
             tasks.named('loggerUsageCheck').configure { enabled = false }

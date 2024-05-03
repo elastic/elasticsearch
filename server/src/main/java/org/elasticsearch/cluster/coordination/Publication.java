@@ -13,12 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +37,7 @@ public abstract class Publication {
     private final LongSupplier currentTimeSupplier;
     private final long startTime;
 
-    private Optional<ApplyCommitRequest> applyCommitRequest; // set when state is committed
+    private Optional<SubscribableListener<ApplyCommitRequest>> applyCommitRequest; // set when state is committed
     private boolean isCompleted; // set when publication is completed
     private boolean cancelled; // set when publication is cancelled
 
@@ -122,7 +122,7 @@ public abstract class Publication {
     }
 
     // For assertions only: verify that this invariant holds
-    private boolean publicationCompletedIffAllTargetsInactiveOrCancelled() {
+    boolean publicationCompletedIffAllTargetsInactiveOrCancelled() {
         if (cancelled == false) {
             for (final PublicationTarget target : publicationTargets) {
                 if (target.isActive()) {
@@ -173,7 +173,10 @@ public abstract class Publication {
 
     protected abstract boolean isPublishQuorum(CoordinationState.VoteCollection votes);
 
-    protected abstract Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse);
+    protected abstract Optional<SubscribableListener<ApplyCommitRequest>> handlePublishResponse(
+        DiscoveryNode sourceNode,
+        PublishResponse publishResponse
+    );
 
     protected abstract void onJoin(Join join);
 
@@ -188,8 +191,10 @@ public abstract class Publication {
     protected abstract void sendApplyCommit(
         DiscoveryNode destination,
         ApplyCommitRequest applyCommit,
-        ActionListener<TransportResponse.Empty> responseActionListener
+        ActionListener<Void> responseActionListener
     );
+
+    protected abstract <T> ActionListener<T> wrapListener(ActionListener<T> listener);
 
     @Override
     public String toString() {
@@ -280,7 +285,19 @@ public abstract class Publication {
             assert state == PublicationTargetState.WAITING_FOR_QUORUM : state + " -> " + PublicationTargetState.SENT_APPLY_COMMIT;
             state = PublicationTargetState.SENT_APPLY_COMMIT;
             assert applyCommitRequest.isPresent();
-            Publication.this.sendApplyCommit(discoveryNode, applyCommitRequest.get(), new ApplyCommitResponseHandler());
+            applyCommitRequest.get().addListener(wrapListener(new ActionListener<>() {
+                @Override
+                public void onResponse(ApplyCommitRequest applyCommitRequest) {
+                    Publication.this.sendApplyCommit(discoveryNode, applyCommitRequest, new ApplyCommitResponseHandler());
+                    assert publicationCompletedIffAllTargetsInactiveOrCancelled();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    setFailed(e);
+                    onPossibleCommitFailure();
+                }
+            }));
             assert publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
 
@@ -349,8 +366,8 @@ public abstract class Publication {
 
                 if (response.getJoin().isPresent()) {
                     final Join join = response.getJoin().get();
-                    assert discoveryNode.equals(join.getSourceNode());
-                    assert join.getTerm() == response.getPublishResponse().getTerm() : response;
+                    assert discoveryNode.equals(join.votingNode());
+                    assert join.term() == response.getPublishResponse().getTerm() : response;
                     logger.trace("handling join within publish response: {}", join);
                     onJoin(join);
                 } else {
@@ -377,7 +394,7 @@ public abstract class Publication {
 
         private Exception getRootCause(Exception e) {
             if (e instanceof final TransportException transportException) {
-                if (transportException.getRootCause()instanceof final Exception rootCause) {
+                if (transportException.getRootCause() instanceof final Exception rootCause) {
                     return rootCause;
                 } else {
                     assert false : e;
@@ -387,10 +404,10 @@ public abstract class Publication {
             return e;
         }
 
-        private class ApplyCommitResponseHandler implements ActionListener<TransportResponse.Empty> {
+        private class ApplyCommitResponseHandler implements ActionListener<Void> {
 
             @Override
-            public void onResponse(TransportResponse.Empty ignored) {
+            public void onResponse(Void ignored) {
                 if (isFailed()) {
                     logger.debug("ApplyCommitResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
                     return;

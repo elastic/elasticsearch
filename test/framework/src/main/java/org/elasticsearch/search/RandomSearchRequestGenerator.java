@@ -11,8 +11,10 @@ package org.elasticsearch.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -20,11 +22,13 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -32,16 +36,18 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -50,6 +56,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
@@ -114,6 +121,7 @@ public class RandomSearchRequestGenerator {
     public static SearchSourceBuilder randomSearchSourceBuilder(
         Supplier<HighlightBuilder> randomHighlightBuilder,
         Supplier<SuggestBuilder> randomSuggestBuilder,
+        Supplier<RankBuilder> rankContextBuilderSupplier,
         Supplier<RescorerBuilder<?>> randomRescoreBuilder,
         Supplier<List<SearchExtBuilder>> randomExtBuilders,
         Supplier<CollapseBuilder> randomCollapseBuilder,
@@ -142,7 +150,7 @@ public class RandomSearchRequestGenerator {
             builder.minScore(randomFloat() * 1000);
         }
         if (randomBoolean()) {
-            builder.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "timeout"));
+            builder.timeout(randomTimeValue());
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
@@ -241,10 +249,39 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
+        } else if (randomBoolean()) {
+            builder.subSearches(
+                List.of(
+                    new SubSearchSourceBuilder(
+                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
+                    ),
+                    new SubSearchSourceBuilder(
+                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
+                    )
+                )
+            );
         }
         if (randomBoolean()) {
             builder.postFilter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         }
+
+        if (randomBoolean()) {
+            int numKClauses = randomIntBetween(1, 5);
+            List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(numKClauses);
+            for (int j = 0; j < numKClauses; j++) {
+                String field = randomAlphaOfLength(6);
+                int dim = randomIntBetween(2, 30);
+                float[] vector = new float[dim];
+                for (int i = 0; i < vector.length; i++) {
+                    vector[i] = randomFloat();
+                }
+                int k = randomIntBetween(1, 100);
+                int numCands = randomIntBetween(k, 1000);
+                knnSearchBuilders.add(new KnnSearchBuilder(field, vector, k, numCands, randomBoolean() ? null : randomFloat()));
+            }
+            builder.knnSearch(knnSearchBuilders);
+        }
+
         if (randomBoolean()) {
             int numSorts = randomIntBetween(1, 5);
             for (int i = 0; i < numSorts; i++) {
@@ -294,16 +331,18 @@ public class RandomSearchRequestGenerator {
                 }
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput()
-                    );
-                parser.nextToken();
-                parser.nextToken();
-                parser.nextToken();
-                builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
+                try (
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        BytesReference.bytes(jsonBuilder),
+                        XContentType.JSON
+                    )
+                ) {
+                    parser.nextToken();
+                    parser.nextToken();
+                    parser.nextToken();
+                    builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
+                }
             } catch (IOException e) {
                 throw new RuntimeException("Error building search_from", e);
             }
@@ -313,6 +352,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.suggest(randomSuggestBuilder.get());
+        }
+        if (randomBoolean()) {
+            builder.rankBuilder(rankContextBuilderSupplier.get());
         }
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);
@@ -340,7 +382,9 @@ public class RandomSearchRequestGenerator {
             builder.collapse(randomCollapseBuilder.get());
         }
         if (randomBoolean()) {
-            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            PointInTimeBuilder pit = new PointInTimeBuilder(
+                new BytesArray(Base64.getUrlEncoder().encode(randomAlphaOfLengthBetween(3, 10).getBytes(StandardCharsets.UTF_8)))
+            );
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
             }

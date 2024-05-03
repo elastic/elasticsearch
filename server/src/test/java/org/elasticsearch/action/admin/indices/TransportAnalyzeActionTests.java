@@ -12,30 +12,29 @@ import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
+import org.elasticsearch.indices.analysis.lucene.AppendCharFilter;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -67,7 +66,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .put("index.analysis.analyzer.custom_analyzer.filter", "mock")
@@ -85,7 +84,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 final CharacterRunAutomaton stopset;
 
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
+                    super(name, settings);
                     if (settings.hasValue("stopword")) {
                         this.stopset = new CharacterRunAutomaton(Automata.makeString(settings.get("stopword")));
                     } else {
@@ -99,39 +98,12 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 }
             }
 
-            class DeprecatedTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
-
-                DeprecatedTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
-                }
-
-                @Override
-                public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.warn(
-                        DeprecationCategory.ANALYSIS,
-                        "deprecated_token_filter_create",
-                        "Using deprecated token filter [deprecated]"
-                    );
-                    return tokenStream;
-                }
-
-                @Override
-                public TokenStream normalize(TokenStream tokenStream) {
-                    deprecationLogger.warn(
-                        DeprecationCategory.ANALYSIS,
-                        "deprecated_token_filter_normalize",
-                        "Using deprecated token filter [deprecated]"
-                    );
-                    return tokenStream;
-                }
-            }
-
             class AppendCharFilterFactory extends AbstractCharFilterFactory {
 
                 final String suffix;
 
                 AppendCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                    super(indexSettings, name);
+                    super(name);
                     this.suffix = settings.get("suffix", "bar");
                 }
 
@@ -159,7 +131,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-                return Map.of("mock", MockFactory::new, "deprecated", DeprecatedTokenFilterFactory::new);
+                return Map.of("mock", MockFactory::new);
             }
 
             @Override
@@ -167,8 +139,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 return singletonList(PreConfiguredCharFilter.singleton("append", false, reader -> new AppendCharFilter(reader, "foo")));
             }
         };
-        registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();
-        indexAnalyzers = registry.build(this.indexSettings);
+        registry = new AnalysisModule(environment, singletonList(plugin), new StablePluginsRegistry()).getAnalysisRegistry();
+        indexAnalyzers = registry.build(IndexService.IndexCreationContext.RELOAD_ANALYZERS, this.indexSettings);
         maxTokenCount = IndexSettings.MAX_TOKEN_COUNT_SETTING.getDefault(settings);
         idxMaxTokenCount = this.indexSettings.getMaxTokenCount();
     }
@@ -350,10 +322,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
     public void testGetFieldAnalyzerWithoutIndexAnalyzers() {
         AnalyzeAction.Request req = new AnalyzeAction.Request().field("field").text("text");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount);
+        });
         assertEquals(e.getMessage(), "analysis based on a specific field requires an index");
     }
 
@@ -551,21 +522,17 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request req = new AnalyzeAction.Request();
         req.tokenizer("standard");
         req.addTokenFilter("lowercase");
-        req.addTokenFilter("deprecated");
         req.text("test text");
 
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(2, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
 
         // normalizer
         req = new AnalyzeAction.Request();
         req.addTokenFilter("lowercase");
-        req.addTokenFilter("deprecated");
         req.text("text");
 
         analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(1, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
     }
 }

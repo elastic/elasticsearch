@@ -225,6 +225,8 @@ public abstract class IntervalBuilder {
         @Override
         public IntervalIterator intervals(String field, LeafReaderContext ctx) {
             return new IntervalIterator() {
+                boolean exhausted = false;
+
                 @Override
                 public int start() {
                     return NO_MORE_INTERVALS;
@@ -252,16 +254,18 @@ public abstract class IntervalBuilder {
 
                 @Override
                 public int docID() {
-                    return NO_MORE_DOCS;
+                    return exhausted ? NO_MORE_DOCS : -1;
                 }
 
                 @Override
                 public int nextDoc() {
+                    exhausted = true;
                     return NO_MORE_DOCS;
                 }
 
                 @Override
                 public int advance(int target) {
+                    exhausted = true;
                     return NO_MORE_DOCS;
                 }
 

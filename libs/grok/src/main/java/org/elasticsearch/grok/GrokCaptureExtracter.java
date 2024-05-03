@@ -11,37 +11,65 @@ package org.elasticsearch.grok;
 import org.joni.Region;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
 /**
  * How to extract matches.
  */
-public abstract class GrokCaptureExtracter {
+public interface GrokCaptureExtracter {
+
+    record Range(Object match, int offset, int length) {}
+
     /**
      * Extract {@link Map} results. This implementation of {@link GrokCaptureExtracter}
      * is mutable and should be discarded after collecting a single result.
      */
-    static class MapExtracter extends GrokCaptureExtracter {
+    class MapExtracter implements GrokCaptureExtracter {
         private final Map<String, Object> result;
         private final List<GrokCaptureExtracter> fieldExtracters;
 
-        MapExtracter(List<GrokCaptureConfig> captureConfig) {
-            result = captureConfig.isEmpty() ? emptyMap() : new HashMap<>();
+        @SuppressWarnings("unchecked")
+        MapExtracter(
+            List<GrokCaptureConfig> captureConfig,
+            Function<GrokCaptureConfig, Function<Consumer<Object>, GrokCaptureExtracter>> getExtracter
+        ) {
+            result = captureConfig.isEmpty() ? emptyMap() : new LinkedHashMap<>();
             fieldExtracters = new ArrayList<>(captureConfig.size());
             for (GrokCaptureConfig config : captureConfig) {
-                fieldExtracters.add(config.objectExtracter(v -> result.put(config.name(), v)));
+                fieldExtracters.add(getExtracter.apply(config).apply(value -> {
+                    var key = config.name();
+
+                    // Logstash's Grok processor flattens the list of values to a single value in case there's only 1 match,
+                    // so we have to do the same to be compatible.
+                    // e.g.:
+                    // pattern = `%{SINGLEDIGIT:name}(%{SINGLEDIGIT:name})?`
+                    // - GROK(pattern, "1") => { name: 1 }
+                    // - GROK(pattern, "12") => { name: [1, 2] }
+                    if (result.containsKey(key)) {
+                        if (result.get(key) instanceof List<?> values) {
+                            ((ArrayList<Object>) values).add(value);
+                        } else {
+                            var values = new ArrayList<>();
+                            values.add(result.get(key));
+                            values.add(value);
+                            result.put(key, values);
+                        }
+                    } else {
+                        result.put(key, value);
+                    }
+                }));
             }
         }
 
         @Override
-        void extract(byte[] utf8Bytes, int offset, Region region) {
-            for (GrokCaptureExtracter extracter : fieldExtracters) {
-                extracter.extract(utf8Bytes, offset, region);
-            }
+        public void extract(byte[] utf8Bytes, int offset, Region region) {
+            fieldExtracters.forEach(extracter -> extracter.extract(utf8Bytes, offset, region));
         }
 
         Map<String, Object> result() {
@@ -49,5 +77,5 @@ public abstract class GrokCaptureExtracter {
         }
     }
 
-    abstract void extract(byte[] utf8Bytes, int offset, Region region);
+    void extract(byte[] utf8Bytes, int offset, Region region);
 }

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
 
@@ -22,9 +23,7 @@ public class JvmService implements ReportingService<JvmInfo> {
 
     private final JvmInfo jvmInfo;
 
-    private final TimeValue refreshInterval;
-
-    private JvmStats jvmStats;
+    private final SingleObjectCache<JvmStats> jvmStatsCache;
 
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "monitor.jvm.refresh_interval",
@@ -35,10 +34,8 @@ public class JvmService implements ReportingService<JvmInfo> {
 
     public JvmService(Settings settings) {
         this.jvmInfo = JvmInfo.jvmInfo();
-        this.jvmStats = JvmStats.jvmStats();
-
-        this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-
+        TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
+        jvmStatsCache = new JvmStatsCache(refreshInterval, JvmStats.jvmStats());
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
@@ -47,10 +44,18 @@ public class JvmService implements ReportingService<JvmInfo> {
         return this.jvmInfo;
     }
 
-    public synchronized JvmStats stats() {
-        if ((System.currentTimeMillis() - jvmStats.getTimestamp()) > refreshInterval.millis()) {
-            jvmStats = JvmStats.jvmStats();
+    public JvmStats stats() {
+        return jvmStatsCache.getOrRefresh();
+    }
+
+    private class JvmStatsCache extends SingleObjectCache<JvmStats> {
+        JvmStatsCache(TimeValue interval, JvmStats initValue) {
+            super(interval, initValue);
         }
-        return jvmStats;
+
+        @Override
+        protected JvmStats refresh() {
+            return JvmStats.jvmStats();
+        }
     }
 }

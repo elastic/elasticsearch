@@ -9,13 +9,14 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -128,6 +129,11 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
+        public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+            return createResponse(status, BytesArray.EMPTY);
+        }
+
+        @Override
         public void release() {}
 
         @Override
@@ -144,7 +150,7 @@ public class FakeRestRequest extends RestRequest {
     public static class FakeHttpChannel implements HttpChannel {
 
         private final InetSocketAddress remoteAddress;
-        private final ListenableActionFuture<Void> closeFuture = new ListenableActionFuture<>();
+        private final SubscribableListener<Void> closeFuture = new SubscribableListener<>();
 
         public FakeHttpChannel(InetSocketAddress remoteAddress) {
             this.remoteAddress = remoteAddress;
@@ -152,7 +158,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-
+            closeFuture.addListener(listener);
         }
 
         @Override

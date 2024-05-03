@@ -13,6 +13,7 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
+        subProject(":test:test-clusters") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:yaml-rest-runner") << "apply plugin: 'elasticsearch.java'"
 
         subProject(":rest-api-spec") << """
@@ -30,7 +31,8 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
         }
         """
 
-        subProject(":distribution:archives:integ-test-zip") << "configurations { extracted }"
+        subProject(":distribution:archives:integ-test-zip") << "configurations.create('extracted')\n"
+        subProject(":distribution:archives:integ-test-zip") << "configurations.create('default')\n"
     }
 
     void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackTests = []) {

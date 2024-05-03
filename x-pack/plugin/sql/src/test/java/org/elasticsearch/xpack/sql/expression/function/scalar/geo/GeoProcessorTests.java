@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor.GeoOperation;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 
-import java.io.IOException;
-
 public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProcessor> {
     public static GeoProcessor randomGeoProcessor() {
         return new GeoProcessor(randomFrom(GeoOperation.values()));
@@ -30,7 +28,7 @@ public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProces
     }
 
     @Override
-    protected GeoProcessor mutateInstance(GeoProcessor instance) throws IOException {
+    protected GeoProcessor mutateInstance(GeoProcessor instance) {
         return new GeoProcessor(randomValueOtherThan(instance.processor(), () -> randomFrom(GeoOperation.values())));
     }
 

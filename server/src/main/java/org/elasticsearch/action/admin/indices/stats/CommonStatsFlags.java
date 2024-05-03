@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,9 +18,16 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 
-public class CommonStatsFlags implements Writeable, Cloneable {
+/**
+ * Contains flags that can be used to regulate the presence and calculation of different stat fields in {@link CommonStats}.
+ *
+ * The SHARD_LEVEL flags are for stat fields that can be calculated at the shard level and then may be later aggregated at the index level
+ * along with index-level flag stat fields (e.g., Mappings).
+ */
+public final class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
+    public static final CommonStatsFlags SHARD_LEVEL = new CommonStatsFlags().all().set(Flag.Mappings, false);
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
@@ -48,7 +55,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
                 flags.add(flag);
             }
         }
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readStringArray();
         }
         groups = in.readStringArray();
@@ -66,7 +73,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         }
         out.writeLong(longFlags);
 
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeStringArrayNullable(Strings.EMPTY_ARRAY);
         }
         out.writeStringArrayNullable(groups);
@@ -214,7 +221,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         RequestCache("request_cache", 15),
         Recovery("recovery", 16),
         Bulk("bulk", 17),
-        Shards("shard_stats", 18);
+        Shards("shard_stats", 18),
+        Mappings("mappings", 19),
+        DenseVector("dense_vector", 20);
 
         private final String restName;
         private final int index;

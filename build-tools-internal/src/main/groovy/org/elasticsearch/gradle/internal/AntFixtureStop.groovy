@@ -8,42 +8,40 @@
 
 package org.elasticsearch.gradle.internal
 
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.tasks.Internal
+import org.gradle.process.ExecOperations
 
 import javax.inject.Inject
 
-class AntFixtureStop extends LoggedExec implements FixtureStop {
+abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
 
     @Internal
     AntFixture fixture
 
-    @Internal
-    FileSystemOperations fileSystemOperations
-
     @Inject
-    AntFixtureStop(FileSystemOperations fileSystemOperations) {
-        super(fileSystemOperations)
-        this.fileSystemOperations = fileSystemOperations
+    AntFixtureStop(ProjectLayout projectLayout, ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
+       super(projectLayout, execOperations, fileSystemOperations)
     }
 
     void setFixture(AntFixture fixture) {
         assert this.fixture == null
         this.fixture = fixture;
         final Object pid = "${ -> this.fixture.pid }"
-        onlyIf { fixture.pidFile.exists() }
+        onlyIf("pidFile exists") { fixture.pidFile.exists() }
         doFirst {
             logger.info("Shutting down ${fixture.name} with pid ${pid}")
         }
 
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable = 'Taskkill'
+        if (OS.current() == OS.WINDOWS) {
+            getExecutable().set('Taskkill')
             args('/PID', pid, '/F')
         } else {
-            executable = 'kill'
+            getExecutable().set('kill')
             args('-9', pid)
         }
         doLast {

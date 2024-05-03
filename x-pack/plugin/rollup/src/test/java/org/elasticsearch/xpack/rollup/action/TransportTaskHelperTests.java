@@ -16,10 +16,11 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupJobConfig;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,11 +37,12 @@ public class TransportTaskHelperTests extends ESTestCase {
         tasks.put(1L, task);
         when(taskManager.getTasks()).thenReturn(tasks);
 
-        Consumer<RollupJobTask> consumer = rollupJobTask -> {
+        final var rollupJobTasks = TransportTaskHelper.doProcessTasks("foo", taskManager);
+        assertThat(rollupJobTasks, hasSize(1));
+        for (final var rollupJobTask : rollupJobTasks) {
             assertThat(rollupJobTask.getDescription(), equalTo("rollup_foo"));
             assertThat(rollupJobTask.getConfig().getId(), equalTo(job.getId()));
-        };
-        TransportTaskHelper.doProcessTasks("foo", consumer, taskManager);
+        }
     }
 
     public void testProcessRequestNoMatching() {
@@ -48,8 +50,7 @@ public class TransportTaskHelperTests extends ESTestCase {
         Map<Long, Task> tasks = getRandomTasks();
         when(taskManager.getTasks()).thenReturn(tasks);
 
-        Consumer<RollupJobTask> consumer = rollupJobTask -> { fail("Should not have reached consumer"); };
-        TransportTaskHelper.doProcessTasks("foo", consumer, taskManager);
+        assertThat(TransportTaskHelper.doProcessTasks("foo", taskManager), empty());
     }
 
     public void testProcessRequestMultipleMatching() {
@@ -69,12 +70,11 @@ public class TransportTaskHelperTests extends ESTestCase {
         when(task2.getConfig()).thenReturn(job2);
         tasks.put(2L, task2);
 
-        Consumer<RollupJobTask> consumer = rollupJobTask -> { fail("Should not have reached consumer"); };
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportTaskHelper.doProcessTasks("foo", consumer, taskManager)
+            () -> TransportTaskHelper.doProcessTasks("foo", taskManager)
         );
-        assertThat(e.getMessage(), equalTo("Found more than one matching task for rollup job [foo] when " + "there should only be one."));
+        assertThat(e.getMessage(), equalTo("Found more than one matching task for rollup job [foo] when there should only be one."));
     }
 
     private Map<Long, Task> getRandomTasks() {

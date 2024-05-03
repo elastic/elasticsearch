@@ -1,5 +1,0 @@
-pr: 87293
-summary: Fix resolution of wildcard application privileges
-area: Authorization
-type: bug
-issues: []

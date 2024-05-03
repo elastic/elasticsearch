@@ -1,6 +1,0 @@
-pr: 84230
-summary: Implement binary format support for SQL clear cursor
-area: SQL
-type: bug
-issues:
- - 53359

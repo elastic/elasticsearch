@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -20,18 +20,30 @@ import java.util.Objects;
  */
 public abstract class Condition<T> implements NamedWriteable, ToXContentFragment {
 
+    /*
+     * Describes the type of condition - a min_* condition (MIN), max_* condition (MAX), or an automatic condition (automatic conditions
+     * are something that the platform configures and manages)
+     */
+    public enum Type {
+        MIN,
+        MAX,
+        AUTOMATIC
+    }
+
     protected T value;
     protected final String name;
+    protected final Type type;
 
-    protected Condition(String name) {
+    protected Condition(String name, Type type) {
         this.name = name;
+        this.type = type;
     }
 
     /**
      * Checks if this condition is available in a specific version.
      * This makes sure BWC when introducing a new condition which is not recognized by older versions.
      */
-    boolean includedInVersion(Version version) {
+    boolean includedInVersion(TransportVersion version) {
         return true;
     }
 
@@ -65,6 +77,10 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
     public String name() {
         return name;
+    }
+
+    public Type type() {
+        return type;
     }
 
     /**

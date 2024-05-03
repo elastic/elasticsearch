@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Predicates;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,9 +35,7 @@ import java.util.stream.Collectors;
  */
 public class StringMatcher implements Predicate<String> {
 
-    private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty)", s -> false);
-
-    protected static final Predicate<String> ALWAYS_TRUE_PREDICATE = s -> true;
+    private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty)", Predicates.never());
 
     private final String description;
     private final Predicate<String> predicate;
@@ -70,7 +69,7 @@ public class StringMatcher implements Predicate<String> {
     }
 
     public boolean isTotal() {
-        return predicate == ALWAYS_TRUE_PREDICATE;
+        return predicate == Predicates.<String>always();
     }
 
     // For testing
@@ -130,7 +129,7 @@ public class StringMatcher implements Predicate<String> {
 
             final String description = describe(allText);
             if (nonExactMatch.contains("*")) {
-                return new StringMatcher(description, ALWAYS_TRUE_PREDICATE);
+                return new StringMatcher(description, Predicates.always());
             }
             if (exactMatch.isEmpty()) {
                 return new StringMatcher(description, buildAutomataPredicate(nonExactMatch));
@@ -173,12 +172,36 @@ public class StringMatcher implements Predicate<String> {
                 return Automatons.predicate(patterns);
             } catch (TooComplexToDeterminizeException e) {
                 LOGGER.debug("Pattern automaton [{}] is too complex", patterns);
-                String description = Strings.collectionToCommaDelimitedString(patterns);
-                if (description.length() > 80) {
-                    description = Strings.cleanTruncate(description, 80) + "...";
-                }
-                throw new ElasticsearchSecurityException("The set of patterns [{}] is too complex to evaluate", e, description);
+                throw new ElasticsearchSecurityException(
+                    "The set of patterns [{}] is too complex to evaluate",
+                    e,
+                    getPatternsDescription(patterns)
+                );
+            } catch (IllegalArgumentException e) {
+                LOGGER.debug("Pattern automaton [{}] is invalid", patterns);
+                throw new ElasticsearchSecurityException("The set of patterns [{}] is invalid", e, getPatternsDescription(patterns));
             }
         }
+
+        private static String getPatternsDescription(Collection<String> patterns) {
+            String description = Strings.collectionToCommaDelimitedString(patterns);
+            if (description.length() > 80) {
+                description = Strings.cleanTruncate(description, 80) + "...";
+            }
+            return description;
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StringMatcher that = (StringMatcher) o;
+        return Objects.equals(description, that.description) && Objects.equals(predicate, that.predicate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(description, predicate);
     }
 }

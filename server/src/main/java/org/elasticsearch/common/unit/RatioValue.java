@@ -9,11 +9,16 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 /**
  * Utility class to represent ratio and percentage values between 0 and 100
  */
-public class RatioValue {
+public class RatioValue implements Writeable {
     private final double percent;
 
     public RatioValue(double percent) {
@@ -62,5 +67,32 @@ public class RatioValue {
             }
 
         }
+    }
+
+    /**
+     * Returns the percent as a string with no trailing zeros and the '%' suffix.
+     */
+    public String formatNoTrailingZerosPercent() {
+        String value = String.valueOf(getAsPercent());
+        int i = value.length() - 1;
+        while (i >= 0 && value.charAt(i) == '0') {
+            i--;
+        }
+        if (i < 0) {
+            return "0%";
+        } else if (value.charAt(i) == '.') {
+            return value.substring(0, i) + "%";
+        } else {
+            return value.substring(0, Math.min(i + 1, value.length())) + "%";
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeDouble(percent);
+    }
+
+    public static RatioValue readFrom(StreamInput in) throws IOException {
+        return new RatioValue(in.readDouble());
     }
 }

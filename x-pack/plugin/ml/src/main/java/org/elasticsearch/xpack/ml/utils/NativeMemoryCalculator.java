@@ -22,24 +22,26 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.OptionalLong;
 
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 public final class NativeMemoryCalculator {
 
     // Maximum permitted JVM heap size when auto-configured.
     // Must match the value used in MachineDependentHeap.MachineNodeRole.ML_ONLY.
     public static final long STATIC_JVM_UPPER_THRESHOLD = ByteSizeValue.ofGb(31).getBytes();
-    public static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofGb(1).getBytes();
+    public static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofMb(512).getBytes();
     private static final long OS_OVERHEAD = ByteSizeValue.ofMb(200).getBytes();
     // Memory size beyond which the JVM is given 10% of memory instead of 40%.
     // Must match the value used in MachineDependentHeap.MachineNodeRole.ML_ONLY.
     public static final long JVM_SIZE_KNOT_POINT = ByteSizeValue.ofGb(16).getBytes();
     private static final long BYTES_IN_4MB = ByteSizeValue.ofMb(4).getBytes();
+    // The minimum automatic node size implicitly defines a minimum JVM size
+    private static final long MINIMUM_AUTOMATIC_JVM_SIZE = dynamicallyCalculateJvmSizeFromNodeSize(MINIMUM_AUTOMATIC_NODE_SIZE);
 
     private NativeMemoryCalculator() {}
 
@@ -165,7 +167,7 @@ public final class NativeMemoryCalculator {
         );
     }
 
-    public static long dynamicallyCalculateJvmSizeFromMlNativeMemorySize(long nativeMachineMemory) {
+    public static long dynamicallyCalculateJvmSizeFromMlNativeMemorySize(long mlNativeMemorySize) {
         // For <= 16GB node, the JVM is 0.4 * total_node_size. This means the rest is 0.6 the node size.
         // So, nativeAndOverhead = 0.6 * total_node_size => total_node_size = (nativeAndOverhead / 0.6)
         // Consequently jvmSize = (nativeAndOverhead / 0.6) * 0.4 = nativeAndOverhead * 2 / 3
@@ -177,7 +179,7 @@ public final class NativeMemoryCalculator {
         //
         // In both cases JVM size is rounded down to the next lower multiple of 4 megabytes to match
         // MachineDependentHeap.MachineNodeRole.ML_ONLY.
-        long nativeAndOverhead = nativeMachineMemory + OS_OVERHEAD;
+        long nativeAndOverhead = mlNativeMemorySize + OS_OVERHEAD;
         long higherAnswer;
         if (nativeAndOverhead <= (JVM_SIZE_KNOT_POINT - dynamicallyCalculateJvmSizeFromNodeSize(JVM_SIZE_KNOT_POINT))) {
             higherAnswer = (nativeAndOverhead * 2 / 3 / BYTES_IN_4MB) * BYTES_IN_4MB;
@@ -196,10 +198,10 @@ public final class NativeMemoryCalculator {
             long lowerAnswer = higherAnswer - BYTES_IN_4MB;
             long nodeSizeImpliedByLowerAnswer = nativeAndOverhead + lowerAnswer;
             if (dynamicallyCalculateJvmSizeFromNodeSize(nodeSizeImpliedByLowerAnswer) == lowerAnswer) {
-                return Math.min(lowerAnswer, STATIC_JVM_UPPER_THRESHOLD);
+                return Math.max(MINIMUM_AUTOMATIC_JVM_SIZE, Math.min(lowerAnswer, STATIC_JVM_UPPER_THRESHOLD));
             }
         }
-        return Math.min(higherAnswer, STATIC_JVM_UPPER_THRESHOLD);
+        return Math.max(MINIMUM_AUTOMATIC_JVM_SIZE, Math.min(higherAnswer, STATIC_JVM_UPPER_THRESHOLD));
     }
 
     /**
@@ -289,7 +291,7 @@ public final class NativeMemoryCalculator {
         }
         // When the ML memory percent is being set automatically and no explicit max model memory limit is set,
         // max model memory limit is considered to be the max model memory limit that will fit in the cluster
-        Boolean autoMemory = clusterSettings.get(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT);
+        Boolean autoMemory = clusterSettings.get(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT);
         if (autoMemory) {
             DiscoveryNodes nodes = clusterService.state().getNodes();
             ByteSizeValue modelMemoryLimitToFit = calculateMaxModelMemoryLimitToFit(clusterSettings, nodes);

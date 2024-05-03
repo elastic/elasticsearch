@@ -21,7 +21,8 @@ public final class StringScriptDocValues extends SortingBinaryDocValues {
 
     @Override
     public boolean advanceExact(int docId) {
-        List<String> results = script.resultsForDoc(docId);
+        script.runForDoc(docId);
+        List<String> results = script.getValues();
         count = results.size();
         if (count == 0) {
             return false;

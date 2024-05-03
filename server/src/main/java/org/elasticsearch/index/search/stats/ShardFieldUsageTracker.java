@@ -110,7 +110,7 @@ public class ShardFieldUsageTracker {
 
         @Override
         public void close() {
-            usages.entrySet().stream().forEach(e -> {
+            usages.entrySet().forEach(e -> {
                 InternalFieldStats fieldStats = perFieldStats.computeIfAbsent(e.getKey(), f -> new InternalFieldStats());
                 PerField pf = e.getValue();
                 boolean any = false;

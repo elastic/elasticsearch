@@ -17,11 +17,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction.Request;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction.Request;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 
 public class TransportUpdateTrainedModelAssignmentStateAction extends AcknowledgedTransportMasterNodeAction<Request> {
@@ -38,7 +39,7 @@ public class TransportUpdateTrainedModelAssignmentStateAction extends Acknowledg
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            UpdateTrainedModelAssignmentStateAction.NAME,
+            UpdateTrainedModelAssignmentRoutingInfoAction.NAME,
             false,
             transportService,
             clusterService,
@@ -46,7 +47,7 @@ public class TransportUpdateTrainedModelAssignmentStateAction extends Acknowledg
             actionFilters,
             Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;
     }

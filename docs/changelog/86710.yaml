@@ -1,5 +1,0 @@
-pr: 86710
-summary: Upgrade procrun executables to 1.3.1
-area: Infra/CLI
-type: upgrade
-issues: []

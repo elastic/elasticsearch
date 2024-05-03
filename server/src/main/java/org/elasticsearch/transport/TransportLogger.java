@@ -9,10 +9,10 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -77,8 +77,8 @@ public final class TransportLogger {
                 final byte status = streamInput.readByte();
                 final boolean isRequest = TransportStatus.isRequest(status);
                 final String type = isRequest ? "request" : "response";
-                final Version version = Version.fromId(streamInput.readInt());
-                streamInput.setVersion(version);
+                final TransportVersion version = TransportVersion.fromId(streamInput.readInt());
+                streamInput.setTransportVersion(version);
                 sb.append(" [length: ").append(messageLengthWithHeader);
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
@@ -88,14 +88,14 @@ public final class TransportLogger {
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
                 } else {
                     streamInput = decompressingStream(status, streamInput);
-                    InboundHandler.assertRemoteVersion(streamInput, version);
+                    assert InboundHandler.assertRemoteVersion(streamInput, version);
                 }
 
                 // read and discard headers
                 ThreadContext.readHeadersFromStream(streamInput);
 
                 if (isRequest) {
-                    if (version.before(Version.V_8_0_0)) {
+                    if (version.before(TransportVersions.V_8_0_0)) {
                         // discard features
                         streamInput.readStringArray();
                     }
@@ -158,7 +158,7 @@ public final class TransportLogger {
     private static StreamInput decompressingStream(byte status, StreamInput streamInput) throws IOException {
         if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
             try {
-                return new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(streamInput));
+                return CompressorFactory.COMPRESSOR.threadLocalStreamInput(streamInput);
             } catch (IllegalArgumentException e) {
                 throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
             }

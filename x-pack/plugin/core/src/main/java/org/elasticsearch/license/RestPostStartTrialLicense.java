@@ -10,7 +10,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -24,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends BaseRestHandler {
 
-    RestPostStartTrialLicense() {}
+    public RestPostStartTrialLicense() {}
 
     @Override
     public List<Route> routes() {
@@ -57,16 +56,12 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
                     builder.startObject("acknowledge");
                     builder.field("message", response.getAcknowledgementMessage());
                     for (Map.Entry<String, String[]> entry : acknowledgementMessages.entrySet()) {
-                        builder.startArray(entry.getKey());
-                        for (String message : entry.getValue()) {
-                            builder.value(message);
-                        }
-                        builder.endArray();
+                        builder.array(entry.getKey(), entry.getValue());
                     }
                     builder.endObject();
                 }
                 builder.endObject();
-                return new BytesRestResponse(status.getRestStatus(), builder);
+                return new RestResponse(status.getRestStatus(), builder);
             }
         });
     }

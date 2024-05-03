@@ -9,14 +9,17 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,13 +35,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.ObjectMapper.TypeParser.parseObjectOrDocumentTypeProperties;
+import static org.elasticsearch.index.mapper.ObjectMapper.TypeParser.parseSubobjects;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
+    private static final int MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS = 20;
 
     /**
      * Parameter used when serializing {@link RootObjectMapper} and request that the runtime section is skipped.
@@ -69,6 +76,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
+
+        private static final Logger logger = LogManager.getLogger(RootObjectMapper.Builder.class);
 
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name, subobjects);
@@ -102,153 +111,152 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
+            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
+            mappers.putAll(getAliasMappers(mappers, context));
             return new RootObjectMapper(
-                name,
+                name(),
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(true, context),
-                runtimeFields,
+                mappers,
+                new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
                 numericDetection
             );
         }
-    }
 
-    /**
-     * Removes redundant root includes in {@link NestedObjectMapper} trees to avoid duplicate
-     * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
-     * itself included into a parent node, for which either {@code isIncludeInRoot} is
-     * {@code true} or which is transitively included in root by a chain of nodes with
-     * {@code isIncludeInParent} returning {@code true}.
-     */
-    // TODO it would be really nice to make this an implementation detail of NestedObjectMapper
-    // and run it as part of the builder, but this does not yet work because of the way that
-    // index templates are merged together. If merge() was run on Builder objects rather than
-    // on Mappers then we could move this.
-    public void fixRedundantIncludes() {
-        fixRedundantIncludes(this, true);
-    }
-
-    private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
-        for (Mapper mapper : objectMapper) {
-            if (mapper instanceof NestedObjectMapper child) {
-                boolean isNested = child.isNested();
-                boolean includeInRootViaParent = parentIncluded && isNested && child.isIncludeInParent();
-                boolean includedInRoot = isNested && child.isIncludeInRoot();
-                if (includeInRootViaParent && includedInRoot) {
-                    child.setIncludeInParent(true);
-                    child.setIncludeInRoot(false);
-                }
-                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
+        Map<String, Mapper> getAliasMappers(Map<String, Mapper> mappers, MapperBuilderContext context) {
+            Map<String, Mapper> newMappers = new HashMap<>();
+            Map<String, ObjectMapper.Builder> objectIntermediates = new HashMap<>(1);
+            Map<String, ObjectMapper.Builder> objectIntermediatesFullName = new HashMap<>(1);
+            getAliasMappers(mappers, mappers, newMappers, objectIntermediates, objectIntermediatesFullName, context, 0);
+            for (var entry : objectIntermediates.entrySet()) {
+                newMappers.put(entry.getKey(), entry.getValue().build(context));
             }
-        }
-    }
-
-    static final class TypeParser extends ObjectMapper.TypeParser {
-
-        @Override
-        public RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
-            throws MapperParsingException {
-            Explicit<Boolean> subobjects = parseSubobjects(node);
-            RootObjectMapper.Builder builder = new Builder(name, subobjects);
-            Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                    || processField(builder, fieldName, fieldNode, parserContext)) {
-                    iterator.remove();
-                }
-            }
-            return builder;
+            return newMappers;
         }
 
-        @SuppressWarnings("unchecked")
-        private static boolean processField(
-            RootObjectMapper.Builder builder,
-            String fieldName,
-            Object fieldNode,
-            MappingParserContext parserContext
+        void getAliasMappers(
+            Map<String, Mapper> mappers,
+            Map<String, Mapper> topLevelMappers,
+            Map<String, Mapper> aliasMappers,
+            Map<String, ObjectMapper.Builder> objectIntermediates,
+            Map<String, ObjectMapper.Builder> objectIntermediatesFullName,
+            MapperBuilderContext context,
+            int level
         ) {
-            if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
-                if (fieldNode instanceof List) {
-                    List<DateFormatter> formatters = new ArrayList<>();
-                    for (Object formatter : (List<?>) fieldNode) {
-                        if (formatter.toString().startsWith("epoch_")) {
-                            throw new MapperParsingException("Epoch [" + formatter + "] is not supported as dynamic date format");
+            if (level >= MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS) {
+                logger.warn("Exceeded maximum nesting level for searching for pass-through object fields within object fields.");
+                return;
+            }
+            for (Mapper mapper : mappers.values()) {
+                // Create aliases for all fields in child passthrough mappers and place them under the root object.
+                if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
+                    for (Mapper internalMapper : passthroughMapper.mappers.values()) {
+                        if (internalMapper instanceof FieldMapper fieldMapper) {
+                            // If there's a conflicting alias with the same name at the root level, we don't want to throw an error
+                            // to avoid indexing disruption.
+                            // TODO: record an error without affecting document indexing, so that it can be investigated later.
+                            Mapper conflict = mappers.get(fieldMapper.simpleName());
+                            if (conflict != null) {
+                                if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false
+                                    || ((FieldAliasMapper) conflict).path().equals(fieldMapper.mappedFieldType.name()) == false) {
+                                    logger.warn(
+                                        "Root alias for field "
+                                            + fieldMapper.name()
+                                            + " conflicts with existing field or alias, skipping alias creation."
+                                    );
+                                }
+                            } else {
+                                // Check if the field name contains dots, as aliases require nesting within objects in this case.
+                                String[] fieldNameParts = fieldMapper.simpleName().split("\\.");
+                                if (fieldNameParts.length == 0) {
+                                    throw new IllegalArgumentException("field name cannot contain only dots");
+                                }
+                                if (fieldNameParts.length == 1) {
+                                    // No nesting required, add the alias directly to the root.
+                                    FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
+                                        fieldMapper.mappedFieldType.name()
+                                    ).build(context);
+                                    aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
+                                } else {
+                                    conflict = topLevelMappers.get(fieldNameParts[0]);
+                                    if (conflict != null) {
+                                        if (isConflictingObject(conflict, fieldNameParts)) {
+                                            throw new IllegalArgumentException(
+                                                "Conflicting objects created during alias generation for pass-through field: ["
+                                                    + conflict.name()
+                                                    + "]"
+                                            );
+                                        }
+                                    }
+
+                                    // Nest the alias within object(s).
+                                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                                    Mapper.Builder fieldBuilder = new FieldAliasMapper.Builder(realFieldName).path(
+                                        fieldMapper.mappedFieldType.name()
+                                    );
+                                    ObjectMapper.Builder intermediate = null;
+                                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                                        String intermediateObjectName = fieldNameParts[i];
+                                        intermediate = objectIntermediatesFullName.computeIfAbsent(
+                                            concatStrings(fieldNameParts, i),
+                                            s -> new ObjectMapper.Builder(intermediateObjectName, ObjectMapper.Defaults.SUBOBJECTS)
+                                        );
+                                        intermediate.add(fieldBuilder);
+                                        fieldBuilder = intermediate;
+                                    }
+                                    objectIntermediates.putIfAbsent(fieldNameParts[0], intermediate);
+                                }
+                            }
                         }
-                        formatters.add(parseDateTimeFormatter(formatter));
                     }
-                    builder.dynamicDateTimeFormatter(formatters);
-                } else if ("none".equals(fieldNode.toString())) {
-                    builder.dynamicDateTimeFormatter(Collections.emptyList());
-                } else {
-                    builder.dynamicDateTimeFormatter(Collections.singleton(parseDateTimeFormatter(fieldNode)));
-                }
-                return true;
-            } else if (fieldName.equals("dynamic_templates")) {
-                /*
-                  "dynamic_templates" : [
-                      {
-                          "template_1" : {
-                              "match" : "*_test",
-                              "match_mapping_type" : "string",
-                              "mapping" : { "type" : "keyword", "store" : "yes" }
-                          }
-                      }
-                  ]
-                */
-                if ((fieldNode instanceof List) == false) {
-                    throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
-                }
-                List<?> tmplNodes = (List<?>) fieldNode;
-                List<DynamicTemplate> templates = new ArrayList<>();
-                for (Object tmplNode : tmplNodes) {
-                    Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
-                    if (tmpl.size() != 1) {
-                        throw new MapperParsingException("A dynamic template must be defined with a name");
-                    }
-                    Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
-                    String templateName = entry.getKey();
-                    Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                    validateDynamicTemplate(parserContext, template);
-                    templates.add(template);
-                }
-                builder.dynamicTemplates(templates);
-                return true;
-            } else if (fieldName.equals("date_detection")) {
-                builder.dateDetection = Explicit.explicitBoolean(nodeBooleanValue(fieldNode, "date_detection"));
-                return true;
-            } else if (fieldName.equals("numeric_detection")) {
-                builder.numericDetection = Explicit.explicitBoolean(nodeBooleanValue(fieldNode, "numeric_detection"));
-                return true;
-            } else if (fieldName.equals("runtime")) {
-                if (fieldNode instanceof Map) {
-                    Map<String, RuntimeField> fields = RuntimeField.parseRuntimeFields(
-                        (Map<String, Object>) fieldNode,
-                        parserContext,
-                        true
+                } else if (mapper instanceof ObjectMapper objectMapper) {
+                    // Call recursively to check child fields. The level guards against long recursive call sequences.
+                    getAliasMappers(
+                        objectMapper.mappers,
+                        topLevelMappers,
+                        aliasMappers,
+                        objectIntermediates,
+                        objectIntermediatesFullName,
+                        context,
+                        level + 1
                     );
-                    builder.addRuntimeFields(fields);
-                    return true;
-                } else {
-                    throw new ElasticsearchParseException("runtime must be a map type");
                 }
             }
-            return false;
         }
     }
 
-    private Explicit<DateFormatter[]> dynamicDateTimeFormatters;
-    private Explicit<Boolean> dateDetection;
-    private Explicit<Boolean> numericDetection;
-    private Explicit<DynamicTemplate[]> dynamicTemplates;
-    private Map<String, RuntimeField> runtimeFields;
+    private static String concatStrings(String[] parts, int last) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i <= last; i++) {
+            builder.append('.');
+            builder.append(parts[i]);
+        }
+        return builder.toString();
+    }
+
+    private static boolean isConflictingObject(Mapper mapper, String[] parts) {
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (mapper == null) {
+                return true;
+            }
+            if (mapper instanceof ObjectMapper objectMapper) {
+                mapper = objectMapper.getMapper(parts[i + 1]);
+            } else {
+                return true;
+            }
+        }
+        return mapper == null;
+    }
+
+    private final Explicit<DateFormatter[]> dynamicDateTimeFormatters;
+    private final Explicit<Boolean> dateDetection;
+    private final Explicit<Boolean> numericDetection;
+    private final Explicit<DynamicTemplate[]> dynamicTemplates;
+    private final Map<String, RuntimeField> runtimeFields;
 
     RootObjectMapper(
         String name,
@@ -271,18 +279,27 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected ObjectMapper clone() {
-        ObjectMapper clone = super.clone();
-        ((RootObjectMapper) clone).runtimeFields = new HashMap<>(this.runtimeFields);
-        return clone;
-    }
-
-    @Override
-    public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+    public RootObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
+    }
+
+    @Override
+    RootObjectMapper withoutMappers() {
+        return new RootObjectMapper(
+            simpleName(),
+            enabled,
+            subobjects,
+            dynamic,
+            Map.of(),
+            Map.of(),
+            dynamicDateTimeFormatters,
+            dynamicTemplates,
+            dateDetection,
+            numericDetection
+        );
     }
 
     /**
@@ -322,28 +339,43 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
-        return (RootObjectMapper) super.merge(mergeWith, reason, mapperBuilderContext);
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
+        return mapperMergeContext.createChildContext(null, dynamic);
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
-        super.doMerge(mergeWith, reason, mapperBuilderContext);
+    public RootObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
+        if (mergeWith instanceof RootObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+        }
+
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
+        final var mergeResult = MergeResult.build(this, mergeWithObject, parentMergeContext);
+        final Explicit<Boolean> numericDetection;
         if (mergeWithObject.numericDetection.explicit()) {
-            this.numericDetection = mergeWithObject.numericDetection;
+            numericDetection = mergeWithObject.numericDetection;
+        } else {
+            numericDetection = this.numericDetection;
         }
 
+        final Explicit<Boolean> dateDetection;
         if (mergeWithObject.dateDetection.explicit()) {
-            this.dateDetection = mergeWithObject.dateDetection;
+            dateDetection = mergeWithObject.dateDetection;
+        } else {
+            dateDetection = this.dateDetection;
         }
 
+        final Explicit<DateFormatter[]> dynamicDateTimeFormatters;
         if (mergeWithObject.dynamicDateTimeFormatters.explicit()) {
-            this.dynamicDateTimeFormatters = mergeWithObject.dynamicDateTimeFormatters;
+            dynamicDateTimeFormatters = mergeWithObject.dynamicDateTimeFormatters;
+        } else {
+            dynamicDateTimeFormatters = this.dynamicDateTimeFormatters;
         }
 
+        final Explicit<DynamicTemplate[]> dynamicTemplates;
         if (mergeWithObject.dynamicTemplates.explicit()) {
-            if (reason == MergeReason.INDEX_TEMPLATE) {
+            if (parentMergeContext.getMapperBuilderContext().getMergeReason() == MergeReason.INDEX_TEMPLATE) {
                 Map<String, DynamicTemplate> templatesByKey = new LinkedHashMap<>();
                 for (DynamicTemplate template : this.dynamicTemplates.value()) {
                     templatesByKey.put(template.name(), template);
@@ -353,19 +385,36 @@ public class RootObjectMapper extends ObjectMapper {
                 }
 
                 DynamicTemplate[] mergedTemplates = templatesByKey.values().toArray(new DynamicTemplate[0]);
-                this.dynamicTemplates = new Explicit<>(mergedTemplates, true);
+                dynamicTemplates = new Explicit<>(mergedTemplates, true);
             } else {
-                this.dynamicTemplates = mergeWithObject.dynamicTemplates;
+                dynamicTemplates = mergeWithObject.dynamicTemplates;
             }
+        } else {
+            dynamicTemplates = this.dynamicTemplates;
         }
-        assert this.runtimeFields != mergeWithObject.runtimeFields;
+        final Map<String, RuntimeField> runtimeFields = new HashMap<>(this.runtimeFields);
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
-                this.runtimeFields.remove(runtimeField.getKey());
-            } else {
-                this.runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
+                runtimeFields.remove(runtimeField.getKey());
+            } else if (runtimeFields.containsKey(runtimeField.getKey())) {
+                runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
+            } else if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
+                runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
             }
         }
+
+        return new RootObjectMapper(
+            simpleName(),
+            mergeResult.enabled(),
+            mergeResult.subObjects(),
+            mergeResult.dynamic(),
+            mergeResult.mappers(),
+            Map.copyOf(runtimeFields),
+            dynamicDateTimeFormatters,
+            dynamicTemplates,
+            dateDetection,
+            numericDetection
+        );
     }
 
     @Override
@@ -439,7 +488,7 @@ public class RootObjectMapper extends ObjectMapper {
                     validate(
                         template,
                         dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.ROOT)
+                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false, false))
                     );
                 }
                 lastError = null; // ok, the template is valid for at least one type
@@ -452,7 +501,7 @@ public class RootObjectMapper extends ObjectMapper {
             String format = "dynamic template [%s] has invalid content [%s], "
                 + "attempted to validate it with the following match_mapping_type: %s";
             String message = String.format(Locale.ROOT, format, template.getName(), Strings.toString(template), Arrays.toString(types));
-            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
+            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0);
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {
@@ -513,7 +562,101 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected void startSyntheticField(XContentBuilder b) throws IOException {
-        b.startObject();
+    protected boolean isRoot() {
+        return true;
+    }
+
+    public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+        throws MapperParsingException {
+        Explicit<Boolean> subobjects = parseSubobjects(node);
+        RootObjectMapper.Builder builder = new Builder(name, subobjects);
+        Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Object> entry = iterator.next();
+            String fieldName = entry.getKey();
+            Object fieldNode = entry.getValue();
+            if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
+                || processField(builder, fieldName, fieldNode, parserContext)) {
+                iterator.remove();
+            }
+        }
+        return builder;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean processField(
+        RootObjectMapper.Builder builder,
+        String fieldName,
+        Object fieldNode,
+        MappingParserContext parserContext
+    ) {
+        if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
+            if (fieldNode instanceof List) {
+                List<DateFormatter> formatters = new ArrayList<>();
+                for (Object formatter : (List<?>) fieldNode) {
+                    if (formatter.toString().startsWith("epoch_")) {
+                        throw new MapperParsingException("Epoch [" + formatter + "] is not supported as dynamic date format");
+                    }
+                    formatters.add(parseDateTimeFormatter(formatter));
+                }
+                builder.dynamicDateTimeFormatter(formatters);
+            } else if ("none".equals(fieldNode.toString())) {
+                builder.dynamicDateTimeFormatter(Collections.emptyList());
+            } else {
+                builder.dynamicDateTimeFormatter(Collections.singleton(parseDateTimeFormatter(fieldNode)));
+            }
+            return true;
+        } else if (fieldName.equals("dynamic_templates")) {
+            /*
+              "dynamic_templates" : [
+                  {
+                      "template_1" : {
+                          "match" : "*_test",
+                          "match_mapping_type" : "string",
+                          "mapping" : { "type" : "keyword", "store" : "yes" }
+                      }
+                  }
+              ]
+            */
+            if ((fieldNode instanceof List) == false) {
+                throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
+            }
+            List<?> tmplNodes = (List<?>) fieldNode;
+            List<DynamicTemplate> templates = new ArrayList<>();
+            for (Object tmplNode : tmplNodes) {
+                Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
+                if (tmpl.size() != 1) {
+                    throw new MapperParsingException("A dynamic template must be defined with a name");
+                }
+                Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
+                String templateName = entry.getKey();
+                Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
+                DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
+                validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
+                templates.add(template);
+            }
+            builder.dynamicTemplates(templates);
+            return true;
+        } else if (fieldName.equals("date_detection")) {
+            builder.dateDetection = Explicit.explicitBoolean(nodeBooleanValue(fieldNode, "date_detection"));
+            return true;
+        } else if (fieldName.equals("numeric_detection")) {
+            builder.numericDetection = Explicit.explicitBoolean(nodeBooleanValue(fieldNode, "numeric_detection"));
+            return true;
+        } else if (fieldName.equals("runtime")) {
+            if (fieldNode instanceof Map) {
+                Map<String, RuntimeField> fields = RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true);
+                builder.addRuntimeFields(fields);
+                return true;
+            } else {
+                throw new ElasticsearchParseException("runtime must be a map type");
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.core.internal.provider;
 
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
@@ -15,11 +17,14 @@ import java.lang.module.ModuleFinder;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifiedExportsAndOpens;
 
 /**
  * A provider locator that finds the implementation of the specified provider.
@@ -49,7 +54,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
     static <P> Class<P> checkUses(Class<P> providerType) {
         Module caller = providerType.getModule();
         if (caller.isNamed() && caller.getDescriptor().uses().stream().anyMatch(providerType.getName()::equals) == false) {
-            throw new ServiceConfigurationError("%s: module does not declare uses %s".formatted(caller, providerType));
+            throw new ServiceConfigurationError(String.format(Locale.ROOT, "%s: module does not declare uses %s", caller, providerType));
         }
         return providerType;
     }
@@ -119,11 +124,15 @@ public final class ProviderLocator<T> implements Supplier<T> {
         ModuleLayer parentLayer = ModuleLayer.boot();
         Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
         ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
+        // check each module for boot modules that have qualified exports/opens to it
+        for (Module m : layer.modules()) {
+            exposeQualifiedExportsAndOpens(m, ModuleQualifiedExportsService.getBootServices());
+        }
         ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
         return sl.findFirst().orElseThrow(newIllegalStateException(providerName));
     }
 
     static Supplier<IllegalStateException> newIllegalStateException(String providerName) {
-        return () -> new IllegalStateException("cannot locate %s provider".formatted(providerName));
+        return () -> new IllegalStateException(String.format(Locale.ROOT, "cannot locate %s provider", providerName));
     }
 }

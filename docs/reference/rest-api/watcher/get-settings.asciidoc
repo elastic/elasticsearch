@@ -1,0 +1,20 @@
+[role="xpack"]
+[[watcher-api-get-settings]]
+=== Get Watcher index settings
+++++
+<titleabbrev>Get Watcher settings</titleabbrev>
+++++
+
+This API allows a user to retrieve the user-configurable settings for the Watcher internal index (`.watches`). Only a subset of the index settings—those that are user-configurable—will be shown. This includes:
+
+- `index.auto_expand_replicas`
+- `index.number_of_replicas`
+
+An example of retrieving the Watcher settings:
+
+[source,console]
+-----------------------------------------------------------
+GET /_watcher/settings
+-----------------------------------------------------------
+
+The configurable settings can be modified using the <<watcher-api-update-settings,Update Watcher index settings>> API.

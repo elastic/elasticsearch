@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
@@ -34,7 +33,7 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
     }
 
     @Override
-    public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
+    public InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context) {
         CountCorrelationIndicator bucketPathValue = MlAggsHelper.extractDoubleBucketedValues(bucketsPaths()[0], aggregations)
             .map(
                 doubleBucketValues -> new CountCorrelationIndicator(
@@ -45,7 +44,7 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
             )
             .orElse(null);
         if (bucketPathValue == null) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "unable to find valid bucket values in path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
             );
         }

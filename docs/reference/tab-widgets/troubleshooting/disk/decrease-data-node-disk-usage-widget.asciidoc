@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Restore from snapshot">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-decrease-disk-usage"
+            id="cloud-decrease-disk-usage">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-decrease-disk-usage"
+            id="self-managed-decrease-disk-usage"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-decrease-disk-usage"
+       aria-labelledby="cloud-decrease-disk-usage">
+++++
+
+include::decrease-data-node-disk-usage.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-decrease-disk-usage"
+       aria-labelledby="self-managed-decrease-disk-usage"
+       hidden="">
+++++
+
+include::decrease-data-node-disk-usage.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

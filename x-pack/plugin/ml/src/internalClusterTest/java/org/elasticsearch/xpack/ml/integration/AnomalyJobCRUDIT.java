@@ -68,11 +68,12 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp, null);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
@@ -92,7 +93,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
             new ModelSizeStats.Builder(jobId).setTimestamp(new Date()).setLogTime(new Date()).setModelBytes(10000000).build(),
             () -> false
         );
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         ElasticsearchStatusException iae = expectThrows(
             ElasticsearchStatusException.class,
@@ -114,8 +115,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
     public void testCreateWithExistingCategorizerDocs() {
         String jobId = "job-id-with-existing-docs";
         testCreateWithExistingDocs(
-            client().prepareIndex(".ml-state-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setId(jobId + "_categorizer_state#1")
                 .setSource("{}", XContentType.JSON)
                 .request(),
@@ -126,8 +126,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
     public void testCreateWithExistingQuantilesDocs() {
         String jobId = "job-id-with-existing-docs";
         testCreateWithExistingDocs(
-            client().prepareIndex(".ml-state-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setId(jobId + "_quantiles")
                 .setSource("{}", XContentType.JSON)
                 .request(),
@@ -138,8 +137,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
     public void testCreateWithExistingResultsDocs() {
         String jobId = "job-id-with-existing-docs";
         testCreateWithExistingDocs(
-            client().prepareIndex(".ml-anomalies-shared")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            prepareIndex(".ml-anomalies-shared").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setId(jobId + "_1464739200000_1")
                 .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
                 .request(),

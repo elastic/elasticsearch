@@ -97,25 +97,23 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
 
-        InternalHistogram newHistogram = histogram.create(newBuckets);
         List<InternalAggregation> reduceMe = List.of(histogram, histogram2);
-        newHistogram.reduce(reduceMe, InternalAggregationTestCase.mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
+        InternalAggregationTestCase.reduce(reduceMe, mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
     }
 
     public void testLargeReduce() {
-        expectReduceUsesTooManyBuckets(
-            new InternalHistogram(
-                "h",
-                List.of(),
-                BucketOrder.key(true),
-                0,
-                new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
-                DocValueFormat.RAW,
-                false,
-                null
-            ),
-            100000
+        InternalHistogram largeHisto = new InternalHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            new InternalHistogram.EmptyBucketInfo(5e-8, 0, 0, 100, InternalAggregations.EMPTY),
+            DocValueFormat.RAW,
+            false,
+            null
         );
+        expectReduceUsesTooManyBuckets(largeHisto, 100000);
+        expectReduceThrowsRealMemoryBreaker(largeHisto);
     }
 
     @Override
@@ -157,11 +155,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             actualCounts.compute((Double) bucket.getKey(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Class<ParsedHistogram> implementationClass() {
-        return ParsedHistogram.class;
     }
 
     @Override

@@ -40,13 +40,19 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         ProcessWorkerExecutorService executor = createExecutorService();
 
         threadPool.generic().execute(executor::start);
-        executor.shutdown();
+        executor.shutdownNow();
         AtomicBoolean rejected = new AtomicBoolean(false);
-        executor.execute(new AbstractRunnable() {
+        AtomicBoolean initialized = new AtomicBoolean(false);
+        executor.execute(new AbstractInitializableRunnable() {
             @Override
             public void onRejection(Exception e) {
                 assertThat(e, isA(EsRejectedExecutionException.class));
                 rejected.set(true);
+            }
+
+            @Override
+            public void init() {
+                initialized.set(true);
             }
 
             @Override
@@ -61,6 +67,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         });
 
         assertTrue(rejected.get());
+        assertTrue(initialized.get());
     }
 
     public void testAutodetectWorkerExecutorService_TasksNotExecutedCallHandlerOnShutdown() throws Exception {
@@ -99,9 +106,9 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         boolean shutdownWithError = randomBoolean();
         // now shutdown
         if (shutdownWithError) {
-            executor.shutdownWithError(new ElasticsearchException("stopping the executor because an error occurred"));
+            executor.shutdownNowWithError(new ElasticsearchException("stopping the executor because an error occurred"));
         } else {
-            executor.shutdown();
+            executor.shutdownNow();
         }
         latch.countDown();
         executorFinished.get();

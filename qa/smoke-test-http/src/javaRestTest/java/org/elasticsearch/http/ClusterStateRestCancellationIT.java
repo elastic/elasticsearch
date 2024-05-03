@@ -9,7 +9,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
@@ -24,10 +24,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.UnaryOperator;
@@ -88,7 +89,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         logger.info("--> checking cluster state task completed");
         assertBusy(() -> {
             updateClusterState(clusterService, s -> ClusterState.builder(s).build());
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
+            final List<TaskInfo> tasks = clusterAdmin().prepareListTasks().get().getTasks();
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 
@@ -106,8 +107,8 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -116,7 +117,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             throw new AssertionError("task should have been cancelled before serializing this custom");
         }
     }

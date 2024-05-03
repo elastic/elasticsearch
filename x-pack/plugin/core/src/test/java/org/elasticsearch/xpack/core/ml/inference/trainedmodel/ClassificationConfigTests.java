@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -39,6 +39,11 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
     }
 
     @Override
+    protected ClassificationConfig mutateInstance(ClassificationConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ClassificationConfig> instanceReader() {
         return ClassificationConfig::new;
     }
@@ -54,7 +59,7 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
     }
 
     @Override
-    protected ClassificationConfig mutateInstanceForVersion(ClassificationConfig instance, Version version) {
+    protected ClassificationConfig mutateInstanceForVersion(ClassificationConfig instance, TransportVersion version) {
         return instance;
     }
 }

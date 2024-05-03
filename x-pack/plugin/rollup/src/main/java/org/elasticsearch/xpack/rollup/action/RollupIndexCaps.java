@@ -60,7 +60,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
                     ... job config, parsable by RollupJobConfig.PARSER ...
                   }
                 },
-                "rollup-version": "7.0.0"
+                "rollup-version": ""
               }
             }
          */
@@ -135,7 +135,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
 
     RollupIndexCaps(StreamInput in) throws IOException {
         this.rollupIndexName = in.readString();
-        this.jobCaps = in.readList(RollupJobCaps::new);
+        this.jobCaps = in.readCollectionAsList(RollupJobCaps::new);
     }
 
     protected List<RollupJobCaps> getJobCaps() {
@@ -178,7 +178,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(rollupIndexName);
-        out.writeList(jobCaps);
+        out.writeCollection(jobCaps);
     }
 
     @Override

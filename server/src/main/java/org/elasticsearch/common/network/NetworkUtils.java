@@ -10,6 +10,7 @@ package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.Predicates;
 
 import java.io.IOException;
 import java.net.Inet4Address;
@@ -118,12 +119,7 @@ public abstract class NetworkUtils {
     static List<NetworkInterface> getInterfaces() throws SocketException {
         List<NetworkInterface> all = new ArrayList<>();
         addAllInterfaces(all, Collections.list(NetworkInterface.getNetworkInterfaces()));
-        Collections.sort(all, new Comparator<NetworkInterface>() {
-            @Override
-            public int compare(NetworkInterface left, NetworkInterface right) {
-                return Integer.compare(left.getIndex(), right.getIndex());
-            }
-        });
+        all.sort(Comparator.comparingInt(NetworkInterface::getIndex));
         return all;
     }
 
@@ -193,7 +189,7 @@ public abstract class NetworkUtils {
     /** Returns all addresses (any scope) for interfaces that are up.
      *  This is only used to pick a publish address, when the user set network.host to a wildcard */
     public static InetAddress[] getAllAddresses() throws IOException {
-        return filterAllAddresses(address -> true, "no up-and-running addresses found");
+        return filterAllAddresses(Predicates.always(), "no up-and-running addresses found");
     }
 
     static Optional<NetworkInterface> maybeGetInterfaceByName(List<NetworkInterface> networkInterfaces, String name) {

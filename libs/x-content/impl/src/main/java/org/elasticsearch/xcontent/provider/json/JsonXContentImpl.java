@@ -10,6 +10,7 @@ package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,13 +46,14 @@ public class JsonXContentImpl implements XContent {
     }
 
     static {
-        jsonFactory = new JsonFactory();
+        jsonFactory = XContentImplUtils.configure(new JsonFactoryBuilder());
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        jsonFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         jsonXContent = new JsonXContentImpl();
     }
 

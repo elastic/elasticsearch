@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSettings;
+
 import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Set;
@@ -16,13 +19,32 @@ import java.util.Set;
  * Collects dimensions from documents.
  */
 public interface DocumentDimensions {
-    void addString(String fieldName, String value);
 
-    void addIp(String fieldName, InetAddress value);
+    /**
+     * Build an index's DocumentDimensions using its settings
+     */
+    static DocumentDimensions fromIndexSettings(IndexSettings indexSettings) {
+        return indexSettings.getMode().buildDocumentDimensions(indexSettings);
+    }
 
-    void addLong(String fieldName, long value);
+    /**
+     * This overloaded method tries to take advantage of the fact that the UTF-8
+     * value is already computed in some cases when we want to collect
+     * dimensions, so we can save re-computing the UTF-8 encoding.
+     */
+    DocumentDimensions addString(String fieldName, BytesRef utf8Value);
 
-    void addUnsignedLong(String fieldName, long value);
+    default DocumentDimensions addString(String fieldName, String value) {
+        return addString(fieldName, new BytesRef(value));
+    }
+
+    DocumentDimensions addIp(String fieldName, InetAddress value);
+
+    DocumentDimensions addLong(String fieldName, long value);
+
+    DocumentDimensions addUnsignedLong(String fieldName, long value);
+
+    DocumentDimensions validate(IndexSettings settings);
 
     /**
      * Makes sure that each dimension only appears on time.
@@ -31,23 +53,40 @@ public interface DocumentDimensions {
         private final Set<String> names = new HashSet<>();
 
         @Override
-        public void addString(String fieldName, String value) {
+        public DocumentDimensions addString(String fieldName, BytesRef value) {
             add(fieldName);
+            return this;
+        }
+
+        // Override to skip the UTF-8 conversion that happens in the default implementation
+        @Override
+        public DocumentDimensions addString(String fieldName, String value) {
+            add(fieldName);
+            return this;
         }
 
         @Override
-        public void addIp(String fieldName, InetAddress value) {
+        public DocumentDimensions addIp(String fieldName, InetAddress value) {
             add(fieldName);
+            return this;
         }
 
         @Override
-        public void addLong(String fieldName, long value) {
+        public DocumentDimensions addLong(String fieldName, long value) {
             add(fieldName);
+            return this;
         }
 
         @Override
-        public void addUnsignedLong(String fieldName, long value) {
+        public DocumentDimensions addUnsignedLong(String fieldName, long value) {
             add(fieldName);
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions validate(final IndexSettings settings) {
+            // DO NOTHING
+            return this;
         }
 
         private void add(String fieldName) {

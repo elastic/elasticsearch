@@ -9,11 +9,8 @@
 package org.elasticsearch.monitor.fs;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -131,11 +128,7 @@ public class FsHealthServiceTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-
-        Logger logger = LogManager.getLogger(FsHealthService.class);
-        Loggers.addAppender(logger, mockAppender);
-        try (NodeEnvironment env = newNodeEnvironment()) {
+        try (NodeEnvironment env = newNodeEnvironment(); var ignored = mockAppender.capturing(FsHealthService.class)) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
             for (Path path : env.nodeDataPaths()) {
@@ -155,8 +148,6 @@ public class FsHealthServiceTests extends ESTestCase {
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }

@@ -8,6 +8,7 @@
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -36,7 +39,14 @@ public class ESIndexInputTestCase extends ESTestCase {
     @BeforeClass
     public static void createExecutor() {
         final String name = "TEST-" + getTestClass().getSimpleName() + "#randomReadAndSlice";
-        executor = EsExecutors.newFixed(name, 10, 0, EsExecutors.daemonThreadFactory(name), new ThreadContext(Settings.EMPTY), false);
+        executor = EsExecutors.newFixed(
+            name,
+            10,
+            0,
+            EsExecutors.daemonThreadFactory(name),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
     }
 
     @AfterClass
@@ -60,18 +70,49 @@ public class ESIndexInputTestCase extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            switch (randomIntBetween(0, 5)) {
-                case 0:
-                    // Read by one byte at a time
-                    output[readPos++] = indexInput.readByte();
+            final var readStrategy = between(0, 8);
+            switch (readStrategy) {
+                case 0, 1, 2, 3:
+                    if (length - readPos >= Long.BYTES && readStrategy <= 0) {
+                        long read = indexInput.readLong();
+                        ByteBuffer.wrap(output, readPos, Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(read);
+                        readPos += Long.BYTES;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readLong(indexInput.getFilePointer() - Long.BYTES));
+                            indexInput.seek(readPos);
+                        }
+                    } else if (length - readPos >= Integer.BYTES && readStrategy <= 1) {
+                        int read = indexInput.readInt();
+                        ByteBuffer.wrap(output, readPos, Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(read);
+                        readPos += Integer.BYTES;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readInt(indexInput.getFilePointer() - Integer.BYTES));
+                            indexInput.seek(readPos);
+                        }
+                    } else if (length - readPos >= Short.BYTES && readStrategy <= 2) {
+                        short read = indexInput.readShort();
+                        ByteBuffer.wrap(output, readPos, Short.BYTES).order(ByteOrder.LITTLE_ENDIAN).putShort(read);
+                        readPos += Short.BYTES;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readShort(indexInput.getFilePointer() - Short.BYTES));
+                            indexInput.seek(readPos);
+                        }
+                    } else {
+                        byte read = indexInput.readByte();
+                        output[readPos++] = read;
+                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
+                            assertEquals(read, randomAccessInput.readByte(indexInput.getFilePointer() - 1));
+                            indexInput.seek(readPos);
+                        }
+                    }
                     break;
-                case 1:
+                case 4:
                     // Read several bytes into target
                     int len = randomIntBetween(1, length - readPos);
                     indexInput.readBytes(output, readPos, len);
                     readPos += len;
                     break;
-                case 2:
+                case 5:
                     // Read several bytes into 0-offset target
                     len = randomIntBetween(1, length - readPos);
                     byte[] temp = new byte[len];
@@ -79,7 +120,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     System.arraycopy(temp, 0, output, readPos, len);
                     readPos += len;
                     break;
-                case 3:
+                case 6:
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
                     final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
@@ -92,7 +133,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     indexInput.seek(readPos);
                     assertEquals(readPos, indexInput.getFilePointer());
                     break;
-                case 4:
+                case 7:
                     // Seek at a random position and read a single byte,
                     // then seek back to original position
                     final int lastReadPos = readPos;
@@ -106,7 +147,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     indexInput.seek(readPos);
                     assertEquals(readPos, indexInput.getFilePointer());
                     break;
-                case 5:
+                case 8:
                     // Read clone or slice concurrently
                     final int cloneCount = between(1, 3);
                     final CountDownLatch startLatch = new CountDownLatch(1 + cloneCount);
@@ -126,9 +167,10 @@ public class ESIndexInputTestCase extends ESTestCase {
                             @Override
                             protected void doRun() throws Exception {
                                 final IndexInput clone;
-                                final int readStart = between(0, length);
+                                final boolean keepPosition = randomBoolean();
+                                final int readStart = keepPosition ? (int) indexInput.getFilePointer() : between(0, length);
                                 final int readEnd = between(readStart, length);
-                                if (randomBoolean()) {
+                                if (keepPosition || randomBoolean()) {
                                     clone = indexInput.clone();
                                 } else {
                                     final int sliceEnd = between(readEnd, length);
@@ -137,7 +179,9 @@ public class ESIndexInputTestCase extends ESTestCase {
                                 }
                                 startLatch.countDown();
                                 startLatch.await();
-                                clone.seek(readStart);
+                                if (keepPosition == false) {
+                                    clone.seek(readStart);
+                                }
                                 final byte[] cloneResult = randomReadAndSlice(clone, readEnd);
                                 if (randomBoolean()) {
                                     clone.close();

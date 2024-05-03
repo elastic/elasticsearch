@@ -11,17 +11,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transports;
 
 /**
@@ -34,20 +30,9 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
 
     private final InboundPipeline pipeline;
 
-    public Netty4MessageInboundHandler(Netty4Transport transport, Recycler<BytesRef> recycler) {
+    public Netty4MessageInboundHandler(Netty4Transport transport, InboundPipeline inboundPipeline) {
         this.transport = transport;
-        final ThreadPool threadPool = transport.getThreadPool();
-        final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
-        this.pipeline = new InboundPipeline(
-            transport.getVersion(),
-            transport.getStatsTracker(),
-            recycler,
-            threadPool::relativeTimeInMillis,
-            transport.getInflightBreaker(),
-            requestHandlers::getHandler,
-            transport::inboundMessage,
-            transport.ignoreDeserializationErrors()
-        );
+        this.pipeline = inboundPipeline;
     }
 
     @Override

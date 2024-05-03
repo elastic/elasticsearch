@@ -728,26 +728,6 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         );
     }
 
-    // return the cluster name as the catalog (database)
-    // helps with the various UIs
-    private String defaultCatalog() throws SQLException {
-        return con.client.serverInfo().cluster;
-    }
-
-    private boolean isDefaultCatalog(String catalog) throws SQLException {
-        // null means catalog info is irrelevant
-        // % means return all catalogs
-        // EMPTY means return those without a catalog
-        return catalog == null || catalog.equals(EMPTY) || catalog.equals(WILDCARD) || catalog.equals(defaultCatalog());
-    }
-
-    private boolean isDefaultSchema(String schema) {
-        // null means schema info is irrelevant
-        // % means return all schemas`
-        // EMPTY means return those without a schema
-        return schema == null || schema.equals(EMPTY) || schema.equals(WILDCARD);
-    }
-
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
         String statement = "SYS TABLES CATALOG LIKE ? ESCAPE '\\' LIKE ? ESCAPE '\\' ";
@@ -1371,10 +1351,6 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     private static ResultSet emptySet(JdbcConfiguration cfg, String tableName, Object... cols) throws JdbcSQLException {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columnInfo(tableName, cols), null));
-    }
-
-    private static ResultSet emptySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns) {
-        return memorySet(cfg, columns, null);
     }
 
     private static ResultSet memorySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns, Object[][] data) {

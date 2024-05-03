@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Strings;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -34,14 +35,14 @@ public class MultiGroupMappingIT extends AbstractAdLdapRealmTestCase {
 
     @Override
     protected String configRoles() {
-        return """
+        return Strings.format("""
             %s
             MarvelCharacters:
               cluster: [ NONE ]
               indices:
                 - names: 'marvel_comics'
                   privileges: [ all ]
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     public void testGroupMapping() throws IOException {

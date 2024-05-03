@@ -8,19 +8,18 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -31,13 +30,17 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -49,10 +52,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -68,12 +70,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
+            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))
+        );
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(), boundAddress.publishAddress()),
             null,
             Collections.emptySet()
         );
@@ -253,6 +258,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         );
     }
 
+    public void testRepositoriesThrottlingStats() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
+        RepositoriesStats throttlingStats = repositoriesService.getRepositoriesThrottlingStats();
+        assertTrue(throttlingStats.getRepositoryThrottlingStats().containsKey(repoName));
+        assertNotNull(throttlingStats.getRepositoryThrottlingStats().get(repoName));
+    }
+
     // InvalidRepository is created when current node is non-master node and failed to create repository by applying cluster state from
     // master. When current node become master node later and same repository is put again, current node can create repository successfully
     // and replace previous InvalidRepository
@@ -321,7 +335,13 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        public void getSnapshotInfo(
+            Collection<SnapshotId> snapshotIds,
+            boolean abortOnFailure,
+            BooleanSupplier isCancelled,
+            CheckedConsumer<SnapshotInfo, Exception> consumer,
+            ActionListener<Void> listener
+        ) {
             throw new UnsupportedOperationException();
         }
 
@@ -336,7 +356,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 
@@ -348,11 +368,11 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
-            long repositoryStateId,
-            Version repositoryMetaVersion,
-            ActionListener<RepositoryData> listener
+            long repositoryDataGeneration,
+            IndexVersion minimumNodeVersion,
+            SnapshotDeleteListener listener
         ) {
-            listener.onResponse(null);
+            listener.onFailure(new UnsupportedOperationException());
         }
 
         @Override
@@ -403,19 +423,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             return null;
         }
 
         @Override
         public void updateState(final ClusterState state) {}
-
-        @Override
-        public void executeConsistentStateUpdate(
-            Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-            String source,
-            Consumer<Exception> onFailure
-        ) {}
 
         @Override
         public void cloneShardSnapshot(
@@ -438,11 +451,6 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void addLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
-        public void removeLifecycleListener(LifecycleListener listener) {
 
         }
 

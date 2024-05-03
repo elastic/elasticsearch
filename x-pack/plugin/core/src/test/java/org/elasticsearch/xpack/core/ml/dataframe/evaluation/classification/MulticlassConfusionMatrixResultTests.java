@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.PredictedClass;
@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTestCase<Result> {
+public class MulticlassConfusionMatrixResultTests extends AbstractXContentSerializingTestCase<Result> {
 
     public static Result createRandom() {
         int numClasses = randomIntBetween(2, 100);
@@ -48,6 +48,11 @@ public class MulticlassConfusionMatrixResultTests extends AbstractSerializingTes
     @Override
     protected Result createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Result mutateInstance(Result instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

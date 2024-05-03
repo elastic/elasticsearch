@@ -15,6 +15,8 @@ import org.elasticsearch.geometry.Geometry;
  */
 public interface GeometryValidator {
 
+    GeometryValidator NOOP = (geometry) -> {};
+
     /**
      * Validates the geometry and throws IllegalArgumentException if the geometry is not valid
      */

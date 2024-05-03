@@ -9,14 +9,12 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -227,7 +225,7 @@ public class TcpTransportTests extends ESTestCase {
         try {
             final TcpTransport tcpTransport = new TcpTransport(
                 settings,
-                Version.CURRENT,
+                TransportVersion.current(),
                 testThreadPool,
                 new MockPageCacheRecycler(settings),
                 new NoneCircuitBreakerService(),
@@ -245,7 +243,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected TcpChannel initiateChannel(DiscoveryNode node) {
+                protected TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -574,14 +572,11 @@ public class TcpTransportTests extends ESTestCase {
         Exception exception,
         boolean expectClosed,
         MockLogAppender.LoggingExpectation... expectations
-    ) throws IllegalAccessException {
+    ) {
         final TestThreadPool testThreadPool = new TestThreadPool("test");
         MockLogAppender appender = new MockLogAppender();
 
-        try {
-            appender.start();
-
-            Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+        try (var ignored = appender.capturing(TcpTransport.class)) {
             for (MockLogAppender.LoggingExpectation expectation : expectations) {
                 appender.addExpectation(expectation);
             }
@@ -602,7 +597,7 @@ public class TcpTransportTests extends ESTestCase {
                 lifecycle,
                 new OutboundHandler(
                     randomAlphaOfLength(10),
-                    Version.CURRENT,
+                    TransportVersion.current(),
                     new StatsTracker(),
                     testThreadPool,
                     new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
@@ -621,8 +616,6 @@ public class TcpTransportTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
-            appender.stop();
             ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
         }
     }

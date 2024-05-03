@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices.store;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -22,8 +22,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 
 public class IndicesStoreTests extends ESTestCase {
     private static final ShardRoutingState[] NOT_STARTED_STATES;
@@ -39,12 +39,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void createLocalNode() {
-        localNode = new DiscoveryNode("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-    }
-
-    public void testShardCanBeDeletedNoShardRouting() {
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
-        assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
+        localNode = DiscoveryNodeUtils.builder("abc").roles(emptySet()).build();
     }
 
     public void testShardCanBeDeletedNoShardStarted() {
@@ -52,12 +47,18 @@ public class IndicesStoreTests extends ESTestCase {
         final var shardId = new ShardId("test", "_na_", 0);
         final var routingTable = new IndexShardRoutingTable.Builder(shardId);
         final var unStartedShard = randomInt(numShardCopies);
+        boolean activePrimary = false;
         for (int j = 0; j <= numShardCopies; j++) {
             ShardRoutingState state;
             if (j == unStartedShard) {
                 state = randomFrom(NOT_STARTED_STATES);
             } else {
                 state = randomFrom(ShardRoutingState.values());
+            }
+            if (j == 0) {
+                activePrimary = state == ShardRoutingState.STARTED || state == ShardRoutingState.RELOCATING;
+            } else if (activePrimary == false) {
+                state = ShardRoutingState.UNASSIGNED;
             }
             UnassignedInfo unassignedInfo = null;
             if (state == ShardRoutingState.UNASSIGNED) {
@@ -66,7 +67,9 @@ public class IndicesStoreTests extends ESTestCase {
             String currentNodeId = state == ShardRoutingState.UNASSIGNED ? null : randomAlphaOfLength(10);
             String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAlphaOfLength(10) : null;
             routingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, currentNodeId, relocatingNodeId, j == 0, state, unassignedInfo)
+                shardRoutingBuilder(shardId, currentNodeId, j == 0, state).withRelocatingNodeId(relocatingNodeId)
+                    .withUnassignedInfo(unassignedInfo)
+                    .build()
             );
         }
         assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.B_FIELD;
 
 public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
-    private TTestStatsBuilder statsBuilder;
+    private final TTestStatsBuilder statsBuilder;
 
     PairedTTestAggregator(
         String name,
@@ -57,12 +57,12 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), ctx);
-        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), ctx);
+        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
+        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
         final CompensatedSum compDiffSum = new CompensatedSum(0, 0);
         final CompensatedSum compDiffSumOfSqr = new CompensatedSum(0, 0);
 
@@ -71,10 +71,7 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
             public void collect(int doc, long bucket) throws IOException {
                 if (docAValues.advanceExact(doc) && docBValues.advanceExact(doc)) {
                     if (docAValues.docValueCount() > 1 || docBValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException(
-                            "Encountered more than one value for a "
-                                + "single document. Use a script to combine multiple values per doc into a single value."
-                        );
+                        throw AggregationErrors.unsupportedMultivalue();
                     }
                     statsBuilder.grow(bigArrays(), bucket + 1);
                     // There should always be one value if advanceExact lands us here, either

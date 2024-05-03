@@ -14,9 +14,9 @@
  * Recoveries are started on data nodes as a result of data node discovering shard assignments to themselves in the cluster state. The
  * master node sets up these shard allocations in the cluster state (see {@link org.elasticsearch.cluster.routing.ShardRouting}).
  * If a data node finds shard allocations that require recovery on itself, it will execute the required recoveries by executing the
- * logic starting at {@link org.elasticsearch.indices.cluster.IndicesClusterStateService#createOrUpdateShards}. As the data nodes execute
- * the steps of the recovery state machine they report back success or failure to do so to the master node via the transport actions in
- * {@link org.elasticsearch.cluster.action.shard.ShardStateAction}, which will then update the shard routing in the cluster state
+ * logic starting at {@link org.elasticsearch.indices.cluster.IndicesClusterStateService#createIndicesAndUpdateShards}. As the data nodes
+ * execute the steps of the recovery state machine they report back success or failure to do so to the master node via the transport
+ * actions in {@link org.elasticsearch.cluster.action.shard.ShardStateAction}, which will then update the shard routing in the cluster state
  * accordingly to reflect the status of the recovered shards or to handle failures in the recovery process. Recoveries can have various
  * kinds of sources that are modeled via the {@link org.elasticsearch.cluster.routing.RecoverySource} that is communicated to the recovery
  * target by {@link org.elasticsearch.cluster.routing.ShardRouting#recoverySource()} for each shard routing. These sources and their state

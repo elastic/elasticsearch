@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BlockedTests extends AbstractSerializingTestCase<Blocked> {
+public class BlockedTests extends AbstractXContentSerializingTestCase<Blocked> {
 
     @Override
     protected Blocked doParseInstance(XContentParser parser) throws IOException {
@@ -35,6 +35,11 @@ public class BlockedTests extends AbstractSerializingTestCase<Blocked> {
     @Override
     protected Blocked createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Blocked mutateInstance(Blocked instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static Blocked createRandom() {

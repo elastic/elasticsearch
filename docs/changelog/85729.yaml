@@ -1,6 +1,0 @@
-pr: 85729
-summary: Update bucket metric pipeline agg paths to allow intermediate single bucket
-  and bucket qualified multi-bucket aggs
-area: Aggregations
-type: enhancement
-issues: []

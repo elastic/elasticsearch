@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.PREDICTION_PROBABILITY;
+import static org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults.PREDICTION_PROBABILITY;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,6 +50,11 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
     @Override
     protected FillMaskResults createTestInstance() {
         return createRandomResults();
+    }
+
+    @Override
+    protected FillMaskResults mutateInstance(FillMaskResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @SuppressWarnings("unchecked")

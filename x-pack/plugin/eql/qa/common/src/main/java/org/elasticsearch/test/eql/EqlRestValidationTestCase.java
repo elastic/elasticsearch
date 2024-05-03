@@ -54,10 +54,14 @@ public abstract class EqlRestValidationTestCase extends RemoteClusterAwareEqlRes
 
     protected abstract String getInexistentIndexErrorMessage();
 
+    protected String getInexistentWildcardErrorMessage() {
+        return getInexistentIndexErrorMessage();
+    }
+
     protected abstract void assertErrorMessageWhenAllowNoIndicesIsFalse(String reqParameter) throws IOException;
 
     public void testDefaultIndicesOptions() throws IOException {
-        assertErrorMessages(inexistentIndexNameWithWildcard, EMPTY, getInexistentIndexErrorMessage());
+        assertErrorMessages(inexistentIndexNameWithWildcard, EMPTY, getInexistentWildcardErrorMessage());
         assertErrorMessages(inexistentIndexNameWithoutWildcard, EMPTY, getInexistentIndexErrorMessage());
         assertValidRequestOnIndices(existentIndexWithWildcard, EMPTY);
         assertValidRequestOnIndices(existentIndexWithoutWildcard, EMPTY);
@@ -70,7 +74,7 @@ public abstract class EqlRestValidationTestCase extends RemoteClusterAwareEqlRes
         String reqParameter = setAllowNoIndices ? "?allow_no_indices=" + allowNoIndices : EMPTY;
 
         if (isAllowNoIndices) {
-            assertErrorMessages(inexistentIndexNameWithWildcard, reqParameter, getInexistentIndexErrorMessage());
+            assertErrorMessages(inexistentIndexNameWithWildcard, reqParameter, getInexistentWildcardErrorMessage());
             assertErrorMessages(inexistentIndexNameWithoutWildcard, reqParameter, getInexistentIndexErrorMessage());
             assertValidRequestOnIndices(existentIndexWithWildcard, reqParameter);
             assertValidRequestOnIndices(existentIndexWithoutWildcard, reqParameter);

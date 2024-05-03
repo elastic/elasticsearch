@@ -11,15 +11,16 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.mutateDesiredNodes;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
-public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
     @Override
     protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
         if (randomBoolean()) {
@@ -57,22 +58,16 @@ public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerial
         return randomDesiredNodesMetadata();
     }
 
-    public static DesiredNodesMetadata randomDesiredNodesMetadata() {
+    @Override
+    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    private static DesiredNodesMetadata randomDesiredNodesMetadata() {
         return new DesiredNodesMetadata(randomDesiredNodes());
     }
 
     private DesiredNodesMetadata mutate(DesiredNodesMetadata base) {
-        // new historyID
-        if (randomBoolean()) {
-            return randomDesiredNodesMetadata();
-        }
-        DesiredNodes latestDesiredNodes = base.getLatestDesiredNodes();
-        return new DesiredNodesMetadata(
-            new DesiredNodes(
-                latestDesiredNodes.historyID(),
-                latestDesiredNodes.version() + 1,
-                randomList(1, 10, DesiredNodesTestCase::randomDesiredNodeWithRandomSettings)
-            )
-        );
+        return new DesiredNodesMetadata(mutateDesiredNodes(base.getLatestDesiredNodes()));
     }
 }

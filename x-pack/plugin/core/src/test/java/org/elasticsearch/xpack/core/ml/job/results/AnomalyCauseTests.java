@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause> {
+public class AnomalyCauseTests extends AbstractXContentSerializingTestCase<AnomalyCause> {
 
     @Override
     protected AnomalyCause createTestInstance() {
@@ -87,6 +87,11 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
             anomalyCause.setInfluencers(influencers);
         }
         return anomalyCause;
+    }
+
+    @Override
+    protected AnomalyCause mutateInstance(AnomalyCause instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

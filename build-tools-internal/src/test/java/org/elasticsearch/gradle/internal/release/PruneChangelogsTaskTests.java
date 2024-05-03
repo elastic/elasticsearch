@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.release.PruneChangelogsTask.DeleteHelper;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,8 +24,10 @@ import java.util.stream.Stream;
 import static org.elasticsearch.gradle.OS.WINDOWS;
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findAndDeleteFiles;
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findPreviousVersion;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assume.assumeFalse;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -36,7 +37,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class PruneChangelogsTaskTests extends GradleUnitTestCase {
+public class PruneChangelogsTaskTests {
 
     private GitWrapper gitWrapper;
     private DeleteHelper deleteHelper;
@@ -152,7 +153,7 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
         when(deleteHelper.deleteFiles(any())).thenReturn(Set.of(new File("rootDir/docs/changelog/1234.yml")));
 
         // when:
-        GradleException e = expectThrows(
+        GradleException e = assertThrows(
             GradleException.class,
             () -> findAndDeleteFiles(
                 gitWrapper,

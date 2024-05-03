@@ -1,0 +1,108 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: source
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              baz:
+                type: keyword
+              a:
+                type: keyword
+              b:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: source
+        body:
+          - '{"index": {}}'
+          - '{"baz": "quick", "a": "brown", "b": "fox"}'
+          - '{"index": {}}'
+          - '{"baz": "lazy", "a": "dog"}'
+
+  - do:
+      enrich.put_policy:
+        name: test_policy
+        body:
+          match:
+            indices: ["source*"]
+            match_field: baz
+            enrich_fields: ["a", "b"]
+
+  - do:
+      enrich.execute_policy:
+        name: test_policy
+
+  - do:
+      ingest.put_pipeline:
+        id: test_pipeline
+        body:
+          processors:
+            - enrich:
+                policy_name: test_policy
+                field: baz
+                target_field: target
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: test_pipeline
+
+  - do:
+      enrich.delete_policy:
+        name: test_policy
+
+---
+enrich documents over _bulk:
+  - do:
+      bulk:
+        refresh: true
+        index: target
+        pipeline: test_pipeline
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"baz": "quick", "c": 1}'
+          - '{"index": {"_id": "2"}}'
+          - '{"baz": "lazy", "c": 2}'
+          - '{"index": {"_id": "3"}}'
+          - '{"baz": "slow", "c": 3}'
+
+  - do:
+      get:
+        index: target
+        id: "1"
+  - match:
+      _source:
+        baz: quick
+        target:
+          baz: quick
+          a: brown
+          b: fox
+        c: 1
+
+  - do:
+      get:
+        index: target
+        id: "2"
+  - match:
+      _source:
+        baz: lazy
+        target:
+          baz: lazy
+          a: dog
+        c: 2
+
+  - do:
+      get:
+        index: target
+        id: "3"
+  - match:
+      _source:
+        baz: slow
+        c: 3

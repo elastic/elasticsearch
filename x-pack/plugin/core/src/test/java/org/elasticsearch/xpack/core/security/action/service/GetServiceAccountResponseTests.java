@@ -42,7 +42,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
     }
 
     @Override
-    protected GetServiceAccountResponse mutateInstance(GetServiceAccountResponse instance) throws IOException {
+    protected GetServiceAccountResponse mutateInstance(GetServiceAccountResponse instance) {
         if (instance.getServiceAccountInfos().length == 0) {
             final String principal = randomPrincipal();
             return new GetServiceAccountResponse(
@@ -97,12 +97,9 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         @SuppressWarnings("unchecked")
         final Map<String, Object> descriptorMap = (Map<String, Object>) responseFragment.get("role_descriptor");
         assertThat(
-            RoleDescriptor.parse(
-                roleDescriptor.getName(),
-                XContentTestUtils.convertToXContent(descriptorMap, XContentType.JSON),
-                false,
-                XContentType.JSON
-            ),
+            RoleDescriptor.parserBuilder()
+                .build()
+                .parse(roleDescriptor.getName(), XContentTestUtils.convertToXContent(descriptorMap, XContentType.JSON), XContentType.JSON),
             equalTo(roleDescriptor)
         );
     }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +70,7 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
     private void createTransportSvc() {
         final TcpTransport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,

@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
 
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 
 public class HasFrozenCacheAllocationDecider extends AllocationDecider {
 
@@ -31,7 +31,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     private static final Decision HAS_FROZEN_CACHE = Decision.single(
         Decision.Type.YES,
         NAME,
-        "this node has a frozen searchable snapshot shard cache"
+        "this node has a searchable snapshot shared cache"
     );
 
     private static final Decision NO_FROZEN_CACHE = Decision.single(
@@ -39,13 +39,13 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         NAME,
         "node setting ["
             + SHARED_CACHE_SIZE_SETTING.getKey()
-            + "] is set to zero, so frozen searchable snapshot shards cannot be allocated to this node"
+            + "] is set to zero, so shards of partially mounted indices cannot be allocated to this node"
     );
 
     private static final Decision UNKNOWN_FROZEN_CACHE = Decision.single(
         Decision.Type.NO,
         NAME,
-        "there was an error fetching the frozen cache state from this node"
+        "there was an error fetching the searchable snapshot shared cache state from this node"
     );
 
     private final FrozenCacheInfoService frozenCacheService;
@@ -60,8 +60,8 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().getIndexSafe(shardRouting.index()), node.node());
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocateToNode(indexMetadata, node.node());
     }
 
     @Override

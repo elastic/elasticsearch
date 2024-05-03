@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("removal")
 public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     private Client client;
@@ -47,11 +46,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
     public void setupClusterBeforeSnapshot() throws IOException {
         logger.info("-->  creating repository");
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("repo")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
+            clusterAdmin().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", randomRepoPath()))
         );
 
         logger.info("-->  creating ordinary index");

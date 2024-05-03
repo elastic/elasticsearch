@@ -142,6 +142,10 @@ vectors, so a better option might be to set it to
 terms dictionaries, postings lists and points, which are the most important
 parts of the index for search and aggregations.
 
+For vector search, you use <<approximate-knn, approximate k-nearest neighbor search>>,
+you might want to set the setting to vector search files: `["vec", "vex", "vem"]`
+("vec" is used for vector values, "vex" – for HNSW graph, "vem" – for metadata).
+
 Note that this setting can be dangerous on indices that are larger than the size
 of the main memory of the host, as it would cause the filesystem cache to be
 trashed upon reopens after large merges, which would make indexing and searching

@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -23,9 +22,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;
@@ -114,7 +113,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 null,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             );
@@ -137,7 +136,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    closeShardNoCheck(shard);
                 } finally {
                     IOUtils.close(shard.store());
                 }
@@ -172,7 +171,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
+            PlainActionFuture.<RepositoryData, Exception>get(
                 f -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         shardGenerations,
@@ -192,8 +191,9 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
-                        f
+                        IndexVersion.current(),
+                        f,
+                        info -> {}
                     )
                 )
             );
@@ -205,7 +205,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    closeShardNoCheck(shard);
                 } finally {
                     IOUtils.close(shard.store());
                 }
@@ -225,12 +225,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             clusterService,
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-        ) {
-            @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually
-            }
-        };
+        );
         clusterService.addStateApplier(event -> repository.updateState(event.state()));
         // Apply state once to initialize repo properly like RepositoriesService would
         repository.updateState(clusterService.state());

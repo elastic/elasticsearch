@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
@@ -85,6 +86,12 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 }
                 final String javaPattern = msToJavaPattern(pattern);
                 return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT)::format;
+            }
+        },
+        DATE_FORMAT {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return DateFormatter.ofPattern(pattern);
             }
         },
         DATE_TIME_FORMAT {
@@ -185,7 +192,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 
         private static void quoteAndAppend(StringBuilder mainBuffer, StringBuilder fragmentToQuote) {
             mainBuffer.append("'");
-            mainBuffer.append(fragmentToQuote.toString().replaceAll("'", "''"));
+            mainBuffer.append(fragmentToQuote.toString().replace("'", "''"));
             mainBuffer.append("'");
         }
 
@@ -218,7 +225,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
             try {
                 return formatterFor(patternString).apply(ta);
             } catch (IllegalArgumentException | DateTimeException e) {
-                throw new SqlIllegalArgumentException(
+                throw new InvalidArgumentException(
                     "Invalid pattern [{}] is received for formatting date/time [{}]; {}",
                     pattern,
                     timestamp,

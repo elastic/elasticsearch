@@ -6,8 +6,7 @@
 
 Matches spans which are near one another. One can specify _slop_, the
 maximum number of intervening unmatched positions, as well as whether
-matches are required to be in-order. The span near query maps to Lucene
-`SpanNearQuery`. Here is an example:
+matches are required to be in-order. Here is an example:
 
 [source,console]
 --------------------------------------------------

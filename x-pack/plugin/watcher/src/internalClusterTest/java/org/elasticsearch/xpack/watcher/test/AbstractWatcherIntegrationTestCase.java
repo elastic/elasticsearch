@@ -24,15 +24,17 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -84,6 +86,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,7 +112,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // we do this by default in core, but for watcher this isn't needed and only adds noise.
             .put("index.store.mock.check_index_on_close", false)
             // watcher settings that should work despite randomization
@@ -222,9 +225,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             String triggeredWatchIndexName;
             if (randomBoolean()) {
                 // Create an index to get the template
-                CreateIndexResponse response = client().admin()
-                    .indices()
-                    .prepareCreate(Watch.INDEX)
+                CreateIndexResponse response = indicesAdmin().prepareCreate(Watch.INDEX)
                     .setCause("Index to test aliases with .watches index")
                     .get();
                 assertAcked(response);
@@ -240,14 +241,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 if (randomBoolean()) {
                     builder.put("index.number_of_shards", scaledRandomIntBetween(1, 5));
                 }
-                assertAcked(client().admin().indices().prepareCreate(watchIndexName).setSettings(builder));
+                assertAcked(indicesAdmin().prepareCreate(watchIndexName).setSettings(builder));
             }
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (randomBoolean()) {
-                CreateIndexResponse response = client().admin()
-                    .indices()
-                    .prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
+                CreateIndexResponse response = indicesAdmin().prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
                     .setCause("Index to test aliases with .triggered-watches index")
                     .get();
                 assertAcked(response);
@@ -261,13 +260,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 logger.info("set alias for .triggered-watches index to [{}]", triggeredWatchIndexName);
             } else {
                 triggeredWatchIndexName = TriggeredWatchStoreField.INDEX_NAME;
-                assertAcked(client().admin().indices().prepareCreate(triggeredWatchIndexName));
+                assertAcked(indicesAdmin().prepareCreate(triggeredWatchIndexName));
             }
         }
     }
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
-        GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
+        GetIndexResponse index = indicesAdmin().prepareGetIndex().setIndices(originalIndexOrAlias).get();
         MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
@@ -277,27 +276,21 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.creation_date");
         newSettings.remove("index.version.created");
 
-        CreateIndexResponse createIndexResponse = client().admin()
-            .indices()
-            .prepareCreate(to)
-            .setMapping(mapping.sourceAsMap())
-            .setSettings(newSettings)
-            .get();
-        assertTrue(createIndexResponse.isAcknowledged());
+        assertAcked(indicesAdmin().prepareCreate(to).setMapping(mapping.sourceAsMap()).setSettings(newSettings));
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
+        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
         if (watchesIsAlias) {
-            GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
+            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
             aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
                 assertEquals(1, aliasRecord.getValue().size());
                 originalIndex.set(aliasRecord.getKey());
             });
         }
-        client().admin().indices().prepareDelete(originalIndex.get()).get();
-        client().admin().indices().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareDelete(originalIndex.get()).get();
+        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {
@@ -320,12 +313,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected long docCount(String index, SearchSourceBuilder source) {
-        SearchRequestBuilder builder = client().prepareSearch(index).setSource(source).setSize(0);
-        return builder.get().getHits().getTotalHits().value;
+        return SearchResponseUtils.getTotalHitsValue(prepareSearch(index).setSource(source).setSize(0));
     }
 
     protected SearchResponse searchHistory(SearchSourceBuilder builder) {
-        return client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(builder).get();
+        return prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(builder).get();
     }
 
     protected <T> T getInstanceFromMaster(Class<T> type) {
@@ -361,7 +353,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();
         try {
             assertBusy(() -> {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState().get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -376,50 +368,58 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 }
 
                 refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
-                    .get();
-                lastResponse.set(searchResponse);
-                assertThat(
-                    "could not find executed watch record for watch " + watchName,
-                    searchResponse.getHits().getTotalHits().value,
-                    greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed)
-                );
-                if (assertConditionMet) {
-                    assertThat(
-                        (Integer) XContentMapValues.extractValue(
-                            "result.input.payload.hits.total",
-                            searchResponse.getHits().getAt(0).getSourceAsMap()
+                assertResponse(
+                    prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                        .setQuery(
+                            boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id()))
                         ),
-                        greaterThanOrEqualTo(1)
-                    );
-                }
+                    searchResponse -> {
+                        lastResponse.set(searchResponse);
+                        assertThat(
+                            "could not find executed watch record for watch " + watchName,
+                            searchResponse.getHits().getTotalHits().value,
+                            greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed)
+                        );
+                        if (assertConditionMet) {
+                            assertThat(
+                                (Integer) XContentMapValues.extractValue(
+                                    "result.input.payload.hits.total",
+                                    searchResponse.getHits().getAt(0).getSourceAsMap()
+                                ),
+                                greaterThanOrEqualTo(1)
+                            );
+                        }
+                    }
+                );
+
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
-            int counter = 1;
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
+            try {
+                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
+                int counter = 1;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
+                }
+            } finally {
+                searchResponse.decRef();
             }
             throw error;
         }
     }
 
     protected SearchResponse searchWatchRecords(Consumer<SearchRequestBuilder> requestBuilderCallback) {
-        SearchRequestBuilder builder = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*");
+        SearchRequestBuilder builder = prepareSearch(HistoryStoreField.DATA_STREAM + "*");
         requestBuilderCallback.accept(builder);
         return builder.get();
     }
 
     protected long findNumberOfPerformedActions(String watchName) {
         refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
-            .get();
-        return searchResponse.getHits().getTotalHits().value;
+        return SearchResponseUtils.getTotalHitsValue(
+            prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
+        );
     }
 
     protected void assertWatchWithNoActionNeeded(final String watchName, final long expectedWatchActionsWithNoActionNeeded)
@@ -429,7 +429,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             assertBusy(() -> {
                 // The watch_history index gets created in the background when the first watch is triggered
                 // so we to check first is this index is created and shards are started
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState().get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -443,22 +443,31 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
                 refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .setQuery(
-                        boolQuery().must(matchQuery("watch_id", watchName))
-                            .must(matchQuery("state", ExecutionState.EXECUTION_NOT_NEEDED.id()))
-                    )
-                    .get();
-                lastResponse.set(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
+                assertResponse(
+                    prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                        .setQuery(
+                            boolQuery().must(matchQuery("watch_id", watchName))
+                                .must(matchQuery("state", ExecutionState.EXECUTION_NOT_NEEDED.id()))
+                        ),
+                    searchResponse -> {
+                        lastResponse.set(searchResponse);
+                        assertThat(
+                            searchResponse.getHits().getTotalHits().value,
+                            greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded)
+                        );
+                    }
+                );
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
-            int counter = 1;
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
+            try {
+                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
+                int counter = 1;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
+                }
+            } finally {
+                searchResponse.decRef();
             }
             throw error;
         }
@@ -467,7 +476,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void assertWatchWithMinimumActionsCount(final String watchName, final ExecutionState recordState, final long recordCount)
         throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                 state,
                 IndicesOptions.lenientExpandOpen(),
@@ -482,14 +491,16 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             refresh();
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id())))
-                .get();
-            assertThat(
-                "could not find executed watch record",
-                searchResponse.getHits().getTotalHits().value,
-                greaterThanOrEqualTo(recordCount)
+            assertResponse(
+                prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id()))),
+                searchResponse -> {
+                    assertThat(
+                        "could not find executed watch record",
+                        searchResponse.getHits().getTotalHits().value,
+                        greaterThanOrEqualTo(recordCount)
+                    );
+                }
             );
         });
     }
@@ -633,7 +644,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public void trigger(String watchId, int times, TimeValue timeValue) throws Exception {
             assertBusy(() -> {
                 long triggeredCount = schedulers.stream().filter(scheduler -> scheduler.trigger(watchId, times, timeValue)).count();
-                String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+                String msg = Strings.format("watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
                 if (triggeredCount > 1) {
                     logger.warn(msg);
                 }

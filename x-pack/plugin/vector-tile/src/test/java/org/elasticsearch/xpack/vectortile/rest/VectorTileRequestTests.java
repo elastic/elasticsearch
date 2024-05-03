@@ -207,20 +207,17 @@ public class VectorTileRequestTests extends ESTestCase {
 
     public void testFieldSort() throws IOException {
         final String sortName = randomAlphaOfLength(10);
-        assertRestRequest(
-            (builder) -> {
-                builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName())
-                    .startObject()
-                    .field(sortName, "desc")
-                    .endObject()
-                    .endArray();
-            },
-            (vectorTileRequest) -> {
-                assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
-                FieldSortBuilder sortBuilder = (FieldSortBuilder) vectorTileRequest.getSortBuilders().get(0);
-                assertThat(sortBuilder.getFieldName(), Matchers.equalTo(sortName));
-            }
-        );
+        assertRestRequest((builder) -> {
+            builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName())
+                .startObject()
+                .field(sortName, "desc")
+                .endObject()
+                .endArray();
+        }, (vectorTileRequest) -> {
+            assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
+            FieldSortBuilder sortBuilder = (FieldSortBuilder) vectorTileRequest.getSortBuilders().get(0);
+            assertThat(sortBuilder.getFieldName(), Matchers.equalTo(sortName));
+        });
     }
 
     public void testWrongTile() {

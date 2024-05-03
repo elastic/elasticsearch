@@ -13,8 +13,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.ActionConfigStatsTests;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 
-import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats> {
 
@@ -24,19 +24,19 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
     }
 
     static PhaseStats randomPhaseStats() {
-        TimeValue minimumAge = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+        TimeValue minimumAge = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
         String[] actionNames = generateRandomStringArray(10, 20, false);
         return new PhaseStats(minimumAge, actionNames, ActionConfigStatsTests.createRandomInstance());
     }
 
     @Override
-    protected PhaseStats mutateInstance(PhaseStats instance) throws IOException {
+    protected PhaseStats mutateInstance(PhaseStats instance) {
         TimeValue minimumAge = instance.getAfter();
         String[] actionNames = instance.getActionNames();
         switch (between(0, 1)) {
             case 0 -> minimumAge = randomValueOtherThan(
                 minimumAge,
-                () -> TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after")
+                () -> randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS)
             );
             case 1 -> {
                 actionNames = Arrays.copyOf(actionNames, actionNames.length + 1);

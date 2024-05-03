@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,13 +46,14 @@ public final class SmileXContentImpl implements XContent {
     }
 
     static {
-        smileFactory = new SmileFactory();
+        smileFactory = XContentImplUtils.configure(SmileFactory.builder());
         // for now, this is an overhead, might make sense for web sockets
         smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        smileFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         smileXContent = new SmileXContentImpl();
     }
 

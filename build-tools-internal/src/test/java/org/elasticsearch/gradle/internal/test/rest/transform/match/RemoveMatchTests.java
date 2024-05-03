@@ -9,11 +9,8 @@
 package org.elasticsearch.gradle.internal.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
@@ -23,11 +20,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class RemoveMatchTests extends TransformTests {
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
-    private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
-    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
-    private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
+public class RemoveMatchTests extends TransformTests {
 
     @Test
     public void testRemoveAll() throws Exception {

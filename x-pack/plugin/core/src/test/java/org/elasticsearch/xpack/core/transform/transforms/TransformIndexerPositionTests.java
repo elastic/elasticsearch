@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class TransformIndexerPositionTests extends AbstractSerializingTestCase<TransformIndexerPosition> {
+public class TransformIndexerPositionTests extends AbstractXContentSerializingTestCase<TransformIndexerPosition> {
 
     public static TransformIndexerPosition randomTransformIndexerPosition() {
         return new TransformIndexerPosition(randomPosition(), randomPosition());
@@ -25,6 +25,11 @@ public class TransformIndexerPositionTests extends AbstractSerializingTestCase<T
     @Override
     protected TransformIndexerPosition createTestInstance() {
         return randomTransformIndexerPosition();
+    }
+
+    @Override
+    protected TransformIndexerPosition mutateInstance(TransformIndexerPosition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

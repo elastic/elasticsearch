@@ -8,11 +8,13 @@ esplugin {
   classname 'org.elasticsearch.xpack.lucene.bwc.OldLuceneVersions'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-old-lucene-versions'
+base {
+  archivesName = 'x-pack-old-lucene-versions'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

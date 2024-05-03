@@ -34,10 +34,10 @@ import static java.util.Collections.emptyMap;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
+    static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
 
     private final boolean loadSource;
-    private final String sourceFieldName;
+    final String sourceFieldName;
     private final Set<String> requiredFields;
     protected BytesReference source;
     protected String id;
@@ -47,6 +47,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         this(loadSource, SourceFieldMapper.NAME);
     }
 
+    @SuppressWarnings("this-escape")
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
@@ -62,6 +63,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         // Always load _ignored to be explicit about ignored fields
         // This works because _ignored is added as the first metadata mapper,
         // so its stored fields always appear first in the list.
+        // Note that _ignored is also multi-valued, which is why it can't be removed from the set like other fields
         if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
@@ -71,8 +73,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
                 return Status.YES;
             }
         }
-        // All these fields are single-valued so we can stop when the set is
-        // empty
+        // All these fields are single-valued so we can stop when the set is empty
         return requiredFields.isEmpty() ? Status.STOP : Status.NO;
     }
 
@@ -84,6 +85,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
+            if (fieldType == null) {
+                continue; // TODO this is lame
+            }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
@@ -96,7 +100,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         binaryField(fieldInfo, new BytesRef(value));
     }
 
-    public void binaryField(FieldInfo fieldInfo, BytesRef value) {
+    private void binaryField(FieldInfo fieldInfo, BytesRef value) {
         if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
@@ -143,12 +147,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         addValue(fieldInfo.name, value);
     }
 
-    public void objectField(FieldInfo fieldInfo, Object object) {
-        assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
-        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
-        addValue(fieldInfo.name, object);
-    }
-
     public BytesReference source() {
         return source;
     }
@@ -174,7 +172,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public void reset() {
-        if (fieldsValues != null) fieldsValues.clear();
+        if (fieldsValues != null) {
+            fieldsValues.clear();
+        }
         source = null;
         id = null;
 
@@ -189,11 +189,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
             fieldsValues = new HashMap<>();
         }
 
-        List<Object> values = fieldsValues.get(name);
-        if (values == null) {
-            values = new ArrayList<>(2);
-            fieldsValues.put(name, values);
-        }
+        List<Object> values = fieldsValues.computeIfAbsent(name, k -> new ArrayList<>(2));
         values.add(value);
     }
 }

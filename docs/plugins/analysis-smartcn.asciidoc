@@ -1,5 +1,5 @@
 [[analysis-smartcn]]
-=== Smart Chinese Analysis Plugin
+=== Smart Chinese analysis plugin
 
 The Smart Chinese Analysis plugin integrates Lucene's Smart Chinese analysis
 module into elasticsearch.

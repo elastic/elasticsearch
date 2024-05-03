@@ -91,7 +91,7 @@ public class LongLongHashTests extends ESTestCase {
     }
 
     public void testAllocation() {
-        MockBigArrays.assertFitsIn(new ByteSizeValue(256), bigArrays -> new LongLongHash(1, bigArrays));
+        MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(256), bigArrays -> new LongLongHash(1, bigArrays));
     }
 
     class Key {

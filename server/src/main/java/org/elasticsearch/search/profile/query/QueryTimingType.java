@@ -12,6 +12,7 @@ import java.util.Locale;
 
 public enum QueryTimingType {
     CREATE_WEIGHT,
+    COUNT_WEIGHT,
     BUILD_SCORER,
     NEXT_DOC,
     ADVANCE,

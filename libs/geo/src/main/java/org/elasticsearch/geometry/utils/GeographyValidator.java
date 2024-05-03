@@ -84,9 +84,7 @@ public class GeographyValidator implements GeometryValidator {
 
     protected void checkAltitude(double zValue) {
         if (ignoreZValue == false && Double.isNaN(zValue) == false) {
-            throw new IllegalArgumentException(
-                "found Z value [" + zValue + "] but [ignore_z_value] " + "parameter is [" + ignoreZValue + "]"
-            );
+            throw new IllegalArgumentException("found Z value [" + zValue + "] but [ignore_z_value] parameter is [" + ignoreZValue + "]");
         }
     }
 

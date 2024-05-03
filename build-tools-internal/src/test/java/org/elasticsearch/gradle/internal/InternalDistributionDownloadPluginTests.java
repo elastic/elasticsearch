@@ -14,11 +14,13 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Test;
 
 import java.io.File;
 
 public class InternalDistributionDownloadPluginTests extends AbstractDistributionDownloadPluginTests {
 
+    @Test
     public void testLocalCurrentVersionPackages() {
         ElasticsearchDistributionType[] types = { InternalElasticsearchDistributionTypes.RPM, InternalElasticsearchDistributionTypes.DEB };
         for (ElasticsearchDistributionType packageType : types) {
@@ -33,15 +35,16 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
         }
     }
 
+    @Test
     public void testLocalBwcPackages() {
         ElasticsearchDistributionType[] types = { InternalElasticsearchDistributionTypes.RPM, InternalElasticsearchDistributionTypes.DEB };
         for (ElasticsearchDistributionType packageType : types) {
             // note: no non bundled jdk for bwc
             String configName = projectName(packageType.toString(), true);
-            checkBwc("minor", configName, BWC_MINOR_VERSION.elasticsearch(), packageType, null, BWC_MINOR);
-            checkBwc("staged", configName, BWC_STAGED_VERSION.elasticsearch(), packageType, null, BWC_STAGED);
-            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION.elasticsearch(), packageType, null, BWC_BUGFIX);
-            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION.elasticsearch(), packageType, null, BWC_MAINTENANCE);
+            checkBwc("minor", configName, BWC_MINOR_VERSION, packageType, null, BWC_MINOR);
+            checkBwc("staged", configName, BWC_STAGED_VERSION, packageType, null, BWC_STAGED);
+            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, packageType, null, BWC_BUGFIX);
+            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, packageType, null, BWC_MAINTENANCE);
         }
     }
 }

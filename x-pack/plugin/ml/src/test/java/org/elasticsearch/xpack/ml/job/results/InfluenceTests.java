@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.Influence;
@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
+public class InfluenceTests extends AbstractXContentSerializingTestCase<Influence> {
 
     @Override
     protected Influence createTestInstance() {
@@ -28,6 +28,11 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
             fieldValues.add(randomAlphaOfLengthBetween(1, 20));
         }
         return new Influence(randomAlphaOfLengthBetween(1, 30), fieldValues);
+    }
+
+    @Override
+    protected Influence mutateInstance(Influence instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

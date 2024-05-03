@@ -39,7 +39,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
-    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
+    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     @Inject
     public GlobalCheckpointSyncAction(
@@ -62,7 +62,9 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.WRITE),
+            false,
+            true
         );
     }
 
@@ -77,24 +79,26 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         IndexShard indexShard,
         ActionListener<PrimaryResult<Request, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(indexShard);
-            return new PrimaryResult<>(request, new ReplicationResponse());
-        });
+        maybeSyncTranslog(indexShard, listener.map(v -> new PrimaryResult<>(request, new ReplicationResponse())));
     }
 
     @Override
     protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(replica);
-            return new ReplicaResult();
-        });
+        maybeSyncTranslog(replica, listener.map(v -> new ReplicaResult()));
     }
 
-    private static void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
+    private static <T> void maybeSyncTranslog(IndexShard indexShard, ActionListener<Void> listener) {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST
             && indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
-            indexShard.sync();
+            indexShard.syncGlobalCheckpoint(indexShard.getLastKnownGlobalCheckpoint(), e -> {
+                if (e == null) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            listener.onResponse(null);
         }
     }
 

@@ -14,6 +14,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ public enum FieldData {
      * Returns a {@link DocValueBits} representing all documents from <code>pointValues</code> that have
      * a value.
      */
-    public static DocValueBits docsWithValue(final MultiGeoPointValues pointValues) {
+    public static DocValueBits docsWithValue(final MultiPointValues<? extends SpatialPoint> pointValues) {
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -217,7 +218,7 @@ public enum FieldData {
      * if the wrapped {@link SortedNumericDocValues} is a singleton.
      */
     public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
-        return values.getGeoPointValues();
+        return values.getPointValues();
     }
 
     /**
@@ -296,28 +297,15 @@ public enum FieldData {
      */
     public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
         return new SortedBinaryDocValues() {
-            private int count = 0;
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc) == false) {
-                    return false;
-                }
-                for (int i = 0;; ++i) {
-                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
-                        count = i;
-                        break;
-                    }
-                }
-                // reset the iterator on the current doc
-                boolean advanced = values.advanceExact(doc);
-                assert advanced;
-                return true;
+                return values.advanceExact(doc);
             }
 
             @Override
             public int docValueCount() {
-                return count;
+                return values.docValueCount();
             }
 
             @Override

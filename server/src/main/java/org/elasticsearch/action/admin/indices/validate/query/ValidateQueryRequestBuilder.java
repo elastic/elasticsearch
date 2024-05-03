@@ -17,8 +17,8 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
     ValidateQueryResponse,
     ValidateQueryRequestBuilder> {
 
-    public ValidateQueryRequestBuilder(ElasticsearchClient client, ValidateQueryAction action) {
-        super(client, action, new ValidateQueryRequest());
+    public ValidateQueryRequestBuilder(ElasticsearchClient client) {
+        super(client, ValidateQueryAction.INSTANCE, new ValidateQueryRequest());
     }
 
     /**

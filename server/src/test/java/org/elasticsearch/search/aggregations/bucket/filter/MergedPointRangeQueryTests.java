@@ -198,7 +198,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
             }
             iw.addDocument(doc);
             try (IndexReader r = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(r);
+                IndexSearcher searcher = newSearcher(r);
                 return searcher.count(query) > 0;
             }
         }
@@ -213,7 +213,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
             }
             iw.addDocument(doc);
             try (IndexReader r = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(r);
+                IndexSearcher searcher = newSearcher(r);
                 return searcher.count(query) > 0;
             }
         }

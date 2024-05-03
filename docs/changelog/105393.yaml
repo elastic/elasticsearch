@@ -1,0 +1,5 @@
+pr: 105393
+summary: Adding support for hex-encoded byte vectors on knn-search
+area: Vector Search
+type: feature
+issues: []

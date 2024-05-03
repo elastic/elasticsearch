@@ -54,6 +54,11 @@ public class GetDataFrameAnalyticsActionResponseTests extends AbstractWireSerial
     }
 
     @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Response> instanceReader() {
         return Response::new;
     }

@@ -37,25 +37,39 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
-    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
-        this.store = store;
-        this.indexState = indexState;
-        this.tempFilePrefix = tempFilePrefix;
-        this.logger = logger;
-        this.ensureOpen = ensureOpen;
-    }
-
-    private final Runnable ensureOpen;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Logger logger;
     private final Store store;
     private final RecoveryState.Index indexState;
     private final String tempFilePrefix;
+    private final Logger logger;
+    private final Runnable ensureOpen;
+    private final boolean verifyOutput;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<String, FileChunkWriter> fileChunkWriters = ConcurrentCollections.newConcurrentMap();
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
+
+    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
+        this(store, indexState, tempFilePrefix, logger, ensureOpen, true);
+    }
+
+    public MultiFileWriter(
+        Store store,
+        RecoveryState.Index indexState,
+        String tempFilePrefix,
+        Logger logger,
+        Runnable ensureOpen,
+        boolean verifyOutput
+    ) {
+        this.store = store;
+        this.indexState = indexState;
+        this.tempFilePrefix = tempFilePrefix;
+        this.logger = logger;
+        this.ensureOpen = ensureOpen;
+        this.verifyOutput = verifyOutput;
+    }
 
     public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content, boolean lastChunk)
         throws IOException {
@@ -69,7 +83,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    public void writeFile(StoreFileMetadata fileMetadata, long readSnapshotFileBufferSize, InputStream stream) throws Exception {
+    public void writeFile(StoreFileMetadata fileMetadata, long readSnapshotFileBufferSize, InputStream stream) throws IOException {
         ensureOpen.run();
         assert Transports.assertNotTransportThread("multi_file_writer");
 
@@ -81,7 +95,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         tempFileNames.put(tempFileName, fileName);
 
         incRef();
-        try (IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)) {
+        try (IndexOutput indexOutput = createIndexOutput(tempFileName, fileMetadata)) {
             int bufferSize = Math.toIntExact(Math.min(readSnapshotFileBufferSize, fileMetadata.length()));
             byte[] buffer = new byte[bufferSize];
             int length;
@@ -103,11 +117,13 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 );
             }
 
-            Store.verify(indexOutput);
-            assert Arrays.asList(store.directory().listAll()).contains(tempFileName)
-                : "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
+            if (verifyOutput) {
+                Store.verify(indexOutput);
+                assert Arrays.asList(store.directory().listAll()).contains(tempFileName)
+                    : "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
+            }
             store.directory().sync(Collections.singleton(tempFileName));
-        } catch (Exception e) {
+        } catch (IOException e) {
             tempFileNames.remove(tempFileName);
             store.deleteQuiet(tempFileName);
             indexState.resetRecoveredBytesOfFile(fileName);
@@ -117,16 +133,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    public void deleteTempFiles() {
-        incRef();
-        try {
-            for (String tempFileName : tempFileNames.keySet()) {
-                store.deleteQuiet(tempFileName);
-            }
-            tempFileNames.clear();
-        } finally {
-            decRef();
-        }
+    private IndexOutput createIndexOutput(String tempFileName, StoreFileMetadata fileMetadata) throws IOException {
+        return verifyOutput
+            ? store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)
+            : store.directory().createOutput(tempFileName, IOContext.DEFAULT);
     }
 
     /** Get a temporary name for the provided file name. */
@@ -235,13 +245,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         store.renameTempFilesSafe(tempFileNames);
     }
 
-    private static final class FileChunk implements Releasable {
-        final StoreFileMetadata md;
-        final ReleasableBytesReference content;
-        final long position;
-        final boolean lastChunk;
-
-        FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
+    private record FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk)
+        implements
+            Releasable {
+        private FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
             this.md = md;
             this.content = content.retain();
             this.position = position;

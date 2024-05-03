@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
@@ -16,9 +17,9 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  * capabilities depends on the index engine used. For example, the internal one requires refresh to be called, but by
  * default a refresh is scheduled periodically.
  */
-public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
+public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<RefreshRequest, BroadcastResponse, RefreshRequestBuilder> {
 
-    public RefreshRequestBuilder(ElasticsearchClient client, RefreshAction action) {
-        super(client, action, new RefreshRequest());
+    public RefreshRequestBuilder(ElasticsearchClient client) {
+        super(client, RefreshAction.INSTANCE, new RefreshRequest());
     }
 }

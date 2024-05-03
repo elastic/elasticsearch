@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -117,10 +117,9 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
     }
 
     private GetServiceAccountCredentialsNodesResponse.Node randomNodeResponse(String[] tokenNames, int i) {
-        final DiscoveryNode discoveryNode = new DiscoveryNode(
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create(
             randomAlphaOfLength(8) + i,
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            Version.CURRENT
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300)
         );
         return new GetServiceAccountCredentialsNodesResponse.Node(
             discoveryNode,

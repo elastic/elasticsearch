@@ -20,7 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase {
+public class LicensesAcknowledgementTests extends AbstractClusterStateLicenseServiceTestCase {
 
     public void testAcknowledgment() throws Exception {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();

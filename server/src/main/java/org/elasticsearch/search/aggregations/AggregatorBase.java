@@ -58,6 +58,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
+    @SuppressWarnings("this-escape")
     protected AggregatorBase(
         String name,
         AggregatorFactories factories,
@@ -141,8 +142,9 @@ public abstract class AggregatorBase extends Aggregator {
      * @return the cumulative size in bytes allocated by this aggregator to service this request
      */
     protected long addRequestCircuitBreakerBytes(long bytes) {
-        // Only use the potential to circuit break if bytes are being incremented
-        if (bytes > 0) {
+        // Only use the potential to circuit break if bytes are being incremented, In the case of 0
+        // bytes, it will trigger the parent circuit breaker.
+        if (bytes >= 0) {
             context.breaker().addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
             context.breaker().addWithoutBreaking(bytes);
@@ -178,7 +180,7 @@ public abstract class AggregatorBase extends Aggregator {
      * {@link LeafBucketCollector#collect(int, long) collect} for every hit. So any
      * {@link Aggregator} that returns a customer {@linkplain LeafBucketCollector}
      * from this method runs at best {@code O(hits)} time. See the
-     * {@link SumAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) sum}
+     * {@link SumAggregator#getLeafCollector(AggregationExecutionContext, LeafBucketCollector) sum}
      * {@linkplain Aggregator} for a fairly strait forward example of this.
      * <p>
      * Some {@linkplain Aggregator}s are able to correctly collect results on
@@ -188,7 +190,7 @@ public abstract class AggregatorBase extends Aggregator {
      * return {@link LeafBucketCollector#NO_OP_COLLECTOR} to signal that they've
      * done their own collection. These aggregations can do better than
      * {@code O(hits)}. See the
-     * {@link MinAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) min}
+     * {@link MinAggregator#getLeafCollector(AggregationExecutionContext, LeafBucketCollector) min}
      * {@linkplain Aggregator} for an example of an aggregation that does this. It
      * happens to run in constant time in some cases.
      * <p>
@@ -203,27 +205,21 @@ public abstract class AggregatorBase extends Aggregator {
      * path before building the {@linkplain Aggregator} rather than on each
      * leaf. Either is fine.
      */
-    protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
-
-    // TODO: Remove this method in refactoring
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
-        return getLeafCollector(ctx, sub);
-    }
+    protected abstract LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException;
 
     /**
      * Collect results for this leaf.
      * <p>
      * Implemented by the {@linkplain Aggregator} base class to correctly set
      * up sub {@linkplain Aggregator}s. See the
-     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector) abstract delegate}
+     * {@link #getLeafCollector(AggregationExecutionContext, LeafBucketCollector) abstract delegate}
      * for more details on what this does.
      */
     @Override
     public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
         preGetSubLeafCollectors(aggCtx.getLeafReaderContext());
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(aggCtx);
-        return getLeafCollector(aggCtx.getLeafReaderContext(), sub, aggCtx);
+        return getLeafCollector(aggCtx, sub);
     }
 
     /**
@@ -272,11 +268,20 @@ public abstract class AggregatorBase extends Aggregator {
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
             subAggregatorbyName = Maps.newMapWithExpectedSize(subAggregators.length);
-            for (int i = 0; i < subAggregators.length; i++) {
-                subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
+            for (Aggregator subAggregator : subAggregators) {
+                subAggregatorbyName.put(subAggregator.name(), subAggregator);
             }
         }
         return subAggregatorbyName.get(aggName);
+    }
+
+    @Override
+    public void releaseAggregations() {
+        // release sub aggregations
+        Arrays.stream(subAggregators).forEach(Aggregator::releaseAggregations);
+        // release this aggregation
+        close();
+        context.removeReleasable(this);
     }
 
     /**
@@ -335,7 +340,7 @@ public abstract class AggregatorBase extends Aggregator {
      * The "top level" query that will filter the results sent to this
      * {@linkplain Aggregator}. Used by all {@linkplain Aggregator}s that
      * perform extra collection phases in addition to the one done in
-     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}.
+     * {@link #getLeafCollector(AggregationExecutionContext, LeafBucketCollector)}.
      */
     protected final Query topLevelQuery() {
         return context.query();
@@ -345,7 +350,7 @@ public abstract class AggregatorBase extends Aggregator {
      * The searcher for the shard this {@linkplain Aggregator} is running
      * against. Used by all {@linkplain Aggregator}s that perform extra
      * collection phases in addition to the one done in
-     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}
+     * {@link #getLeafCollector(AggregationExecutionContext, LeafBucketCollector)}
      * and by to look up extra "background" information about contents of
      * the shard itself.
      */

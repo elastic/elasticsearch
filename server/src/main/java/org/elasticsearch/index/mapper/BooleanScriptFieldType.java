@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -30,7 +31,6 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
@@ -42,22 +42,25 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             BooleanFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new BooleanScriptFieldType(name, factory, script, meta);
+            return new BooleanScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
-        BooleanFieldScript.Factory getParseFromSourceFactory() {
+        protected BooleanFieldScript.Factory getParseFromSourceFactory() {
             return BooleanFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        BooleanFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected BooleanFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return BooleanFieldScript.leafAdapter(parentScriptFactory);
         }
 
@@ -67,10 +70,16 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         return new Builder(name).createRuntimeField(BooleanFieldScript.PARSE_FROM_SOURCE);
     }
 
-    BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    BooleanScriptFieldType(
+        String name,
+        BooleanFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -102,8 +111,13 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public BooleanScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), BooleanDocValuesField::new);
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()));
+    }
+
+    @Override
+    public BooleanScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new BooleanScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), BooleanDocValuesField::new);
     }
 
     @Override

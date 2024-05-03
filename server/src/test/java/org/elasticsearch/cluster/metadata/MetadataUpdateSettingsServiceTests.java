@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.translog.Translog;
@@ -30,7 +30,7 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
     private final Settings metaSettings = Settings.builder()
         .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
         .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
         .build();
     private final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(
         Settings.EMPTY,

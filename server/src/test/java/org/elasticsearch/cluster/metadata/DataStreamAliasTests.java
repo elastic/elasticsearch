@@ -8,15 +8,24 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStreamAlias.DATA_STREAMS_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamAlias.OLD_FILTER_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamAlias.WRITE_DATA_STREAM_FIELD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -24,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStreamAlias> {
+public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<DataStreamAlias> {
 
     @Override
     protected DataStreamAlias doParseInstance(XContentParser parser) throws IOException {
@@ -48,6 +57,11 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
     @Override
     protected DataStreamAlias createTestInstance() {
         return DataStreamTestHelper.randomAliasInstance();
+    }
+
+    @Override
+    protected DataStreamAlias mutateInstance(DataStreamAlias instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testUpdate() {
@@ -87,8 +101,9 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result, not(sameInstance(alias)));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("""
+            assertThat(result.getFilter("ds-1"), nullValue());
+            assertThat(result.getFilter("ds-2"), notNullValue());
+            assertThat(result.getFilter("ds-2").string(), equalTo("""
                 {"term":{"field":"value"}}"""));
         }
         // noop update to filter:
@@ -97,7 +112,7 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
                 "my-alias",
                 List.of("ds-1", "ds-2"),
                 null,
-                Map.of("term", Map.of("field", "value"))
+                Map.of("ds-2", Map.of("term", Map.of("field", "value")))
             );
             DataStreamAlias result = alias.update("ds-2", null, Map.of("term", Map.of("field", "value")));
             assertThat(result, sameInstance(alias));
@@ -108,14 +123,15 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
                 "my-alias",
                 List.of("ds-1", "ds-2"),
                 null,
-                Map.of("term", Map.of("field", "value"))
+                Map.of("ds-2", Map.of("term", Map.of("field", "value")))
             );
             DataStreamAlias result = alias.update("ds-2", null, Map.of("term", Map.of("field", "value1")));
             assertThat(result, not(sameInstance(alias)));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("""
+            assertThat(result.getFilter("ds-1"), nullValue());
+            assertThat(result.getFilter("ds-2"), notNullValue());
+            assertThat(result.getFilter("ds-2").string(), equalTo("""
                 {"term":{"field":"value1"}}"""));
         }
         // Filter not specified, keep existing filter:
@@ -124,13 +140,14 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
                 "my-alias",
                 List.of("ds-1", "ds-2"),
                 null,
-                Map.of("term", Map.of("field", "value"))
+                Map.of("ds-2", Map.of("term", Map.of("field", "value")))
             );
             DataStreamAlias result = alias.update("ds-2", null, null);
             assertThat(result, sameInstance(alias));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter().string(), equalTo("""
+            assertThat(result.getFilter("ds-1"), nullValue());
+            assertThat(result.getFilter("ds-2").string(), equalTo("""
                 {"term":{"field":"value"}}"""));
         }
     }
@@ -267,5 +284,54 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
         DataStreamAlias result = alias1.restore(alias2, "ds-3", null);
         assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
         assertThat(result.getWriteDataStream(), equalTo("ds-3"));
+    }
+
+    public void testSupportsXContentWithSingleFilter() throws IOException {
+        /*
+         * Before 8.7.0, DataStreamAlias only supported a single filter shared by all DataStreams. As of 8.7.0 the "filter" XContent field
+         * is no longer written, but this tests that we can still read it (needed when the cluster state is read on a cluster upgrade).
+         */
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, baos);
+        builder.startObject();
+        String aliasName = randomAlphaOfLength(20);
+        builder.startObject(aliasName);
+        List<String> dataStreams = randomList(10, () -> randomAlphaOfLength(20));
+        builder.stringListField(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
+        String writeDataStream = dataStreams.isEmpty() ? null : randomFrom(dataStreams);
+        if (writeDataStream != null) {
+            builder.field(WRITE_DATA_STREAM_FIELD.getPreferredName(), writeDataStream);
+        }
+        boolean binary = randomBoolean();
+        Map<String, Object> filterMap = new HashMap<>();
+        filterMap.put(randomAlphaOfLength(10), randomAlphaOfLength(20));
+        CompressedXContent filter = randomBoolean() ? null : new CompressedXContent(filterMap);
+        if (filter != null) {
+            if (binary) {
+                builder.field(OLD_FILTER_FIELD.getPreferredName(), filter.compressed());
+            } else {
+                builder.field(OLD_FILTER_FIELD.getPreferredName(), XContentHelper.convertToMap(filter.uncompressed(), true).v2());
+            }
+        }
+        builder.endObject();
+        builder.endObject();
+        builder.close();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, baos.toByteArray())) {
+            parser.nextToken();
+            parser.nextToken();
+            DataStreamAlias outputAlias = DataStreamAlias.fromXContent(parser);
+            assertNotNull(outputAlias);
+            assertThat(outputAlias.getName(), equalTo(aliasName));
+            assertThat(outputAlias.getDataStreams(), equalTo(dataStreams));
+            assertThat(outputAlias.getWriteDataStream(), equalTo(writeDataStream));
+            if (filter == null) {
+                assertTrue(outputAlias.dataStreamToFilterMap.isEmpty());
+            } else {
+                assertThat(outputAlias.dataStreamToFilterMap.size(), equalTo(dataStreams.size()));
+                for (String dataStreamName : dataStreams) {
+                    assertThat(outputAlias.getFilter(dataStreamName), equalTo(filter));
+                }
+            }
+        }
     }
 }

@@ -27,5 +27,9 @@ static_import {
     double decayDateLinear(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateLinear
     double decayDateExp(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateExp
     double decayDateGauss(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateGauss
+    double l1norm(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$L1Norm
+    double l2norm(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$L2Norm
+    double cosineSimilarity(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$CosineSimilarity
+    double dotProduct(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$DotProduct
 }
 

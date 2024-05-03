@@ -15,16 +15,11 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 
 final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
-
-    private final long recoveryId;
-    private final ShardId shardId;
     private final long globalCheckpoint;
     private final long trimAboveSeqNo;
 
     RecoveryFinalizeRecoveryRequest(StreamInput in) throws IOException {
         super(in);
-        recoveryId = in.readLong();
-        shardId = new ShardId(in);
         globalCheckpoint = in.readZLong();
         trimAboveSeqNo = in.readZLong();
     }
@@ -36,19 +31,9 @@ final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
         final long globalCheckpoint,
         final long trimAboveSeqNo
     ) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
+        super(requestSeqNo, recoveryId, shardId);
         this.globalCheckpoint = globalCheckpoint;
         this.trimAboveSeqNo = trimAboveSeqNo;
-    }
-
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
     }
 
     public long globalCheckpoint() {
@@ -62,8 +47,6 @@ final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
         out.writeZLong(globalCheckpoint);
         out.writeZLong(trimAboveSeqNo);
     }

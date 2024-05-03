@@ -29,13 +29,23 @@ public class UriPartsProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean removeIfSuccessful;
     private final boolean keepOriginal;
+    private final boolean ignoreMissing;
 
-    UriPartsProcessor(String tag, String description, String field, String targetField, boolean removeIfSuccessful, boolean keepOriginal) {
+    UriPartsProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        boolean removeIfSuccessful,
+        boolean keepOriginal,
+        boolean ignoreMissing
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.removeIfSuccessful = removeIfSuccessful;
         this.keepOriginal = keepOriginal;
+        this.ignoreMissing = ignoreMissing;
     }
 
     public String getField() {
@@ -54,10 +64,17 @@ public class UriPartsProcessor extends AbstractProcessor {
         return keepOriginal;
     }
 
+    public Object getIgnoreMissing() {
+        return ignoreMissing;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        String value = ingestDocument.getFieldValue(field, String.class);
+        String value = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
+        if (ignoreMissing && null == value) {
+            return ingestDocument;
+        }
         var uriParts = apply(value);
         if (keepOriginal) {
             uriParts.put("original", value);
@@ -123,9 +140,16 @@ public class UriPartsProcessor extends AbstractProcessor {
         }
         if (path != null) {
             uriParts.put("path", path);
-            if (path.contains(".")) {
-                int periodIndex = path.lastIndexOf('.');
-                uriParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
+            // To avoid any issues with extracting the extension from a path that contains a dot, we explicitly extract the extension
+            // from the last segment in the path.
+            var lastSegmentIndex = path.lastIndexOf('/');
+            if (lastSegmentIndex >= 0) {
+                var lastSegment = path.substring(lastSegmentIndex);
+                int periodIndex = lastSegment.lastIndexOf('.');
+                if (periodIndex >= 0) {
+                    // Don't include the dot in the extension field.
+                    uriParts.put("extension", lastSegment.substring(periodIndex + 1));
+                }
             }
         }
         if (port != -1) {
@@ -138,7 +162,7 @@ public class UriPartsProcessor extends AbstractProcessor {
         if (userInfo != null) {
             uriParts.put("user_info", userInfo);
             if (userInfo.contains(":")) {
-                int colonIndex = userInfo.indexOf(":");
+                int colonIndex = userInfo.indexOf(':');
                 uriParts.put("username", userInfo.substring(0, colonIndex));
                 uriParts.put("password", colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
             }
@@ -165,7 +189,8 @@ public class UriPartsProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "url");
             boolean removeIfSuccessful = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "remove_if_successful", false);
             boolean keepOriginal = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "keep_original", true);
-            return new UriPartsProcessor(processorTag, description, field, targetField, removeIfSuccessful, keepOriginal);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            return new UriPartsProcessor(processorTag, description, field, targetField, removeIfSuccessful, keepOriginal, ignoreMissing);
         }
     }
 }

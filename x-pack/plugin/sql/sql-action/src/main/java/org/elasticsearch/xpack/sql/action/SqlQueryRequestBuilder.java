@@ -26,10 +26,9 @@ import static java.util.Collections.emptyMap;
  */
 public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest, SqlQueryResponse> {
 
-    public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
+    public SqlQueryRequestBuilder(ElasticsearchClient client) {
         this(
             client,
-            action,
             "",
             emptyList(),
             null,
@@ -53,7 +52,6 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder(
         ElasticsearchClient client,
-        SqlQueryAction action,
         String query,
         List<SqlTypedParamValue> params,
         QueryBuilder filter,
@@ -75,7 +73,7 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
     ) {
         super(
             client,
-            action,
+            SqlQueryAction.INSTANCE,
             new SqlQueryRequest(
                 query,
                 params,

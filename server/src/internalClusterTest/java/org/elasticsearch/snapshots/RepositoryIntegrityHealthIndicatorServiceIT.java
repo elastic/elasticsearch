@@ -21,8 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
-import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
+import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,17 +58,17 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
         // instead relies on other operations to detect and flag repository corruption
         assertThat(
             expectThrows(RepositoryException.class, () -> createFullSnapshot(repository, "snapshot-2")).getMessage(),
-            containsString("[" + repository + "] Could not read repository data")
+            containsString("[" + repository + "] The repository has been disabled to prevent data corruption")
         );
 
-        assertSnapshotRepositoryHealth("Indicator should be red after file is deleted from the repository", client, RED);
+        assertSnapshotRepositoryHealth("Indicator should be yellow after file is deleted from the repository", client, YELLOW);
 
         deleteRepository(repository);
     }
 
     private void assertSnapshotRepositoryHealth(String message, Client client, HealthStatus status) {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean())).actionGet();
-        assertThat(message, response.findComponent(SNAPSHOT).findIndicator(NAME).status(), equalTo(status));
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean(), 1000)).actionGet();
+        assertThat(message, response.findIndicator(NAME).status(), equalTo(status));
     }
 
     private void corruptRepository(String name, Path location) throws IOException {

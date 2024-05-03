@@ -14,7 +14,6 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -75,7 +74,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
 
         // invalid method
         String invalidMethod = randomValueOtherThanMany(
-            m -> Arrays.asList(FingerprintProcessor.Factory.SUPPORTED_DIGESTS).contains(m),
+            m -> List.of(FingerprintProcessor.Factory.SUPPORTED_DIGESTS).contains(m),
             () -> randomAlphaOfLengthBetween(5, 9)
         );
         config.put("fields", fieldList);

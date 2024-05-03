@@ -8,10 +8,19 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 /**
  * Abstraction of an array of double values.
  */
-public interface DoubleArray extends BigArray {
+public interface DoubleArray extends BigArray, Writeable {
+
+    static DoubleArray readFrom(StreamInput in) throws IOException {
+        return new ReleasableDoubleArray(in);
+    }
 
     /**
      * Get an element given its index.
@@ -32,6 +41,11 @@ public interface DoubleArray extends BigArray {
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
     void fill(long fromIndex, long toIndex, double value);
+
+    /**
+     * Alternative of {@link DoubleArray#readFrom(StreamInput)} where the written bytes are loaded into an existing {@link DoubleArray}
+     */
+    void fillWith(StreamInput in) throws IOException;
 
     /**
      * Bulk set.

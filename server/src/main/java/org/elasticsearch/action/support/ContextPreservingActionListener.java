@@ -8,6 +8,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.function.Supplier;
@@ -16,7 +17,7 @@ import java.util.function.Supplier;
  * Restores the given {@link org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext}
  * once the listener is invoked
  */
-public final class ContextPreservingActionListener<R> extends ActionListener.Delegating<R, R> {
+public final class ContextPreservingActionListener<R> extends DelegatingActionListener<R, R> {
 
     private final Supplier<ThreadContext.StoredContext> context;
 
@@ -35,7 +36,7 @@ public final class ContextPreservingActionListener<R> extends ActionListener.Del
     @Override
     public void onFailure(Exception e) {
         try (ThreadContext.StoredContext ignore = context.get()) {
-            delegate.onFailure(e);
+            super.onFailure(e);
         }
     }
 

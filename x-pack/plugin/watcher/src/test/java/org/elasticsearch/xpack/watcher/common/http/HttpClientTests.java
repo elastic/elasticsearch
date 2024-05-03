@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -48,7 +49,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -483,7 +483,7 @@ public class HttpClientTests extends ESTestCase {
             request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
         } else {
             // ensure that fromUrl acts the same way than the above builder
-            request = HttpRequest.builder().fromUrl(String.format(Locale.ROOT, "http://localhost:%s%s", webServer.getPort(), path)).build();
+            request = HttpRequest.builder().fromUrl(Strings.format("http://localhost:%s%s", webServer.getPort(), path)).build();
         }
         httpClient.execute(request);
 
@@ -500,6 +500,7 @@ public class HttpClientTests extends ESTestCase {
             .setBody("foo")
             .addHeader("foo", "bar")
             .addHeader("foo", "baz")
+            .addHeader("Foo", "bam")
             .addHeader("Content-Length", "3");
         webServer.enqueue(mockResponse);
 
@@ -509,7 +510,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests(), hasSize(1));
 
         assertThat(httpResponse.headers(), hasKey("foo"));
-        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz"));
+        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz", "bam"));
     }
 
     // finally fixing https://github.com/elastic/x-plugins/issues/1141 - yay! Fixed due to switching to apache http client internally!
@@ -808,6 +809,29 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    public void testNoCookies() throws IOException {
+        /*
+         * In this test we make the same request twice, and assert that the second request is not sent with the cookie that the first
+         * response tells us to set.
+         */
+        int responseCode = randomIntBetween(200, 203);
+        String body = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(responseCode).setBody(body).addHeader("Set-Cookie", "test-cookie=" + randomAlphaOfLength(10))
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5));
+        requestBuilder.body(randomAlphaOfLength(5));
+        HttpRequest request = requestBuilder.build();
+
+        httpClient.execute(request);
+        httpClient.execute(request);
+        assertNull(webServer.requests().get(1).getHeader("Cookie"));
+    }
+
     private void assertCreateUri(String uri, String expectedPath) {
         final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
         final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);
@@ -822,6 +846,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return String.format(Locale.ROOT, "http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 }

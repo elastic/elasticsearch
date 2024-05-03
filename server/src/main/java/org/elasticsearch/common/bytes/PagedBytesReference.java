@@ -26,23 +26,17 @@ public class PagedBytesReference extends AbstractBytesReference {
 
     private final ByteArray byteArray;
     private final int offset;
-    private final int length;
 
     PagedBytesReference(ByteArray byteArray, int from, int length) {
+        super(length);
         assert byteArray.hasArray() == false : "use BytesReference#fromByteArray";
         this.byteArray = byteArray;
         this.offset = from;
-        this.length = length;
     }
 
     @Override
     public byte get(int index) {
         return byteArray.get(offset + index);
-    }
-
-    @Override
-    public int length() {
-        return length;
     }
 
     @Override

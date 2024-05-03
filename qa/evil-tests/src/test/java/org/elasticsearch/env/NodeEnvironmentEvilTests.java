@@ -44,10 +44,9 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths)
                 .build();
-            IllegalStateException exception = expectThrows(
-                IllegalStateException.class,
-                () -> { new NodeEnvironment(build, TestEnvironment.newEnvironment(build)); }
-            );
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+            });
             assertTrue(
                 exception.getCause().getCause().getMessage(),
                 exception.getCause().getCause().getMessage().startsWith(path.toString())

@@ -92,9 +92,9 @@ public abstract class PipelineAggregator {
         }
     }
 
-    private String name;
-    private String[] bucketsPaths;
-    private Map<String, Object> metadata;
+    private final String name;
+    private final String[] bucketsPaths;
+    private final Map<String, Object> metadata;
 
     protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
         this.name = name;

@@ -7,18 +7,20 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
- * Abstract class that allows to mark action requests that support acknowledgements.
- * Facilitates consistency across different api.
+ * Abstract base class for action requests that track acknowledgements of cluster state updates: such a request is acknowledged only once
+ * the cluster state update is committed and all relevant nodes have applied it and acknowledged its application to the elected master..
  */
 public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
     implements
@@ -26,60 +28,72 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
-    protected TimeValue timeout;
+    /**
+     * Specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to the elected master.
+     */
+    private TimeValue ackTimeout;
 
+    /**
+     * Construct an {@link AcknowledgedRequest} with the default ack timeout of 30s.
+     */
     protected AcknowledgedRequest() {
         this(DEFAULT_ACK_TIMEOUT);
     }
 
-    protected AcknowledgedRequest(TimeValue timeout) {
-        this.timeout = timeout;
+    /**
+     * @param ackTimeout specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to the
+     *                   elected master.
+     */
+    protected AcknowledgedRequest(TimeValue ackTimeout) {
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
     }
 
     protected AcknowledgedRequest(StreamInput in) throws IOException {
         super(in);
-        this.timeout = in.readTimeValue();
+        this.ackTimeout = in.readTimeValue();
     }
 
     /**
-     * Allows to set the timeout
-     * @param timeout timeout as a string (e.g. 1s)
-     * @return the request itself
+     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
+     * this to the elected master.
+     *
+     * @param ackTimeout timeout as a {@link TimeValue}
+     * @return this request, for method chaining.
      */
     @SuppressWarnings("unchecked")
-    public final Request timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
+    public final Request ackTimeout(TimeValue ackTimeout) {
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
         return (Request) this;
     }
 
     /**
-     * Allows to set the timeout
-     * @param timeout timeout as a {@link TimeValue}
-     * @return the request itself
+     * @return the current ack timeout as a {@link TimeValue}
      */
-    @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return (Request) this;
-    }
-
-    /**
-     * Returns the current timeout
-     * @return the current timeout as a {@link TimeValue}
-     */
-    public final TimeValue timeout() {
-        return timeout;
-    }
-
     @Override
-    public TimeValue ackTimeout() {
-        return timeout;
+    public final TimeValue ackTimeout() {
+        return ackTimeout;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeTimeValue(timeout);
+        out.writeTimeValue(ackTimeout);
     }
 
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
+
+    /**
+     * {@link AcknowledgedRequest} that does not have any additional fields. Should be used instead of implementing noop subclasses of
+     * {@link AcknowledgedRequest}.
+     */
+    public static final class Plain extends AcknowledgedRequest<Plain> {
+        public Plain(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Plain() {}
+    }
 }

@@ -118,6 +118,7 @@ setup:
   - match: { scroll_size: 1000 }
   - is_true: query.match_all
   - match: { chunking_config: { mode: "auto" }}
+  - is_true: authorization.roles
 
 ---
 "Test put datafeed whose id is already taken":
@@ -210,6 +211,7 @@ setup:
   - match: { frequency: "2m" }
   - match: { query_delay: "0s" }
   - is_false: max_empty_searches
+  - is_true: authorization.roles
 
 ---
 "Test update datafeed to point to different job":
@@ -379,6 +381,9 @@ setup:
   - match: { datafeeds.0.aggregations.histogram_buckets.aggs.bytes_in_avg.avg.field: "system.network.in.bytes" }
   - match: { datafeeds.0.aggregations.histogram_buckets.aggs.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
   - is_false: max_empty_searches
+  # We cannot assert an exact role here because this test is run by users
+  # with different roles in the main REST tests and ML-with-security tests
+  - is_true: datafeeds.0.authorization.roles
 
 ---
 "Test delete datafeed":

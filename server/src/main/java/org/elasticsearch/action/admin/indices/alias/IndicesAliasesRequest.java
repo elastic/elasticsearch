@@ -61,7 +61,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     public IndicesAliasesRequest(StreamInput in) throws IOException {
         super(in);
-        allAliasActions = in.readList(AliasActions::new);
+        allAliasActions = in.readCollectionAsList(AliasActions::new);
         origin = in.readOptionalString();
     }
 
@@ -83,7 +83,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
         private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
         private static final ParseField MUST_EXIST = new ParseField("must_exist");
-
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
         private static final ParseField REMOVE_INDEX = new ParseField("remove_index");
@@ -103,6 +102,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
             public byte value() {
                 return value;
+            }
+
+            public String getFieldName() {
+                return fieldName;
             }
 
             public static Type fromValue(byte value) {
@@ -554,6 +557,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + searchRouting
                 + ",writeIndex="
                 + writeIndex
+                + ",isHidden="
+                + isHidden
                 + ",mustExist="
                 + mustExist
                 + "]";
@@ -580,7 +585,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
+            return Objects.hash(
+                type,
+                Arrays.hashCode(indices),
+                Arrays.hashCode(aliases),
+                filter,
+                routing,
+                indexRouting,
+                searchRouting,
+                writeIndex,
+                isHidden,
+                mustExist
+            );
         }
     }
 
@@ -622,7 +638,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(allAliasActions);
+        out.writeCollection(allAliasActions);
         out.writeOptionalString(origin);
     }
 

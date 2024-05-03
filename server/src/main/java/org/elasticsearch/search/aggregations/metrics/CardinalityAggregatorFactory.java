@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -22,17 +23,119 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
-class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public enum ExecutionMode {
+        GLOBAL_ORDINALS(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return true;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return false;
+            }
+        },
+        SEGMENT_ORDINALS(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return false;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return true;
+            }
+        },
+        DIRECT(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return false;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return false;
+            }
+        },
+        SAVE_MEMORY_HEURISTIC(true) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+                throws IOException {
+                return useGlobalOrds(context, source, precision);
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                final long ordinalsMemoryUsage = CardinalityAggregator.OrdinalsCollector.memoryOverhead(maxOrd);
+                final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                // only use ordinals if they don't increase memory usage by more than 25%
+                if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                    return true;
+                }
+                return false;
+            }
+        },
+        SAVE_TIME_HEURISTIC(true) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+                throws IOException {
+                return useGlobalOrds(context, source, precision);
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                // Using segment ordinals is much faster than using the direct collector, even when it uses more memory
+                return true;
+            }
+        };
+
+        public static ExecutionMode fromString(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Invalid execution mode for cardinality aggregation.  Got ["
+                        + value
+                        + "]"
+                        + "expected one of [global_ordinal, segment_ordinal, direct]"
+                );
+            }
+        }
+
+        final boolean isHeuristicBased;
+
+        ExecutionMode(boolean isHeuristicBased) {
+            this.isHeuristicBased = isHeuristicBased;
+        }
+
+        public boolean isHeuristicBased() {
+            return isHeuristicBased;
+        }
+
+        public abstract boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+            throws IOException;
+
+        public abstract boolean useSegmentOrdinals(long maxOrd, int precision);
+    }
 
     private final Long precisionThreshold;
     private final CardinalityAggregatorSupplier aggregatorSupplier;
+    private final ExecutionMode executionMode;
 
     CardinalityAggregatorFactory(
         String name,
         ValuesSourceConfig config,
         Long precisionThreshold,
+        String executionHint,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -43,21 +146,30 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.precisionThreshold = precisionThreshold;
+        // For BWC reasons, the parameter is nullable.
+        this.executionMode = executionHint == null ? ExecutionMode.SAVE_TIME_HEURISTIC : ExecutionMode.fromString(executionHint);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             CardinalityAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.ALL_CORE,
-            (name, valuesSourceConfig, precision, context, parent, metadata) -> {
+            Stream.concat(CoreValuesSourceType.ALL_CORE.stream(), Stream.of(TimeSeriesValuesSourceType.COUNTER)).toList(),
+            (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
-                    if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
-                        if (useGlobalOrds(context, source, precision)) {
-                            final long maxOrd = source.globalMaxOrd(context.searcher());
+                    if (valuesSourceConfig.getValuesSource() instanceof final ValuesSource.Bytes.WithOrdinals source) {
+                        if (executionMode.useGlobalOrdinals(context, source, precision)) {
+                            final String field;
+                            if (valuesSourceConfig.alignesWithSearchIndex()) {
+                                field = valuesSourceConfig.fieldType().name();
+                            } else {
+                                field = null;
+                            }
+                            final long maxOrd = source.globalMaxOrd(context.searcher().getIndexReader());
                             return new GlobalOrdCardinalityAggregator(
                                 name,
                                 source,
+                                field,
                                 precision,
                                 Math.toIntExact(maxOrd),
                                 context,
@@ -68,7 +180,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                 }
                 // fallback in the default aggregator
-                return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+                return new CardinalityAggregator(name, valuesSourceConfig, precision, executionMode, context, parent, metadata);
             },
             true
         );
@@ -91,13 +203,14 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), context, parent, metadata);
+        final InternalCardinality empty = InternalCardinality.empty(name, metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config, precision(), context, parent, metadata);
+        return aggregatorSupplier.build(name, config, precision(), executionMode, context, parent, metadata);
     }
 
     private int precision() {

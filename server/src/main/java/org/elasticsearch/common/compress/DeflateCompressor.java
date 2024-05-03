@@ -8,18 +8,18 @@
 
 package org.elasticsearch.common.compress;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Streams;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -56,11 +56,6 @@ public class DeflateCompressor implements Compressor {
             }
         }
         return true;
-    }
-
-    @Override
-    public int headerLength() {
-        return HEADER.length;
     }
 
     // Reusable inflater reference for streaming decompression
@@ -154,18 +149,24 @@ public class DeflateCompressor implements Compressor {
             inflater = new Inflater(true);
             releasable = inflater::end;
         }
-        return new BufferedInputStream(new InflaterInputStream(in, inflater, BUFFER_SIZE) {
+        return new InflaterInputStream(in, inflater, BUFFER_SIZE) {
+
+            private Releasable release = releasable;
+
             @Override
             public void close() throws IOException {
+                if (release == null) {
+                    return;
+                }
                 try {
                     super.close();
                 } finally {
-                    // We are ensured to only call this once since we wrap this stream in a BufferedInputStream that will only close
-                    // its delegate once
-                    releasable.close();
+                    // We need to ensure that we only call this once
+                    release.close();
+                    release = null;
                 }
             }
-        }, BUFFER_SIZE);
+        };
     }
 
     @Override
@@ -206,6 +207,16 @@ public class DeflateCompressor implements Compressor {
 
     @Override
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
+        if (bytesReference.length() < HEADER.length) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "Input bytes length %d is less than DEFLATE header size %d",
+                    bytesReference.length(),
+                    HEADER.length
+                )
+            );
+        }
         final BytesStreamOutput buffer = baos.get();
         try {
             final Inflater inflater = inflaterRef.get();

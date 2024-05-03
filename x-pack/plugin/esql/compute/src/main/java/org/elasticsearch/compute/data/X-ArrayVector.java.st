@@ -109,6 +109,13 @@ $endif$
 
 $if(BytesRef)$
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+$endif$
+
+$if(BytesRef)$
+    @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
         return values.get(position, dest);
     }

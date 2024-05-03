@@ -8,6 +8,15 @@ role:
         - idx2
       privileges:
         - READ
+  remote_cluster:
+    - clusters:
+        - remote0
+      privileges:
+        - "monitor_enrich"
+    - clusters:
+        - remote1
+      privileges:
+        - "monitor_enrich"
 
 role_with_fls_dls:
   remote_indices:
@@ -48,3 +57,14 @@ invalid_role_empty_privileges:
         - idx1
       privileges:
 
+invalid_role_missing_remote_clusters:
+  remote_cluster:
+      privileges:
+        - "monitor_enrich"
+
+invalid_role_bad_priv_remote_clusters:
+  remote_cluster:
+    - clusters:
+        - remote0
+      privileges:
+        - "junk"

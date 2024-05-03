@@ -96,6 +96,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
+import static org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -226,6 +227,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch("test"), 1L);
         indicesAdmin().prepareDelete("test").get();
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(idxPath);
     }
@@ -273,6 +275,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // Now, try closing and changing the settings
         logger.info("--> closing the index [{}] before updating data_path", index);
         assertAcked(indicesAdmin().prepareClose(index));
+        awaitIndexShardCloseAsyncTasks();
 
         final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
         IOUtils.rm(newIndexDataPath);
@@ -307,6 +310,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         assertAcked(indicesAdmin().prepareDelete(index));
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }

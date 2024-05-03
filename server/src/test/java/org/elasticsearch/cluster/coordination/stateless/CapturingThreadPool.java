@@ -14,6 +14,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.Executor;
 
 class CapturingThreadPool extends TestThreadPool {
     final Deque<Tuple<TimeValue, Runnable>> scheduledTasks = new ArrayDeque<>();
@@ -23,7 +24,7 @@ class CapturingThreadPool extends TestThreadPool {
     }
 
     @Override
-    public ScheduledCancellable schedule(Runnable task, TimeValue delay, String executor) {
+    public ScheduledCancellable schedule(Runnable task, TimeValue delay, Executor executor) {
         scheduledTasks.add(new Tuple<>(delay, task));
         return null;
     }

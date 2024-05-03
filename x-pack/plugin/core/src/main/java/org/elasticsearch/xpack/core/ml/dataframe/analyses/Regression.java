@@ -183,7 +183,7 @@ public class Regression implements DataFrameAnalysis {
         randomizeSeed = in.readOptionalLong();
         lossFunction = in.readEnum(LossFunction.class);
         lossFunctionParameter = in.readOptionalDouble();
-        featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
+        featureProcessors = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(PreProcessor.class));
         earlyStoppingEnabled = in.readBoolean();
     }
 
@@ -238,7 +238,7 @@ public class Regression implements DataFrameAnalysis {
         out.writeOptionalLong(randomizeSeed);
         out.writeEnum(lossFunction);
         out.writeOptionalDouble(lossFunctionParameter);
-        out.writeNamedWriteableList(featureProcessors);
+        out.writeNamedWriteableCollection(featureProcessors);
         out.writeBoolean(earlyStoppingEnabled);
     }
 

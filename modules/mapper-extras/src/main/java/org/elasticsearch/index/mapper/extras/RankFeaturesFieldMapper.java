@@ -64,10 +64,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         @Override
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
-                name,
-                new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                name(),
+                new RankFeaturesFieldType(context.buildFullName(name()), meta.getValue(), positiveScoreImpact.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 positiveScoreImpact.getValue()
             );
         }
@@ -143,6 +143,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     @Override
     public RankFeaturesFieldType fieldType() {
         return (RankFeaturesFieldType) super.fieldType();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override

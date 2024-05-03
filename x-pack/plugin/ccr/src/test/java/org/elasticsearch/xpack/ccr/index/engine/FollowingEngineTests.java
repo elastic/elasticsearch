@@ -573,7 +573,7 @@ public class FollowingEngineTests extends ESTestCase {
                 threads[i] = new Thread(() -> {
                     try {
                         latch.countDown();
-                        latch.await();
+                        safeAwait(latch);
                         fetchOperations(taskIsCompleted, lastFetchedSeqNo, leader, follower);
                     } catch (Exception e) {
                         throw new AssertionError(e);
@@ -583,7 +583,7 @@ public class FollowingEngineTests extends ESTestCase {
             }
             try {
                 latch.countDown();
-                latch.await();
+                safeAwait(latch);
                 task.accept(leader, follower);
                 EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             } finally {

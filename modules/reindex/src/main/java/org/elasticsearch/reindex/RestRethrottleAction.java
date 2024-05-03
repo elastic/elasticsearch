@@ -55,7 +55,7 @@ public class RestRethrottleAction extends BaseRestHandler {
         internalRequest.setRequestsPerSecond(requestsPerSecond);
         final String groupBy = request.param("group_by", "nodes");
         return channel -> client.execute(
-            RethrottleAction.INSTANCE,
+            ReindexPlugin.RETHROTTLE_ACTION,
             internalRequest,
             listTasksResponseListener(nodesInCluster, groupBy, channel)
         );

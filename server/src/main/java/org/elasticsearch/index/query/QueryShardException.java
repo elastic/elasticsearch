@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * Exception that is thrown when creating lucene queries on the shard
  */
-public class QueryShardException extends ElasticsearchException {
+public final class QueryShardException extends ElasticsearchException {
 
     public QueryShardException(QueryRewriteContext context, String msg, Object... args) {
         this(context, msg, null, args);

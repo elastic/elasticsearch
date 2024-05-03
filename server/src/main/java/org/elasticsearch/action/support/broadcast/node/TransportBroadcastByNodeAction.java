@@ -40,7 +40,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -77,9 +76,9 @@ public abstract class TransportBroadcastByNodeAction<
 
     private static final Logger logger = LogManager.getLogger(TransportBroadcastByNodeAction.class);
 
-    private final ClusterService clusterService;
-    private final TransportService transportService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    protected final ClusterService clusterService;
+    protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Executor executor;
 
     final String transportNodeBroadcastAction;
@@ -91,11 +90,12 @@ public abstract class TransportBroadcastByNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor
+        Executor executor
     ) {
         this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
     }
 
+    @SuppressWarnings("this-escape")
     public TransportBroadcastByNodeAction(
         String actionName,
         ClusterService clusterService,
@@ -103,23 +103,23 @@ public abstract class TransportBroadcastByNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor,
+        Executor executor,
         boolean canTripCircuitBreaker
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, ThreadPool.Names.SAME);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = executor;
         assert this.executor != EsExecutors.DIRECT_EXECUTOR_SERVICE : "O(#shards) work must always fork to an appropriate executor";
 
         transportNodeBroadcastAction = actionName + "[n]";
 
         transportService.registerRequestHandler(
             transportNodeBroadcastAction,
-            executor,
+            this.executor,
             false,
             canTripCircuitBreaker,
             NodeRequest::new,
@@ -228,7 +228,7 @@ public abstract class TransportBroadcastByNodeAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        request.incRef();
+        request.mustIncRef();
         executor.execute(ActionRunnable.wrapReleasing(listener, request::decRef, l -> doExecuteForked(task, request, listener)));
     }
 
@@ -456,7 +456,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             @Override
             public String toString() {
-                return actionName;
+                return transportNodeBroadcastAction;
             }
         }.run(task, shards.iterator(), listener);
     }
@@ -469,12 +469,12 @@ public abstract class TransportBroadcastByNodeAction<
         NodeRequest(StreamInput in) throws IOException {
             super(in);
             indicesLevelRequest = readRequestFrom(in);
-            shards = in.readList(ShardRouting::new);
+            shards = in.readCollectionAsList(ShardRouting::new);
             nodeId = in.readString();
         }
 
         NodeRequest(Request indicesLevelRequest, List<ShardRouting> shards, String nodeId) {
-            indicesLevelRequest.incRef();
+            indicesLevelRequest.mustIncRef();
             this.indicesLevelRequest = indicesLevelRequest;
             this.shards = shards;
             this.nodeId = nodeId;
@@ -507,7 +507,7 @@ public abstract class TransportBroadcastByNodeAction<
             assert indicesLevelRequest.hasReferences();
             super.writeTo(out);
             indicesLevelRequest.writeTo(out);
-            out.writeList(shards);
+            out.writeCollection(shards);
             out.writeString(nodeId);
         }
 
@@ -535,9 +535,15 @@ public abstract class TransportBroadcastByNodeAction<
         public boolean hasReferences() {
             return indicesLevelRequest.hasReferences();
         }
+
+        @Override
+        public String toString() {
+            return "[" + transportNodeBroadcastAction + "][" + nodeId + "][" + indicesLevelRequest + "]";
+        }
     }
 
-    class NodeResponse extends TransportResponse {
+    // visible for testing
+    public class NodeResponse extends TransportResponse {
         protected String nodeId;
         protected int totalShards;
         protected List<BroadcastShardOperationFailedException> exceptions;
@@ -547,15 +553,16 @@ public abstract class TransportBroadcastByNodeAction<
             super(in);
             nodeId = in.readString();
             totalShards = in.readVInt();
-            results = in.readList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
+            results = in.readCollectionAsList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
             if (in.readBoolean()) {
-                exceptions = in.readList(BroadcastShardOperationFailedException::new);
+                exceptions = in.readCollectionAsList(BroadcastShardOperationFailedException::new);
             } else {
                 exceptions = null;
             }
         }
 
-        NodeResponse(
+        // visible for testing
+        public NodeResponse(
             String nodeId,
             int totalShards,
             List<ShardOperationResult> results,
@@ -594,7 +601,7 @@ public abstract class TransportBroadcastByNodeAction<
             out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                out.writeList(exceptions);
+                out.writeCollection(exceptions);
             }
         }
     }

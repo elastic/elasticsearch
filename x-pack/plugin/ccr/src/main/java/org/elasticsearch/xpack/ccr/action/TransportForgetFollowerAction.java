@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
@@ -46,7 +47,6 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
     BroadcastResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
 
     @Inject
@@ -64,9 +64,8 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
             Objects.requireNonNull(actionFilters),
             Objects.requireNonNull(indexNameExpressionResolver),
             ForgetFollowerAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.indicesService = Objects.requireNonNull(indicesService);
     }
 
@@ -133,7 +132,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
                     onFailure(e);
                 }
             }
-        }, ThreadPool.Names.SAME);
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override

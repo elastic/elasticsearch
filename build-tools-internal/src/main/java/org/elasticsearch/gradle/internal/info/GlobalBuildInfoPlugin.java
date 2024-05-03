@@ -124,7 +124,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setGitOrigin(gitInfo.getOrigin());
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
-            params.setIsCi(System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null);
+            params.setIsCi(
+                System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
+            );
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
@@ -300,7 +302,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            return new File(findJavaHome(runtimeJavaProperty));
+            return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
         }
         String env = System.getenv("RUNTIME_JAVA_HOME");
         if (env != null) {
@@ -309,12 +311,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         // fall back to tool chain if set.
         env = System.getenv("JAVA_TOOLCHAIN_HOME");
         return env == null ? Jvm.current().getJavaHome() : new File(env);
-    }
-
-    private String findJavaHome(String version) {
-        String javaHomeEnvVar = getJavaHomeEnvVarName(version);
-        String env = System.getenv(javaHomeEnvVar);
-        return env != null ? resolveJavaHomeFromEnvVariable(javaHomeEnvVar) : resolveJavaHomeFromToolChainService(version);
     }
 
     @NotNull
@@ -348,17 +344,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     @NotNull
-    private String resolveJavaHomeFromToolChainService(String version) {
+    private File resolveJavaHomeFromToolChainService(String version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(
-            javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value)
-        );
-
-        try {
-            return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile().getCanonicalPath();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(javaToolchainSpec -> {
+            javaToolchainSpec.getLanguageVersion().value(value);
+            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
+        });
+        return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile();
     }
 
     private static String getJavaHomeEnvVarName(String version) {

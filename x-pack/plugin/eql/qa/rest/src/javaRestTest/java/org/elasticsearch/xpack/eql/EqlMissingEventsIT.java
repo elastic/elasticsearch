@@ -7,11 +7,25 @@
 
 package org.elasticsearch.xpack.eql;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlMissingEventsSpecTestCase;
+import org.junit.ClassRule;
 
 import java.util.List;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EqlMissingEventsIT extends EqlMissingEventsSpecTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public EqlMissingEventsIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
         super(query, name, eventIds, joinKeys, size, maxSamplesPerKey);

@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,6 +59,14 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         @Override
         public Object getKey() {
             return getKeyAsString();
+        }
+
+        public BytesRef getTermBytes() {
+            return termBytes;
+        }
+
+        public void setTermBytes(BytesRef termBytes) {
+            this.termBytes = termBytes;
         }
 
         // this method is needed for scripted numeric aggs
@@ -137,6 +147,11 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
      */
     public StringTerms(StreamInput in) throws IOException {
         super(in, Bucket::new);
+    }
+
+    @Override
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return termsAggregationReducer(reduceContext, size);
     }
 
     @Override

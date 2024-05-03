@@ -102,12 +102,15 @@ teardown:
 "Test Change Target Index with Default Pipeline":
 
 - do:
-    indices.put_template:
+    allowed_warnings:
+      - "index template [index_template] has index patterns [test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [index_template] will take precedence during new index creation"
+    indices.put_index_template:
       name: index_template
       body:
         index_patterns: test
-        settings:
-          default_pipeline: "retarget"
+        template:
+          settings:
+            default_pipeline: "retarget"
 
 - do:
     ingest.put_pipeline:

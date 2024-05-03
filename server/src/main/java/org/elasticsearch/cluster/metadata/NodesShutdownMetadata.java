@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -41,7 +42,7 @@ import java.util.stream.Collectors;
  */
 public class NodesShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
-    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersion.V_7_13_0;
+    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersions.V_7_13_0;
     public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
@@ -79,7 +80,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(nodes, StreamOutput::writeString, (outStream, v) -> v.writeTo(outStream));
+        out.writeMap(nodes, StreamOutput::writeWriteable);
     }
 
     /**

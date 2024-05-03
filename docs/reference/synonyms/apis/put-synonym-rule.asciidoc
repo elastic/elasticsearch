@@ -1,8 +1,6 @@
 [[put-synonym-rule]]
 === Create or update synonym rule
 
-beta::[]
-
 ++++
 <titleabbrev>Create or update synonym rule</titleabbrev>
 ++++

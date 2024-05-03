@@ -216,7 +216,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         final ProgressListenableActionFuture future = randomFuture();
         final long progress = randomLongBetween(future.start, future.end);
 
-        final PlainActionFuture<Long> listenerResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<Long> listenerResponse = new PlainActionFuture<>();
         if (randomBoolean()) {
             future.onProgress(progress);
             future.addListener(listenerResponse, randomLongBetween(future.start, progress));

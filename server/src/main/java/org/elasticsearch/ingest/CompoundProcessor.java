@@ -39,10 +39,12 @@ public class CompoundProcessor implements Processor {
         this(false, List.of(processors), List.of());
     }
 
+    @SuppressWarnings("this-escape")
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
         this(ignoreFailure, processors, onFailureProcessors, System::nanoTime);
     }
 
+    @SuppressWarnings("this-escape")
     CompoundProcessor(
         boolean ignoreFailure,
         List<Processor> processors,

@@ -1,6 +1,0 @@
-pr: 97401
-summary: Fix transform incorrectly calculating date bucket on updating old data
-area: Transform
-type: bug
-issues:
- - 97101

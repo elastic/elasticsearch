@@ -14,7 +14,7 @@ import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ public class HistogramValuesSource {
 
         @Override
         public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
-            throw new AggregationExecutionException("can't round a [histogram]");
+            throw AggregationErrors.unsupportedRounding("histogram");
         }
 
         public static class Fielddata extends Histogram {

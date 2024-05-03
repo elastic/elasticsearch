@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -23,22 +24,18 @@ import java.util.List;
 
 public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeStatsResponse> implements ToXContentObject {
 
-    public SqlStatsResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public SqlStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodeStatsResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeStatsResponse::readNodeResponse);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStatsResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -92,10 +89,6 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
             }
             builder.endObject();
             return builder;
-        }
-
-        static SqlStatsResponse.NodeStatsResponse readNodeResponse(StreamInput in) throws IOException {
-            return new SqlStatsResponse.NodeStatsResponse(in);
         }
 
     }

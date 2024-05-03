@@ -9,9 +9,9 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -24,21 +24,16 @@ import java.io.IOException;
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;
+    private Releasable appenderRelease;
 
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
-        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
-        appender.start();
+        appenderRelease = appender.capturing(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
-        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
-        appender.stop();
+        appenderRelease.close();
         super.tearDown();
     }
 
@@ -51,7 +46,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
             + ", request id: \\d+"
             + ", type: request"
             + ", version: .*"
-            + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
+            + ", action: cluster:monitor/nodes/stats\\[n\\]\\]"
             + " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
             "hot threads request",
@@ -71,7 +66,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
             + ", request id: \\d+"
             + ", type: request"
             + ", version: .*"
-            + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
+            + ", action: cluster:monitor/nodes/stats\\[n\\]\\]"
             + " READ: \\d+B";
 
         final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
@@ -84,7 +79,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
         appender.addExpectation(writeExpectation);
         appender.addExpectation(flushExpectation);
         appender.addExpectation(readExpectation);
-        clusterAdmin().prepareNodesHotThreads().get();
+        client().admin().cluster().prepareNodesStats().get(TimeValue.timeValueSeconds(10));
         appender.assertAllExpectationsMatched();
     }
 

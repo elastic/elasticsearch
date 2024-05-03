@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoResponse;
 
@@ -136,7 +136,7 @@ public class FrozenCacheInfoService {
             logger.debug(() -> format("failed to retrieve node settings from node %s, shouldRetry=%s", discoveryNode, shouldRetry), e);
             if (shouldRetry) {
                 // failure is likely something like a CircuitBreakingException, so there's no sense in an immediate retry
-                client.threadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(1), ThreadPool.Names.SAME, AsyncNodeFetch.this);
+                client.threadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(1), EsExecutors.DIRECT_EXECUTOR_SERVICE, this);
             } else {
                 updateEntry(NodeState.FAILED);
             }

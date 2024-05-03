@@ -11,7 +11,9 @@ package org.elasticsearch.reservedstate.action;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,10 +21,19 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
+import java.util.Set;
 
+import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ReservedClusterSettingsActionTests extends ESTestCase {
+
+    static final Setting<String> dummySetting1 = Setting.simpleString("dummy.setting1", "default1", NodeScope, Dynamic);
+    static final Setting<String> dummySetting2 = Setting.simpleString("dummy.setting2", "default2", NodeScope, Dynamic);
+    static final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(dummySetting1, dummySetting2));
+    static final ReservedClusterSettingsAction testAction = new ReservedClusterSettingsAction(clusterSettings);
 
     private TransformState processJSON(ReservedClusterSettingsAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
@@ -96,5 +107,41 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertNull(updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"));
+    }
+
+    public void testSettingNameNormalization() throws Exception {
+        Settings prevSettings = Settings.builder().put("dummy.setting1", "a-value").build();
+        var clusterState = new SettingsUpdater(clusterSettings).updateSettings(
+            ClusterState.EMPTY_STATE,
+            Settings.EMPTY,
+            prevSettings,
+            logger
+        );
+        TransformState prevState = new TransformState(clusterState, Set.of("dummy.setting1"));
+
+        String json = """
+            {
+                "dummy": {
+                    "setting1": "value1",
+                    "setting2": "value2"
+                }
+            }
+            """;
+
+        TransformState newState = processJSON(testAction, prevState, json);
+        assertThat(newState.keys(), containsInAnyOrder("dummy.setting1", "dummy.setting2"));
+        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), equalTo("value1"));
+        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting2"), equalTo("value2"));
+
+        String jsonRemoval = """
+            {
+                "dummy": {
+                    "setting2": "value2"
+                }
+            }
+            """;
+        TransformState newState2 = processJSON(testAction, prevState, jsonRemoval);
+        assertThat(newState2.keys(), containsInAnyOrder("dummy.setting2"));
+        assertThat(newState2.state().metadata().persistentSettings().get("dummy.setting2"), equalTo("value2"));
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -52,18 +53,14 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class)
-        );
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), equalTo(true));
     }
 
     public void testName() {
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class)
-        );
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
@@ -94,13 +91,9 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(policies, indexPolicies);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        var usageAction = new IndexLifecycleUsageTransportAction(
-            mock(TransportService.class),
-            null,
-            mock(ThreadPool.class),
-            mock(ActionFilters.class),
-            null
-        );
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        var usageAction = new IndexLifecycleUsageTransportAction(transportService, null, threadPool, mock(ActionFilters.class), null);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, clusterState, future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();

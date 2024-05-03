@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -25,7 +26,7 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-public class FrozenIndexInput extends MetadataCachingIndexInput {
+public final class FrozenIndexInput extends MetadataCachingIndexInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
@@ -92,6 +93,14 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             footerBlobCacheByteRange
         );
         this.cacheFile = cacheFile.copy();
+    }
+
+    /**
+     * Clone constructor, will mark this as cloned.
+     */
+    private FrozenIndexInput(FrozenIndexInput input) {
+        super(input);
+        this.cacheFile = input.cacheFile.copy();
     }
 
     @Override
@@ -196,4 +205,17 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         );
     }
 
+    @Override
+    public IndexInput clone() {
+        var clone = tryCloneBuffer();
+        if (clone != null) {
+            return clone;
+        }
+        return new FrozenIndexInput(this);
+    }
+
+    // for tests only
+    SharedBlobCacheService<CacheKey>.CacheFile cacheFile() {
+        return cacheFile;
+    }
 }

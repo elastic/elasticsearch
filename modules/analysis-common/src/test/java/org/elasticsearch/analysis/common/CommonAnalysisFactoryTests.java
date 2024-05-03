@@ -117,6 +117,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("hindinormalization", HindiNormalizationFilterFactory.class);
         filters.put("indicnormalization", IndicNormalizationFilterFactory.class);
         filters.put("persiannormalization", PersianNormalizationFilterFactory.class);
+        filters.put("persianstem", PersianStemTokenFilterFactory.class);
         filters.put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class);
         filters.put("serbiannormalization", SerbianNormalizationFilterFactory.class);
         filters.put("soraninormalization", SoraniNormalizationFilterFactory.class);

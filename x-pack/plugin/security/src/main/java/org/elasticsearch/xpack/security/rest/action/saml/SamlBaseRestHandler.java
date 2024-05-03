@@ -29,11 +29,8 @@ public abstract class SamlBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (Realms.isRealmTypeAvailable(licenseState, SAML_REALM_TYPE)) {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (Realms.isRealmTypeAvailable(licenseState, SAML_REALM_TYPE)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", SAML_REALM_TYPE);

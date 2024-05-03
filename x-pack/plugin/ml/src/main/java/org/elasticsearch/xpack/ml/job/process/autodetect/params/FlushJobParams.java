@@ -186,14 +186,14 @@ public class FlushJobParams {
             }
         }
 
-        private Long parseTimeParam(String name, String value) {
+        private static Long parseTimeParam(String name, String value) {
             if (Strings.isNullOrEmpty(value)) {
                 return null;
             }
             return paramToEpochIfValidOrThrow(name, value) / TimeRange.MILLISECONDS_IN_SECOND;
         }
 
-        private long paramToEpochIfValidOrThrow(String paramName, String date) {
+        private static long paramToEpochIfValidOrThrow(String paramName, String date) {
             if (TimeRange.NOW.equals(date)) {
                 return System.currentTimeMillis();
             }
@@ -208,14 +208,14 @@ public class FlushJobParams {
             return epoch;
         }
 
-        private void checkFlushParamIsEmpty(String paramName, String paramValue) {
+        private static void checkFlushParamIsEmpty(String paramName, String paramValue) {
             if (paramValue.isEmpty() == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_UNEXPECTED, paramName);
                 throw new IllegalArgumentException(msg);
             }
         }
 
-        private boolean isValidTimeRange(TimeRange timeRange) {
+        private static boolean isValidTimeRange(TimeRange timeRange) {
             return timeRange.getStart().isEmpty() == false || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
         }
     }

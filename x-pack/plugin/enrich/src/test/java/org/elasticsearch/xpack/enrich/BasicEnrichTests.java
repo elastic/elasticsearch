@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -150,9 +150,9 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
         String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();
-        assertThat(statsResponse.getCoordinatorStats().get(0).getNodeId(), equalTo(localNodeId));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), equalTo((long) numDocs));
+        assertThat(statsResponse.getCoordinatorStats().get(0).nodeId(), equalTo(localNodeId));
+        assertThat(statsResponse.getCoordinatorStats().get(0).remoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).executedSearchesTotal(), equalTo((long) numDocs));
     }
 
     public void testIngestDataWithGeoMatchProcessor() {
@@ -230,9 +230,9 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
         String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();
-        assertThat(statsResponse.getCoordinatorStats().get(0).getNodeId(), equalTo(localNodeId));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), equalTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).nodeId(), equalTo(localNodeId));
+        assertThat(statsResponse.getCoordinatorStats().get(0).remoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).executedSearchesTotal(), equalTo(1L));
     }
 
     public void testMultiplePolicies() {
@@ -301,7 +301,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         assertThat(executeResponse.getTaskId(), is(not(nullValue())));
         GetTaskRequest getPolicyTaskRequest = new GetTaskRequest().setTaskId(executeResponse.getTaskId()).setWaitForCompletion(true);
         assertBusy(() -> {
-            GetTaskResponse taskResponse = client().execute(GetTaskAction.INSTANCE, getPolicyTaskRequest).actionGet();
+            GetTaskResponse taskResponse = client().execute(TransportGetTaskAction.TYPE, getPolicyTaskRequest).actionGet();
             assertThat(
                 ((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().status()).getPhase(),
                 is(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE)
@@ -402,7 +402,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             IndexRequest indexRequest = new IndexRequest("my-index").id("1")
                 .setPipeline(pipelineName)
                 .source(Map.of(MATCH_FIELD, "non_existing"));
-            Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            Exception e = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
             assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
         }
     }

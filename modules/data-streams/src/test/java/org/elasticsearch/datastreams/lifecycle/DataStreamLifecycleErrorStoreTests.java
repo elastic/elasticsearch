@@ -8,13 +8,20 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
+import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore.MAX_ERROR_MESSAGE_LENGTH;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -25,14 +32,19 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
 
     @Before
     public void setupServices() {
-        errorStore = new DataStreamLifecycleErrorStore();
+        errorStore = new DataStreamLifecycleErrorStore(System::currentTimeMillis);
     }
 
     public void testRecordAndRetrieveError() {
-        errorStore.recordError("test", new NullPointerException("testing"));
+        ErrorEntry existingRecordedError = errorStore.recordError("test", new NullPointerException("testing"));
+        assertThat(existingRecordedError, is(nullValue()));
         assertThat(errorStore.getError("test"), is(notNullValue()));
         assertThat(errorStore.getAllIndices().size(), is(1));
-        assertThat(errorStore.getAllIndices().get(0), is("test"));
+        assertThat(errorStore.getAllIndices(), hasItem("test"));
+
+        existingRecordedError = errorStore.recordError("test", new IllegalStateException("bad state"));
+        assertThat(existingRecordedError, is(notNullValue()));
+        assertThat(existingRecordedError.error(), containsString("testing"));
     }
 
     public void testRetrieveAfterClear() {
@@ -43,7 +55,7 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
 
     public void testGetAllIndicesIsASnapshotViewOfTheStore() {
         Stream.iterate(0, i -> i + 1).limit(5).forEach(i -> errorStore.recordError("test" + i, new NullPointerException("testing")));
-        List<String> initialAllIndices = errorStore.getAllIndices();
+        Set<String> initialAllIndices = errorStore.getAllIndices();
         assertThat(initialAllIndices.size(), is(5));
         assertThat(
             initialAllIndices,
@@ -67,5 +79,40 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
             errorStore.getAllIndices(),
             containsInAnyOrder(Stream.iterate(2, i -> i + 1).limit(8).map(i -> "test" + i).toArray(String[]::new))
         );
+    }
+
+    public void testRecordedErrorIsMaxOneThousandChars() {
+        NullPointerException exceptionWithLongMessage = new NullPointerException(randomAlphaOfLength(2000));
+        errorStore.recordError("test", exceptionWithLongMessage);
+        assertThat(errorStore.getError("test"), is(notNullValue()));
+        assertThat(errorStore.getError("test").error().length(), is(MAX_ERROR_MESSAGE_LENGTH));
+    }
+
+    public void testGetFilteredEntries() {
+        IntStream.range(0, 20).forEach(i -> errorStore.recordError("test20", new NullPointerException("testing")));
+        IntStream.range(0, 5).forEach(i -> errorStore.recordError("test5", new NullPointerException("testing")));
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 100);
+            assertThat(entries.size(), is(1));
+            assertThat(entries.get(0).indexName(), is("test20"));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 0);
+            assertThat(entries.size(), is(0));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 50, 100);
+            assertThat(entries.size(), is(0));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 2, 100);
+            assertThat(entries.size(), is(2));
+            assertThat(entries.get(0).indexName(), is("test20"));
+            assertThat(entries.get(1).indexName(), is("test5"));
+        }
     }
 }

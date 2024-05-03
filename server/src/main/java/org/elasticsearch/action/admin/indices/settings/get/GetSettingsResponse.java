@@ -15,15 +15,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +50,14 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
     }
 
     /**
+     * Returns a map of index name to {@link Settings} object.  The returned {@link Settings}
+     * objects contain only the default settings
+     */
+    public Map<String, Settings> getIndexToDefaultSettings() {
+        return indexToDefaultSettings;
+    }
+
+    /**
      * Returns the string value for the specified index and setting.  If the includeDefaults
      * flag was not set or set to false on the GetSettingsRequest, this method will only
      * return a value where the setting was explicitly set on the index.  If the includeDefaults
@@ -79,63 +84,8 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(indexToSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-    }
-
-    private static void parseSettingsField(
-        XContentParser parser,
-        String currentIndexName,
-        Map<String, Settings> indexToSettings,
-        Map<String, Settings> indexToDefaultSettings
-    ) throws IOException {
-
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            switch (parser.currentName()) {
-                case "settings" -> indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                case "defaults" -> indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                default -> parser.skipChildren();
-            }
-        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-            parser.skipChildren();
-        }
-        parser.nextToken();
-    }
-
-    private static void parseIndexEntry(
-        XContentParser parser,
-        Map<String, Settings> indexToSettings,
-        Map<String, Settings> indexToDefaultSettings
-    ) throws IOException {
-        String indexName = parser.currentName();
-        parser.nextToken();
-        while (parser.isClosed() == false && parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
-        }
-    }
-
-    public static GetSettingsResponse fromXContent(XContentParser parser) throws IOException {
-        HashMap<String, Settings> indexToSettings = new HashMap<>();
-        HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
-
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        parser.nextToken();
-
-        while (parser.isClosed() == false) {
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                // we must assume this is an index entry
-                parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);
-            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                parser.skipChildren();
-            } else {
-                parser.nextToken();
-            }
-        }
-
-        return new GetSettingsResponse(Map.copyOf(indexToSettings), Map.copyOf(indexToDefaultSettings));
+        out.writeMap(indexToSettings, StreamOutput::writeWriteable);
+        out.writeMap(indexToDefaultSettings, StreamOutput::writeWriteable);
     }
 
     @Override

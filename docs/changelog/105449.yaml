@@ -1,0 +1,6 @@
+pr: 105449
+summary: Don't stop checking if the `HealthNode` persistent task is present
+area: Health
+type: bug
+issues:
+ - 98926

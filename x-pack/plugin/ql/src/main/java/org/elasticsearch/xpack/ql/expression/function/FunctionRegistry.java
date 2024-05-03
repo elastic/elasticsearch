@@ -47,10 +47,12 @@ public class FunctionRegistry {
     /**
      * Register the given function definitions with this registry.
      */
+    @SuppressWarnings("this-escape")
     public FunctionRegistry(FunctionDefinition... functions) {
         register(functions);
     }
 
+    @SuppressWarnings("this-escape")
     public FunctionRegistry(FunctionDefinition[]... groupFunctions) {
         register(groupFunctions);
     }
@@ -458,5 +460,4 @@ public class FunctionRegistry {
         }
         return (Boolean) extras[0];
     }
-
 }

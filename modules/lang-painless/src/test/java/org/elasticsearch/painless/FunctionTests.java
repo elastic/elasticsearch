@@ -9,6 +9,7 @@
 package org.elasticsearch.painless;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FunctionTests extends ScriptTestCase {
 
@@ -74,11 +75,9 @@ public class FunctionTests extends ScriptTestCase {
     }
 
     public void testInfiniteLoop() {
-        Error expected = expectScriptThrows(PainlessError.class, () -> { exec("void test() {boolean x = true; while (x) {}} test()"); });
-        assertThat(
-            expected.getMessage(),
-            containsString("The maximum number of statements that can be executed in a loop has been reached.")
-        );
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("void test() {boolean x = true; while (x) {}} test()"); });
+        assertThat(e.realCause.getClass(), equalTo(PainlessError.class));
+        assertThat(e.getMessage(), containsString("The maximum number of statements that can be executed in a loop has been reached."));
     }
 
     public void testReturnVoid() {

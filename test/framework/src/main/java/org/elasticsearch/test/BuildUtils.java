@@ -100,6 +100,7 @@ public class BuildUtils {
     }
 
     private static String randomStringExcept(final String s) {
-        return randomAlphaOfLength(13 - s.length());
+        int len = s == null ? 0 : s.length();
+        return randomAlphaOfLength(13 - len);
     }
 }

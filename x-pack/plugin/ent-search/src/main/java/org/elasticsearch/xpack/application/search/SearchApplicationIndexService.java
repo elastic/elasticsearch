@@ -18,13 +18,13 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -201,9 +201,13 @@ public class SearchApplicationIndexService {
                 return;
             }
             final BytesReference source = getResponse.getSourceInternal();
-            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-            l.onResponse(res);
+            SearchApplication searchApplication = parseSearchApplicationBinaryFromSource(source, getAliasIndices(resourceName));
+            l.onResponse(searchApplication);
         }));
+    }
+
+    private String[] getAliasIndices(String searchApplicationName) {
+        return clusterService.state().metadata().aliasedIndices(searchApplicationName).stream().map(Index::getName).toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -217,10 +221,10 @@ public class SearchApplicationIndexService {
      * @param create If true, the search application must not already exist
      * @param listener The action listener to invoke on response/failure.
      */
-    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         createOrUpdateAlias(app, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+            public void onResponse(IndicesAliasesResponse response) {
                 updateSearchApplication(app, create, listener);
             }
 
@@ -237,7 +241,7 @@ public class SearchApplicationIndexService {
         });
     }
 
-    private void createOrUpdateAlias(SearchApplication app, ActionListener<AcknowledgedResponse> listener) {
+    private void createOrUpdateAlias(SearchApplication app, ActionListener<IndicesAliasesResponse> listener) {
 
         final Metadata metadata = clusterService.state().metadata();
         final String searchAliasName = getSearchAliasName(app);
@@ -274,7 +278,7 @@ public class SearchApplicationIndexService {
         return aliasesRequestBuilder;
     }
 
-    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
@@ -327,16 +331,21 @@ public class SearchApplicationIndexService {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
-        client.admin()
-            .indices()
-            .aliases(
-                aliasesRequest,
-                new DelegatingIndexNotFoundActionListener<>(
-                    searchAliasName,
-                    listener,
-                    (l, acknowledgedResponse) -> l.onResponse(AcknowledgedResponse.TRUE)
-                )
-            );
+        client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(IndicesAliasesResponse response) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ResourceNotFoundException) {
+                    listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     /**
@@ -421,7 +430,7 @@ public class SearchApplicationIndexService {
         );
     }
 
-    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source) {
+    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source, String[] indices) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -442,7 +451,7 @@ public class SearchApplicationIndexService {
                     try (
                         StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), namedWriteableRegistry)
                     ) {
-                        return parseSearchApplicationBinaryWithVersion(in);
+                        return parseSearchApplicationBinaryWithVersion(in, indices);
                     }
                 } else {
                     XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
@@ -456,11 +465,11 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
+    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in, String[] indices) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
-        return new SearchApplication(in);
+        return new SearchApplication(in, indices);
     }
 
     static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)

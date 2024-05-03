@@ -82,24 +82,36 @@ public class SourceConfig implements Writeable, ToXContentObject {
      * @param runtimeMappings Search-time runtime fields that can be used by the transform
      */
     public SourceConfig(String[] index, QueryConfig queryConfig, Map<String, Object> runtimeMappings) {
-        ExceptionsHelper.requireNonNull(index, INDEX.getPreferredName());
-        if (index.length == 0) {
-            throw new IllegalArgumentException("must specify at least one index");
-        }
-        if (Arrays.stream(index).anyMatch(Strings::isNullOrEmpty)) {
-            throw new IllegalArgumentException("all indices need to be non-null and non-empty");
-        }
-        this.index = index;
+        this.index = extractIndices(ExceptionsHelper.requireNonNull(index, INDEX.getPreferredName()));
         this.queryConfig = ExceptionsHelper.requireNonNull(queryConfig, QUERY.getPreferredName());
         this.runtimeMappings = Collections.unmodifiableMap(
             ExceptionsHelper.requireNonNull(runtimeMappings, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName())
         );
     }
 
+    /**
+     * Extracts all index names or index patterns from the given array of strings.
+     *
+     * @param index array of indices (may contain comma-separated index names or index patterns)
+     * @return array of indices without comma-separated index names or index patterns
+     */
+    private static String[] extractIndices(String[] index) {
+        if (index.length == 0) {
+            throw new IllegalArgumentException("must specify at least one index");
+        }
+        if (Arrays.stream(index).anyMatch(Strings::isNullOrEmpty)) {
+            throw new IllegalArgumentException("all indices need to be non-null and non-empty");
+        }
+        return Arrays.stream(index)
+            .map(commaSeparatedIndices -> commaSeparatedIndices.split(","))
+            .flatMap(Arrays::stream)
+            .toArray(String[]::new);
+    }
+
     public SourceConfig(final StreamInput in) throws IOException {
         index = in.readStringArray();
         queryConfig = new QueryConfig(in);
-        runtimeMappings = in.readMap();
+        runtimeMappings = in.readGenericMap();
     }
 
     public String[] getIndex() {

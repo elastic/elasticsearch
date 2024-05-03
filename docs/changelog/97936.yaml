@@ -1,6 +1,0 @@
-pr: 97936
-summary: Migrate to data tiers routing configures correct default for mounted indices
-area: ILM+SLM
-type: bug
-issues:
- - 97898

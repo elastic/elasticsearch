@@ -130,7 +130,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.ServiceAccountRoleReference roleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        serviceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
+        ServiceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
             final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
             rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
             return rolesRetrievalResult;
@@ -144,8 +144,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            if (roleDescriptor.hasPrivilegesOtherThanIndex()) {
-                final String message = "Role descriptor for cross cluster access can only contain index privileges "
+            if (roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster()) {
+                final String message = "Role descriptor for cross cluster access can only contain index and cluster privileges "
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
                     + "]";

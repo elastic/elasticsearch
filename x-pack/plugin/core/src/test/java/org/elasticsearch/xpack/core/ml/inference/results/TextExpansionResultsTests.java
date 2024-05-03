@@ -16,8 +16,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpansionResults> {
+
     public static TextExpansionResults createRandomResults() {
-        int numTokens = randomIntBetween(0, 20);
+        return createRandomResults(0, 20);
+    }
+
+    public static TextExpansionResults createRandomResults(int min, int max) {
+        int numTokens = randomIntBetween(min, max);
         List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
         for (int i = 0; i < numTokens; i++) {
             tokenList.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
@@ -42,11 +47,8 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
 
     @Override
     @SuppressWarnings("unchecked")
-    void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String resultsField) {
-        var ingestedTokens = (Map<String, Object>) document.getFieldValue(
-            resultsField + '.' + createdInstance.getResultsField(),
-            Map.class
-        );
+    void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        var ingestedTokens = (Map<String, Object>) document.getFieldValue(parentField + resultsField, Map.class);
         var tokenMap = createdInstance.getWeightedTokens()
             .stream()
             .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));

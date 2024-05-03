@@ -84,10 +84,6 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         this.hardBounds = hardBounds;
     }
 
-    public long minDocCount() {
-        return minDocCount;
-    }
-
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {

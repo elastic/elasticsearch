@@ -38,7 +38,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Information about snapshotted file
      */
-    public static class FileInfo implements Writeable {
+    public static final class FileInfo implements Writeable {
         public static final String SERIALIZE_WRITER_UUID = "serialize_writer_uuid";
 
         private final String name;

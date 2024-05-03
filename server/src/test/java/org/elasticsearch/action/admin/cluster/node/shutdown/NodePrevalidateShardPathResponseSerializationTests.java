@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTests.createSetMutation;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTestUtils.createSetMutation;
 
 public class NodePrevalidateShardPathResponseSerializationTests extends AbstractWireSerializingTestCase<NodePrevalidateShardPathResponse> {
 
@@ -30,7 +30,7 @@ public class NodePrevalidateShardPathResponseSerializationTests extends Abstract
     public static NodePrevalidateShardPathResponse getRandomResponse() {
         return new NodePrevalidateShardPathResponse(
             getRandomNode(),
-            randomSet(0, 100, PrevalidateShardPathRequestSerializationTests::randomShardId)
+            randomSet(0, 100, PrevalidateShardPathRequestSerializationTestUtils::randomShardId)
         );
     }
 
@@ -45,7 +45,7 @@ public class NodePrevalidateShardPathResponseSerializationTests extends Abstract
         }
         return new NodePrevalidateShardPathResponse(
             response.getNode(),
-            createSetMutation(response.getShardIds(), PrevalidateShardPathRequestSerializationTests::randomShardId)
+            createSetMutation(response.getShardIds(), PrevalidateShardPathRequestSerializationTestUtils::randomShardId)
         );
     }
 }

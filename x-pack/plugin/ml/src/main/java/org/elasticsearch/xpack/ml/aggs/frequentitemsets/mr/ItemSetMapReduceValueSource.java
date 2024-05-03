@@ -183,7 +183,7 @@ public abstract class ItemSetMapReduceValueSource {
 
             private final Field field;
             private final Bytes.WithOrdinals source;
-            private final SortedSetDocValues docValues;
+            private SortedSetDocValues docValues;
             private final LongBitSet bitSetFilter;
 
             GlobalOrdinalsStrategy(
@@ -198,15 +198,15 @@ public abstract class ItemSetMapReduceValueSource {
                 bitSetFilter = globalOrdinalsFilter != null
                     ? globalOrdinalsFilter.acceptedGlobalOrdinals(source.globalOrdinalsValues(ctx))
                     : null;
-
                 this.docValues = source.globalOrdinalsValues(ctx);
             }
 
             @Override
             public ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
-                final SortedSetDocValues values = source.globalOrdinalsValues(ctx);
+                this.docValues = source.globalOrdinalsValues(ctx);
+                ;
                 final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
-
+                final SortedSetDocValues values = this.docValues;
                 return doc -> {
                     if (values.advanceExact(doc)) {
                         int valuesCount = values.docValueCount();

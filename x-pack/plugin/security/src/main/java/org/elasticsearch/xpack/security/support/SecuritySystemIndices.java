@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -37,11 +38,11 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
-    private static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = 1;
+    public static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
-    private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 1;
+    private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 2;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
     private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
@@ -51,8 +52,18 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
+    public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
 
-    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
+    /**
+     * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings
+     * versions. However, older nodes will still look for a product version in the mappings metadata, so we have to put <em>something</em>
+     * in that field that will allow the older node to realise that the mappings are ahead of what it knows about. The easiest solution is
+     * to hardcode 8.14.0 in this field, because any node from 8.14.0 onwards should be using per-index mappings versions to determine
+     * whether mappings are up-to-date.
+     */
+    public static final String BWC_MAPPINGS_VERSION = "8.14.0";
+
+    private static final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
@@ -117,7 +128,7 @@ public class SecuritySystemIndices {
             .setSettings(getMainIndexSettings())
             .setAliasName(SECURITY_MAIN_ALIAS)
             .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-            .setVersionMetaKey("security-version")
+            .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_ORIGIN)
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -144,7 +155,7 @@ public class SecuritySystemIndices {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION); // Only needed for BWC with pre-8.15.0 nodes
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
@@ -286,6 +297,23 @@ public class SecuritySystemIndices {
                             builder.endObject();
 
                             builder.startObject("clusters");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("remote_cluster");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("clusters");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("privileges");
                             builder.field("type", "keyword");
                             builder.endObject();
                         }
@@ -630,7 +658,7 @@ public class SecuritySystemIndices {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT);
+                builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION); // Only needed for BWC with pre-8.15.0 nodes
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
@@ -787,7 +815,7 @@ public class SecuritySystemIndices {
             .setIndexPattern(".security-profile-[0-9]+*")
             .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
             .setDescription("Contains user profile documents")
-            .setMappings(getProfileIndexMappings())
+            .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT))
             .setSettings(getProfileIndexSettings(settings))
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
@@ -801,7 +829,7 @@ public class SecuritySystemIndices {
                         .setIndexPattern(".security-profile-[0-9]+*")
                         .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
                         .setDescription("Contains user profile documents")
-                        .setMappings(getProfileIndexMappings())
+                        .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT - 1))
                         .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
@@ -836,14 +864,14 @@ public class SecuritySystemIndices {
         return settingsBuilder.build();
     }
 
-    private XContentBuilder getProfileIndexMappings() {
+    private XContentBuilder getProfileIndexMappings(int mappingsVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT);
+                builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION); // Only needed for BWC with pre-8.15.0 nodes
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, mappingsVersion);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

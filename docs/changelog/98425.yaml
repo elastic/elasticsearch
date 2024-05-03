@@ -1,5 +1,0 @@
-pr: 98425
-summary: Add support for concurrent collection when size is greater than zero
-area: Search
-type: enhancement
-issues: []

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -41,9 +42,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -195,12 +198,21 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         private static final Predicate<String> LIST_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+\\?.+").asMatchPredicate();
         private static final Predicate<String> GET_BLOB_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+/.+").asMatchPredicate();
 
+        private final Set<String> seenRequestIds = ConcurrentCollections.newConcurrentSet();
+
         private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
             super(delegate);
         }
 
         @Override
         protected void maybeTrack(String request, Headers headers) {
+            // Same request id is a retry
+            // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-ncnbi/817da997-30d2-4cd3-972f-a0073e4e98f7
+            // Do not count retries since the client side request stats do not track them yet.
+            // See https://github.com/elastic/elasticsearch/issues/104443
+            if (false == seenRequestIds.add(headers.getFirst("X-ms-client-request-id"))) {
+                return;
+            }
             if (GET_BLOB_PATTERN.test(request)) {
                 trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*/*", request)) {
@@ -234,11 +246,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             for (int i = 0; i < numberOfBlobs; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
-                container.writeBlob(blobName, new BytesArray(bytes), false);
+                container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
             }
 
-            container.delete();
-            assertThat(container.listBlobs(), is(anEmptyMap()));
+            container.delete(randomPurpose());
+            assertThat(container.listBlobs(randomPurpose()), is(anEmptyMap()));
         }
     }
 
@@ -249,7 +261,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             for (int i = 0; i < 10; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
-                container.writeBlob(blobName, new BytesArray(bytes), false);
+                container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
                 blobsToDelete.add(blobName);
             }
 
@@ -259,15 +271,15 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             Randomness.shuffle(blobsToDelete);
-            container.deleteBlobsIgnoringIfNotExists(blobsToDelete.iterator());
-            assertThat(container.listBlobs(), is(anEmptyMap()));
+            container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator());
+            assertThat(container.listBlobs(randomPurpose()), is(anEmptyMap()));
         }
     }
 
     public void testNotFoundErrorMessageContainsFullKey() throws Exception {
         try (BlobStore store = newBlobStore()) {
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
-            NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob("blob"));
+            NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob(randomPurpose(), "blob"));
             assertThat(exception.getMessage(), containsString("nested/dir/blob] not found"));
         }
     }
@@ -277,10 +289,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add(UUIDs.randomBase64UUID()));
             var data = randomBytes(randomIntBetween(128, 512));
             String blobName = randomName();
-            container.writeBlob(blobName, new ByteArrayInputStream(data), data.length, true);
+            container.writeBlob(randomPurpose(), blobName, new ByteArrayInputStream(data), data.length, true);
 
             var originalDataInputStream = new ByteArrayInputStream(data);
-            try (var azureInputStream = container.readBlob(blobName)) {
+            try (var azureInputStream = container.readBlob(randomPurpose(), blobName)) {
                 for (int i = 0; i < data.length; i++) {
                     assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }
@@ -288,7 +300,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 assertThat(azureInputStream.read(), is(equalTo(-1)));
                 assertThat(originalDataInputStream.read(), is(equalTo(-1)));
             }
-            container.delete();
+            container.delete(randomPurpose());
         }
     }
 }

@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -216,11 +215,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .add(getAttribute(attributeName, attributeFriendlyName, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "attribute name warning",
@@ -232,9 +228,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -247,17 +240,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(UID_OID, "friendly", null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -275,9 +262,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "attribute name warning",
@@ -297,9 +282,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -884,12 +866,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         String xml = SamlUtils.getXmlContent(response, false);
         final SamlToken token = token(signResponse(xml));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
-
+        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "similar audience",
@@ -915,9 +893,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
             assertThat(exception.getMessage(), containsString("required audience"));
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -1417,9 +1392,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Credential keyEncryptionCredential = new BasicCredential(keyPair.v1().getPublicKey(), keyPair.v2());
         KeyEncryptionParameters keyEncryptionParameters = new KeyEncryptionParameters();
         keyEncryptionParameters.setEncryptionCredential(keyEncryptionCredential);
-        keyEncryptionParameters.setAlgorithm(
-            randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)
-        );
+        if (inFipsJvm()) {
+            // RSA v1.5 is not allowed when running in FIPS mode
+            keyEncryptionParameters.setAlgorithm(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP);
+        } else {
+            keyEncryptionParameters.setAlgorithm(
+                randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)
+            );
+        }
 
         final Encrypter samlEncrypter = new Encrypter(encryptionParameters, keyEncryptionParameters);
         samlEncrypter.setKeyPlacement(Encrypter.KeyPlacement.INLINE);

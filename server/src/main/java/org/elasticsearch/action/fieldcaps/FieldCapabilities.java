@@ -8,11 +8,12 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -35,7 +36,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -227,7 +227,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             this.isDimension = in.readBoolean();
             this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         } else {
@@ -237,14 +237,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             this.nonDimensionIndices = in.readOptionalStringArray();
             this.metricConflictsIndices = in.readOptionalStringArray();
         } else {
             this.nonDimensionIndices = null;
             this.metricConflictsIndices = null;
         }
-        meta = in.readMap(i -> i.readSet(StreamInput::readString));
+        meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
     }
 
     @Override
@@ -254,18 +254,18 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeOptionalStringArray(nonDimensionIndices);
             out.writeOptionalStringArray(metricConflictsIndices);
         }
-        out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
+        out.writeMap(meta, StreamOutput::writeStringCollection);
     }
 
     @Override
@@ -276,7 +276,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
         if (isDimension) {
-            builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), isDimension);
+            builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), true);
         }
         if (metricType != null) {
             builder.field(TIME_SERIES_METRIC_FIELD.getPreferredName(), metricType);
@@ -301,9 +301,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             List<Map.Entry<String, Set<String>>> entries = new ArrayList<>(meta.entrySet());
             entries.sort(Map.Entry.comparingByKey()); // provide predictable order
             for (Map.Entry<String, Set<String>> entry : entries) {
-                List<String> values = new ArrayList<>(entry.getValue());
-                values.sort(String::compareTo); // provide predictable order
-                builder.stringListField(entry.getKey(), values);
+                String[] values = entry.getValue().toArray(Strings.EMPTY_ARRAY);
+                Arrays.sort(values, String::compareTo); // provide predictable order
+                builder.array(entry.getKey(), values);
             }
             builder.endObject();
         }
@@ -315,7 +315,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return PARSER.parse(parser, name);
     }
 
-    @SuppressWarnings("unchecked")
     private static final InstantiatingObjectParser<FieldCapabilities, String> PARSER;
 
     static {
@@ -473,10 +472,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    static FieldCapabilities buildBasic(String field, String type, String[] indices) {
-        return new FieldCapabilities(field, type, false, false, false, false, null, indices, null, null, null, null, Map.of());
-    }
-
     static class Builder {
         private final String name;
         private final String type;
@@ -550,8 +545,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
         }
 
-        Stream<String> getIndices() {
-            return indicesList.stream().flatMap(c -> Arrays.stream(c.indices));
+        void getIndices(Set<String> into) {
+            for (int i = 0; i < indicesList.size(); i++) {
+                IndexCaps indexCaps = indicesList.get(i);
+                for (String element : indexCaps.indices) {
+                    into.add(element);
+                }
+            }
         }
 
         private String[] filterIndices(int length, Predicate<IndexCaps> pred) {
@@ -568,7 +568,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
 
         FieldCapabilities build(boolean withIndices) {
-            final String[] indices = withIndices ? filterIndices(totalIndices, ic -> true) : null;
+            final String[] indices = withIndices ? filterIndices(totalIndices, Predicates.always()) : null;
 
             // Iff this field is searchable in some indices AND non-searchable in others
             // we record the list of non-searchable indices
@@ -604,7 +604,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 // Collect all indices that have this field. If it is marked differently in different indices, we cannot really
                 // make a decisions which index is "right" and which index is "wrong" so collecting all indices where this field
                 // is present is probably the only sensible thing to do here
-                metricConflictsIndices = Objects.requireNonNullElseGet(indices, () -> filterIndices(totalIndices, ic -> true));
+                metricConflictsIndices = Objects.requireNonNullElseGet(indices, () -> filterIndices(totalIndices, Predicates.always()));
             } else {
                 metricConflictsIndices = null;
             }

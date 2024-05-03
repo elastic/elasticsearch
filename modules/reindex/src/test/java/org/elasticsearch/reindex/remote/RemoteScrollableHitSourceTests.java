@@ -61,6 +61,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -103,7 +104,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor name) {
                 command.run();
                 return null;
             }
@@ -614,8 +615,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
-        Consumer<Exception> throwing = e -> { throw new AssertionError(e); };
-        return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
+        return RejectAwareActionListener.wrap(consumer::accept, ESTestCase::fail, ESTestCase::fail);
     }
 
     @SuppressWarnings("unchecked")

@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
@@ -419,11 +418,17 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
         assertRed(transformId, authIssue);
 
-        startTransform(config.getId(), RequestOptions.DEFAULT);
+        startTransform(transformId, RequestOptions.DEFAULT);
 
-        // transform is red with two issues
-        String noSuchIndexIssue = Strings.format("org.elasticsearch.index.IndexNotFoundException: no such index [%s]", destIndexName);
-        assertBusy(() -> assertRed(transformId, authIssue, noSuchIndexIssue), 10, TimeUnit.SECONDS);
+        var permissionIssues = Strings.format(
+            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+                + "see privileges_check_failed issue for more details",
+            transformId
+        );
+        // transform's auth state status is still RED due to:
+        // - lacking permissions
+        // - and the inability to start the indexer (which is also a consequence of lacking permissions)
+        assertBusy(() -> { assertRed(transformId, authIssue, permissionIssues); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -464,8 +469,15 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform's auth state status is still RED, but the health status is GREEN (because dest index exists)
-        assertRed(transformId, authIssue);
+        var permissionIssues = Strings.format(
+            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+                + "see privileges_check_failed issue for more details",
+            transformId
+        );
+        // transform's auth state status is still RED due to:
+        // - lacking permissions
+        // - and the inability to start the indexer (which is also a consequence of lacking permissions)
+        assertBusy(() -> { assertRed(transformId, authIssue, permissionIssues); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -573,14 +585,15 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     }
 
     private void assertGreen(String transformId) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(GREEN)));
         assertThat("Stats were: " + stats, extractValue(stats, "health", "issues"), is(nullValue()));
     }
 
+    // We expect exactly the issues passed as "expectedHealthIssueDetails". Not more, not less.
     @SuppressWarnings("unchecked")
     private void assertRed(String transformId, String... expectedHealthIssueDetails) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(RED)));
         List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
         assertThat("Stats were: " + stats, issues, hasSize(expectedHealthIssueDetails.length));
@@ -588,5 +601,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             .map(issue -> (String) extractValue((Map<String, Object>) issue, "details"))
             .collect(toSet());
         assertThat("Stats were: " + stats, actualHealthIssueDetailsSet, containsInAnyOrder(expectedHealthIssueDetails));
+        // We should not progress beyond the 0th checkpoint until we correctly configure the Transform.
+        assertThat("Stats were: " + stats, getCheckpoint(stats), equalTo(0L));
     }
 }

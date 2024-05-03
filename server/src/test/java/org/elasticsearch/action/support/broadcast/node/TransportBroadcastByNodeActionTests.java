@@ -90,6 +90,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -136,6 +137,11 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         public boolean hasReferences() {
             return refCounted.hasReferences();
         }
+
+        @Override
+        public String toString() {
+            return "testrequest" + Arrays.toString(indices);
+        }
     }
 
     public static class Response extends BaseBroadcastResponse {
@@ -162,12 +168,12 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         TestTransportBroadcastByNodeAction(String actionName) {
             super(
                 actionName,
-                clusterService,
-                transportService,
+                TransportBroadcastByNodeActionTests.this.clusterService,
+                TransportBroadcastByNodeActionTests.this.transportService,
                 new ActionFilters(Set.of()),
                 new MyResolver(),
                 Request::new,
-                TEST_THREAD_POOL_NAME
+                TransportBroadcastByNodeActionTests.this.transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
             );
         }
 
@@ -397,6 +403,14 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
             // check one request was sent to each node
             assertEquals(1, entry.getValue().size());
+            assertThat(
+                entry.getValue().iterator().next().request().toString(),
+                allOf(
+                    containsString('[' + action.transportNodeBroadcastAction + ']'),
+                    containsString('[' + entry.getKey() + ']'),
+                    containsString("[testrequest[" + TEST_INDEX + "]]")
+                )
+            );
         }
 
         assertFalse(request.hasReferences());
@@ -415,7 +429,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
         TestTransportChannel channel = new TestTransportChannel(future);
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
@@ -476,7 +490,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
         TestTransportChannel channel = new TestTransportChannel(future);
 
         handler.messageReceived(action.new NodeRequest(new Request(), new ArrayList<>(shards), nodeId), channel, null);

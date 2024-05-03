@@ -11,15 +11,20 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
  * Copy of {@link org.apache.lucene.store.BufferedIndexInput} that contains optimizations that haven't made it to the Lucene version used
  * by Elasticsearch yet or that are only applicable to Elasticsearch.
+ * <p>
+ * Deviates from Lucene's implementation slightly to fix a bug - see [NOTE: Missing Seek] below, and #98970 for more details.
  */
 public abstract class BlobCacheBufferedIndexInput extends IndexInput implements RandomAccessInput {
 
@@ -38,6 +43,8 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     // LUCENE-888 for details.
     public static final int MERGE_BUFFER_SIZE = 4096;
 
+    private final long length;
+
     private final int bufferSize;
 
     protected ByteBuffer buffer = EMPTY_BYTEBUFFER;
@@ -52,15 +59,22 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
         return buffer.get();
     }
 
-    public BlobCacheBufferedIndexInput(String resourceDesc, IOContext context) {
-        this(resourceDesc, bufferSize(context));
+    public BlobCacheBufferedIndexInput(String resourceDesc, IOContext context, long length) {
+        this(resourceDesc, bufferSize(context), length);
     }
 
     /** Inits BufferedIndexInput with a specific bufferSize */
-    public BlobCacheBufferedIndexInput(String resourceDesc, int bufferSize) {
+    public BlobCacheBufferedIndexInput(String resourceDesc, int bufferSize, long length) {
         super(resourceDesc);
-        checkBufferSize(bufferSize);
-        this.bufferSize = bufferSize;
+        int bufSize = Math.max(MIN_BUFFER_SIZE, (int) Math.min(bufferSize, length));
+        checkBufferSize(bufSize);
+        this.bufferSize = bufSize;
+        this.length = length;
+    }
+
+    @Override
+    public final long length() {
+        return length;
     }
 
     public int getBufferSize() {
@@ -106,13 +120,14 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
                     buffer.get(b, offset, len);
                 }
             } else {
-                // The amount left to read is larger than the buffer
-                // or we've been asked to not use our buffer -
-                // there's no performance reason not to read it all
-                // at once. Note that unlike the previous code of
-                // this function, there is no need to do a seek
-                // here, because there's no need to reread what we
-                // had in the buffer.
+                // The amount left to read is larger than the buffer or we've been asked to not use our buffer - there's no performance
+                // reason not to read it all at once.
+                if (buffer == EMPTY_BYTEBUFFER) {
+                    // fresh clone, must seek
+                    // [NOTE: Missing Seek] This deviates from Lucene's BufferedIndexInput implementation - see #98970
+                    seekInternal(bufferStart);
+                } // else there's no need to do a seek here because we are already positioned correctly
+
                 long after = bufferStart + buffer.position() + len;
                 if (after > length()) throw new EOFException("read past EOF: " + this);
                 readInternal(ByteBuffer.wrap(b, offset, len));
@@ -317,6 +332,45 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     }
 
     /**
+     * Try slicing {@code sliceLength} bytes from the given {@code sliceOffset} from the currently buffered.
+     * If this input's buffer currently contains the sliced range fully, then it is copied to a newly allocated byte array and an array
+     * backed index input is returned. Using this method will never allocate a byte array larger than the buffer size and will result in
+     * a potentially  more memory efficient {@link IndexInput} than slicing to a new {@link BlobCacheBufferedIndexInput} and will prevent
+     * any further reads from input that is wrapped by this instance.
+     *
+     * @param name slice name
+     * @param sliceOffset slice offset
+     * @param sliceLength slice length
+     * @return a byte array backed index input if slicing directly from the buffer worked or {@code null} otherwise
+     */
+    @Nullable
+    protected final ByteArrayIndexInput trySliceBuffer(String name, long sliceOffset, long sliceLength) {
+        if (ByteRange.of(bufferStart, bufferStart + buffer.limit()).contains(sliceOffset, sliceOffset + sliceLength)) {
+            final byte[] bytes = new byte[(int) sliceLength];
+            buffer.get(Math.toIntExact(sliceOffset - bufferStart), bytes, 0, bytes.length);
+            return new ByteArrayIndexInput(name, bytes);
+        }
+        return null;
+    }
+
+    @Nullable
+    protected final IndexInput tryCloneBuffer() {
+        if (buffer.limit() == length && bufferStart == 0) {
+            var clone = trySliceBuffer(super.toString(), 0, length);
+            if (clone != null) {
+                try {
+                    clone.seek(buffer.position());
+                } catch (IOException ioe) {
+                    assert false : ioe;
+                    throw new UncheckedIOException(ioe);
+                }
+                return clone;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Expert: implements seek. Sets current position in this file, where the next {@link
      * #readInternal(ByteBuffer)} will occur.
      *
@@ -325,7 +379,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     protected abstract void seekInternal(long pos) throws IOException;
 
     @Override
-    public BlobCacheBufferedIndexInput clone() {
+    public IndexInput clone() {
         BlobCacheBufferedIndexInput clone = (BlobCacheBufferedIndexInput) super.clone();
 
         clone.buffer = EMPTY_BYTEBUFFER;

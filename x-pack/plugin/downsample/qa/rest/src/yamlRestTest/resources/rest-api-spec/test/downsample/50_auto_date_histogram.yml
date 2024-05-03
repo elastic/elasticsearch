@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "Downsample GA version 8.7.0"
 
   - do:
@@ -9,7 +9,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ uid ]
@@ -33,7 +32,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ uid ]

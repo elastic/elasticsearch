@@ -17,7 +17,9 @@
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
-        "index-version": ${xpack.profiling.index.sq.executables.version}
+        "index-version": ${xpack.profiling.index.sq.executables.version},
+        "description": "Index template for .profiling-sq-executables",
+        "managed": true
       },
       "dynamic": false,
       "properties": {

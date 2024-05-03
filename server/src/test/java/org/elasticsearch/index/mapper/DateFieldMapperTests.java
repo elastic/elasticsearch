@@ -17,6 +17,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
@@ -33,6 +34,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
@@ -230,7 +232,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(IndexVersion.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")))
+            () -> createDocumentMapper(IndexVersions.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")))
         );
 
         assertThat(
@@ -241,7 +243,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             )
         );
 
-        createDocumentMapper(IndexVersion.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
+        createDocumentMapper(IndexVersions.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
 
         assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
@@ -576,7 +578,12 @@ public class DateFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     Tuple<Object, String> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                    return new SyntheticSourceExample(
+                        v.v1(),
+                        v.v2(),
+                        resolution.convert(Instant.from(formatter.parse(v.v2()))),
+                        this::mapping
+                    );
                 }
                 List<Tuple<Object, String>> values = randomList(1, maxValues, this::generateValue);
                 List<Object> in = values.stream().map(Tuple::v1).toList();
@@ -587,7 +594,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                     .map(Tuple::v2)
                     .toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
-                return new SyntheticSourceExample(in, out, this::mapping);
+
+                List<Long> outBlockList = outList.stream().map(v -> resolution.convert(Instant.from(formatter.parse(v)))).toList();
+                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
 
             private Tuple<Object, String> generateValue() {
@@ -695,6 +705,11 @@ public class DateFieldMapperTests extends MapperTestCase {
         };
     }
 
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((Number) v).longValue();
+    }
+
     public void testLegacyField() throws Exception {
         // check that unknown date formats are treated leniently on old indices
         MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
@@ -727,8 +742,8 @@ public class DateFieldMapperTests extends MapperTestCase {
             // BWC compatible index, e.g 7.x
             IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersion.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             )
         );
 

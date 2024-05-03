@@ -130,8 +130,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             }
         }
         Iterator<Long> toReturn = new Iterator<>() {
-            Iterator<Long> wrapped = keySet.iterator();
-            long filterOrd = owningBucketOrd;
+            final Iterator<Long> wrapped = keySet.iterator();
+            final long filterOrd = owningBucketOrd;
             long next;
             boolean hasNext = true;
 

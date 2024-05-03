@@ -30,7 +30,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
+public final class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
 
     private static final Logger logger = LogManager.getLogger(MlAutoscalingDeciderService.class);
 

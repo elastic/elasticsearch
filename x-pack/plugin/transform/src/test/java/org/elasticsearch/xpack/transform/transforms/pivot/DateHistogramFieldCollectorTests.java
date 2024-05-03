@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
@@ -60,8 +60,8 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
 
     @Before
     public void setupDateHistogramFieldCollectorTest() {
-        minTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
-        maxTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
+        minTimestamp = mock(InternalNumericMetricsAggregation.SingleValue.class);
+        maxTimestamp = mock(InternalNumericMetricsAggregation.SingleValue.class);
 
         when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
         when(maxTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.max");
@@ -85,12 +85,16 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
 
         // simulate the agg response, that should inject
         SearchResponse response = buildSearchResponse(minTimestamp, maxTimestamp);
-        collector.processSearchResponse(response);
+        try {
+            collector.processSearchResponse(response);
 
-        // checkpoints are provided although are not used in this case
-        QueryBuilder queryBuilder = buildFilterQuery(collector);
+            // checkpoints are provided although are not used in this case
+            QueryBuilder queryBuilder = buildFilterQuery(collector);
 
-        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+            assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testWhenOutputAndSyncFieldSame() {
@@ -99,10 +103,14 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
 
         // simulate the agg response, that should inject
         SearchResponse response = buildSearchResponse(minTimestamp, maxTimestamp);
-        collector.processSearchResponse(response);
-        QueryBuilder queryBuilder = buildFilterQuery(collector);
+        try {
+            collector.processSearchResponse(response);
+            QueryBuilder queryBuilder = buildFilterQuery(collector);
 
-        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+            assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testMissingBucketDisablesOptimization() {
@@ -163,16 +171,22 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
     }
 
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
-        SearchResponseSections sections = new SearchResponseSections(
-            null,
-            new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
+        return new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            InternalAggregations.from(Arrays.asList(minTimestamp, maxTimestamp)),
             null,
             false,
             null,
             null,
-            1
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
         );
-        return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
     }
 
 }

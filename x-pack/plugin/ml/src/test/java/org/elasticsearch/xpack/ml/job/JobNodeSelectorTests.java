@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,11 +38,11 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,7 +58,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98552")
 public class JobNodeSelectorTests extends ESTestCase {
 
     // To simplify the logic in this class all jobs have the same memory requirement
@@ -83,12 +81,24 @@ public class JobNodeSelectorTests extends ESTestCase {
         when(memoryTracker.getJobMemoryRequirement(anyString(), anyString())).thenReturn(JOB_MEMORY_REQUIREMENT.getBytes());
     }
 
-    public void testNodeNameAndVersion() {
+    public void testNodeNameAndVersionForRecentNode() {
         TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
-        Map<String, String> attributes = new HashMap<>();
-        attributes.put("unrelated", "attribute");
+        Map<String, String> attributes = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, "10.0.0", "unrelated", "attribute");
         DiscoveryNode node = DiscoveryNodeUtils.create("_node_name1", "_node_id1", ta, attributes, ROLES_WITHOUT_ML);
-        assertEquals("{_node_name1}{version=" + node.getVersion() + "}", JobNodeSelector.nodeNameAndVersion(node));
+        assertEquals("{_node_name1}{ML config version=10.0.0}", JobNodeSelector.nodeNameAndVersion(node));
+    }
+
+    public void testNodeNameAndVersionForOldNode() {
+        TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        Map<String, String> attributes = Map.of("unrelated", "attribute");
+        DiscoveryNode node = DiscoveryNodeUtils.builder("_node_id2")
+            .name("_node_name2")
+            .address(ta)
+            .attributes(attributes)
+            .roles(ROLES_WITH_ML)
+            .version(VersionInformation.inferVersions(Version.V_8_7_0))
+            .build();
+        assertEquals("{_node_name2}{ML config version=8.7.0}", JobNodeSelector.nodeNameAndVersion(node));
     }
 
     public void testNodeNameAndMlAttributes() {
@@ -116,7 +126,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(machineMemory),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            Long.toString(machineMemory / 2)
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
@@ -162,7 +174,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(machineMemory),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            Long.toString(machineMemory / 2)
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
@@ -214,7 +228,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(machineMemory),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            Long.toString(machineMemory / 2)
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, currentlyRunningJobsPerNode);
@@ -268,7 +284,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            String.valueOf(ByteSizeValue.ofMb(400).getBytes())
+            String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 1, JobState.OPENED, null);
@@ -305,7 +323,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(machineMemory),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            Long.toString(machineMemory / 2)
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 0);
@@ -362,7 +382,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(machineMemory),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            Long.toString(machineMemory / 2)
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, currentlyRunningJobsPerNode);
@@ -418,7 +440,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(machineMemory),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            Long.toString(machineMemory / 2)
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 0);
@@ -512,7 +536,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             "1000000000",
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            "400000000"
+            "400000000",
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
@@ -644,7 +670,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             "1000000000",
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            "400000000"
+            "400000000",
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
@@ -739,7 +767,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             "1000000000",
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            "400000000"
+            "400000000",
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
@@ -797,7 +827,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             "1000000000",
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            "400000000"
+            "400000000",
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
@@ -849,12 +881,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         assertThat(
             result.getExplanation(),
             equalTo(
-                "Not opening job [incompatible_type_job] on node [{_node_name1}{version="
-                    + Version.CURRENT
+                "Not opening job [incompatible_type_job] on node [{_node_name1}{ML config version="
+                    + MlConfigVersion.CURRENT
                     + "}], "
                     + "because this node does not support jobs of type [incompatible_type]|"
-                    + "Not opening job [incompatible_type_job] on node [{_node_name2}{version="
-                    + Version.CURRENT
+                    + "Not opening job [incompatible_type_job] on node [{_node_name2}{ML config version="
+                    + MlConfigVersion.CURRENT
                     + "}], "
                     + "because this node does not support jobs of type [incompatible_type]"
             )
@@ -881,24 +913,22 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
-                    "_node_name1",
-                    "_node_id1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr1,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("7.2.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id1")
+                    .name("_node_name1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr1)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.2.0")))
+                    .build()
             )
             .add(
-                new DiscoveryNode(
-                    "_node_name2",
-                    "_node_id2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    nodeAttr2,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("7.1.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id2")
+                    .name("_node_name2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .attributes(nodeAttr2)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.1.0")))
+                    .build()
             )
             .build();
 
@@ -926,7 +956,10 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
-        assertThat(result.getExplanation(), containsString("job's model snapshot requires a node of version [7.3.0] or higher"));
+        assertThat(
+            result.getExplanation(),
+            containsString("job's model snapshot requires a node with ML config version [7.3.0] or higher")
+        );
         assertNull(result.getExecutorNode());
     }
 
@@ -935,28 +968,28 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             "1000000000",
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            "400000000"
+            "400000000",
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
-                    "_node_name1",
-                    "_node_id1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("6.2.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id1")
+                    .name("_node_name1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("6.2.0")))
+                    .build()
             )
             .add(
-                new DiscoveryNode(
-                    "_node_name2",
-                    "_node_id2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    nodeAttr,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("6.4.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id2")
+                    .name("_node_name2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .attributes(nodeAttr)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("6.4.0")))
+                    .build()
             )
             .build();
 
@@ -989,7 +1022,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             "1000000000",
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            "400000000"
+            "400000000",
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
@@ -1188,7 +1223,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(machineMemory),
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-            Long.toString(machineMemory / 2)
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
         );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
@@ -1229,7 +1266,7 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "not_ml_node_name",
                     "_node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    Collections.emptyMap(),
+                    Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString()),
                     ROLES_WITHOUT_ML
                 )
             )
@@ -1242,7 +1279,9 @@ public class JobNodeSelectorTests extends ESTestCase {
                         MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
                         "10",
                         MachineLearning.MACHINE_MEMORY_NODE_ATTR,
-                        Long.toString(ByteSizeValue.ofGb(30).getBytes())
+                        Long.toString(ByteSizeValue.ofGb(30).getBytes()),
+                        MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+                        MlConfigVersion.CURRENT.toString()
                     ),
                     ROLES_WITH_ML
                 )
@@ -1256,7 +1295,9 @@ public class JobNodeSelectorTests extends ESTestCase {
                         MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
                         "10",
                         MachineLearning.MACHINE_MEMORY_NODE_ATTR,
-                        Long.toString(ByteSizeValue.ofGb(30).getBytes())
+                        Long.toString(ByteSizeValue.ofGb(30).getBytes()),
+                        MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+                        MlConfigVersion.CURRENT.toString()
                     ),
                     ROLES_WITH_ML
                 )
@@ -1270,7 +1311,9 @@ public class JobNodeSelectorTests extends ESTestCase {
                         MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
                         "10",
                         MachineLearning.MACHINE_MEMORY_NODE_ATTR,
-                        Long.toString(ByteSizeValue.ofGb(10).getBytes())
+                        Long.toString(ByteSizeValue.ofGb(10).getBytes()),
+                        MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+                        MlConfigVersion.CURRENT.toString()
                     ),
                     ROLES_WITH_ML
                 )
@@ -1387,7 +1430,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         if (state != null) {
             builder.updateTaskState(
                 MlTasks.dataFrameAnalyticsTaskId(id),
-                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null)
+                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null, Instant.now())
             );
         }
     }

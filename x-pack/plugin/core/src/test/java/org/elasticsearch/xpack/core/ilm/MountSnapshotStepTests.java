@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -164,16 +165,16 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (
-            NoOpClient client = getRestoreSnapshotRequestAssertingClient(
+        try (var threadPool = createThreadPool()) {
+            final var client = getRestoreSnapshotRequestAssertingClient(
+                threadPool,
                 repository,
                 snapshotName,
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
                 new String[] { LifecycleSettings.LIFECYCLE_NAME }
-            )
-        ) {
+            );
             MountSnapshotStep step = new MountSnapshotStep(
                 randomStepKey(),
                 randomStepKey(),
@@ -207,7 +208,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
 
         {
             RestoreSnapshotResponse responseWithOKStatus = new RestoreSnapshotResponse(new RestoreInfo("test", List.of(), 1, 1));
-            try (NoOpClient clientPropagatingOKResponse = getClientTriggeringResponse(responseWithOKStatus)) {
+            try (var threadPool = createThreadPool()) {
+                final var clientPropagatingOKResponse = getClientTriggeringResponse(threadPool, responseWithOKStatus);
                 MountSnapshotStep step = new MountSnapshotStep(
                     randomStepKey(),
                     randomStepKey(),
@@ -221,7 +223,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
 
         {
             RestoreSnapshotResponse responseWithACCEPTEDStatus = new RestoreSnapshotResponse((RestoreInfo) null);
-            try (NoOpClient clientPropagatingACCEPTEDResponse = getClientTriggeringResponse(responseWithACCEPTEDStatus)) {
+            try (var threadPool = createThreadPool()) {
+                final var clientPropagatingACCEPTEDResponse = getClientTriggeringResponse(threadPool, responseWithACCEPTEDStatus);
                 MountSnapshotStep step = new MountSnapshotStep(
                     randomStepKey(),
                     randomStepKey(),
@@ -286,16 +289,16 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 .metadata(Metadata.builder().put(indexMetadata, true).build())
                 .build();
 
-            try (
-                NoOpClient client = getRestoreSnapshotRequestAssertingClient(
+            try (var threadPool = createThreadPool()) {
+                final var client = getRestoreSnapshotRequestAssertingClient(
+                    threadPool,
                     repository,
                     snapshotName,
                     indexName,
                     RESTORED_INDEX_PREFIX,
                     indexNameSnippet,
                     new String[] { LifecycleSettings.LIFECYCLE_NAME }
-                )
-            ) {
+                );
                 MountSnapshotStep step = new MountSnapshotStep(
                     randomStepKey(),
                     randomStepKey(),
@@ -328,16 +331,16 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (
-            NoOpClient client = getRestoreSnapshotRequestAssertingClient(
+        try (var threadPool = createThreadPool()) {
+            final var client = getRestoreSnapshotRequestAssertingClient(
+                threadPool,
                 repository,
                 snapshotName,
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
                 new String[] { LifecycleSettings.LIFECYCLE_NAME, ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() }
-            )
-        ) {
+            );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 randomStepKey(),
@@ -350,8 +353,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
     }
 
     @SuppressWarnings("unchecked")
-    private NoOpClient getClientTriggeringResponse(RestoreSnapshotResponse response) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getClientTriggeringResponse(ThreadPool threadPool, RestoreSnapshotResponse response) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
@@ -365,6 +368,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
 
     @SuppressWarnings("unchecked")
     private NoOpClient getRestoreSnapshotRequestAssertingClient(
+        ThreadPool threadPool,
         String expectedRepoName,
         String expectedSnapshotName,
         String indexName,
@@ -372,7 +376,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String expectedSnapshotIndexName,
         String[] expectedIgnoredIndexSettings
     ) {
-        return new NoOpClient(getTestName()) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

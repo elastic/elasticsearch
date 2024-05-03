@@ -12,6 +12,7 @@ import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -177,6 +178,6 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

@@ -16,12 +16,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.ScheduledExecutorServiceScheduler;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -221,9 +222,7 @@ public class BulkProcessor implements Closeable {
     }
 
     private static Scheduler buildScheduler(ScheduledThreadPoolExecutor scheduledThreadPoolExecutor) {
-        return (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-            scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-        );
+        return new ScheduledExecutorServiceScheduler(scheduledThreadPoolExecutor);
     }
 
     private final int bulkActions;
@@ -439,7 +438,19 @@ public class BulkProcessor implements Closeable {
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, true, xContentType, RestApiVersion.current());
+            bulkRequest.add(
+                data,
+                defaultIndex,
+                null,
+                null,
+                defaultPipeline,
+                null,
+                null,
+                null,
+                true,
+                xContentType,
+                RestApiVersion.current()
+            );
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
             lock.unlock();
@@ -465,7 +476,7 @@ public class BulkProcessor implements Closeable {
                 }
             };
         }
-        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.GENERIC);
+        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     // needs to be executed under a lock

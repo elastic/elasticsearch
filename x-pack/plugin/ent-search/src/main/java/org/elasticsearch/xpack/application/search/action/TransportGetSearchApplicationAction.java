@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.search.SearchApplication;
@@ -36,7 +37,13 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays
     ) {
-        super(GetSearchApplicationAction.NAME, transportService, actionFilters, GetSearchApplicationAction.Request::new);
+        super(
+            GetSearchApplicationAction.NAME,
+            transportService,
+            actionFilters,
+            GetSearchApplicationAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);
     }
 
@@ -49,6 +56,9 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
         systemIndexService.getSearchApplication(request.getName(), listener.map(searchApplication -> {
             if (searchApplication.hasStoredTemplate() == false) {
                 HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
+            }
+            if (searchApplication.indices() == null || searchApplication.indices().length == 0) {
+                HeaderWarning.addWarning(SearchApplication.NO_ALIAS_WARNING);
             }
             // Construct a new object to ensure we backfill the stored application with the default template
             return new GetSearchApplicationAction.Response(

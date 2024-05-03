@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -33,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -256,6 +256,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             true,
             randomBoolean(),
             Orientation.RIGHT,
+            null,
             null,
             null,
             Collections.emptyMap()

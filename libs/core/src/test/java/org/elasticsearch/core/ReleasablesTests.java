@@ -107,5 +107,27 @@ public class ReleasablesTests extends ESTestCase {
         assertEquals("wrapped[list]", wrapIterable.toString());
         wrapIterable.close();
         assertEquals(5, count.get());
+
+        final var wrapIterator = Releasables.wrap(new Iterator<>() {
+            final Iterator<Releasable> innerIterator = List.of(releasable, releasable, releasable).iterator();
+
+            @Override
+            public boolean hasNext() {
+                return innerIterator.hasNext();
+            }
+
+            @Override
+            public Releasable next() {
+                return innerIterator.next();
+            }
+
+            @Override
+            public String toString() {
+                return "iterator";
+            }
+        });
+        assertEquals("wrapped[iterator]", wrapIterator.toString());
+        wrapIterator.close();
+        assertEquals(8, count.get());
     }
 }

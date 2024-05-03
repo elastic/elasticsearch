@@ -167,6 +167,6 @@ public final class ProcessUtils {
             } catch (IOException e) {
                 throw new UncheckedIOException("Error reading output from process.", e);
             }
-        }, name).start();
+        }, name + "-log-forwarder").start();
     }
 }

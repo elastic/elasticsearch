@@ -222,6 +222,15 @@ GET _cat/shards?v=true
 // TEST[setup:my_index]
 
 [discrete]
+[[shard-count-per-node-recommendation]]
+==== Add enough nodes to stay within the cluster shard limits
+
+The <<cluster-shard-limit,cluster shard limits>> prevent creation of more than
+1000 non-frozen shards per node, and 3000 frozen shards per dedicated frozen
+node. Make sure you have enough nodes of each type in your cluster to handle
+the number of shards you need.
+
+[discrete]
 [[field-count-recommendation]]
 ==== Allow enough heap for field mappers and overheads
 

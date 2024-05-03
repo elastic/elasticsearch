@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.RestApiVersion;
@@ -27,11 +26,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentType;
@@ -79,14 +78,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(
-            actions,
-            taskManager,
-            () -> "local",
-            mock(Transport.Connection.class),
-            null,
-            new NamedWriteableRegistry(List.of())
-        );
+        client.initialize(actions, taskManager, () -> "local", mock(Transport.Connection.class), null);
         controller.registerHandler(action);
     }
 

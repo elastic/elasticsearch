@@ -21,7 +21,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.function.LongConsumer;
 
 public abstract class PreVoteCollector {
-    private final Logger logger = LogManager.getLogger(PreVoteCollector.class);
+    private static final Logger logger = LogManager.getLogger(PreVoteCollector.class);
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
     protected volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known

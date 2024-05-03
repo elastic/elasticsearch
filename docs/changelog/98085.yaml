@@ -1,5 +1,0 @@
-pr: 98085
-summary: Allow `ByteSizeDirectory` to expose their data set sizes
-area: Store
-type: enhancement
-issues: []

@@ -9,7 +9,6 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,6 +16,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -25,7 +25,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -186,7 +186,11 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             Settings indexSettings = Settings.builder()
                 .put(
                     IndexMetadata.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0))
+                    IndexVersionUtils.randomVersionBetween(
+                        random(),
+                        IndexVersions.V_7_0_0,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
+                    )
                 )
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")

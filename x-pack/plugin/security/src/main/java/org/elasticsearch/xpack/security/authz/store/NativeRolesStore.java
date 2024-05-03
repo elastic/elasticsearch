@@ -19,7 +19,6 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
@@ -62,6 +61,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -70,6 +70,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
@@ -82,11 +84,26 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  */
 public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
+    /**
+     * This setting is never registered by the security plugin - in order to disable the native role APIs
+     * another plugin must register it as a boolean setting and cause it to be set to `false`.
+     *
+     * If this setting is set to <code>false</code> then
+     * <ul>
+     *     <li>the Rest APIs for native role management are disabled.</li>
+     *     <li>The native roles store will not resolve any roles</li>
+     * </ul>
+     */
+    public static final String NATIVE_ROLES_ENABLED = "xpack.security.authc.native_roles.enabled";
+
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
+
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
 
     private final Settings settings;
     private final Client client;
     private final XPackLicenseState licenseState;
+    private final boolean enabled;
 
     private final SecurityIndexManager securityIndex;
 
@@ -104,6 +121,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
+        this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
     }
 
     @Override
@@ -115,12 +133,17 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
     public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (enabled == false) {
+            listener.onResponse(RoleRetrievalResult.success(Set.of()));
+            return;
+        }
+
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
         } else if (names == null || names.isEmpty()) {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
@@ -185,11 +208,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            return;
+        }
+
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client.prepareDelete(SECURITY_MAIN_ALIAS, getIdForRole(deleteRoleRequest.name())).request();
@@ -221,20 +249,32 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            return;
+        }
+
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else if (role.hasRemoteIndicesPrivileges()
             && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                             + "] or higher to support remote indices privileges"
                     )
                 );
-            } else {
-                innerPutRole(request, role, listener);
-            }
+            } else if (role.hasRemoteClusterPermissions()
+                && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
+                        )
+                    );
+                } else {
+                    innerPutRole(request, role, listener);
+                }
     }
 
     // pkg-private for testing
@@ -260,9 +300,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 indexRequest,
-                new ActionListener<IndexResponse>() {
+                new ActionListener<DocWriteResponse>() {
                     @Override
-                    public void onResponse(IndexResponse indexResponse) {
+                    public void onResponse(DocWriteResponse indexResponse) {
                         final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                         logger.trace("Created role: [{}]", indexRequest);
                         clearRoleCache(roleName, listener, created);
@@ -281,7 +321,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
-        if (securityIndex.isAvailable() == false) {
+        if (securityIndex.isAvailable(SEARCH_SHARDS) == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
@@ -337,6 +377,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )
+                        .add(
+                            client.prepareSearch(SECURITY_MAIN_ALIAS)
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .filter(existsQuery("remote_cluster"))
+                                )
+                                .setTrackTotalHits(true)
+                                .setSize(0)
+                        )
                         .request(),
                     new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
@@ -363,6 +413,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             } else {
                                 usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value);
                             }
+                            if (responses[4].isFailure()) {
+                                usageStats.put("remote_cluster", 0);
+                            } else {
+                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value);
+                            }
                             delegate.onResponse(usageStats);
                         }
                     },
@@ -378,12 +433,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            resultListener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            resultListener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS)));
         } else {
             securityIndex.checkIndexVersionThenExecute(
                 e -> resultListener.onResponse(RoleRetrievalResult.failure(e)),
@@ -452,9 +507,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
-            // we pass true as allow2xFormat parameter because we do not want to reject permissions if the field permissions
-            // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON, false);
+            // we do not want to reject permissions if the field permissions are given in 2.x syntax, hence why we allow2xFormat
+            RoleDescriptor roleDescriptor = ROLE_DESCRIPTOR_PARSER.parse(name, sourceBytes, XContentType.JSON);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
@@ -480,6 +534,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     roleDescriptor.getMetadata(),
                     transientMap,
                     roleDescriptor.getRemoteIndicesPrivileges(),
+                    roleDescriptor.getRemoteClusterPermissions(),
                     roleDescriptor.getRestriction()
                 );
             } else {

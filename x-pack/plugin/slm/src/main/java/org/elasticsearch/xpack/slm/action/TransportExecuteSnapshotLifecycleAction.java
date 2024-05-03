@@ -56,7 +56,7 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
             ExecuteSnapshotLifecycleAction.Request::new,
             indexNameExpressionResolver,
             ExecuteSnapshotLifecycleAction.Response::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.client = client;
         this.historyStore = historyStore;

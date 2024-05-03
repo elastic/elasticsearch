@@ -210,7 +210,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(policyStats, StreamOutput::writeString, (v, o) -> o.writeTo(v));
+        out.writeMap(policyStats, StreamOutput::writeWriteable);
         out.writeVLong(retentionRunCount.count());
         out.writeVLong(retentionFailedCount.count());
         out.writeVLong(retentionTimedOut.count());
@@ -335,10 +335,6 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             this.snapshotsFailed.inc(in.readVLong());
             this.snapshotsDeleted.inc(in.readVLong());
             this.snapshotDeleteFailures.inc(in.readVLong());
-        }
-
-        public static SnapshotPolicyStats parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         public SnapshotPolicyStats merge(SnapshotPolicyStats other) {

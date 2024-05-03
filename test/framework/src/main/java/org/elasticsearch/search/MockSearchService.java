@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -22,8 +23,8 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,6 +42,7 @@ public class MockSearchService extends SearchService {
     private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
+    private Consumer<ReaderContext> onRemoveContext = context -> {};
 
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
@@ -110,6 +112,7 @@ public class MockSearchService extends SearchService {
     protected ReaderContext removeReaderContext(long id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
+            onRemoveContext.accept(removed);
             removeActiveContext(removed);
         }
         return removed;
@@ -117,6 +120,10 @@ public class MockSearchService extends SearchService {
 
     public void setOnPutContext(Consumer<ReaderContext> onPutContext) {
         this.onPutContext = onPutContext;
+    }
+
+    public void setOnRemoveContext(Consumer<ReaderContext> onRemoveContext) {
+        this.onRemoveContext = onRemoveContext;
     }
 
     public void setOnCreateSearchContext(Consumer<SearchContext> onCreateSearchContext) {
@@ -132,7 +139,20 @@ public class MockSearchService extends SearchService {
         boolean includeAggregations
     ) throws IOException {
         SearchContext searchContext = super.createContext(readerContext, request, task, resultsType, includeAggregations);
-        onCreateSearchContext.accept(searchContext);
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
+        return searchContext;
+    }
+
+    @Override
+    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
+        SearchContext searchContext = super.createSearchContext(request, timeout);
+        onPutContext.accept(searchContext.readerContext());
+        searchContext.addReleasable(() -> onRemoveContext.accept(searchContext.readerContext()));
         return searchContext;
     }
 

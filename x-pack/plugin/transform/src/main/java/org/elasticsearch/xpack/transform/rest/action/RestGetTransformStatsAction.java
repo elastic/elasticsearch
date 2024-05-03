@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetTransformStatsAction extends BaseRestHandler {
@@ -41,7 +42,8 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient nodeClient) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
-        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(id, timeout);
+        var basic = restRequest.paramAsBoolean(BASIC_STATS.getPreferredName(), false);
+        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(id, timeout, basic);
         request.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(

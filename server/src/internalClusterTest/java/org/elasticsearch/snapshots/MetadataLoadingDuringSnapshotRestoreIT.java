@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -21,6 +20,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -57,11 +57,11 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         createIndex("docs");
         indexRandom(
             true,
-            client().prepareIndex("docs").setId("1").setSource("rank", 1),
-            client().prepareIndex("docs").setId("2").setSource("rank", 2),
-            client().prepareIndex("docs").setId("3").setSource("rank", 3),
-            client().prepareIndex("others").setSource("rank", 4),
-            client().prepareIndex("others").setSource("rank", 5)
+            prepareIndex("docs").setId("1").setSource("rank", 1),
+            prepareIndex("docs").setId("2").setSource("rank", 2),
+            prepareIndex("docs").setId("3").setSource("rank", 3),
+            prepareIndex("others").setSource("rank", 4),
+            prepareIndex("others").setSource("rank", 5)
         );
 
         createRepository("repository", CountingMockRepositoryPlugin.TYPE);
@@ -193,7 +193,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId indexId)
             throws IOException {
             indicesMetadata.computeIfAbsent(key(snapshotId.getName(), indexId.getName()), (s) -> new AtomicInteger(0)).incrementAndGet();
-            return super.getSnapshotIndexMetaData(PlainActionFuture.get(this::getRepositoryData), snapshotId, indexId);
+            return super.getSnapshotIndexMetaData(AbstractSnapshotIntegTestCase.getRepositoryData(this), snapshotId, indexId);
         }
     }
 
@@ -208,7 +208,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,

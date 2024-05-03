@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.License;
@@ -35,14 +36,14 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
@@ -84,7 +85,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
             actionFilters,
             PutTrainedModelAliasAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;

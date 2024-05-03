@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -188,13 +189,39 @@ public class QuestionAnsweringConfig implements NlpConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof QuestionAnsweringConfigUpdate configUpdate) {
+            return new QuestionAnsweringConfig(
+                configUpdate.getQuestion(),
+                Optional.ofNullable(configUpdate.getNumTopClasses()).orElse(numTopClasses),
+                Optional.ofNullable(configUpdate.getMaxAnswerLength()).orElse(maxAnswerLength),
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField)
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new QuestionAnsweringConfig(
+                question,
+                numTopClasses,
+                maxAnswerLength,
+                vocabularyConfig,
+                updatedTokenization,
+                resultsField
+            );
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return MlConfigVersion.V_8_3_0;
     }
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersion.V_8_3_0;
+        return TransportVersions.V_8_3_0;
     }
 
     @Override

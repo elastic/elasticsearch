@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -61,6 +62,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -518,7 +520,10 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             Collections.emptySet()
         );
@@ -567,8 +572,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         private Set<Index> deletedIndices = Collections.emptySet();
 
         @Override
-        public synchronized void removeIndex(Index index, IndexRemovalReason reason, String extraInfo) {
-            super.removeIndex(index, reason, extraInfo);
+        public synchronized void removeIndex(
+            Index index,
+            IndexRemovalReason reason,
+            String extraInfo,
+            Executor shardCloseExecutor,
+            ActionListener<Void> shardsClosedListener
+        ) {
+            super.removeIndex(index, reason, extraInfo, shardCloseExecutor, shardsClosedListener);
             if (reason == IndexRemovalReason.DELETED) {
                 Set<Index> newSet = Sets.newHashSet(deletedIndices);
                 newSet.add(index);

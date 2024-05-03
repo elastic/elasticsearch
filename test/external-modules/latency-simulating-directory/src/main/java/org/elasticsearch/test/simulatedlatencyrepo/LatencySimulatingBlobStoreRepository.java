@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 
 class LatencySimulatingBlobStoreRepository extends FsRepository {
 
@@ -51,6 +53,11 @@ class LatencySimulatingBlobStoreRepository extends FsRepository {
             }
 
             @Override
+            public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+                fsBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
+            }
+
+            @Override
             public void close() throws IOException {
                 fsBlobStore.close();
             }
@@ -64,15 +71,15 @@ class LatencySimulatingBlobStoreRepository extends FsRepository {
         }
 
         @Override
-        public InputStream readBlob(String blobName) throws IOException {
+        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
             simulator.run();
-            return super.readBlob(blobName);
+            return super.readBlob(purpose, blobName);
         }
 
         @Override
-        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
             simulator.run();
-            return super.readBlob(blobName, position, length);
+            return super.readBlob(purpose, blobName, position, length);
         }
 
         @Override

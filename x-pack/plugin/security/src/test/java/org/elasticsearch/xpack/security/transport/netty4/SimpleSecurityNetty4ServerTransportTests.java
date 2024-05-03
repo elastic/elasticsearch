@@ -14,6 +14,7 @@ import io.netty.handler.ssl.SslHandshakeTimeoutException;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -58,6 +59,7 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -107,6 +109,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTransportTestCase {
     @Override
@@ -187,15 +190,13 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                service.boundAddress().publishAddress(),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(service.boundAddress().publishAddress())
+                .roles(emptySet())
+                .version(version0)
+                .build();
+            PlainActionFuture<Transport.Connection> future = new PlainActionFuture<>();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
                 assertEquals(TransportVersion.current(), connection.getTransportVersion());
@@ -873,7 +874,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     // A read call will execute the ssl handshake
                     int byteRead = acceptedSocket.getInputStream().read();
                     assertEquals('E', byteRead);
-                    doneLatch.await();
+                    safeAwait(doneLatch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 } finally {
@@ -1050,7 +1051,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 circuitBreakerService,
                 authenticator,
                 sslService,
-                sharedGroupFactory
+                sharedGroupFactory,
+                mock(CrossClusterAccessAuthenticationService.class)
             );
             this.doHandshake = doHandshake;
         }
@@ -1066,7 +1068,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 super.executeHandshake(node, channel, profile, listener);
             } else {
                 assert getVersion().equals(TransportVersion.current());
-                listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
+                listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
             }
         }
 

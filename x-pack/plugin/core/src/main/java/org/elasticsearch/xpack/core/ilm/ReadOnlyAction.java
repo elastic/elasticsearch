@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
@@ -58,10 +59,20 @@ public class ReadOnlyAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, NAME);
-        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, readOnlyKey);
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
+            checkNotWriteIndex,
+            waitTimeSeriesEndTimePassesKey
+        );
+        WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitTimeSeriesEndTimePassesKey,
+            readOnlyKey,
+            Instant::now,
+            client
+        );
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, nextStepKey, client);
-        return Arrays.asList(checkNotWriteIndexStep, readOnlyStep);
+        return Arrays.asList(checkNotWriteIndexStep, waitUntilTimeSeriesEndTimeStep, readOnlyStep);
     }
 
     @Override

@@ -33,12 +33,12 @@ public class RemoteInfoIT extends AbstractMultiClustersTestCase {
 
     public void testRemoteClusterClientRole() {
         final InternalTestCluster localCluster = cluster(LOCAL_CLUSTER);
-        localCluster.client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet();
+        localCluster.client().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest()).actionGet();
 
         final String nodeWithoutRemoteClientRole = localCluster.startNode(NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE)));
         final IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> localCluster.client(nodeWithoutRemoteClientRole).execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet()
+            localCluster.client(nodeWithoutRemoteClientRole).execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
         );
         assertThat(
             error.getMessage(),
@@ -51,7 +51,7 @@ public class RemoteInfoIT extends AbstractMultiClustersTestCase {
             roles.add(DiscoveryNodeRole.DATA_ROLE);
         }
         final String nodeWithRemoteClientRole = cluster(LOCAL_CLUSTER).startNode(NodeRoles.onlyRoles(roles));
-        localCluster.client(nodeWithRemoteClientRole).execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet();
+        localCluster.client(nodeWithRemoteClientRole).execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest()).actionGet();
     }
 
     public void testAllowStartingNodeWithUnreachableRemoteCluster() throws Exception {

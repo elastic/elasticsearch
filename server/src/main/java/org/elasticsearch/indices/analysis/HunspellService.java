@@ -65,7 +65,7 @@ import static org.elasticsearch.core.Strings.format;
  *
  * @see org.elasticsearch.index.analysis.HunspellTokenFilterFactory
  */
-public class HunspellService {
+public final class HunspellService {
 
     private static final Logger logger = LogManager.getLogger(HunspellService.class);
 

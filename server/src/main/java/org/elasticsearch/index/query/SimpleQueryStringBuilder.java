@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,7 +69,7 @@ import java.util.Objects;
  * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
  * > online documentation</a>.
  */
-public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
+public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
 
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
@@ -90,7 +91,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersion.V_8_500_023;
+    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -279,14 +280,14 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return this;
     }
 
-    /** For testing and serialisation only. */
-    SimpleQueryStringBuilder flags(int flags) {
+    /** For testing, builder instance copy, and serialisation only. */
+    public SimpleQueryStringBuilder flags(int flags) {
         this.flags = flags;
         return this;
     }
 
-    /** For testing only: Return the flags set for this query. */
-    int flags() {
+    /** For testing and instance copy only: Return the flags set for this query. */
+    public int flags() {
         return this.flags;
     }
 
@@ -631,6 +632,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

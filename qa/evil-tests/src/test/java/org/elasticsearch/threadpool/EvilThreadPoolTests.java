@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +50,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
             checkExecutionError(getExecuteRunner(threadPool.executor(executor)));
             checkExecutionError(getSubmitRunner(threadPool.executor(executor)));
-            checkExecutionError(getScheduleRunner(executor));
+            checkExecutionError(getScheduleRunner(threadPool.executor(executor)));
         }
     }
 
@@ -158,7 +159,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             // here, it's ok for the exception not to bubble up. Accessing the future will yield the exception
             checkExecutionException(getSubmitRunner(threadPool.executor(executor)), false);
 
-            checkExecutionException(getScheduleRunner(executor), true);
+            checkExecutionException(getScheduleRunner(threadPool.executor(executor)), true);
         }
     }
 
@@ -310,7 +311,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         };
     }
 
-    Consumer<Runnable> getScheduleRunner(String executor) {
+    Consumer<Runnable> getScheduleRunner(Executor executor) {
         return new Consumer<Runnable>() {
             @Override
             public void accept(Runnable runnable) {

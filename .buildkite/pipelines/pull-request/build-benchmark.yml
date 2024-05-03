@@ -1,0 +1,24 @@
+config:
+  allow-labels: build-benchmark
+  trigger-phrase: '.*run\W+elasticsearch-ci/build-bench.*'
+steps:
+  - label: build-benchmark / {{matrix.part}}
+    key: "build-benchmark"
+    command: |
+      .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
+      .ci/scripts/install-gradle-profiler.sh
+      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-{{matrix.part}}.scenarios --project-dir . --output-dir profile-out
+      mkdir build
+      tar -czf build/$BUILDKITE_BUILD_NUMBER.tar.bz2 profile-out
+    matrix:
+      setup:
+        part:
+          - part1
+          - part2
+    env:
+      BUILD_PERFORMANCE_TEST: "true"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

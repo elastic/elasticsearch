@@ -43,6 +43,8 @@ available then a number of features are not supported:
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
 and <<docs-reindex,`reindex`>> APIs.
 
+* In the {kib} link:{kibana-ref}/discover.html[Discover] application, field data will not be displayed. 
+
 * On the fly <<highlighting,highlighting>>.
 
 * The ability to reindex from one Elasticsearch index to another, either

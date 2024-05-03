@@ -116,7 +116,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
         }
     }
 
-    private String getSessionIndex(LogoutRequest logoutRequest) {
+    private static String getSessionIndex(LogoutRequest logoutRequest) {
         return logoutRequest.getSessionIndexes().stream().map(as -> as.getValue()).filter(Objects::nonNull).findFirst().orElse(null);
     }
 

@@ -39,6 +39,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -73,6 +75,10 @@ import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
+ *
+ * The binary encoding of these strings will sort without decoding, according to semver.  See {@link VersionEncoder}
+ *
+ * NB: If you are looking for the document version field _version, you want {@link org.elasticsearch.index.mapper.VersionFieldMapper}
  */
 public class VersionStringFieldMapper extends FieldMapper {
 
@@ -86,13 +92,14 @@ public class VersionStringFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "version";
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
     }
 
@@ -105,18 +112,18 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
-            return new VersionStringFieldType(context.buildFullName(name), fieldtype, meta.getValue());
+            return new VersionStringFieldType(context.buildFullName(name()), fieldtype, meta.getValue());
         }
 
         @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(
-                name,
+                name(),
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                copyTo
             );
         }
 
@@ -290,6 +297,12 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            failIfNoDocValues();
+            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }
@@ -355,7 +368,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         CopyTo copyTo
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
     }
 
     @Override

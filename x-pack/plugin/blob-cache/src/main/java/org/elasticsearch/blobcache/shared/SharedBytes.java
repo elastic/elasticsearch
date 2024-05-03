@@ -14,6 +14,7 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -28,7 +29,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
 
 public class SharedBytes extends AbstractRefCounted {
 
@@ -58,7 +58,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final IO[] ios;
 
-    final long regionSize;
+    final int regionSize;
 
     // TODO: for systems like Windows without true p-write/read support we should split this up into multiple channels since positional
     // operations in #IO are not contention-free there (https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6265734)
@@ -70,11 +70,11 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final boolean mmap;
 
-    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes, boolean mmap)
+    SharedBytes(int numRegions, int regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes, boolean mmap)
         throws IOException {
         this.numRegions = numRegions;
         this.regionSize = regionSize;
-        final long fileSize = numRegions * regionSize;
+        final long fileSize = (long) numRegions * regionSize;
         Path cacheFile = null;
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
@@ -92,25 +92,21 @@ public class SharedBytes extends AbstractRefCounted {
         this.ios = new IO[numRegions];
         if (mmap && fileSize > 0) {
             int regionsPerMmap = Math.toIntExact(MAX_BYTES_PER_MAP / regionSize);
-            int mapSize = Math.toIntExact(regionsPerMmap * regionSize);
+            int mapSize = regionsPerMmap * regionSize;
             int lastMapSize = Math.toIntExact(fileSize % mapSize);
             int mapCount = Math.toIntExact(fileSize / mapSize) + (lastMapSize == 0 ? 0 : 1);
             MappedByteBuffer[] mmaps = new MappedByteBuffer[mapCount];
             for (int i = 0; i < mapCount - 1; i++) {
-                mmaps[i] = fileChannel.map(FileChannel.MapMode.READ_WRITE, (long) mapSize * i, mapSize);
+                mmaps[i] = fileChannel.map(FileChannel.MapMode.READ_ONLY, (long) mapSize * i, mapSize);
             }
             mmaps[mapCount - 1] = fileChannel.map(
-                FileChannel.MapMode.READ_WRITE,
+                FileChannel.MapMode.READ_ONLY,
                 (long) mapSize * (mapCount - 1),
                 lastMapSize == 0 ? mapSize : lastMapSize
             );
             for (int i = 0; i < numRegions; i++) {
-                ios[i] = new IO(
-                    i,
-                    mmaps[i / regionsPerMmap].slice(Math.toIntExact((i % regionsPerMmap) * regionSize), Math.toIntExact(regionSize))
-                );
+                ios[i] = new IO(i, mmaps[i / regionsPerMmap].slice((i % regionsPerMmap) * regionSize, regionSize));
             }
-            fileChannel.close();
         } else {
             for (int i = 0; i < numRegions; i++) {
                 ios[i] = new IO(i, null);
@@ -139,7 +135,9 @@ public class SharedBytes extends AbstractRefCounted {
         if (usableSpace > fileSize) {
             return p;
         } else {
-            throw new IOException("Not enough free space for cache file of size [" + fileSize + "] in path [" + path + "]");
+            throw new IOException(
+                "Not enough free space [" + usableSpace + "] for cache file of size [" + fileSize + "] in path [" + path + "]"
+            );
         }
     }
 
@@ -158,21 +156,20 @@ public class SharedBytes extends AbstractRefCounted {
     public static void copyToCacheFileAligned(
         IO fc,
         InputStream input,
-        long fileChannelPos,
-        long relativePos,
-        long length,
-        LongConsumer progressUpdater,
+        int fileChannelPos,
+        int relativePos,
+        int length,
+        IntConsumer progressUpdater,
         ByteBuffer buf
     ) throws IOException {
-        long bytesCopied = 0L;
+        int bytesCopied = 0;
         long remaining = length;
         while (remaining > 0L) {
             final int bytesRead = BlobCacheUtils.readSafe(input, buf, relativePos, remaining);
             if (buf.hasRemaining()) {
                 break;
             }
-            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-            bytesCopied += bytesWritten;
+            bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buf);
             progressUpdater.accept(bytesCopied);
             remaining -= bytesRead;
         }
@@ -181,15 +178,45 @@ public class SharedBytes extends AbstractRefCounted {
             final int remainder = buf.position() % PAGE_SIZE;
             final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
             buf.position(buf.position() + adjustment);
-            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-            bytesCopied += bytesWritten;
-            final long adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
+            bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            final int adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
             assert adjustedBytesCopied == length : adjustedBytesCopied + " vs " + length;
             progressUpdater.accept(adjustedBytesCopied);
         }
     }
 
-    private static int positionalWrite(IO fc, long start, ByteBuffer byteBuffer) throws IOException {
+    /**
+     * Copy all bytes from {@code input} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
+     *
+     * @param fc output cache file reference
+     * @param input stream to read from
+     * @param fileChannelPos position in {@code fc} to write to
+     * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
+     * @param buffer bytebuffer to use for writing
+     * @return the number of bytes copied
+     * @throws IOException on failure
+     */
+    public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
+        throws IOException {
+        int bytesCopied = 0;
+        while (true) {
+            final int bytesRead = Streams.read(input, buffer, buffer.remaining());
+            if (bytesRead <= 0) {
+                break;
+            }
+            if (buffer.hasRemaining()) {
+                // ensure that last write is aligned on 4k boundaries (= page size)
+                final int remainder = buffer.position() % PAGE_SIZE;
+                final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
+                buffer.position(buffer.position() + adjustment);
+            }
+            bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buffer);
+            progressUpdater.accept(bytesCopied);
+        }
+        return bytesCopied;
+    }
+
+    private static int positionalWrite(IO fc, int start, ByteBuffer byteBuffer) throws IOException {
         byteBuffer.flip();
         int written = fc.write(byteBuffer, start);
         assert byteBuffer.hasRemaining() == false;
@@ -208,18 +235,13 @@ public class SharedBytes extends AbstractRefCounted {
      * @return number of bytes read
      * @throws IOException on failure
      */
-    public static int readCacheFile(
-        final IO fc,
-        long channelPos,
-        long relativePos,
-        long length,
-        final ByteBufferReference byteBufferReference
-    ) throws IOException {
+    public static int readCacheFile(final IO fc, int channelPos, int relativePos, int length, final ByteBufferReference byteBufferReference)
+        throws IOException {
         if (length == 0L) {
             return 0;
         }
         final int bytesRead;
-        final ByteBuffer dup = byteBufferReference.tryAcquire(Math.toIntExact(relativePos), Math.toIntExact(length));
+        final ByteBuffer dup = byteBufferReference.tryAcquire(relativePos, length);
         if (dup != null) {
             try {
                 bytesRead = fc.read(dup, channelPos);
@@ -231,7 +253,7 @@ public class SharedBytes extends AbstractRefCounted {
             }
         } else {
             // return fake response
-            return Math.toIntExact(length);
+            return length;
         }
         return bytesRead;
     }
@@ -257,56 +279,48 @@ public class SharedBytes extends AbstractRefCounted {
         private final MappedByteBuffer mappedByteBuffer;
 
         private IO(final int sharedBytesPos, MappedByteBuffer mappedByteBuffer) {
-            long physicalOffset = sharedBytesPos * regionSize;
-            assert physicalOffset <= numRegions * regionSize;
+            long physicalOffset = (long) sharedBytesPos * regionSize;
+            assert physicalOffset <= (long) numRegions * regionSize;
             this.pageStart = physicalOffset;
             this.mappedByteBuffer = mappedByteBuffer;
         }
 
-        public long pageStart() {
-            return pageStart;
-        }
-
         @SuppressForbidden(reason = "Use positional reads on purpose")
-        public int read(ByteBuffer dst, long position) throws IOException {
-            checkOffsets(position, dst.remaining());
+        public int read(ByteBuffer dst, int position) throws IOException {
+            int remaining = dst.remaining();
+            checkOffsets(position, remaining);
             final int bytesRead;
             if (mmap) {
-                bytesRead = dst.remaining();
+                bytesRead = remaining;
                 int startPosition = dst.position();
-                dst.put(startPosition, mappedByteBuffer, Math.toIntExact(position - pageStart), bytesRead)
-                    .position(startPosition + bytesRead);
+                dst.put(startPosition, mappedByteBuffer, position, bytesRead).position(startPosition + bytesRead);
             } else {
-                bytesRead = fileChannel.read(dst, position);
+                bytesRead = fileChannel.read(dst, pageStart + position);
             }
             readBytes.accept(bytesRead);
             return bytesRead;
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
-        public int write(ByteBuffer src, long position) throws IOException {
+        public int write(ByteBuffer src, int position) throws IOException {
             // check if writes are page size aligned for optimal performance
             assert position % PAGE_SIZE == 0;
             assert src.remaining() % PAGE_SIZE == 0;
             checkOffsets(position, src.remaining());
-            final int bytesWritten;
-            if (mmap) {
-                bytesWritten = src.remaining();
-                mappedByteBuffer.put(Math.toIntExact(position - pageStart), src, src.position(), bytesWritten);
-                src.position(src.position() + bytesWritten);
-            } else {
-                bytesWritten = fileChannel.write(src, position);
-            }
+            int bytesWritten = fileChannel.write(src, pageStart + position);
             writeBytes.accept(bytesWritten);
             return bytesWritten;
         }
 
-        private void checkOffsets(long position, long length) {
-            long pageEnd = pageStart + regionSize;
-            if (position < pageStart || position > pageEnd || position + length > pageEnd) {
-                assert false;
-                throw new IllegalArgumentException("bad access");
+        private void checkOffsets(int position, int length) {
+            if (position < 0 || position + length > regionSize) {
+                offsetCheckFailed();
             }
+        }
+
+        private static void offsetCheckFailed() {
+            assert false;
+            throw new IllegalArgumentException("bad access");
         }
     }
 

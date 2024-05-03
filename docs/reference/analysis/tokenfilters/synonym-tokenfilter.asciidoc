@@ -33,6 +33,13 @@ Use `synonyms_set` configuration option to provide a synonym set created via Syn
   }
 ----
 
+[WARNING]
+======
+Synonyms sets must exist before they can be added to indices.
+If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state.
+The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
+======
+
 Use `synonyms_path` to provide a synonym file :
 
 [source,JSON]
@@ -128,7 +135,7 @@ To apply synonyms, you will need to include a synonym token filters into an anal
         "my_analyzer": {
           "type": "custom",
           "tokenizer": "standard",
-          "filter": ["lowercase", "synonym"]
+          "filter": ["stemmer", "synonym_graph"]
         }
       }
 ----
@@ -140,8 +147,8 @@ To apply synonyms, you will need to include a synonym token filters into an anal
 Order is important for your token filters.
 Text will be processed first through filters preceding the synonym filter before being processed by the synonym filter.
 
-In the above example, text will be lowercased by the `lowercase` filter before being processed by the `synonyms_filter`.
-This means that all the synonyms defined there needs to be in lowercase, or they won't be found by the synonyms filter.
+{es} will also use the token filters preceding the synonym filter in a tokenizer chain to parse the entries in a synonym file or synonym set.
+In the above example, the synonyms graph token filter is placed after a stemmer. The stemmer will also be applied to the synonym entries.
 
 The synonym rules should not contain words that are removed by a filter that appears later in the chain (like a `stop` filter).
 Removing a term from a synonym rule means there will be no matching for it at query time.

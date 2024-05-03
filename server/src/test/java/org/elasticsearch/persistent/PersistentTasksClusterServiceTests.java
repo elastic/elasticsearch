@@ -37,7 +37,7 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
@@ -515,7 +516,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         // Now simulate the node ceasing to be the master
         builder = ClusterState.builder(clusterState);
         nodes = DiscoveryNodes.builder(clusterState.nodes());
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_master_node"));
+        nodes.add(DiscoveryNodeUtils.create("a_new_master_node"));
         nodes.masterNodeId("a_new_master_node");
         ClusterState nonMasterClusterState = builder.nodes(nodes).build();
         event = new ClusterChangedEvent("test", nonMasterClusterState, clusterState);
@@ -629,11 +630,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                             .setReason("shutdown for a unit test")
                             .setType(type)
                             .setStartedAtMillis(randomNonNegativeLong())
-                            .setGracePeriod(
-                                type == SingleNodeShutdownMetadata.Type.SIGTERM
-                                    ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                                    : null
-                            )
+                            .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                             .build()
                     )
                 );
@@ -968,7 +965,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         // Just add a random index - that shouldn't change anything
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -1037,7 +1034,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
 
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
+        nodes.add(DiscoveryNodeUtils.create("this_node"));
         nodes.localNodeId("this_node");
         nodes.masterNodeId("this_node");
 
@@ -1046,7 +1043,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     private void changeRoutingTable(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

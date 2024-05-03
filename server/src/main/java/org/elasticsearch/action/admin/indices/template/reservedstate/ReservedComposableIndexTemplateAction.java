@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.indices.template.reservedstate;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -178,7 +178,7 @@ public class ReservedComposableIndexTemplateAction
 
         // 4. validate for v2 composable template overlaps
         for (var request : composables) {
-            indexTemplateService.v2TemplateOverlaps(state, request.name(), request.indexTemplate(), true);
+            MetadataIndexTemplateService.v2TemplateOverlaps(state, request.name(), request.indexTemplate(), true);
         }
 
         Set<String> componentEntities = components.stream().map(r -> reservedComponentName(r.name())).collect(Collectors.toSet());
@@ -197,7 +197,7 @@ public class ReservedComposableIndexTemplateAction
     @Override
     public ComponentsAndComposables fromXContent(XContentParser parser) throws IOException {
         List<PutComponentTemplateAction.Request> componentTemplates = new ArrayList<>();
-        List<PutComposableIndexTemplateAction.Request> composableTemplates = new ArrayList<>();
+        List<TransportPutComposableIndexTemplateAction.Request> composableTemplates = new ArrayList<>();
         Map<String, ?> source = parser.map();
 
         @SuppressWarnings("unchecked")
@@ -223,7 +223,7 @@ public class ReservedComposableIndexTemplateAction
                 @SuppressWarnings("unchecked")
                 Map<String, ?> content = (Map<String, ?>) entry.getValue();
                 try (XContentParser componentParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
-                    var composableTemplate = new PutComposableIndexTemplateAction.Request(entry.getKey());
+                    var composableTemplate = new TransportPutComposableIndexTemplateAction.Request(entry.getKey());
                     composableTemplate.indexTemplate(ComposableIndexTemplate.parse(componentParser));
                     composableTemplates.add(composableTemplate);
                 }
@@ -235,6 +235,6 @@ public class ReservedComposableIndexTemplateAction
 
     record ComponentsAndComposables(
         List<PutComponentTemplateAction.Request> componentTemplates,
-        List<PutComposableIndexTemplateAction.Request> composableTemplates
+        List<TransportPutComposableIndexTemplateAction.Request> composableTemplates
     ) {}
 }

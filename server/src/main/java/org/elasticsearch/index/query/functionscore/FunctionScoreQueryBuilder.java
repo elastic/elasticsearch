@@ -11,6 +11,7 @@ package org.elasticsearch.index.query.functionscore;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -148,7 +149,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(query);
-        out.writeList(Arrays.asList(filterFunctionBuilders));
+        out.writeCollection(Arrays.asList(filterFunctionBuilders));
         out.writeFloat(maxBoost);
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);
@@ -650,6 +651,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

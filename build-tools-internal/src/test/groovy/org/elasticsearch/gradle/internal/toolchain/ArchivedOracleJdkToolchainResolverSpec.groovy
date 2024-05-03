@@ -23,6 +23,12 @@ class ArchivedOracleJdkToolchainResolverSpec extends AbstractToolchainResolverSp
     @Override
     def supportedRequests() {
         return [
+                [20, ORACLE, MAC_OS, X86_64, "https://download.oracle.com/java/20/archive/jdk-20.0.2_macos-x64_bin.tar.gz"],
+                [20, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/20/archive/jdk-20.0.2_macos-aarch64_bin.tar.gz"],
+                [20, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/20/archive/jdk-20.0.2_linux-x64_bin.tar.gz"],
+                [20, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/20/archive/jdk-20.0.2_linux-aarch64_bin.tar.gz"],
+                [20, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/20/archive/jdk-20.0.2_windows-x64_bin.zip"],
+
                 [19, ORACLE, MAC_OS, X86_64, "https://download.oracle.com/java/19/archive/jdk-19.0.2_macos-x64_bin.tar.gz"],
                 [19, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/19/archive/jdk-19.0.2_macos-aarch64_bin.tar.gz"],
                 [19, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/19/archive/jdk-19.0.2_linux-x64_bin.tar.gz"],

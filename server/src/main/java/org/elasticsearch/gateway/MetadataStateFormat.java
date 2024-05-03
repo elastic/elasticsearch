@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.NoFsyncDirectory;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -223,6 +224,7 @@ public abstract class MetadataStateFormat<T> {
     }
 
     private long write(final T state, boolean cleanup, boolean useFsync, final Path... locations) throws WriteStateException {
+        assert Transports.assertNotTransportThread("MetadataStateFormat#write does IO and must not run on transport thread");
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }

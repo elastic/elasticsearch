@@ -80,7 +80,7 @@ class Ec2NameResolver implements CustomNameResolver {
      * @see CustomNameResolver#resolveIfPossible(String)
      */
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
+    public static InetAddress[] resolve(Ec2HostnameType type) throws IOException {
         InputStream in = null;
         String metadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/meta-data/" + type.ec2Name;
         String metadataTokenUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/api/token";

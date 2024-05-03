@@ -168,6 +168,7 @@ public class EmailService extends NotificationService<Account> {
     private final SSLService sslService;
     private volatile Set<String> allowedDomains;
 
+    @SuppressWarnings("this-escape")
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, SSLService sslService, ClusterSettings clusterSettings) {
         super("email", settings, clusterSettings, EmailService.getDynamicSettings(), EmailService.getSecureSettings());
         this.cryptoService = cryptoService;
@@ -247,7 +248,7 @@ public class EmailService extends NotificationService<Account> {
         )
             .map(InternetAddress::getAddress)
             // Pull out only the domain of the email address, so foo@bar.com -> bar.com
-            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf("@") + 1))
+            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1))
             .collect(Collectors.toSet());
     }
 
@@ -267,7 +268,7 @@ public class EmailService extends NotificationService<Account> {
         return domains.stream().allMatch(matchesAnyAllowedDomain);
     }
 
-    private EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
+    private static EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
         assert account != null;
         try {
             email = account.send(email, auth, profile);

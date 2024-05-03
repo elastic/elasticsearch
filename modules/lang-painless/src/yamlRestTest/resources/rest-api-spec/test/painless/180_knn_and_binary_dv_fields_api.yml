@@ -1,7 +1,7 @@
 ---
 "size and isEmpty code works for any vector, including empty":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -14,6 +14,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -86,8 +87,8 @@
 
 ---
 "null can be used for default value":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -100,6 +101,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -172,8 +174,8 @@
 
 ---
 "empty dense vector throws for vector accesses":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -186,6 +188,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -291,8 +294,8 @@
 
 ---
 "dot product works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -306,6 +309,7 @@
               bdv:
                 type: dense_vector
                 dims: 3
+                index: false
               knn:
                 type: dense_vector
                 dims: 3
@@ -409,8 +413,8 @@
 
 ---
 "iterator over dense vector values":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -423,6 +427,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -485,8 +490,8 @@
 
 ---
 "l1Norm works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -499,6 +504,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -587,8 +593,8 @@
 
 ---
 "l2Norm works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -601,6 +607,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -705,8 +712,8 @@
 
 ---
 "cosineSimilarity works on dense vectors":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -719,6 +726,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector
@@ -803,8 +811,8 @@
 
 ---
 "query vector of wrong type errors":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -817,6 +825,7 @@
             properties:
               bdv:
                 type: dense_vector
+                index: false
                 dims: 3
               knn:
                 type: dense_vector

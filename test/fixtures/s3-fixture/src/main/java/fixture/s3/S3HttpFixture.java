@@ -11,55 +11,90 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
+import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Objects;
 
-public class S3HttpFixture {
+public class S3HttpFixture extends ExternalResource {
 
-    private final HttpServer server;
+    private HttpServer server;
 
-    S3HttpFixture(final String[] args) throws Exception {
-        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
-        this.server.createContext("/", Objects.requireNonNull(createHandler(args)));
+    private boolean enabled;
+    private final String bucket;
+    private final String basePath;
+    protected final String accessKey;
+
+    public S3HttpFixture() {
+        this(true);
     }
 
-    final void start() throws Exception {
-        try {
-            server.start();
-            // wait to be killed
-            Thread.sleep(Long.MAX_VALUE);
-        } finally {
-            server.stop(0);
-        }
+    public S3HttpFixture(boolean enabled) {
+        this(enabled, "bucket", "base_path_integration_tests", "s3_test_access_key");
     }
 
-    protected HttpHandler createHandler(final String[] args) {
-        final String bucket = Objects.requireNonNull(args[2]);
-        final String basePath = args[3];
-        final String accessKey = Objects.requireNonNull(args[4]);
+    public S3HttpFixture(boolean enabled, String bucket, String basePath, String accessKey) {
+        this.enabled = enabled;
+        this.bucket = bucket;
+        this.basePath = basePath;
+        this.accessKey = accessKey;
+    }
 
+    protected HttpHandler createHandler() {
         return new S3HttpHandler(bucket, basePath) {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
-                final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-                if (authorization == null || authorization.contains(accessKey) == false) {
-                    sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key");
-                    return;
+                try {
+                    final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+                    if (authorization == null || authorization.contains(accessKey) == false) {
+                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key");
+                        return;
+                    }
+                    super.handle(exchange);
+                } catch (Error e) {
+                    // HttpServer catches Throwable, so we must throw errors on another thread
+                    ExceptionsHelper.maybeDieOnAnotherThread(e);
+                    throw e;
                 }
-                super.handle(exchange);
             }
         };
     }
 
-    public static void main(final String[] args) throws Exception {
-        if (args == null || args.length < 5) {
-            throw new IllegalArgumentException("S3HttpFixture expects 5 arguments [address, port, bucket, base path, access key]");
+    public String getAddress() {
+        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+    }
+
+    public void stop(int delay) {
+        server.stop(delay);
+    }
+
+    protected void before() throws Throwable {
+        if (enabled) {
+            InetSocketAddress inetSocketAddress = resolveAddress("localhost", 0);
+            this.server = HttpServer.create(inetSocketAddress, 0);
+            HttpHandler handler = createHandler();
+            this.server.createContext("/", Objects.requireNonNull(handler));
+            server.start();
         }
-        final S3HttpFixture fixture = new S3HttpFixture(args);
-        fixture.start();
+    }
+
+    @Override
+    protected void after() {
+        if (enabled) {
+            stop(0);
+        }
+    }
+
+    private static InetSocketAddress resolveAddress(String address, int port) {
+        try {
+            return new InetSocketAddress(InetAddress.getByName(address), port);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

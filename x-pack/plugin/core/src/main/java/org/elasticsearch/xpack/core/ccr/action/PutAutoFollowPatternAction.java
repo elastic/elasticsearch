@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -37,7 +37,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
     private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -183,14 +183,14 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             super(in);
             name = in.readString();
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readStringList();
+            leaderIndexPatterns = in.readStringCollectionAsList();
             followIndexNamePattern = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
                 settings = Settings.readSettingsFromStream(in);
             }
             parameters = new FollowParameters(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
-                leaderIndexExclusionPatterns = in.readStringList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
+                leaderIndexExclusionPatterns = in.readStringCollectionAsList();
             }
         }
 
@@ -201,11 +201,11 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
                 settings.writeTo(out);
             }
             parameters.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }
         }

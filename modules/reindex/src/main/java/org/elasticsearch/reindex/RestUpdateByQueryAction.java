@@ -9,8 +9,8 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -24,14 +24,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
-    public RestUpdateByQueryAction() {
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestUpdateByQueryAction(Predicate<NodeFeature> clusterSupportsFeature) {
         super(UpdateByQueryAction.INSTANCE);
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -55,7 +59,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @Override
-    protected UpdateByQueryRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
+    protected UpdateByQueryRequest buildRequest(RestRequest request) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
         }
@@ -71,7 +75,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
         consumers.put("script", o -> internal.setScript(Script.parse(o)));
         consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
-        parseInternalRequest(internal, request, namedWriteableRegistry, consumers);
+        parseInternalRequest(internal, request, clusterSupportsFeature, consumers);
 
         internal.setPipeline(request.param("pipeline"));
         return internal;

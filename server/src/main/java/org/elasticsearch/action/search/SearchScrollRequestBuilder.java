@@ -18,12 +18,12 @@ import org.elasticsearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse> {
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action) {
-        super(client, action, new SearchScrollRequest());
+    public SearchScrollRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportSearchScrollAction.TYPE, new SearchScrollRequest());
     }
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action, String scrollId) {
-        super(client, action, new SearchScrollRequest(scrollId));
+    public SearchScrollRequestBuilder(ElasticsearchClient client, String scrollId) {
+        super(client, TransportSearchScrollAction.TYPE, new SearchScrollRequest(scrollId));
     }
 
     /**
@@ -46,14 +46,6 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchScrollRequestBuilder setScroll(TimeValue keepAlive) {
-        request.scroll(keepAlive);
-        return this;
-    }
-
-    /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchScrollRequestBuilder setScroll(String keepAlive) {
         request.scroll(keepAlive);
         return this;
     }

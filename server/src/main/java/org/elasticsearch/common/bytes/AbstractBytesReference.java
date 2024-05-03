@@ -85,20 +85,6 @@ public abstract class AbstractBytesReference implements BytesReference {
     }
 
     @Override
-    public BytesRefIterator iterator() {
-        return new BytesRefIterator() {
-            BytesRef ref = length() == 0 ? null : toBytesRef();
-
-            @Override
-            public BytesRef next() {
-                BytesRef r = ref;
-                ref = null; // only return it once...
-                return r;
-            }
-        };
-    }
-
-    @Override
     public boolean equals(Object other) {
         if (this == other) {
             return true;

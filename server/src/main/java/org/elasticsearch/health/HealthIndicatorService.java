@@ -55,4 +55,15 @@ public interface HealthIndicatorService {
             .collect(Collectors.toList());
         return new HealthIndicatorResult(name(), status, symptom, details, impactsList, diagnosisList);
     }
+
+    /**
+     * A preflight indicator is an indicator that is run first and represents a serious cascading health problem. For example, the
+     * `stable_master` health indicator is a preflight indicator. When it is red it means that the node has witnessed too many master nodes
+     * which could mean there are missing nodes, or a discovery problem, or that the node itself has problems joining the elected master.
+     * For these reasons, it likely that the cluster state is not up-to-date enough for us to make health decisions off of it.
+     * @return true if this is a preflight indicator, false otherwise.
+     */
+    default boolean isPreflight() {
+        return false;
+    }
 }

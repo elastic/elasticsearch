@@ -91,8 +91,12 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      */
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+        return getFromBuilder(fieldType, fieldType.fielddataBuilder(fieldDataContext));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <IFD extends IndexFieldData<?>> IFD getFromBuilder(MappedFieldType fieldType, IndexFieldData.Builder builder) {
         final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldDataContext);
         IndexFieldDataCache cache;
         synchronized (this) {
             cache = fieldDataCaches.get(fieldName);

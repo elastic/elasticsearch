@@ -1,0 +1,118 @@
+intToInt
+from employees
+| where emp_no < 10002
+| keep emp_no;
+
+emp_no:integer
+10001
+;
+
+longToLong
+from employees
+| sort emp_no
+| where languages.long < avg_worked_seconds
+| limit 1
+| keep emp_no;
+
+emp_no:integer
+10001
+;
+
+doubleToDouble
+from employees
+| sort emp_no
+| where height < 10.0
+| limit 1
+| keep emp_no;
+
+emp_no:integer
+10001
+;
+
+intToLong
+from employees
+| where emp_no > languages.long
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10001
+;
+
+longToInt
+from employees
+| where languages.long < emp_no
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10001
+;
+
+doubleToLong
+from employees
+| where 2.0 > languages.long
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10005
+;
+
+longToDouble
+from employees
+| where languages.long < 2.0
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10005
+;
+
+intToLong
+from employees
+| where 2.0 > languages
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10005
+;
+
+intToDouble
+from employees
+| where languages < 2.0
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10005
+;
+
+boolToBool
+from employees
+| where still_hired == false
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10003
+;
+
+dateToDate
+from employees
+| where birth_date < hire_date
+| keep emp_no
+| sort emp_no
+| limit 1;
+
+emp_no:integer
+10001
+;

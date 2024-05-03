@@ -41,6 +41,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
@@ -77,6 +78,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -231,7 +233,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     class Action extends TransportMasterNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-            this(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+            this(actionName, transportService, clusterService, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         Action(
@@ -239,7 +241,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            String executor
+            Executor executor
         ) {
             super(
                 actionName,
@@ -267,7 +269,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     class ReservedStateAction extends Action {
         ReservedStateAction(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-            super(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+            super(actionName, transportService, clusterService, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override
@@ -282,7 +284,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            String executor
+            Executor executor
         ) {
             super(
                 actionName,
@@ -475,6 +477,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request();
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.MINUS_ONE);
+        }
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
@@ -674,7 +679,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
             setState(clusterService, newStateBuilder.build());
         }
-        expectThrows(TaskCancelledException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener);
     }
 
     public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
@@ -690,7 +695,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(
-            new Action("internal:testAction", transportService, clusterService, threadPool, executorName),
+            new Action("internal:testAction", transportService, clusterService, threadPool, threadPool.executor(executorName)),
             task,
             request,
             listener
@@ -701,7 +706,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         releaseBlockedThreads.run();
 
-        expectThrows(TaskCancelledException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener);
     }
 
     public void testGlobalBlocksAreCheckedAfterIndexNotFoundException() throws Exception {
@@ -714,7 +719,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         ).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
         setState(clusterService, stateWithBlockWithoutIndexMetadata);
 
-        Action action = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME) {
+        Action action = new Action(
+            "internal:testAction",
+            transportService,
+            clusterService,
+            threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
             final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
             @Override
@@ -755,7 +766,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         ).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
         setState(clusterService, stateWithBlockWithoutIndexMetadata);
 
-        Action action = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME) {
+        Action action = new Action(
+            "internal:testAction",
+            transportService,
+            clusterService,
+            threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
             final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
             @Override
@@ -786,7 +803,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
-        Action noHandler = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+        Action noHandler = new Action(
+            "internal:testAction",
+            transportService,
+            clusterService,
+            threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
 
         assertFalse(noHandler.supportsReservedState());
 
@@ -806,7 +829,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         assertTrue(action.supportsReservedState());
@@ -831,12 +854,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < numberOfThreads; i++) {
             executor.submit(() -> {
-                try {
-                    barrier.await();
-                    latch.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(latch);
             });
         }
         barrier.await();

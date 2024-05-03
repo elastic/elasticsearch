@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
@@ -89,7 +89,7 @@ public class PublicationTransportHandler {
         TransportRequestOptions.Type.STATE
     );
 
-    public static final TransportVersion INCLUDES_LAST_COMMITTED_DATA_VERSION = TransportVersion.V_8_6_0;
+    public static final TransportVersion INCLUDES_LAST_COMMITTED_DATA_VERSION = TransportVersions.V_8_6_0;
 
     private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
 
@@ -105,7 +105,7 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
-            ThreadPool.Names.CLUSTER_COORDINATION,
+            this.clusterCoordinationExecutor,
             false,
             false,
             BytesTransportRequest::new,
@@ -127,7 +127,7 @@ public class PublicationTransportHandler {
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {
-                in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
+                in = compressor.threadLocalStreamInput(in);
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
             in.setTransportVersion(request.version());
@@ -456,7 +456,11 @@ public class PublicationTransportHandler {
 
             final ReleasableBytesReference bytes = serializedDiffs.get(connection.getTransportVersion());
             assert bytes != null
-                : "failed to find serialized diff for node " + destination + " of version [" + connection.getTransportVersion() + "]";
+                : "failed to find serialized diff for node "
+                    + destination
+                    + " of version ["
+                    + connection.getTransportVersion().toReleaseVersion()
+                    + "]";
 
             // acquire a ref to the context just in case we need to try again with the full cluster state
             if (tryIncRef() == false) {

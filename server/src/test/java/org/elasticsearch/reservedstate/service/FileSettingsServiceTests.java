@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,6 +55,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106968")
 public class FileSettingsServiceTests extends ESTestCase {
     private Environment env;
     private ClusterService clusterService;
@@ -62,7 +64,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ThreadPool threadpool;
 
     @Before
-    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
 
@@ -83,7 +84,6 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
         doAnswer((Answer<ClusterState>) invocation -> clusterState).when(clusterService).state();
 
-        clusterService.setRerouteService(mock(RerouteService.class));
         clusterService.setNodeConnectionsService(mock(NodeConnectionsService.class));
         clusterService.getClusterApplierService().setInitialState(clusterState);
         clusterService.getMasterService().setClusterStatePublisher((e, pl, al) -> {
@@ -101,7 +101,11 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
+        controller = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
     }
 
@@ -110,6 +114,16 @@ public class FileSettingsServiceTests extends ESTestCase {
         super.tearDown();
         clusterService.close();
         threadpool.shutdownNow();
+    }
+
+    public void testStartStop() {
+        fileSettingsService.start();
+        assertFalse(fileSettingsService.watching());
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+        assertTrue(fileSettingsService.watching());
+        fileSettingsService.stop();
+        assertFalse(fileSettingsService.watching());
+        fileSettingsService.close();
     }
 
     public void testOperatorDirName() {

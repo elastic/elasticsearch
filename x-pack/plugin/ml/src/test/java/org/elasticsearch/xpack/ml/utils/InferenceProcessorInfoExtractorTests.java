@@ -15,13 +15,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 

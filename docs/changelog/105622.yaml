@@ -1,0 +1,5 @@
+pr: 105622
+summary: Distinguish different snapshot failures by log level
+area: Snapshot/Restore
+type: enhancement
+issues: []

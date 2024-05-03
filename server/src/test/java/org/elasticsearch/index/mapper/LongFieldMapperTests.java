@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -19,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,14 +32,14 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "9223372036854775808", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "1e999999999", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-9223372036854775809", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-1e999999999", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long")
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "9223372036854775808", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "1e999999999", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-1e999999999", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long")
         );
     }
 
@@ -118,6 +118,17 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
     public void testFetchCoerced() throws IOException {
         assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return n -> {
+            Number number = ((Number) n);
+            if (Integer.MIN_VALUE <= number.longValue() && number.longValue() <= Integer.MAX_VALUE) {
+                return number.intValue();
+            }
+            return number.longValue();
+        };
     }
 
     protected IngestScriptSupport ingestScriptSupport() {

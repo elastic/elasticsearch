@@ -100,10 +100,9 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     }
 
     public ClusterState updatedClusterState(ClusterState state) {
-        final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot());
+        final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot(), updatedShardGenerations);
         obsoleteGenerations.set(
-            updatedState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .obsoleteGenerations(snapshotInfo.repository(), state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY))
+            SnapshotsInProgress.get(updatedState).obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
         );
         return updatedState;
     }

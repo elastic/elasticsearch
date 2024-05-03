@@ -244,7 +244,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    private void callListeners(
+    private static void callListeners(
         IndexShard indexShard,
         Iterator<Consumer<ActionListener<Void>>> iterator,
         ActionListener<Void> outerListener

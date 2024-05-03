@@ -13,7 +13,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
@@ -74,6 +74,6 @@ public class RestGetCalendarsAction extends BaseRestHandler {
             }
         }
 
-        return channel -> client.execute(GetCalendarsAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(GetCalendarsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

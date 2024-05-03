@@ -346,6 +346,95 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testHalfFloatRangeQueryWithOverflowingBounds() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.HALF_FLOAT, randomBoolean());
+        final float min_half_float = -65504;
+        final float max_half_float = 65504;
+        assertEquals(
+            ft.rangeQuery(min_half_float, 10, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(-1e+300, 10, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(min_half_float, 10, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(Float.NEGATIVE_INFINITY, 10, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, max_half_float, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, 1e+300, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, max_half_float, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, Float.POSITIVE_INFINITY, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, 1e+300, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, Float.POSITIVE_INFINITY, false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(-1e+300, 10, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(Float.NEGATIVE_INFINITY, 10, false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, 1e+300, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, max_half_float, false, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(-1e+300, 10, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(min_half_float, 10, true, false, null, null, null, MOCK_CONTEXT)
+        );
+    }
+
+    public void testFloatRangeQueryWithOverflowingBounds() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.FLOAT, randomBoolean());
+
+        assertEquals(
+            ft.rangeQuery(-Float.MAX_VALUE, 10.0, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(-1e+300, 10.0, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(-Float.MAX_VALUE, 10.0, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(Float.NEGATIVE_INFINITY, 10.0, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, Float.MAX_VALUE, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, 1e+300, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, Float.MAX_VALUE, true, true, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, Float.POSITIVE_INFINITY, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, 1e+300, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, Float.POSITIVE_INFINITY, false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(-1e+300, 10, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(Float.NEGATIVE_INFINITY, 10, false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, 1e+300, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, Float.MAX_VALUE, false, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(-1e+300, 10, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(-Float.MAX_VALUE, 10, true, false, null, null, null, MOCK_CONTEXT)
+        );
+    }
+
     public void testRangeQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         Query expected = new IndexOrDocValuesQuery(
@@ -573,7 +662,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74057")
     public void testIndexSortIntRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
     }
@@ -813,7 +901,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             null
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -826,7 +914,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             null
-        ).nullValue(2.71f).build(MapperBuilderContext.root(false)).fieldType();
+        ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
@@ -840,7 +928,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             null
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

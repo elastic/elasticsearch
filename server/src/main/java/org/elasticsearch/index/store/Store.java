@@ -59,6 +59,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -830,7 +831,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     }
                 }
                 if (maxVersion == null) {
-                    maxVersion = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+                    maxVersion = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 checksumFromLuceneFile(
@@ -885,14 +886,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMapValues(fileMetadataMap);
-            out.writeMap(commitUserData, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(commitUserData, StreamOutput::writeString);
             out.writeLong(numDocs);
         }
 
         @Nullable
-        public org.elasticsearch.Version getCommitVersion() {
+        public IndexVersion getCommitVersion() {
             String version = commitUserData.get(ES_VERSION);
-            return version == null ? null : org.elasticsearch.Version.fromString(version);
+            return version == null ? null : Engine.readIndexVersion(version);
         }
 
         public static boolean isReadAsHash(String file) {
@@ -1499,7 +1500,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     final Map<String, String> userData = startingIndexCommit.getUserData();
                     writer.setLiveCommitData(() -> {
                         Map<String, String> updatedUserData = new HashMap<>(userData);
-                        updatedUserData.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+                        updatedUserData.put(ES_VERSION, IndexVersion.current().toString());
                         return updatedUserData.entrySet().iterator();
                     });
                     writer.commit();
@@ -1528,7 +1529,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
-        userData.put(Engine.ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+        userData.put(Engine.ES_VERSION, IndexVersion.current().toString());
         userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
         writer.commit();

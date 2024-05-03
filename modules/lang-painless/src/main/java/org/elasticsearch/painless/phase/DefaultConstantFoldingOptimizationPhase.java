@@ -704,7 +704,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRExpressionModifyi
         }
     }
 
-    private void replaceCallWithConstant(
+    private static void replaceCallWithConstant(
         InvokeCallMemberNode irInvokeCallMemberNode,
         Consumer<ExpressionNode> scope,
         Method javaMethod,

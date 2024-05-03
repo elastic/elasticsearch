@@ -95,11 +95,13 @@ public class TimeSeriesIndexSearcher {
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
         if (searcher.getExecutor() == null) {
             search(bucketCollector, weight);
+            bucketCollector.postCollection();
             return;
         }
         // offload to the search worker thread pool whenever possible. It will be null only when search.worker_threads_enabled is false
         RunnableFuture<Void> task = new FutureTask<>(() -> {
             search(bucketCollector, weight);
+            bucketCollector.postCollection();
             return null;
         });
         searcher.getExecutor().execute(task);
@@ -238,8 +240,6 @@ public class TimeSeriesIndexSearcher {
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
         private final BytesRefBuilder scratch = new BytesRefBuilder();
 
-        private final Scorer scorer;
-
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -250,7 +250,6 @@ public class TimeSeriesIndexSearcher {
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
-            this.scorer = scorer;
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);

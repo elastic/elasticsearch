@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -53,11 +55,10 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = Stream.<Predicate<ShardRouting>>of(
         shardRouting -> shardRouting.isPromotableToPrimary() == false,
-        shardRouting -> true
+        Predicates.always()
     )
         .flatMap(
-            p1 -> Stream.<Predicate<ShardRouting>>of(ShardRouting::unassigned, ShardRouting::initializing, shardRouting -> true)
-                .map(p1::and)
+            p1 -> Stream.<Predicate<ShardRouting>>of(ShardRouting::unassigned, ShardRouting::initializing, Predicates.always()).map(p1::and)
         )
         .toList();
     private final Index index;
@@ -229,6 +230,26 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
      */
     public boolean allPrimaryShardsActive() {
         return primaryShardsActive() == shards.length;
+    }
+
+    /**
+     * @return <code>true</code> if an index is available to service search queries.
+     */
+    public boolean readyForSearch(ClusterState clusterState) {
+        for (IndexShardRoutingTable shardRoutingTable : this.shards) {
+            boolean found = false;
+            for (int idx = 0; idx < shardRoutingTable.size(); idx++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(idx);
+                if (shardRouting.active() && OperationRouting.canSearchShard(shardRouting, clusterState)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public boolean allShardsActive() {

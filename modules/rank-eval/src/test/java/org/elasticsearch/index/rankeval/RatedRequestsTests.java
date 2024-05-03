@@ -115,7 +115,7 @@ public class RatedRequestsTests extends ESTestCase {
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
 
-            RatedRequest parsedItem = RatedRequest.fromXContent(itemParser);
+            RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, nf -> false);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -128,7 +128,7 @@ public class RatedRequestsTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            Throwable exception = expectThrows(XContentParseException.class, () -> RatedRequest.fromXContent(parser));
+            Throwable exception = expectThrows(XContentParseException.class, () -> RatedRequest.fromXContent(parser, nf -> false));
             if (exception.getCause() != null) {
                 assertThat(exception.getMessage(), containsString("[request] failed to parse field"));
                 exception = exception.getCause();
@@ -359,7 +359,7 @@ public class RatedRequestsTests extends ESTestCase {
               ]
             }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, querySpecString)) {
-            RatedRequest specification = RatedRequest.fromXContent(parser);
+            RatedRequest specification = RatedRequest.fromXContent(parser, nf -> false);
             assertEquals("my_qa_query", specification.getId());
             assertNotNull(specification.getEvaluationRequest());
             List<RatedDocument> ratedDocs = specification.getRatedDocs();

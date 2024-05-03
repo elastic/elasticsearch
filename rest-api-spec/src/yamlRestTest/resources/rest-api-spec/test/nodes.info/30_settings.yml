@@ -12,11 +12,11 @@
       nodes.info:
         metric: [ settings ]
 
-  - match : { nodes.$node_id.settings.client.type: node }
+  - match : { nodes.$node_id.settings.node.attr.testattr: test }
 
   - do:
       nodes.info:
         metric: [ settings ]
         flat_settings: true
 
-  - match : { nodes.$node_id.settings.client\.type: node }
+  - match : { nodes.$node_id.settings.node\.attr\.testattr: test }

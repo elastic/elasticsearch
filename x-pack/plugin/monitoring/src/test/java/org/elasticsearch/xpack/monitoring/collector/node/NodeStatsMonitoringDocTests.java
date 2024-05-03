@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -361,7 +362,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         segmentsStats.addBitsetMemoryInBytes(++iota);
         indicesCommonStats.getSegments().add(segmentsStats);
 
-        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap(), emptyMap());
+        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap(), emptyMap(), randomBoolean());
 
         // Filesystem
         final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats(
@@ -434,17 +435,12 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         threadpools.add(new ThreadPoolStats.Stats("write", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
         final ThreadPoolStats threadPool = new ThreadPoolStats(threadpools);
 
-        final DiscoveryNode discoveryNode = new DiscoveryNode(
-            "_node_name",
-            "_node_id",
-            "_ephemeral_id",
-            "_host_name",
-            "_host_address",
-            new TransportAddress(TransportAddress.META_ADDRESS, 1234),
-            emptyMap(),
-            emptySet(),
-            null
-        );
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("_node_id")
+            .name("_node_name")
+            .ephemeralId("_ephemeral_id")
+            .address("_host_name", "_host_address", new TransportAddress(TransportAddress.META_ADDRESS, 1234))
+            .roles(emptySet())
+            .build();
 
         return new NodeStats(
             discoveryNode,
@@ -455,6 +451,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             jvm,
             threadPool,
             fs,
+            null,
             null,
             null,
             null,

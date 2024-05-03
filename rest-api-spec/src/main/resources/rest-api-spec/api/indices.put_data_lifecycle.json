@@ -48,8 +48,7 @@
       }
     },
     "body":{
-      "description":"The data stream lifecycle configuration that consist of the data retention",
-      "required":false
+      "description":"The data stream lifecycle configuration that consist of the data retention"
     }
   }
 }

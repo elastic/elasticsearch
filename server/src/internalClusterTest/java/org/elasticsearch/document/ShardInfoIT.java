@@ -8,13 +8,13 @@
 
 package org.elasticsearch.document;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,7 +33,7 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
-        IndexResponse indexResponse = client().prepareIndex("idx").setSource("{}", XContentType.JSON).get();
+        DocWriteResponse indexResponse = prepareIndex("idx").setSource("{}", XContentType.JSON).get();
         assertShardInfo(indexResponse);
         DeleteResponse deleteResponse = client().prepareDelete("idx", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
@@ -49,7 +49,7 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareIndex("idx").setSource("{}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("idx").setSource("{}", XContentType.JSON));
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -96,7 +96,6 @@ public class ShardInfoIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("idx").setSettings(indexSettings(numberOfPrimaryShards, numCopies - 1))
                 .setMapping("_routing", "required=" + routingRequired)
-                .get()
         );
         for (int i = 0; i < numberOfPrimaryShards; i++) {
             ensureActiveShardCopies(i, numNodes);

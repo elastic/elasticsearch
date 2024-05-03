@@ -52,4 +52,7 @@ public class StringUtilsTests extends ESTestCase {
         assertEquals("^foo\\*$", wildcardToJavaPattern("foox*", 'x'));
     }
 
+    public void testEscapedEscape() {
+        assertEquals("^\\\\\\\\$", wildcardToJavaPattern("\\\\\\\\", '\\'));
+    }
 }

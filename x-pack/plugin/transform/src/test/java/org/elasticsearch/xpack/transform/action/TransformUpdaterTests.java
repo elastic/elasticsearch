@@ -26,6 +26,8 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.TransformConfigVersionUtils;
+import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.action.TransformUpdater.UpdateResult;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -72,15 +75,17 @@ public class TransformUpdaterTests extends ESTestCase {
     private static final String JOHN = "john";
     private final SecurityContext johnSecurityContext = newSecurityContextFor(JOHN);
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+    private TestThreadPool threadPool;
     private Client client;
     private ClusterService clusterService = mock(ClusterService.class);
     private TransformAuditor auditor = new MockTransformAuditor(clusterService);
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
+    private final Settings destIndexSettings = new DefaultTransformExtension().getTransformDestinationIndexSettings();
 
     private static class MyMockClient extends NoOpClient {
 
-        MyMockClient(String testName) {
-            super(testName);
+        MyMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")
@@ -114,17 +119,18 @@ public class TransformUpdaterTests extends ESTestCase {
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
+        if (threadPool != null) {
+            threadPool.close();
         }
-        client = new MyMockClient(getTestName());
+        threadPool = createThreadPool();
+        client = new MyMockClient(threadPool);
         clusterService = mock(ClusterService.class);
         auditor = new MockTransformAuditor(clusterService);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
+        threadPool.close();
     }
 
     public void testTransformUpdateNoAction() throws InterruptedException {
@@ -157,6 +163,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -192,6 +199,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -264,6 +272,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -331,6 +340,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -378,6 +388,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 true,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -420,6 +431,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 true,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -454,6 +466,7 @@ public class TransformUpdaterTests extends ESTestCase {
             false,
             true,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            destIndexSettings,
             ActionListener.wrap(
                 r -> fail("Should fail due to missing privileges"),
                 e -> assertThat(e.getMessage(), is(equalTo("missing privileges")))

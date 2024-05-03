@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -41,6 +43,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
     ClearVotingConfigExclusionsRequest,
     ActionResponse.Empty> {
 
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/voting_config/clear_exclusions");
     private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
     private final Reconfigurator reconfigurator;
 
@@ -54,7 +57,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
         Reconfigurator reconfigurator
     ) {
         super(
-            ClearVotingConfigExclusionsAction.NAME,
+            TYPE.name(),
             false,
             transportService,
             clusterService,
@@ -63,7 +66,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
             ClearVotingConfigExclusionsRequest::new,
             indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.reconfigurator = reconfigurator;
     }

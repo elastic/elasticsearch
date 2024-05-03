@@ -111,13 +111,13 @@ Explicitly perform the inclusion through the dedicated `FROZEN` keyword in the `
 
 [source, sql]
 ----
-include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesIncludeFrozen]
+include-tagged::{sql-specs}/docs/docs-frozen.csv-spec[showTablesIncludeFrozen]
 ----
 
 
 [source, sql]
 ----
-include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableIncludeFrozen]
+include-tagged::{sql-specs}/docs/docs-frozen.csv-spec[fromTableIncludeFrozen]
 ----
 
 Unless enabled, frozen indices are completely ignored; it is as if they do not exist and as such, queries ran against them are likely to fail.

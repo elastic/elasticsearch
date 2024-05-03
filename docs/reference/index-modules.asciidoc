@@ -7,7 +7,7 @@ an index.
 
 [discrete]
 [[index-modules-settings]]
-== Index Settings
+== Index settings
 
 [[index-modules-settings-description]]
 // tag::index-modules-settings-description-tag[]
@@ -16,7 +16,10 @@ Index level settings can be set per-index. Settings may be:
 _static_::
 
 They can only be set at index creation time or on a
-<<indices-open-close,closed index>>.
+<<indices-open-close,closed index>>, or by using the
+<<indices-update-settings,update-index-settings>> API with the
+`reopen` query parameter set to `true` (which automatically
+closes and reopens impacted indices).
 
 _dynamic_::
 
@@ -24,9 +27,7 @@ They can be changed on a live index using the
 <<indices-update-settings,update-index-settings>> API.
 // end::index-modules-settings-description-tag[]
 
-WARNING: Changing static or dynamic index settings on a closed index could
-result in incorrect settings that are impossible to rectify without deleting
-and recreating the index.
+CAUTION: You can change any documented index settings on closed indices. However, changing undocumented index settings on closed indices is unsupported and might result in errors.
 
 [discrete]
 === Static index settings

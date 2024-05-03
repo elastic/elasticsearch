@@ -7,15 +7,13 @@
  */
 package org.elasticsearch.action.downsample;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -37,7 +35,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private DownsampleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -64,9 +62,11 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            waitTimeout = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)
-                ? TimeValue.parseTimeValue(in.readString(), "timeout")
-                : DEFAULT_WAIT_TIMEOUT;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+                waitTimeout = TimeValue.parseTimeValue(in.readString(), "timeout");
+            } else {
+                waitTimeout = DEFAULT_WAIT_TIMEOUT;
+            }
             downsampleConfig = new DownsampleConfig(in);
         }
 
@@ -90,11 +90,9 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(sourceIndex);
             out.writeString(targetIndex);
-            out.writeString(
-                out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)
-                    ? waitTimeout.getStringRep()
-                    : DEFAULT_WAIT_TIMEOUT.getStringRep()
-            );
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+                out.writeString(waitTimeout.getStringRep());
+            }
             downsampleConfig.writeTo(out);
         }
 
@@ -164,10 +162,4 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        protected RequestBuilder(ElasticsearchClient client, DownsampleAction action) {
-            super(client, action, new Request());
-        }
-    }
 }

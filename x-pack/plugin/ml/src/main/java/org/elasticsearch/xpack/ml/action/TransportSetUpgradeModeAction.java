@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -64,7 +66,6 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PersistentTasksClusterService persistentTasksClusterService;
     private final PersistentTasksService persistentTasksService;
-    private final ClusterService clusterService;
     private final OriginSettingClient client;
 
     @Inject
@@ -86,10 +87,9 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             actionFilters,
             SetUpgradeModeAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksClusterService = persistentTasksClusterService;
-        this.clusterService = clusterService;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.persistentTasksService = persistentTasksService;
     }
@@ -154,7 +154,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
                 // There is a chance that we failed un-allocating a task due to allocation_id being changed
                 // This call will timeout in that case and return an error
                 .setWaitForCompletion(true)
-                .setTimeout(request.timeout())
+                .setTimeout(request.ackTimeout())
                 .execute(ActionListener.wrap(r -> {
                     try {
                         // Handle potential node timeouts,
@@ -228,7 +228,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
                     persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
                         .stream()
                         .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE)),
-                    request.timeout(),
+                    request.ackTimeout(),
                     ActionListener.wrap(r -> {
                         logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");
                         wrappedListener.onResponse(AcknowledgedResponse.TRUE);
@@ -299,7 +299,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
 
         TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor = new TypedChainTaskExecutor<>(
             executor,
-            r -> true,
+            Predicates.always(),
             // Another process could modify tasks and thus we cannot find them via the allocation_id and name
             // If the task was removed from the node, all is well
             // We handle the case of allocation_id changing later in this transport class by timing out waiting for task completion
@@ -329,8 +329,8 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
         TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor = new TypedChainTaskExecutor<>(
             executor,
-            r -> true,
-            ex -> true
+            Predicates.always(),
+            Predicates.always()
         );
 
         datafeedsToIsolate.forEach(datafeedId -> {

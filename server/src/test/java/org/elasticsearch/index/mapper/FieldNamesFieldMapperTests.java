@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -86,7 +86,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
     public void testUsingEnabledBefore8() throws Exception {
 
         DocumentMapper docMapper = createDocumentMapper(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
             topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject())
         );
 
@@ -103,7 +103,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      */
     public void testMergingMappingsBefore8() throws Exception {
         MapperService mapperService = createMapperService(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
             mapping(b -> {})
         );
 

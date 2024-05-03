@@ -34,15 +34,13 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertAcked(createIndexResponse);
 
         // indexing, by default, will work (waiting for one shard copy only)
-        client().prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON).execute().actionGet();
+        prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON).get();
         try {
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(2) // wait for 2 active shard copies
                 .setTimeout(timeValueMillis(100))
-                .execute()
-                .actionGet();
+                .get();
             fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -59,29 +57,24 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForActiveShards(2)
             .setWaitForYellowStatus()
-            .execute()
-            .actionGet();
+            .get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         // this should work, since we now have two
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(2)
             .setTimeout(timeValueSeconds(1))
-            .execute()
-            .actionGet();
+            .get();
 
         try {
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .setTimeout(timeValueMillis(100))
-                .execute()
-                .actionGet();
+                .get();
             fail("can't index, not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -101,20 +94,17 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForActiveShards(3)
             .setWaitForGreenStatus()
-            .execute()
-            .actionGet();
+            .get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // this should work, since we now have all shards started
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(ActiveShardCount.ALL)
             .setTimeout(timeValueSeconds(1))
-            .execute()
-            .actionGet();
+            .get();
     }
 
     private String source(String id, String nameValue) {

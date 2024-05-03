@@ -14,9 +14,13 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.MockResolvedIndices;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -65,7 +69,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;
@@ -325,7 +328,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} with the provided searcher
      */
     protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
-        return serviceHolder.createShardContext(searcher, null);
+        return serviceHolder.createShardContext(searcher);
     }
 
     protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
@@ -344,7 +347,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
     protected static SearchExecutionContext createShardContextWithNoType() {
-        return serviceHolderWithNoType.createShardContext(null, null);
+        return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
@@ -406,6 +409,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final ScriptService scriptService;
         private final Client client;
         private final long nowInMillis;
+        private final IndexMetadata indexMetadata;
 
         ServiceHolder(
             Settings nodeSettings,
@@ -434,14 +438,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 new Class<?>[] { Client.class },
                 clientInvocationHandler
             );
-            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class).toList());
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
                 pluginsService.flatMap(Plugin::getSettings).toList(),
                 pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
-            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
@@ -469,10 +473,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 parserConfiguration,
                 similarityService,
                 mapperRegistry,
-                () -> createShardContext(null, clusterService.getClusterSettings()),
+                () -> createShardContext(null),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
-                ScriptCompiler.NONE,
-                () -> DocumentParsingObserver.EMPTY_INSTANCE
+                ScriptCompiler.NONE
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
@@ -551,6 +554,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     }""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
+
+            indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
         }
 
         public static Predicate<String> indexNameMatcher() {
@@ -561,12 +574,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         @Override
         public void close() throws IOException {}
 
-        SearchExecutionContext createShardContext(IndexSearcher searcher, ClusterSettings clusterSettings) {
+        SearchExecutionContext createShardContext(IndexSearcher searcher) {
             return new SearchExecutionContext(
                 0,
                 0,
                 idxSettings,
-                clusterSettings == null ? ClusterSettings.createBuiltInClusterSettings() : clusterSettings,
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
                 mapperService,
@@ -594,7 +606,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperService,
                 mapperService.mappingLookup(),
                 emptyMap(),
-                null,
                 idxSettings,
                 new Index(
                     RemoteClusterAware.buildRemoteIndexName(null, idxSettings.getIndex().getName()),
@@ -604,7 +615,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 namedWriteableRegistry,
                 null,
                 () -> true,
-                scriptService
+                scriptService,
+                createMockResolvedIndices()
             );
         }
 
@@ -632,6 +644,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 }));
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
+        }
+
+        private ResolvedIndices createMockResolvedIndices() {
+            return new MockResolvedIndices(
+                Map.of(),
+                new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT),
+                Map.of(index, indexMetadata)
+            );
         }
     }
 }

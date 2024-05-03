@@ -55,7 +55,7 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+    public Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
         if ((mergeWith instanceof FieldAliasMapper) == false) {
             throw new IllegalArgumentException(
                 "Cannot merge a field alias mapping [" + name() + "] with a mapping that is not for a field alias."
@@ -113,6 +113,11 @@ public final class FieldAliasMapper extends Mapper {
         }
     }
 
+    @Override
+    public int getTotalFieldsCount() {
+        return 1;
+    }
+
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
@@ -133,16 +138,10 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     public static class Builder extends Mapper.Builder {
-        private String name;
         private String path;
 
         protected Builder(String name) {
             super(name);
-            this.name = name;
-        }
-
-        public String name() {
-            return this.name;
         }
 
         public Builder path(String path) {
@@ -152,8 +151,8 @@ public final class FieldAliasMapper extends Mapper {
 
         @Override
         public FieldAliasMapper build(MapperBuilderContext context) {
-            String fullName = context.buildFullName(name);
-            return new FieldAliasMapper(name, fullName, path);
+            String fullName = context.buildFullName(name());
+            return new FieldAliasMapper(name(), fullName, path);
         }
     }
 

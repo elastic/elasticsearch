@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -34,6 +33,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -62,7 +62,7 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopAfterRegularEngine() throws IOException {
         int docs = randomIntBetween(1, 10);
         ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting(shardId, "node", null, true, ShardRoutingState.STARTED, allocationId);
+        ShardRouting routing = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.STARTED).withAllocationId(allocationId).build();
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -157,7 +157,7 @@ public class NoOpEngineTests extends EngineTestCase {
 
     public void testTrimUnreferencedTranslogFiles() throws Exception {
         final ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting(shardId, "node", null, true, ShardRoutingState.STARTED, allocationId);
+        ShardRouting routing = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.STARTED).withAllocationId(allocationId).build();
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);

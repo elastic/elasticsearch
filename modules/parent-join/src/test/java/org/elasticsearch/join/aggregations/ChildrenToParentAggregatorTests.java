@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -65,7 +64,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), newIndexSearcher(indexReader), childrenToParent -> {
+        testCase(new MatchAllDocsQuery(), indexReader, childrenToParent -> {
             assertEquals(0, childrenToParent.getDocCount());
             Aggregation parentAggregation = childrenToParent.getAggregations().get("in_parent");
             assertEquals(0, childrenToParent.getDocCount());
@@ -88,10 +87,8 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
         // verify with all documents
-        testCase(new MatchAllDocsQuery(), indexSearcher, parent -> {
+        testCase(new MatchAllDocsQuery(), indexReader, parent -> {
             int expectedTotalParents = 0;
             int expectedMinValue = Integer.MAX_VALUE;
             for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {
@@ -109,7 +106,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         // verify for each children
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId("child0_" + parent)), indexSearcher, aggregation -> {
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId("child0_" + parent)), indexReader, aggregation -> {
                 assertEquals(
                     "Expected one result for min-aggregation for parent: " + parent + ", but had aggregation-results: " + aggregation,
                     1,
@@ -155,10 +152,8 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
         // verify a terms-aggregation inside the parent-aggregation
-        testCaseTerms(new MatchAllDocsQuery(), indexSearcher, parent -> {
+        testCaseTerms(new MatchAllDocsQuery(), indexReader, parent -> {
             assertNotNull(parent);
             assertTrue(JoinAggregationInspectionHelper.hasValue(parent));
             LongTerms valueTerms = parent.getAggregations().get("value_terms");
@@ -198,11 +193,9 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
         // verify a terms-aggregation inside the parent-aggregation which itself is inside a
         // terms-aggregation on the child-documents
-        testCaseTermsParentTerms(new MatchAllDocsQuery(), indexSearcher, longTerms -> {
+        testCaseTermsParentTerms(new MatchAllDocsQuery(), indexReader, longTerms -> {
             assertNotNull(longTerms);
 
             for (LongTerms.Bucket bucket : longTerms.getBuckets()) {
@@ -258,34 +251,28 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
-    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify) throws IOException {
+    private void testCase(Query query, DirectoryReader reader, Consumer<InternalParent> verify) throws IOException {
 
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = searchAndReduce(
-            indexSearcher,
-            new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
-        );
+        InternalParent result = searchAndReduce(reader, new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query));
         verify.accept(result);
     }
 
-    private void testCaseTerms(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify) throws IOException {
+    private void testCaseTerms(Query query, DirectoryReader reader, Consumer<InternalParent> verify) throws IOException {
 
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = searchAndReduce(
-            indexSearcher,
-            new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
-        );
+        InternalParent result = searchAndReduce(reader, new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query));
         verify.accept(result);
     }
 
     // run a terms aggregation on the number in child-documents, then a parent aggregation and then terms on the parent-number
-    private void testCaseTermsParentTerms(Query query, IndexSearcher indexSearcher, Consumer<LongTerms> verify) throws IOException {
+    private void testCaseTermsParentTerms(Query query, DirectoryReader reader, Consumer<LongTerms> verify) throws IOException {
         AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("subvalue_terms").field("subNumber")
             .subAggregation(
                 new ParentAggregationBuilder("to_parent", CHILD_TYPE).subAggregation(
@@ -296,7 +283,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
         LongTerms result = searchAndReduce(
-            indexSearcher,
+            reader,
             new AggTestConfig(aggregationBuilder, withJoinFields(fieldType, subFieldType)).withQuery(query)
         );
         verify.accept(result);
@@ -313,7 +300,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         int i = fieldTypes.length;
         result[i++] = new ParentJoinFieldMapper.Builder("join_field").addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-            .build(MapperBuilderContext.root(false))
+            .build(MapperBuilderContext.root(false, false))
             .fieldType();
         result[i++] = new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false);
         assert i == result.length;

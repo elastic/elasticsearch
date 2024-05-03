@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
@@ -96,7 +97,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                     logger.warn("failed to submit schedule/execute reroute post unassigned shard", e);
                     removeIfSameTask(DelayedRerouteTask.this);
                 }
-            }, nextDelay, ThreadPool.Names.SAME);
+            }, nextDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override
@@ -128,6 +129,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
+    @SuppressWarnings("this-escape")
     @Inject
     public DelayedAllocationService(ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
         this.threadPool = threadPool;

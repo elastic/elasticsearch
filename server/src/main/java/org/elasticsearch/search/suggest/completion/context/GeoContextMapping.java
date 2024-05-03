@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -271,7 +272,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
-                if (indexVersionCreated.before(IndexVersion.V_7_0_0)) {
+                if (indexVersionCreated.before(IndexVersions.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",
@@ -287,7 +288,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     );
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
-                if (indexVersionCreated.before(IndexVersion.V_7_0_0)) {
+                if (indexVersionCreated.before(IndexVersions.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",
@@ -342,19 +343,6 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
          */
         public Builder precision(String precision) {
             return precision(DistanceUnit.parse(precision, DistanceUnit.METERS, DistanceUnit.METERS));
-        }
-
-        /**
-         * Set the precision use o make suggestions
-         *
-         * @param precision
-         *            precision value
-         * @param unit
-         *            {@link DistanceUnit} to use
-         * @return this
-         */
-        public Builder precision(double precision, DistanceUnit unit) {
-            return precision(unit.toMeters(precision));
         }
 
         /**

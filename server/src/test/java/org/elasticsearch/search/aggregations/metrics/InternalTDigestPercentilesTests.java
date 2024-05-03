@@ -75,11 +75,6 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedTDigestPercentiles.class;
-    }
-
-    @Override
     protected InternalTDigestPercentiles mutateInstance(InternalTDigestPercentiles instance) {
         String name = instance.getName();
         double[] percents = instance.keys;
@@ -142,10 +137,10 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             String percentileName = nameIterator.next();
 
             assertEquals(percent, Double.valueOf(percentileName), 0.0d);
-            assertEquals(percent, percentile.getPercent(), 0.0d);
+            assertEquals(percent, percentile.percent(), 0.0d);
 
-            assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
-            assertEquals(aggregation.value(String.valueOf(percent)), percentile.getValue(), 0.0d);
+            assertEquals(aggregation.percentile(percent), percentile.value(), 0.0d);
+            assertEquals(aggregation.value(String.valueOf(percent)), percentile.value(), 0.0d);
         }
         assertFalse(iterator.hasNext());
         assertFalse(nameIterator.hasNext());

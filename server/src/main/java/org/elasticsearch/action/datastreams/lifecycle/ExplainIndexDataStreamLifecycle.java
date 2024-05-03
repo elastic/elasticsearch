@@ -9,6 +9,7 @@
 package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 /**
  * Encapsulates the information that describes an index from its data stream lifecycle perspective.
@@ -50,7 +53,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     @Nullable
     private final DataStreamLifecycle lifecycle;
     @Nullable
-    private final String error;
+    private final ErrorEntry error;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     public ExplainIndexDataStreamLifecycle(
@@ -60,7 +63,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
         @Nullable DataStreamLifecycle lifecycle,
-        @Nullable String error
+        @Nullable ErrorEntry error
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
@@ -79,7 +82,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-            this.error = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(V_8_12_0)) {
+                this.error = in.readOptionalWriteable(ErrorEntry::new);
+            } else {
+                String bwcErrorMessage = in.readOptionalString();
+                this.error = new ErrorEntry(-1L, bwcErrorMessage, -1L, -1);
+            }
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
@@ -91,11 +99,15 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
         builder.field(MANAGED_BY_LIFECYCLE_FIELD.getPreferredName(), managedByLifecycle);
@@ -120,10 +132,15 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             }
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConfiguration);
+                lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
             }
             if (this.error != null) {
-                builder.field(ERROR_FIELD.getPreferredName(), error);
+                if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {
+                    builder.field(ERROR_FIELD.getPreferredName(), error);
+                } else {
+                    // bwc for error field being a string
+                    builder.field(ERROR_FIELD.getPreferredName(), error.error());
+                }
             }
         }
         builder.endObject();
@@ -139,7 +156,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
-            out.writeOptionalString(error);
+            if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
+                out.writeOptionalWriteable(error);
+            } else {
+                String errorMessage = error != null ? error.error() : null;
+                out.writeOptionalString(errorMessage);
+            }
         }
     }
 
@@ -202,7 +224,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return lifecycle;
     }
 
-    public String getError() {
+    public ErrorEntry getError() {
         return error;
     }
 

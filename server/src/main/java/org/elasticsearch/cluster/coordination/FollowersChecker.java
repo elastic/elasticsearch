@@ -16,17 +16,17 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -60,7 +60,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
  * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
  * a node and the consequent shard reallocation.
  */
-public class FollowersChecker {
+public final class FollowersChecker {
 
     private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
@@ -102,6 +102,7 @@ public class FollowersChecker {
 
     private final TransportService transportService;
     private final NodeHealthService nodeHealthService;
+    private final Executor clusterCoordinationExecutor;
     private volatile FastResponseState fastResponseState;
 
     public FollowersChecker(
@@ -115,6 +116,7 @@ public class FollowersChecker {
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
         this.nodeHealthService = nodeHealthService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);
 
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
@@ -123,7 +125,7 @@ public class FollowersChecker {
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(
             FOLLOWER_CHECK_ACTION_NAME,
-            Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             FollowerCheckRequest::new,
@@ -201,21 +203,18 @@ public class FollowersChecker {
             throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
 
-        transportService.getThreadPool()
-            .executor(Names.CLUSTER_COORDINATION)
-            .execute(ActionRunnable.supply(listener, new CheckedSupplier<>() {
-                @Override
-                public Void get() {
-                    logger.trace("responding to {} on slow path", request);
-                    handleRequestAndUpdateState.accept(request);
-                    return null;
-                }
+        clusterCoordinationExecutor.execute(ActionRunnable.run(listener, new CheckedRunnable<>() {
+            @Override
+            public void run() {
+                logger.trace("responding to {} on slow path", request);
+                handleRequestAndUpdateState.accept(request);
+            }
 
-                @Override
-                public String toString() {
-                    return "responding to [" + request + "] on slow path";
-                }
-            }));
+            @Override
+            public String toString() {
+                return "responding to [" + request + "] on slow path";
+            }
+        }));
     }
 
     /**
@@ -306,7 +305,7 @@ public class FollowersChecker {
                 new TransportResponseHandler.Empty() {
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -363,7 +362,7 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
-            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
+            clusterCoordinationExecutor.execute(new AbstractRunnable() {
 
                 @Override
                 public void onRejection(Exception e) {
@@ -413,7 +412,7 @@ public class FollowersChecker {
                 public String toString() {
                     return FollowerChecker.this + "::handleWakeUp";
                 }
-            }, followerCheckInterval, Names.SAME);
+            }, followerCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

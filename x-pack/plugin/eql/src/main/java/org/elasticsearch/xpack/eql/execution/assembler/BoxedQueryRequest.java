@@ -61,7 +61,7 @@ public class BoxedQueryRequest implements QueryRequest {
         timestampField = timestamp;
         keys = keyNames;
         this.optionalKeyNames = optionalKeyNames;
-        RuntimeUtils.addFilter(timestampRange, searchSource);
+        RuntimeUtils.combineFilters(searchSource, timestampRange);
     }
 
     @Override
@@ -181,7 +181,7 @@ public class BoxedQueryRequest implements QueryRequest {
             }
         }
 
-        RuntimeUtils.replaceFilter(keyFilters, newFilters, searchSource);
+        RuntimeUtils.replaceFilter(searchSource, keyFilters, newFilters);
         keyFilters = newFilters;
         return this;
     }

@@ -13,19 +13,19 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -237,7 +237,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
     public void testShingleFilters() {
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
+            )
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
             .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
@@ -289,7 +292,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
         );
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
+            )
             .put("path.home", createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
@@ -318,7 +324,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
     public void testDisallowedTokenFilters() throws IOException {
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
+            )
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")
             .put("output_unigrams", "true")

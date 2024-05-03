@@ -24,6 +24,7 @@ public class PostSecretResponseTests extends AbstractWireSerializingTestCase<Pos
 
     @Override
     protected PostSecretResponse mutateInstance(PostSecretResponse instance) {
-        return new PostSecretResponse(randomAlphaOfLengthBetween(2, 10));
+        String id = randomValueOtherThan(instance.id(), () -> randomAlphaOfLengthBetween(2, 10));
+        return new PostSecretResponse(id);
     }
 }

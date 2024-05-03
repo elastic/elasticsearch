@@ -243,8 +243,22 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_length"), is(0L));
     }
 
-    public void testEncryptedPdf() throws Exception {
+    public void testEncryptedWithPasswordPdf() throws Exception {
+        /*
+         * This tests that a PDF that has been encrypted with a password fails in the way expected
+         */
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
+        assertThat(e.getDetailedMessage(), containsString("document is encrypted"));
+    }
+
+    public void testEncryptedWithKeyPdf() throws Exception {
+        /*
+         * This tests that a PDF that has been encrypted with a public key fails in the way expected
+         */
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseDocument("encrypted-with-key.pdf", processor)
+        );
         assertThat(e.getDetailedMessage(), containsString("document is encrypted"));
     }
 

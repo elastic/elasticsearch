@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -42,7 +43,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -68,7 +69,7 @@ public class TestSearchContext extends SearchContext {
     SortAndFormats sort;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
-    RankShardContext rankShardContext;
+    QueryPhaseRankShardContext queryPhaseRankShardContext;
     ContextIndexSearcher searcher;
     int from;
     int size;
@@ -171,11 +172,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
-    }
-
-    @Override
     public SearchExtBuilder getSearchExt(String name) {
         return searchExtBuilders.get(name);
     }
@@ -194,9 +190,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {}
-
-    @Override
     public List<RescoreContext> rescore() {
         return Collections.emptyList();
     }
@@ -213,11 +206,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public boolean sourceRequested() {
-        return false;
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
         return false;
     }
 
@@ -270,9 +258,6 @@ public class TestSearchContext extends SearchContext {
     public TimeValue timeout() {
         return TimeValue.ZERO;
     }
-
-    @Override
-    public void timeout(TimeValue timeout) {}
 
     @Override
     public int terminateAfter() {
@@ -342,11 +327,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FieldDoc searchAfter() {
         return searchAfter;
-    }
-
-    @Override
-    public SearchContext collapse(CollapseContext collapse) {
-        return null;
     }
 
     @Override
@@ -436,9 +416,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {}
-
-    @Override
     public boolean version() {
         return false;
     }
@@ -454,16 +431,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
 
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        return new int[0];
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return null;
     }
 
     @Override
@@ -542,13 +509,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public RankShardContext rankShardContext() {
-        return rankShardContext;
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return queryPhaseRankShardContext;
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        this.rankShardContext = rankShardContext;
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankContext) {
+        this.queryPhaseRankShardContext = queryPhaseRankContext;
     }
 
     @Override
@@ -564,5 +531,10 @@ public class TestSearchContext extends SearchContext {
     @Override
     public SourceLoader newSourceLoader() {
         return searchExecutionContext.newSourceLoader(false);
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
+        throw new UnsupportedOperationException();
     }
 }

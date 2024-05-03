@@ -25,8 +25,8 @@ public abstract class DisabledSecurityDataStreamTestCase extends ESRestTestCase 
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
         .distribution(DistributionType.DEFAULT)
+        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .build();
@@ -38,7 +38,11 @@ public abstract class DisabledSecurityDataStreamTestCase extends ESRestTestCase 
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        if (super.restAdminSettings().keySet().contains(ThreadContext.PREFIX + ".Authorization")) {
+            return super.restAdminSettings();
+        } else {
+            String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+            return Settings.builder().put(super.restAdminSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+        }
     }
 }

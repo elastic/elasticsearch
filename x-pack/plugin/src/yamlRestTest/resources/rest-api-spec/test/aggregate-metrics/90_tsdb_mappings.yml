@@ -1,16 +1,12 @@
 aggregate_double_metric with time series mappings:
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: introduced in 7.16.0
 
   - do:
       indices.create:
           index: test_index
           body:
-            settings:
-              index:
-                number_of_replicas: 0
-                number_of_shards: 2
             mappings:
               properties:
                 "@timestamp":
@@ -42,8 +38,8 @@ aggregate_double_metric with time series mappings:
 
 ---
 aggregate_double_metric with wrong time series mappings:
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: introduced in 7.16.0
 
   - do:
@@ -51,10 +47,6 @@ aggregate_double_metric with wrong time series mappings:
       indices.create:
         index: tsdb_index
         body:
-          settings:
-            index:
-              number_of_replicas: 0
-              number_of_shards: 2
           mappings:
             properties:
               "@timestamp":
@@ -86,8 +78,8 @@ aggregate_double_metric with wrong time series mappings:
 
 ---
 "Field caps with tsdb":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "Field caps fix in 8.9"
 
   - do:
@@ -95,7 +87,6 @@ aggregate_double_metric with wrong time series mappings:
         index: tsdb-fieldcap
         body:
           settings:
-            number_of_replicas: 0
             mode: time_series
             routing_path: [field1]
             time_series:

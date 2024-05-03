@@ -28,6 +28,7 @@ public final class Pipeline {
     public static final String VERSION_KEY = "version";
     public static final String ON_FAILURE_KEY = "on_failure";
     public static final String META_KEY = "_meta";
+    public static final String DEPRECATED_KEY = "deprecated";
 
     private final String id;
     @Nullable
@@ -39,6 +40,8 @@ public final class Pipeline {
     private final CompoundProcessor compoundProcessor;
     private final IngestMetric metrics;
     private final LongSupplier relativeTimeProvider;
+    @Nullable
+    private final Boolean deprecated;
 
     public Pipeline(
         String id,
@@ -47,7 +50,18 @@ public final class Pipeline {
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor
     ) {
-        this(id, description, version, metadata, compoundProcessor, System::nanoTime);
+        this(id, description, version, metadata, compoundProcessor, null);
+    }
+
+    public Pipeline(
+        String id,
+        @Nullable String description,
+        @Nullable Integer version,
+        @Nullable Map<String, Object> metadata,
+        CompoundProcessor compoundProcessor,
+        @Nullable Boolean deprecated
+    ) {
+        this(id, description, version, metadata, compoundProcessor, System::nanoTime, deprecated);
     }
 
     // package private for testing
@@ -57,7 +71,8 @@ public final class Pipeline {
         @Nullable Integer version,
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        @Nullable Boolean deprecated
     ) {
         this.id = id;
         this.description = description;
@@ -66,6 +81,7 @@ public final class Pipeline {
         this.version = version;
         this.metrics = new IngestMetric();
         this.relativeTimeProvider = relativeTimeProvider;
+        this.deprecated = deprecated;
     }
 
     public static Pipeline create(
@@ -77,6 +93,7 @@ public final class Pipeline {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         Map<String, Object> metadata = ConfigurationUtils.readOptionalMap(null, null, config, META_KEY);
+        Boolean deprecated = ConfigurationUtils.readOptionalBooleanProperty(null, null, config, DEPRECATED_KEY);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
         List<Map<String, Object>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
@@ -97,7 +114,7 @@ public final class Pipeline {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, processors, onFailureProcessors);
-        return new Pipeline(id, description, version, metadata, compoundProcessor);
+        return new Pipeline(id, description, version, metadata, compoundProcessor, deprecated);
     }
 
     /**
@@ -184,5 +201,13 @@ public final class Pipeline {
      */
     public IngestMetric getMetrics() {
         return metrics;
+    }
+
+    public Boolean getDeprecated() {
+        return deprecated;
+    }
+
+    public boolean isDeprecated() {
+        return Boolean.TRUE.equals(deprecated);
     }
 }

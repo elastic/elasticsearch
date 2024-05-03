@@ -183,17 +183,16 @@ public class MultiBucketCollector extends BucketCollector {
                 );
             }
         }
-        switch (leafCollectors.size()) {
-            case 0:
+        return switch (leafCollectors.size()) {
+            case 0 -> {
                 if (terminateIfNoop) {
                     throw new CollectionTerminatedException();
                 }
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            case 1:
-                return leafCollectors.get(0);
-            default:
-                return new MultiLeafBucketCollector(leafCollectors, cacheScores);
-        }
+                yield LeafBucketCollector.NO_OP_COLLECTOR;
+            }
+            case 1 -> leafCollectors.get(0);
+            default -> new MultiLeafBucketCollector(leafCollectors, cacheScores);
+        };
     }
 
     private static class MultiLeafBucketCollector extends LeafBucketCollector {

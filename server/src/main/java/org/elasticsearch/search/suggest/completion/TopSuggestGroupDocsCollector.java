@@ -25,7 +25,7 @@ import java.util.Map;
  * the best one per document (sorted by weight) is kept.
  **/
 class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
-    private Map<Integer, List<CharSequence>> docContexts = new HashMap<>();
+    private final Map<Integer, List<CharSequence>> docContexts = new HashMap<>();
 
     /**
      * Sole constructor

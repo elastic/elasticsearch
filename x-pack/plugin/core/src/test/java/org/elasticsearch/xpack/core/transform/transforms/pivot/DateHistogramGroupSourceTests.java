@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,7 +74,9 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
                 field,
                 scriptConfig,
                 missingBucket,
-                new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(randomTimeValue(1, 100, "d", "h", "ms", "s", "m"))),
+                new DateHistogramGroupSource.FixedInterval(
+                    new DateHistogramInterval(between(1, 100) + randomFrom("d", "h", "ms", "s", "m"))
+                ),
                 randomBoolean() ? randomZone() : null,
                 randomBoolean() ? offset : null
             );
@@ -84,7 +86,7 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
                 scriptConfig,
                 missingBucket,
                 new DateHistogramGroupSource.CalendarInterval(
-                    new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w", "M", "q", "y"))
+                    new DateHistogramInterval("1" + randomFrom("m", "h", "d", "w", "M", "q", "y"))
                 ),
                 randomBoolean() ? randomZone() : null,
                 randomBoolean() ? offset : null
@@ -101,10 +103,10 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
         );
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.V_7_2_0);
+            output.setTransportVersion(TransportVersions.V_7_2_0);
             groupSource.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                in.setTransportVersion(TransportVersion.V_7_2_0);
+                in.setTransportVersion(TransportVersions.V_7_2_0);
                 DateHistogramGroupSource streamedGroupSource = new DateHistogramGroupSource(in);
                 assertEquals(groupSource, streamedGroupSource);
             }

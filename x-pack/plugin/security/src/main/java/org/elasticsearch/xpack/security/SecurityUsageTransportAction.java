@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -113,109 +113,75 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
         );
 
-        final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
-        final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
-        final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
-        final AtomicReference<Map<String, Object>> domainsUsageRef = new AtomicReference<>();
-        final AtomicReference<Map<String, Object>> userProfileUsageRef = new AtomicReference<>();
-        final AtomicReference<Map<String, Object>> remoteClusterServerUsageRef = new AtomicReference<>();
+        final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>(Map.of());
+        final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>(Map.of());
+        final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>(Map.of());
+        final AtomicReference<Map<String, Object>> domainsUsageRef = new AtomicReference<>(Map.of());
+        final AtomicReference<Map<String, Object>> userProfileUsageRef = new AtomicReference<>(Map.of());
+        final AtomicReference<Map<String, Object>> remoteClusterServerUsageRef = new AtomicReference<>(Map.of());
 
         final boolean enabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        final CountDown countDown = new CountDown(5);
-        final Runnable doCountDown = () -> {
-            if (countDown.countDown()) {
-                var usage = new SecurityFeatureSetUsage(
-                    enabled,
-                    realmsUsageRef.get(),
-                    rolesUsageRef.get(),
-                    roleMappingUsageRef.get(),
-                    sslUsage,
-                    auditUsage,
-                    ipFilterUsage,
-                    anonymousUsage,
-                    tokenServiceUsage,
-                    apiKeyServiceUsage,
-                    fips140Usage,
-                    operatorPrivilegesUsage,
-                    domainsUsageRef.get(),
-                    userProfileUsageRef.get(),
-                    remoteClusterServerUsageRef.get()
-                );
-                listener.onResponse(new XPackUsageFeatureResponse(usage));
-            }
-        };
 
-        final ActionListener<Map<String, Object>> rolesStoreUsageListener = ActionListener.wrap(rolesStoreUsage -> {
-            rolesUsageRef.set(rolesStoreUsage);
-            doCountDown.run();
-        }, listener::onFailure);
-
-        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener = ActionListener.wrap(nativeRoleMappingStoreUsage -> {
-            Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
-            roleMappingUsageRef.set(usage);
-            doCountDown.run();
-        }, listener::onFailure);
-
-        final ActionListener<Map<String, Object>> realmsUsageListener = ActionListener.wrap(realmsUsage -> {
-            realmsUsageRef.set(realmsUsage);
-            doCountDown.run();
-        }, listener::onFailure);
-
-        final ActionListener<Map<String, Object>> userProfileUsageListener = ActionListener.wrap(userProfileUsage -> {
-            userProfileUsageRef.set(userProfileUsage);
-            doCountDown.run();
-        }, listener::onFailure);
-
-        final ActionListener<Map<String, Object>> remoteClusterServerUsageListener = ActionListener.wrap(remoteClusterServerUsage -> {
-            remoteClusterServerUsageRef.set(remoteClusterServerUsage);
-            doCountDown.run();
-        }, listener::onFailure);
-
-        if (rolesStore == null || enabled == false) {
-            rolesStoreUsageListener.onResponse(Collections.emptyMap());
-        } else {
-            rolesStore.usageStats(rolesStoreUsageListener);
-        }
-        if (roleMappingStore == null || enabled == false) {
-            roleMappingStoreUsageListener.onResponse(Collections.emptyMap());
-        } else {
-            roleMappingStore.usageStats(roleMappingStoreUsageListener);
-        }
-        if (realms == null || enabled == false) {
-            domainsUsageRef.set(Map.of());
-            realmsUsageListener.onResponse(Collections.emptyMap());
-        } else {
-            domainsUsageRef.set(realms.domainUsageStats());
-            realms.usageStats(realmsUsageListener);
-        }
-        if (profileService == null || enabled == false) {
-            userProfileUsageListener.onResponse(Map.of());
-        } else {
-            profileService.usageStats(userProfileUsageListener);
-        }
-        if (apiKeyService == null || enabled == false) {
-            remoteClusterServerUsageListener.onResponse(Map.of());
-        } else {
-            remoteClusterServerUsage(remoteClusterServerUsageListener);
-        }
-    }
-
-    private void remoteClusterServerUsage(ActionListener<Map<String, Object>> listener) {
-        apiKeyService.crossClusterApiKeyUsageStats(
-            ActionListener.wrap(
-                usage -> listener.onResponse(
-                    Map.of(
-                        "available",
-                        ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState),
-                        "enabled",
-                        RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings),
-                        "api_keys",
-                        usage
+        try (
+            var listeners = new RefCountingListener(
+                listener.map(
+                    ignored -> new XPackUsageFeatureResponse(
+                        new SecurityFeatureSetUsage(
+                            enabled,
+                            realmsUsageRef.get(),
+                            rolesUsageRef.get(),
+                            roleMappingUsageRef.get(),
+                            sslUsage,
+                            auditUsage,
+                            ipFilterUsage,
+                            anonymousUsage,
+                            tokenServiceUsage,
+                            apiKeyServiceUsage,
+                            fips140Usage,
+                            operatorPrivilegesUsage,
+                            domainsUsageRef.get(),
+                            userProfileUsageRef.get(),
+                            remoteClusterServerUsageRef.get()
+                        )
                     )
-                ),
-                listener::onFailure
+                )
             )
-        );
+        ) {
+            if (enabled == false) {
+                return;
+            }
+            if (rolesStore != null) {
+                rolesStore.usageStats(listeners.acquire(rolesUsageRef::set));
+            }
+            if (roleMappingStore != null) {
+                roleMappingStore.usageStats(
+                    listeners.acquire(nativeRoleMappingStoreUsage -> roleMappingUsageRef.set(Map.of("native", nativeRoleMappingStoreUsage)))
+                );
+            }
+            if (realms != null) {
+                domainsUsageRef.set(realms.domainUsageStats());
+                realms.usageStats(listeners.acquire(realmsUsageRef::set));
+            }
+            if (profileService != null) {
+                profileService.usageStats(listeners.acquire(userProfileUsageRef::set));
+            }
+            if (apiKeyService != null) {
+                apiKeyService.crossClusterApiKeyUsageStats(
+                    listeners.acquire(
+                        usage -> remoteClusterServerUsageRef.set(
+                            Map.of(
+                                "available",
+                                ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState),
+                                "enabled",
+                                RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings),
+                                "api_keys",
+                                usage
+                            )
+                        )
+                    )
+                );
+            }
+        }
     }
 
     static Map<String, Object> sslUsage(Settings settings) {

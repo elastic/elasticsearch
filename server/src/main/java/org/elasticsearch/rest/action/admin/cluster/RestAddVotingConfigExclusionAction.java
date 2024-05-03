@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
@@ -54,7 +55,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(
-            AddVotingConfigExclusionsAction.INSTANCE,
+            TransportAddVotingConfigExclusionsAction.TYPE,
             votingConfigExclusionsRequest,
             new RestToXContentListener<>(channel)
         );
@@ -82,7 +83,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
             request.paramAsTime("timeout", DEFAULT_TIMEOUT)
         );
 
-        return resolvedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resolvedRequest.masterNodeTimeout()));
+        return resolvedRequest.masterNodeTimeout(getMasterNodeTimeout(request));
     }
 
 }

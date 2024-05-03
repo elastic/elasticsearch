@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -354,6 +355,6 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

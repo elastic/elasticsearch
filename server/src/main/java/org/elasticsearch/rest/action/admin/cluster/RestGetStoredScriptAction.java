@@ -8,17 +8,19 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetStoredScriptAction extends BaseRestHandler {
@@ -37,7 +39,9 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
-        getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().getStoredScript(getRequest, new RestStatusToXContentListener<>(channel));
+        getRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        return channel -> client.admin()
+            .cluster()
+            .getStoredScript(getRequest, new RestToXContentListener<>(channel, GetStoredScriptResponse::status));
     }
 }

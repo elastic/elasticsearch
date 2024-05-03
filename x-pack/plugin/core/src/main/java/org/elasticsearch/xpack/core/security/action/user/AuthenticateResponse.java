@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +20,7 @@ import java.util.Objects;
 
 public class AuthenticateResponse extends ActionResponse implements ToXContent {
 
-    public static final TransportVersion VERSION_OPERATOR_FIELD = TransportVersion.V_8_500_028;
+    public static final TransportVersion VERSION_OPERATOR_FIELD = TransportVersions.V_8_10_X;
 
     private final Authentication authentication;
     private final boolean operator;

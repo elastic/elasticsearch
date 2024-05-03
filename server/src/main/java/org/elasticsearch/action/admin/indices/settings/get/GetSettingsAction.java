@@ -16,6 +16,6 @@ public class GetSettingsAction extends ActionType<GetSettingsResponse> {
     public static final String NAME = "indices:monitor/settings/get";
 
     public GetSettingsAction() {
-        super(NAME, GetSettingsResponse::new);
+        super(NAME);
     }
 }

@@ -14,7 +14,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -67,14 +66,14 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
             SearchExecutionContext context = createSearchExecutionContext(
                 mapperService,
-                new IndexSearcher(new NoStoredFieldsFilterDirectoryReader(ir))
+                newSearcher(new NoStoredFieldsFilterDirectoryReader(ir))
             );
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
             Map<String, List<Object>> storedFields = storedFields(processor.storedFieldsSpec(), doc);
             Source source = Source.fromBytes(doc.source());
             FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
-                new SearchHit(0, "id"),
+                SearchHit.unpooled(0, "id"),
                 ir.leaves().get(0),
                 0,
                 storedFields,
@@ -102,7 +101,8 @@ public class HighlighterTestCase extends MapperServiceTestCase {
      */
     protected static void assertHighlights(Map<String, HighlightField> highlights, String field, String... fragments) {
         assertNotNull("No highlights reported for field [" + field + "]", highlights.get(field));
-        List<String> actualFragments = Arrays.stream(highlights.get(field).getFragments()).map(Text::toString).collect(Collectors.toList());
+        HighlightField highlightField = highlights.get(field);
+        List<String> actualFragments = Arrays.stream(highlightField.fragments()).map(Text::toString).collect(Collectors.toList());
         List<String> expectedFragments = List.of(fragments);
         assertEquals(expectedFragments, actualFragments);
     }

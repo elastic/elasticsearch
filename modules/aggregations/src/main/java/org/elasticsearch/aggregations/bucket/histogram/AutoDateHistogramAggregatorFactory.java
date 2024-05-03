@@ -74,7 +74,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
 
     private final AutoDateHistogramAggregatorSupplier aggregatorSupplier;
     private final int numBuckets;
-    private RoundingInfo[] roundingInfos;
+    private final RoundingInfo[] roundingInfos;
 
     public AutoDateHistogramAggregatorFactory(
         String name,

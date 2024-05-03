@@ -66,7 +66,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -89,6 +88,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -125,6 +125,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
+    private ThreadPool clientThreadPool;
     private TaskManager taskManager;
     private BulkByScrollTask testTask;
     private WorkerBulkByScrollTaskState worker;
@@ -153,16 +154,18 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private void setupClient(ThreadPool threadPool) {
-        if (client != null) {
-            client.close();
+        if (clientThreadPool != null) {
+            terminate(clientThreadPool);
         }
+        clientThreadPool = threadPool;
         client = new MyMockClient(new NoOpClient(threadPool));
         client.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
     @After
     public void tearDownAndVerifyCommonStuff() throws Exception {
-        client.close();
+        terminate(clientThreadPool);
+        clientThreadPool = null;
         terminate(threadPool);
     }
 
@@ -392,7 +395,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1);
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 // While we're here we can check that the sleep made it through
                 assertThat(delay.nanos(), greaterThan(0L));
                 assertThat(delay.seconds(), lessThanOrEqualTo(10L));
@@ -518,7 +521,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 capturedDelay.set(delay);
                 capturedCommand.set(command);
                 return new ScheduledCancellable() {
@@ -564,15 +567,20 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.start();
 
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id").sourceRef(new BytesArray("{}"));
-        SearchHits hits = new SearchHits(
+        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
+        SearchHits hits = SearchHits.unpooled(
             IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
         SearchResponse searchResponse = new SearchResponse(
-            internalResponse,
+            hits,
+            null,
+            null,
+            false,
+            false,
+            null,
+            1,
             scrollId(),
             5,
             4,
@@ -581,30 +589,33 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             null,
             SearchResponse.Clusters.EMPTY
         );
+        try {
+            client.lastSearch.get().listener.onResponse(searchResponse);
 
-        client.lastSearch.get().listener.onResponse(searchResponse);
+            assertEquals(0, capturedDelay.get().seconds());
+            capturedCommand.get().run();
 
-        assertEquals(0, capturedDelay.get().seconds());
-        capturedCommand.get().run();
+            // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
+            assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
-        // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-        assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            // Now we can simulate a response and check the delay that we used for the task
+            if (randomBoolean()) {
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                assertEquals(99, capturedDelay.get().seconds());
+            } else {
+                // Let's rethrottle between the starting the scroll and getting the response
+                worker.rethrottle(10f);
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                // The delay uses the new throttle
+                assertEquals(9, capturedDelay.get().seconds());
+            }
 
-        // Now we can simulate a response and check the delay that we used for the task
-        if (randomBoolean()) {
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            assertEquals(99, capturedDelay.get().seconds());
-        } else {
-            // Let's rethrottle between the starting the scroll and getting the response
-            worker.rethrottle(10f);
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            // The delay uses the new throttle
-            assertEquals(9, capturedDelay.get().seconds());
+            // Running the command ought to increment the delay counter on the task.
+            capturedCommand.get().run();
+            assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
+        } finally {
+            searchResponse.decRef();
         }
-
-        // Running the command ought to increment the delay counter on the task.
-        capturedCommand.get().run();
-        assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
     }
 
     /**
@@ -734,7 +745,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          */
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 /*
                  * This is called twice:
                  * 1. To schedule the throttling. When that happens we immediately cancel the task.
@@ -745,7 +756,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 if (delay.nanos() > 0) {
                     generic().execute(() -> taskManager.cancel(testTask, reason, () -> {}));
                 }
-                return super.schedule(command, delay, name);
+                return super.schedule(command, delay, executor);
             }
         });
 

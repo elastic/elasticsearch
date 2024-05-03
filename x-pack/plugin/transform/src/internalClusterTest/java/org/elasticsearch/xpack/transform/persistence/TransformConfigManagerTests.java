@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -28,6 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.ToXContent;
@@ -495,10 +497,17 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
             (SeqNoPrimaryTermAndIndex) null,
             r -> fail("did not fail with version conflict."),
-            e -> assertThat(
-                e.getMessage(),
-                equalTo("Failed to persist transform statistics for transform [transform_test_stored_doc_create_read_update]")
-            )
+            e -> {
+                assertThat(
+                    e.getMessage(),
+                    equalTo("Failed to persist transform statistics for transform [transform_test_stored_doc_create_read_update]")
+                );
+                assertThat(
+                    "Consumers utilize ExceptionsHelper to check if there was a Version Conflict",
+                    ExceptionsHelper.unwrapCause(e),
+                    instanceOf(VersionConflictEngineException.class)
+                );
+            }
         );
     }
 
@@ -753,7 +762,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(index).settings(
                 Settings.builder()
                     .put(TransformInternalIndex.settings(Settings.EMPTY))
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
             final var indexMetadata = builder.build();

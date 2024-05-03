@@ -19,7 +19,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,8 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest endpoint to delete a Role from the security index
  */
-@ServerlessScope(Scope.INTERNAL)
-public class RestDeleteRoleAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.PUBLIC)
+public class RestDeleteRoleAction extends NativeRoleBaseRestHandler {
 
     public RestDeleteRoleAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -52,7 +51,6 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         final String refresh = request.param("refresh");
-
         return channel -> new DeleteRoleRequestBuilder(client).name(name)
             .setRefreshPolicy(refresh)
             .execute(new RestBuilderListener<>(channel) {

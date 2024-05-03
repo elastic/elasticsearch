@@ -12,7 +12,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -20,9 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
@@ -30,14 +27,9 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -75,6 +67,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -118,22 +111,11 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
+        Client client = services.client();
+        ClusterService clusterService = services.clusterService();
+        ThreadPool threadPool = services.threadPool();
+
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool);
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
@@ -157,7 +139,14 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(
-            new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService(), expressionResolver)
+            new ClusterStatsCollector(
+                settings,
+                clusterService,
+                getLicenseState(),
+                client,
+                getLicenseService(),
+                services.indexNameExpressionResolver()
+            )
         );
         collectors.add(new ShardsCollector(clusterService, getLicenseState()));
         collectors.add(new NodeStatsCollector(clusterService, getLicenseState(), client));
@@ -175,7 +164,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             clusterService,
             threadPool,
             client,
-            xContentRegistry
+            services.xContentRegistry()
         );
         templateRegistry.initialize();
 
@@ -197,12 +186,14 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new RestMonitoringBulkAction(), new RestMonitoringMigrateAlertsAction());
     }

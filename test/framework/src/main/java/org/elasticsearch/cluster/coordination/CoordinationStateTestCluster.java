@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +37,7 @@ import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 
-public class CoordinationStateTestCluster {
+public final class CoordinationStateTestCluster {
 
     public static ClusterState clusterState(
         long term,
@@ -147,17 +148,14 @@ public class CoordinationStateTestCluster {
                 }
             }
 
-            localNode = new DiscoveryNode(
-                localNode.getName(),
-                localNode.getId(),
-                UUIDs.randomBase64UUID(random()),
-                localNode.getHostName(),
-                localNode.getHostAddress(),
-                localNode.getAddress(),
-                localNode.getAttributes(),
-                roles,
-                localNode.getVersionInformation()
-            );
+            localNode = DiscoveryNodeUtils.builder(localNode.getId())
+                .name(localNode.getName())
+                .ephemeralId(UUIDs.randomBase64UUID(random()))
+                .address(localNode.getHostName(), localNode.getHostAddress(), localNode.getAddress())
+                .attributes(localNode.getAttributes())
+                .roles(roles)
+                .version(localNode.getVersionInformation())
+                .build();
 
             state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
@@ -245,7 +243,7 @@ public class CoordinationStateTestCluster {
                 if (rarely() && nextTerm < maxTerm) {
                     final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : nextTerm++;
                     final StartJoinRequest startJoinRequest = new StartJoinRequest(randomFrom(clusterNodes).localNode, term);
-                    broadcast(startJoinRequest.getSourceNode(), startJoinRequest);
+                    broadcast(startJoinRequest.getMasterCandidateNode(), startJoinRequest);
                 } else if (rarely()) {
                     randomFrom(clusterNodes).setInitialState(initialConfiguration, initialValue);
                 } else if (rarely() && rarely()) {

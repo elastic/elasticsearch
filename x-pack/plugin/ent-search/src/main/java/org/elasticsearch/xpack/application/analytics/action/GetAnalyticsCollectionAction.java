@@ -28,14 +28,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollectionAction.Response> {
+public class GetAnalyticsCollectionAction {
 
-    public static final GetAnalyticsCollectionAction INSTANCE = new GetAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/xpack/application/analytics/get";
+    public static final ActionType<GetAnalyticsCollectionAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetAnalyticsCollectionAction() {
-        super(NAME, GetAnalyticsCollectionAction.Response::new);
-    }
+    private GetAnalyticsCollectionAction() {/* no instances */}
 
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
         private final String[] names;
@@ -109,7 +107,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.collections = in.readList(AnalyticsCollection::new);
+            this.collections = in.readCollectionAsList(AnalyticsCollection::new);
         }
 
         public Response(List<AnalyticsCollection> collections) {
@@ -134,7 +132,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(collections);
+            out.writeCollection(collections);
         }
 
         public List<AnalyticsCollection> getAnalyticsCollections() {

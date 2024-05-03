@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -78,9 +79,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs));
 
         getFollowerCluster().fullRestart();
         ensureFollowerGreen("index2");
@@ -115,7 +114,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
                     followerClient().execute(PutFollowAction.INSTANCE, putFollow("index1", "index2", ActiveShardCount.ALL)).actionGet();
                 }
             }
-            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs));
+            assertHitCount(followerClient().prepareSearch("index2"), totalDocs);
         }, 30L, TimeUnit.SECONDS);
 
         cleanRemoteCluster();
@@ -149,7 +148,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     }
 
     private boolean isRemoteConnected() throws Exception {
-        var infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        var infos = followerClient().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest()).get().getInfos();
         return infos.size() == 1 && infos.get(0).isConnected();
     }
 
@@ -165,7 +164,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+            List<RemoteConnectionInfo> infos = followerClient().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
                 .get()
                 .getInfos();
             assertThat(infos.size(), equalTo(0));

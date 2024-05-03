@@ -426,9 +426,9 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
 
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
-            out.writeNamedWriteableList(expected);
+            out.writeNamedWriteableCollection(expected);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
-                assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
+                assertEquals(expected, in.readNamedWriteableCollectionAsList(BaseNamedWriteable.class));
                 assertEquals(0, in.available());
             }
         }
@@ -516,11 +516,11 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
 
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeList(expected);
+        out.writeCollection(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final List<TestWriteable> loaded = in.readList(TestWriteable::new);
+        final List<TestWriteable> loaded = in.readCollectionAsList(TestWriteable::new);
 
         assertThat(loaded, hasSize(expected.size()));
 
@@ -580,48 +580,6 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableOpenMap(TestWriteable::new, TestWriteable::new);
 
         assertThat(expected, equalTo(loaded));
-    }
-
-    public void testWriteMapOfLists() throws IOException {
-        final int size = randomIntBetween(0, 5);
-        final Map<String, List<String>> expected = Maps.newMapWithExpectedSize(size);
-
-        for (int i = 0; i < size; ++i) {
-            int listSize = randomIntBetween(0, 5);
-            List<String> list = new ArrayList<>(listSize);
-
-            for (int j = 0; j < listSize; ++j) {
-                list.add(randomAlphaOfLength(5));
-            }
-
-            expected.put(randomAlphaOfLength(2), list);
-        }
-
-        final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeMapOfLists(expected, StreamOutput::writeString, StreamOutput::writeString);
-
-        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-
-        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString);
-
-        assertThat(loaded.size(), equalTo(expected.size()));
-
-        for (Map.Entry<String, List<String>> entry : expected.entrySet()) {
-            assertThat(loaded.containsKey(entry.getKey()), equalTo(true));
-
-            List<String> loadedList = loaded.get(entry.getKey());
-
-            assertThat(loadedList, hasSize(entry.getValue().size()));
-
-            for (int i = 0; i < loadedList.size(); ++i) {
-                assertEquals(entry.getValue().get(i), loadedList.get(i));
-            }
-        }
-
-        assertEquals(0, in.available());
-
-        in.close();
-        out.close();
     }
 
     public void testWriteMapAsList() throws IOException {
@@ -830,7 +788,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         try (RecyclerBytesStreamOutput streamOut = new RecyclerBytesStreamOutput(recycler)) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
-            Map<String, Object> streamInMap = in.readMap();
+            Map<String, Object> streamInMap = in.readGenericMap();
             assertEquals(streamOutMap, streamInMap);
         }
     }
@@ -1068,6 +1026,11 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             public V<BytesRef> obtain() {
                 pagesAllocated.incrementAndGet();
                 return page;
+            }
+
+            @Override
+            public int pageSize() {
+                return pageSize;
             }
         })) {
             var bytesAllocated = 0;

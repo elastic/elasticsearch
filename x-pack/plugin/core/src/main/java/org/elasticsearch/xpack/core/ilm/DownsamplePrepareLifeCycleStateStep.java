@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
+import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 
 /**
@@ -45,7 +46,7 @@ public class DownsamplePrepareLifeCycleStateStep extends ClusterStateActionStep 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
-        final String downsampleIndexName = generateDownsampleIndexName(indexMetadata, fixedInterval);
+        final String downsampleIndexName = generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, indexMetadata, fixedInterval);
         newLifecycleState.setDownsampleIndexName(downsampleIndexName);
 
         return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
@@ -60,14 +61,4 @@ public class DownsamplePrepareLifeCycleStateStep extends ClusterStateActionStep 
         return true;
     }
 
-    static String generateDownsampleIndexName(IndexMetadata sourceIndexMetadata, DateHistogramInterval fixedInterval) {
-        String downsampleSourceName = sourceIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
-        String sourceIndexName;
-        if (downsampleSourceName != null) {
-            sourceIndexName = downsampleSourceName;
-        } else {
-            sourceIndexName = sourceIndexMetadata.getIndex().getName();
-        }
-        return DOWNSAMPLED_INDEX_PREFIX + sourceIndexName + "-" + fixedInterval;
-    }
 }

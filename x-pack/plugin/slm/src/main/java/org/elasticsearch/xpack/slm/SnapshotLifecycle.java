@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,22 +23,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -83,7 +76,9 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -123,30 +118,19 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
+        Client client = services.client();
+        ClusterService clusterService = services.clusterService();
+        ThreadPool threadPool = services.threadPool();
         final List<Object> components = new ArrayList<>();
 
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
+            services.featureService(),
             threadPool,
             client,
-            xContentRegistry
+            services.xContentRegistry()
         );
         templateRegistry.initialize();
         snapshotHistoryStore.set(new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService));
@@ -167,7 +151,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
             )
         );
         snapshotRetentionService.get().init(clusterService);
-        components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
+        Collections.addAll(components, snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get());
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
 
         return components;
@@ -192,12 +176,14 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
 
@@ -234,6 +220,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
                 new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+                new ActionHandler<>(TransportSLMGetExpiredSnapshotsAction.INSTANCE, TransportSLMGetExpiredSnapshotsAction.class),
                 new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
                 new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
                 new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)

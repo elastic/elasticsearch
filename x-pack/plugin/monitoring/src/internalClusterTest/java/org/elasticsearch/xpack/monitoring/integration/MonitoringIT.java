@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -25,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -59,11 +59,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
@@ -145,40 +146,43 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 ensureGreen(monitoringIndex);
                 assertThat(client().admin().indices().prepareRefresh(monitoringIndex).get().getStatus(), is(RestStatus.OK));
 
-                final SearchResponse response = client().prepareSearch(".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-*")
-                    .get();
+                assertResponse(client().prepareSearch(".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-*"), response -> {
+                    // exactly 3 results are expected
+                    assertThat("No monitoring documents yet", response.getHits().getTotalHits().value, equalTo(3L));
 
-                // exactly 3 results are expected
-                assertThat("No monitoring documents yet", response.getHits().getTotalHits().value, equalTo(3L));
+                    final List<Map<String, Object>> sources = Arrays.stream(response.getHits().getHits())
+                        .map(SearchHit::getSourceAsMap)
+                        .collect(Collectors.toList());
 
-                final List<Map<String, Object>> sources = Arrays.stream(response.getHits().getHits())
-                    .map(SearchHit::getSourceAsMap)
-                    .collect(Collectors.toList());
-
-                // find distinct _source.timestamp fields
-                assertThat(sources.stream().map(source -> source.get("timestamp")).distinct().count(), is(1L));
-                // find distinct _source.source_node fields (which is a map)
-                assertThat(sources.stream().map(source -> source.get("source_node")).distinct().count(), is(1L));
+                    // find distinct _source.timestamp fields
+                    assertThat(sources.stream().map(source -> source.get("timestamp")).distinct().count(), is(1L));
+                    // find distinct _source.source_node fields (which is a map)
+                    assertThat(sources.stream().map(source -> source.get("source_node")).distinct().count(), is(1L));
+                });
             });
 
-            final SearchResponse response = client().prepareSearch(monitoringIndex).get();
-            final SearchHits hits = response.getHits();
+            assertCheckedResponse(client().prepareSearch(monitoringIndex), response -> {
+                final SearchHits hits = response.getHits();
 
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-            assertThat(
-                "Monitoring documents must have the same timestamp",
-                Arrays.stream(hits.getHits()).map(hit -> extractValue("timestamp", hit.getSourceAsMap())).distinct().count(),
-                equalTo(1L)
-            );
-            assertThat(
-                "Monitoring documents must have the same source_node timestamp",
-                Arrays.stream(hits.getHits()).map(hit -> extractValue("source_node.timestamp", hit.getSourceAsMap())).distinct().count(),
-                equalTo(1L)
-            );
+                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(
+                    "Monitoring documents must have the same timestamp",
+                    Arrays.stream(hits.getHits()).map(hit -> extractValue("timestamp", hit.getSourceAsMap())).distinct().count(),
+                    equalTo(1L)
+                );
+                assertThat(
+                    "Monitoring documents must have the same source_node timestamp",
+                    Arrays.stream(hits.getHits())
+                        .map(hit -> extractValue("source_node.timestamp", hit.getSourceAsMap()))
+                        .distinct()
+                        .count(),
+                    equalTo(1L)
+                );
 
-            for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, interval);
-            }
+                for (final SearchHit hit : hits.getHits()) {
+                    assertMonitoringDoc(toMap(hit), system, interval);
+                }
+            });
         });
     }
 
@@ -193,8 +197,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
 
         assertThat(
-            client().prepareIndex(indexName)
-                .setId("0")
+            prepareIndex(indexName).setId("0")
                 .setRefreshPolicy("true")
                 .setSource("{\"field\":\"value\"}", XContentType.JSON)
                 .get()
@@ -206,30 +209,27 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
 
         whenExportersAreReady(() -> {
-            final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
-
             assertBusy(() -> {
-                final SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                    .setCollapse(new CollapseBuilder("type"))
-                    .addSort("timestamp", SortOrder.DESC)
-                    .get();
+                assertCheckedResponse(
+                    client().prepareSearch(".monitoring-es-*")
+                        .setCollapse(new CollapseBuilder("type"))
+                        .addSort("timestamp", SortOrder.DESC),
+                    response -> {
+                        assertThat(response.status(), is(RestStatus.OK));
+                        assertThat(
+                            "Expecting a minimum number of 6 docs, one per collector",
+                            response.getHits().getHits().length,
+                            greaterThanOrEqualTo(6)
+                        );
 
-                assertThat(response.status(), is(RestStatus.OK));
-                assertThat(
-                    "Expecting a minimum number of 6 docs, one per collector",
-                    response.getHits().getHits().length,
-                    greaterThanOrEqualTo(6)
+                        for (final SearchHit hit : response.getHits()) {
+                            final Map<String, Object> searchHit = toMap(hit);
+                            assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
+                        }
+                    }
                 );
-
-                searchResponse.set(response);
             });
-
-            for (final SearchHit hit : searchResponse.get().getHits()) {
-                final Map<String, Object> searchHit = toMap(hit);
-                assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
-            }
         });
-
     }
 
     /**
@@ -383,7 +383,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             assertThat(
                 "No monitoring documents yet",
-                client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*").setSize(0).get().getHits().getTotalHits().value,
+                SearchResponseUtils.getTotalHitsValue(client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*").setSize(0)),
                 greaterThan(0L)
             );
         }, 30L, TimeUnit.SECONDS);

@@ -169,6 +169,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
         );
         metadata.put(indexMetadata);
         Index index = new Index(MlConfigIndex.indexName(), "_uuid");

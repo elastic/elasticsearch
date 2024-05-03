@@ -1,5 +1,0 @@
-pr: 96262
-summary: Fix `retry_on_conflict` parameter in update API to not retry indefinitely
-area: CRUD
-type: bug
-issues: []

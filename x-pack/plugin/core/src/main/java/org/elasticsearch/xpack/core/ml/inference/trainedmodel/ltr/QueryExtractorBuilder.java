@@ -18,35 +18,44 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.requireNonNull;
 
-public record QueryExtractorBuilder(String featureName, QueryProvider query) implements LearnToRankFeatureExtractorBuilder {
+public record QueryExtractorBuilder(String featureName, QueryProvider query, float defaultScore)
+    implements
+        LearningToRankFeatureExtractorBuilder {
 
     public static final ParseField NAME = new ParseField("query_extractor");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField DEFAULT_SCORE = new ParseField("default_score");
+
+    public static float DEFAULT_SCORE_DEFAULT = 0f;
 
     private static final ConstructingObjectParser<QueryExtractorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
-        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1])
+        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1], Objects.requireNonNullElse((Float) a[2], DEFAULT_SCORE_DEFAULT))
     );
     private static final ConstructingObjectParser<QueryExtractorBuilder, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
         true,
-        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1])
+        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1], Objects.requireNonNullElse((Float) a[2], DEFAULT_SCORE_DEFAULT))
     );
     static {
         PARSER.declareString(constructorArg(), FEATURE_NAME);
         PARSER.declareObject(constructorArg(), (p, c) -> QueryProvider.fromXContent(p, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT), QUERY);
+        PARSER.declareFloat(optionalConstructorArg(), DEFAULT_SCORE);
         LENIENT_PARSER.declareString(constructorArg(), FEATURE_NAME);
         LENIENT_PARSER.declareObject(
             constructorArg(),
             (p, c) -> QueryProvider.fromXContent(p, true, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
             QUERY
         );
+        LENIENT_PARSER.declareFloat(optionalConstructorArg(), DEFAULT_SCORE);
     }
 
     public static QueryExtractorBuilder fromXContent(XContentParser parser, Object context) {
@@ -55,18 +64,29 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
     }
 
     public QueryExtractorBuilder(String featureName, QueryProvider query) {
+        this(featureName, query, DEFAULT_SCORE_DEFAULT);
+    }
+
+    public QueryExtractorBuilder(String featureName, QueryProvider query, float defaultScore) {
         this.featureName = requireNonNull(featureName, FEATURE_NAME);
         this.query = requireNonNull(query, QUERY);
+        if (defaultScore < 0f) {
+            throw new IllegalArgumentException("[" + NAME + "] requires defaultScore to be positive.");
+        }
+        this.defaultScore = defaultScore;
     }
 
     public QueryExtractorBuilder(StreamInput input) throws IOException {
-        this(input.readString(), QueryProvider.fromStream(input));
+        this(input.readString(), QueryProvider.fromStream(input), input.readFloat());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FEATURE_NAME.getPreferredName(), featureName);
+        if (defaultScore > 0f) {
+            builder.field(DEFAULT_SCORE.getPreferredName(), defaultScore);
+        }
         builder.field(QUERY.getPreferredName(), query.getQuery());
         builder.endObject();
         return builder;
@@ -81,6 +101,7 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(featureName);
         query.writeTo(out);
+        out.writeFloat(defaultScore);
     }
 
     @Override
@@ -106,6 +127,6 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query) imp
         if (rewritten == query) {
             return this;
         }
-        return new QueryExtractorBuilder(featureName, rewritten);
+        return new QueryExtractorBuilder(featureName, rewritten, defaultScore);
     }
 }

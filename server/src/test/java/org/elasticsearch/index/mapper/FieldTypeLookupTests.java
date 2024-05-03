@@ -119,10 +119,10 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testSourcePathWithMultiFields() {
         MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
             .addMultiField(new MockFieldMapper.Builder("field.subfield2.subfield3"))
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
 
         // Adding a subfield that is not multi-field
-        MockFieldMapper subfield = new MockFieldMapper.Builder("field.subfield4").build(MapperBuilderContext.root(false));
+        MockFieldMapper subfield = new MockFieldMapper.Builder("field.subfield4").build(MapperBuilderContext.root(false, false));
 
         FieldTypeLookup lookup = new FieldTypeLookup(List.of(field, subfield), emptyList(), emptyList());
 
@@ -134,19 +134,19 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testSourcePathsWithCopyTo() {
         MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
 
         MockFieldMapper nestedField = new MockFieldMapper.Builder("field.nested").addMultiField(
             new MockFieldMapper.Builder("field.nested.subfield1")
-        ).build(MapperBuilderContext.root(false));
+        ).build(MapperBuilderContext.root(false, false));
 
         MockFieldMapper otherField = new MockFieldMapper.Builder("other_field").copyTo("field")
             .copyTo("field.nested")
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
 
         MockFieldMapper otherNestedField = new MockFieldMapper.Builder("other_field.nested").copyTo("field")
             .copyTo("field.nested")
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
 
         FieldTypeLookup lookup = new FieldTypeLookup(
             Arrays.asList(field, nestedField, otherField, otherNestedField),
@@ -422,6 +422,6 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
-        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false));
+        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
     }
 }

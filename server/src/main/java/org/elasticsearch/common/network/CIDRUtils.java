@@ -48,7 +48,7 @@ public class CIDRUtils {
         return isBetween(addr, lower, upper);
     }
 
-    private static Tuple<byte[], byte[]> getLowerUpper(Tuple<InetAddress, Integer> cidr) {
+    public static Tuple<byte[], byte[]> getLowerUpper(Tuple<InetAddress, Integer> cidr) {
         final InetAddress value = cidr.v1();
         final Integer prefixLength = cidr.v2();
 
@@ -81,7 +81,7 @@ public class CIDRUtils {
 
     // Borrowed from Lucene to make this consistent IP fields matching for the mix of IPv4 and IPv6 values
     // Modified signature to avoid extra conversions
-    private static byte[] encode(byte[] address) {
+    public static byte[] encode(byte[] address) {
         if (address.length == 4) {
             byte[] mapped = new byte[16];
             System.arraycopy(IPV4_PREFIX, 0, mapped, 0, IPV4_PREFIX.length);

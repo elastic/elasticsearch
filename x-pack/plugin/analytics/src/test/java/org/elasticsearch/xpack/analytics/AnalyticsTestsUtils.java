@@ -29,7 +29,7 @@ public final class AnalyticsTestsUtils {
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         histogram.compress();
         for (Centroid centroid : histogram.centroids()) {
-            streamOutput.writeVInt(centroid.count());
+            streamOutput.writeVLong(centroid.count());
             streamOutput.writeDouble(centroid.mean());
         }
         return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());

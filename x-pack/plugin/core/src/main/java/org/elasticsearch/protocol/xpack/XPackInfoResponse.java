@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,8 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,8 +30,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-
 public class XPackInfoResponse extends ActionResponse implements ToXContentObject {
     /**
      * Value of the license's expiration time if it should never expire.
@@ -42,11 +38,11 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     // TODO move this constant to License.java once we move License.java to the protocol jar
 
     @Nullable
-    private BuildInfo buildInfo;
+    private final BuildInfo buildInfo;
     @Nullable
-    private LicenseInfo licenseInfo;
+    private final LicenseInfo licenseInfo;
     @Nullable
-    private FeatureSetsInfo featureSetsInfo;
+    private final FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse(StreamInput in) throws IOException {
         super(in);
@@ -276,16 +272,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             return Objects.hash(hash, timestamp);
         }
 
-        private static final ConstructingObjectParser<BuildInfo, Void> PARSER = new ConstructingObjectParser<>(
-            "build_info",
-            true,
-            (a, v) -> new BuildInfo((String) a[0], (String) a[1])
-        );
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("hash"));
-            PARSER.declareString(constructorArg(), new ParseField("date"));
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().field("hash", hash).field("date", timestamp).endObject();
@@ -361,15 +347,15 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
             public FeatureSet(StreamInput in) throws IOException {
                 this(in.readString(), readAvailable(in), in.readBoolean());
-                if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
-                    in.readMap(); // backcompat reading native code info, but no longer used here
+                if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+                    in.readGenericMap(); // backcompat reading native code info, but no longer used here
                 }
             }
 
             // this is separated out so that the removed description can be read from the stream on construction
             // TODO: remove this for 8.0
             private static boolean readAvailable(StreamInput in) throws IOException {
-                if (in.getTransportVersion().before(TransportVersion.V_7_3_0)) {
+                if (in.getTransportVersion().before(TransportVersions.V_7_3_0)) {
                     in.readOptionalString();
                 }
                 return in.readBoolean();
@@ -378,12 +364,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
-                if (out.getTransportVersion().before(TransportVersion.V_7_3_0)) {
+                if (out.getTransportVersion().before(TransportVersions.V_7_3_0)) {
                     out.writeOptionalString(null);
                 }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
-                if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+                if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                     out.writeGenericMap(Collections.emptyMap());
                 }
             }

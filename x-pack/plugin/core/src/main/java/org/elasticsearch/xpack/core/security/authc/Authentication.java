@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +28,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -103,9 +106,9 @@ public final class Authentication implements ToXContentObject {
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
-    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
-    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
-    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
+    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
+    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersions.V_8_2_0;
+    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -223,9 +226,9 @@ public final class Authentication implements ToXContentObject {
         if (isCrossClusterAccess() && olderVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                    + olderVersion
+                    + olderVersion.toReleaseVersion()
                     + "]"
             );
         }
@@ -573,9 +576,9 @@ public final class Authentication implements ToXContentObject {
         if (isCrossClusterAccess && out.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to send to ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         }
@@ -742,7 +745,7 @@ public final class Authentication implements ToXContentObject {
         CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         Authentication::new,
         CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
-        in -> in.readList(RoleDescriptorsBytes::new)
+        in -> in.readCollectionAsList(RoleDescriptorsBytes::new)
     );
 
     private static Map<String, Object> readMetadata(StreamInput in) throws IOException {
@@ -756,7 +759,7 @@ public final class Authentication implements ToXContentObject {
             }
             return metadata;
         } else {
-            return in.readMap();
+            return in.readGenericMap();
         }
     }
 
@@ -767,7 +770,7 @@ public final class Authentication implements ToXContentObject {
         (out, v) -> {
             @SuppressWarnings("unchecked")
             final List<RoleDescriptorsBytes> roleDescriptorsBytesList = (List<RoleDescriptorsBytes>) v;
-            out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
+            out.writeCollection(roleDescriptorsBytesList);
         }
     );
 
@@ -1007,6 +1010,11 @@ public final class Authentication implements ToXContentObject {
         return builder.toString();
     }
 
+    /**
+     * {@link RealmRef} expresses the grouping of realms, identified with {@link RealmIdentifier}s, under {@link RealmDomain}s.
+     * A domain groups different realms, such that any username, authenticated by different realms from the <b>same domain</b>,
+     * is to be associated to a single {@link Profile}.
+     */
     public static class RealmRef implements Writeable, ToXContentObject {
 
         private final String nodeName;
@@ -1081,6 +1089,13 @@ public final class Authentication implements ToXContentObject {
             return domain;
         }
 
+        /**
+         * The {@code RealmIdentifier} is the fully qualified way to refer to a realm.
+         */
+        public RealmIdentifier getIdentifier() {
+            return new RealmIdentifier(type, name);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -1127,10 +1142,6 @@ public final class Authentication implements ToXContentObject {
 
         private boolean isApiKeyRealm() {
             return API_KEY_REALM_NAME.equals(name) && API_KEY_REALM_TYPE.equals(type);
-        }
-
-        private boolean isServiceAccountRealm() {
-            return ServiceAccountSettings.REALM_NAME.equals(name) && ServiceAccountSettings.REALM_TYPE.equals(type);
         }
 
         private boolean isCrossClusterAccessRealm() {
@@ -1357,9 +1368,9 @@ public final class Authentication implements ToXContentObject {
                 () -> "Cross cluster access authentication has authentication field in metadata ["
                     + authenticationFromMetadata
                     + "] that may require a rewrite from version ["
-                    + effectiveSubjectVersion
+                    + effectiveSubjectVersion.toReleaseVersion()
                     + "] to ["
-                    + olderVersion
+                    + olderVersion.toReleaseVersion()
                     + "]"
             );
             final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
@@ -1470,7 +1481,7 @@ public final class Authentication implements ToXContentObject {
                 return InternalUsers.getUser(username);
             }
             String[] roles = input.readStringArray();
-            Map<String, Object> metadata = input.readMap();
+            Map<String, Object> metadata = input.readGenericMap();
             String fullName = input.readOptionalString();
             String email = input.readOptionalString();
             boolean enabled = input.readBoolean();

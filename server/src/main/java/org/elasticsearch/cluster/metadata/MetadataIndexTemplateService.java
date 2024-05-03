@@ -28,6 +28,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -36,6 +38,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -50,6 +53,8 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -84,7 +89,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
+    public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING;
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
@@ -96,8 +101,14 @@ public class MetadataIndexTemplateService {
             Map.of("type", DateFieldMapper.CONTENT_TYPE, "ignore_malformed", "false")
         );
         try {
-            DEFAULT_TIMESTAMP_MAPPING = new CompressedXContent(
+            DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING = new CompressedXContent(
                 (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    // adding explicit "_routing": {"required": false}, even though this is the default, because this snippet is used
+                    // later for resolving a RoutingFieldMapper, where we need this information to validate that does not conflict with
+                    // any mapping.
+                    .startObject(RoutingFieldMapper.NAME)
+                    .field("required", false)
+                    .endObject()
                     .field("properties", defaultTimestampField)
                     .endObject()
             );
@@ -116,6 +127,7 @@ public class MetadataIndexTemplateService {
     }
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataIndexTemplateService.class);
 
     private final ClusterService clusterService;
     private final MasterServiceTaskQueue<TemplateClusterStateUpdateTask> taskQueue;
@@ -125,6 +137,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -169,7 +182,8 @@ public class MetadataIndexTemplateService {
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -179,6 +193,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -298,7 +313,12 @@ public class MetadataIndexTemplateService {
             template.template().aliases(),
             template.template().lifecycle()
         );
-        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(finalTemplate, template.version(), template.metadata());
+        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
+            finalTemplate,
+            template.version(),
+            template.metadata(),
+            template.deprecated()
+        );
 
         if (finalComponentTemplate.equals(existing)) {
             return currentState;
@@ -317,10 +337,11 @@ public class MetadataIndexTemplateService {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateLifecycleIsOnlyAppliedOnDataStreams(
+                    validateLifecycle(
                         tempStateWithComponentTemplateAdded.metadata(),
                         composableTemplateName,
-                        composableTemplate
+                        composableTemplate,
+                        globalRetentionResolver.resolve(currentState)
                     );
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
@@ -341,6 +362,12 @@ public class MetadataIndexTemplateService {
             if (validationFailure != null) {
                 throw validationFailure;
             }
+        }
+
+        if (finalComponentTemplate.template().lifecycle() != null) {
+            finalComponentTemplate.template()
+                .lifecycle()
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -599,17 +626,7 @@ public class MetadataIndexTemplateService {
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
             final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
-            finalIndexTemplate = new ComposableIndexTemplate(
-                template.indexPatterns(),
-                finalTemplate,
-                template.composedOf(),
-                template.priority(),
-                template.version(),
-                template.metadata(),
-                template.getDataStreamTemplate(),
-                template.getAllowAutoCreate(),
-                template.getIgnoreMissingComponentTemplates()
-            );
+            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
         if (finalIndexTemplate.equals(existing)) {
@@ -637,7 +654,7 @@ public class MetadataIndexTemplateService {
      * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
      */
-    public Map<String, List<String>> v2TemplateOverlaps(
+    public static Map<String, List<String>> v2TemplateOverlaps(
         ClusterState currentState,
         String name,
         final ComposableIndexTemplate template,
@@ -696,26 +713,27 @@ public class MetadataIndexTemplateService {
         // Then apply settings resolved from templates:
         finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
 
-        var templateToValidate = new ComposableIndexTemplate(
-            indexTemplate.indexPatterns(),
-            new Template(
-                finalSettings.build(),
-                finalTemplate.map(Template::mappings).orElse(null),
-                finalTemplate.map(Template::aliases).orElse(null),
-                finalTemplate.map(Template::lifecycle).orElse(null)
-            ),
-            indexTemplate.composedOf(),
-            indexTemplate.priority(),
-            indexTemplate.version(),
-            indexTemplate.metadata(),
-            indexTemplate.getDataStreamTemplate(),
-            indexTemplate.getAllowAutoCreate(),
-            indexTemplate.getIgnoreMissingComponentTemplates()
-        );
+        var templateToValidate = indexTemplate.toBuilder()
+            .template(
+                new Template(
+                    finalSettings.build(),
+                    finalTemplate.map(Template::mappings).orElse(null),
+                    finalTemplate.map(Template::aliases).orElse(null),
+                    finalTemplate.map(Template::lifecycle).orElse(null)
+                )
+            )
+            .build();
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycleIsOnlyAppliedOnDataStreams(currentState.metadata(), name, templateToValidate);
+        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionResolver.resolve(currentState));
+
+        if (templateToValidate.isDeprecated() == false) {
+            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
+            validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
+            // TODO come up with a plan how to validate usage of deprecated ILM policies
+            // we don't have access to the core/main plugin here so we can't use the IndexLifecycleMetadata type
+        }
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
@@ -733,19 +751,69 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    private static void validateLifecycleIsOnlyAppliedOnDataStreams(
+    private void validateUseOfDeprecatedComponentTemplates(
+        String name,
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        template.composedOf()
+            .stream()
+            .map(ct -> Tuple.tuple(ct, componentTemplates.get(ct)))
+            .filter(ct -> Objects.nonNull(ct.v2()))
+            .filter(ct -> ct.v2().isDeprecated())
+            .forEach(
+                ct -> deprecationLogger.warn(
+                    DeprecationCategory.TEMPLATES,
+                    "use_of_deprecated_component_template",
+                    "index template [{}] uses deprecated component template [{}]",
+                    name,
+                    ct.v1()
+                )
+            );
+    }
+
+    private void validateUseOfDeprecatedIngestPipelines(String name, IngestMetadata ingestMetadata, Settings combinedSettings) {
+        Map<String, PipelineConfiguration> pipelines = Optional.ofNullable(ingestMetadata)
+            .map(IngestMetadata::getPipelines)
+            .orElse(Map.of());
+        emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.default_pipeline"));
+        emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.final_pipeline"));
+    }
+
+    private void emitWarningIfPipelineIsDeprecated(String name, Map<String, PipelineConfiguration> pipelines, String pipelineName) {
+        Optional.ofNullable(pipelineName)
+            .map(pipelines::get)
+            .filter(p -> Boolean.TRUE.equals(p.getConfigAsMap().get("deprecated")))
+            .ifPresent(
+                p -> deprecationLogger.warn(
+                    DeprecationCategory.TEMPLATES,
+                    "use_of_deprecated_ingest_pipeline",
+                    "index template [{}] uses deprecated ingest pipeline [{}]",
+                    name,
+                    p.getId()
+                )
+            );
+    }
+
+    // Visible for testing
+    static void validateLifecycle(
         Metadata metadata,
         String indexTemplateName,
-        ComposableIndexTemplate template
+        ComposableIndexTemplate template,
+        @Nullable DataStreamGlobalRetention globalRetention
     ) {
-        boolean hasLifecycle = (template.template() != null && template.template().lifecycle() != null)
-            || resolveLifecycle(template, metadata.componentTemplates()) != null;
-        if (hasLifecycle && template.getDataStreamTemplate() == null) {
-            throw new IllegalArgumentException(
-                "index template ["
-                    + indexTemplateName
-                    + "] specifies lifecycle configuration that can only be used in combination with a data stream"
-            );
+        DataStreamLifecycle lifecycle = template.template() != null && template.template().lifecycle() != null
+            ? template.template().lifecycle()
+            : resolveLifecycle(template, metadata.componentTemplates());
+        if (lifecycle != null) {
+            if (template.getDataStreamTemplate() == null) {
+                throw new IllegalArgumentException(
+                    "index template ["
+                        + indexTemplateName
+                        + "] specifies lifecycle configuration that can only be used in combination with a data stream"
+                );
+            }
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention);
         }
     }
 
@@ -1287,6 +1355,13 @@ public class MetadataIndexTemplateService {
         final String indexName
     ) {
         Objects.requireNonNull(template, "Composable index template must be provided");
+        // Check if this is a failure store index, and if it is, discard any template mappings. Failure store mappings are predefined.
+        if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.FAILURE_STORE_PREFIX)) {
+            return List.of(
+                DataStreamFailureStoreDefinition.DATA_STREAM_FAILURE_STORE_MAPPING,
+                ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET
+            );
+        }
         List<CompressedXContent> mappings = template.composedOf()
             .stream()
             .map(componentTemplates::get)
@@ -1297,18 +1372,18 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toCollection(LinkedList::new));
         // Add the actual index template's mappings, since it takes the highest precedence
         Optional.ofNullable(template.template()).map(Template::mappings).ifPresent(mappings::add);
-        if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+        if (template.getDataStreamTemplate() != null && isDataStreamIndex(indexName)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
             if (template.getDataStreamTemplate().isAllowCustomRouting()) {
                 mappings.add(0, DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING);
             } else {
-                mappings.add(0, DEFAULT_TIMESTAMP_MAPPING);
+                mappings.add(0, DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING);
             }
         }
 
         // Only include _timestamp mapping snippet if creating backing index.
-        if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+        if (isDataStreamIndex(indexName)) {
             // Only if template has data stream definition this should be added and
             // adding this template last, since _timestamp field should have highest precedence:
             if (template.getDataStreamTemplate() != null) {
@@ -1316,6 +1391,10 @@ public class MetadataIndexTemplateService {
             }
         }
         return Collections.unmodifiableList(mappings);
+    }
+
+    private static boolean isDataStreamIndex(String indexName) {
+        return indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) || indexName.startsWith(DataStream.FAILURE_STORE_PREFIX);
     }
 
     /**
@@ -1599,9 +1678,7 @@ public class MetadataIndexTemplateService {
             List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (CompressedXContent mapping : mappings) {
-                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-                }
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);
 
                 if (template.getDataStreamTemplate() != null) {
                     validateTimestampFieldMapping(mapperService.mappingLookup());
@@ -1651,7 +1728,13 @@ public class MetadataIndexTemplateService {
 
         } finally {
             if (createdIndex != null) {
-                indicesService.removeIndex(createdIndex, NO_LONGER_ASSIGNED, " created for parsing template mapping");
+                indicesService.removeIndex(
+                    createdIndex,
+                    NO_LONGER_ASSIGNED,
+                    " created for parsing template mapping",
+                    CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
+                    ActionListener.noop()
+                );
             }
         }
     }

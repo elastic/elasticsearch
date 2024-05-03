@@ -119,6 +119,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
+                .filter(p -> p.descriptor().isStable() == false)
                 .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
@@ -277,6 +278,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
      * Creates a new client if the method is invoked for the first time in the context of the current test scope.
      * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
      * it cannot be reused by other tests anymore.
+     * Requires that {@link org.elasticsearch.test.ESSingleNodeTestCase#addMockHttpTransport()} is overriden and set to false.
      */
     protected RestClient getRestClient() {
         return getRestClient(client());

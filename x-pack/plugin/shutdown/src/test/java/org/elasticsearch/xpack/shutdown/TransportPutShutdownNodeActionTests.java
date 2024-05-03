@@ -15,12 +15,13 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeExecutor;
 import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeTask;
 import org.junit.Before;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -61,8 +63,10 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         MockitoAnnotations.openMocks(this);
         // TODO: it takes almost 2 seconds to create these mocks....WHY?!?
         var threadPool = mock(ThreadPool.class);
-        var transportService = mock(TransportService.class);
+        var transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         clusterService = mock(ClusterService.class);
+        var allocationService = mock(AllocationService.class);
+        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).then(invocation -> invocation.getArgument(0));
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<PutShutdownNodeTask>>any())).thenReturn(
@@ -71,6 +75,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         action = new TransportPutShutdownNodeAction(
             transportService,
             clusterService,
+            allocationService,
             threadPool,
             actionFilters,
             indexNameExpressionResolver

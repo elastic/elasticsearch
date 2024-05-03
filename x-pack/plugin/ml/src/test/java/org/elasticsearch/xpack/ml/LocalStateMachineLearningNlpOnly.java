@@ -14,6 +14,6 @@ import java.nio.file.Path;
 
 public class LocalStateMachineLearningNlpOnly extends LocalStateMachineLearning {
     public LocalStateMachineLearningNlpOnly(final Settings settings, final Path configPath) {
-        super(settings, configPath, new MlTestExtensionLoader(new MlTestExtension(true, true, false, false, true)));
+        super(settings, configPath, new MlTestExtensionLoader(new MlTestExtension(true, true, false, false, true, false)));
     }
 }

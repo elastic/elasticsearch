@@ -25,6 +25,7 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
     LocalClusterSpecBuilder<T>> implements LocalClusterSpecBuilder<T> {
 
     private String name = "test-cluster";
+    private boolean shared = false;
     private final List<DefaultLocalNodeSpecBuilder> nodeBuilders = new ArrayList<>();
     private final List<User> users = new ArrayList<>();
     private final List<Resource> roleFiles = new ArrayList<>();
@@ -107,12 +108,34 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
         return this;
     }
 
+    @Override
+    public LocalClusterSpecBuilder<T> shared(Boolean isShared) {
+        if (Integer.parseInt(System.getProperty("tests.max.parallel.forks")) > 1) {
+            String taskPath = System.getProperty("tests.task");
+            String project = taskPath.substring(0, taskPath.lastIndexOf(':'));
+            String taskName = taskPath.substring(taskPath.lastIndexOf(':') + 1);
+
+            throw new IllegalStateException(
+                "Parallel test execution is not supported for shared clusters. Configure the build script for project '"
+                    + project
+                    + "':\n\n"
+                    + "tasks.named('"
+                    + taskName
+                    + "') {\n"
+                    + "  maxParallelForks = 1\n"
+                    + "}"
+            );
+        }
+        this.shared = isShared;
+        return this;
+    }
+
     protected LocalClusterSpec buildClusterSpec() {
         // Apply lazily provided configuration
         lazyConfigProviders.forEach(s -> s.get().apply(this));
 
         List<User> clusterUsers = users.isEmpty() ? List.of(User.DEFAULT_USER) : users;
-        LocalClusterSpec clusterSpec = new LocalClusterSpec(name, clusterUsers, roleFiles);
+        LocalClusterSpec clusterSpec = new LocalClusterSpec(name, clusterUsers, roleFiles, shared);
         List<LocalNodeSpec> nodeSpecs;
 
         if (nodeBuilders.isEmpty()) {
@@ -160,9 +183,9 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
                 getKeystoreFiles(),
                 getKeystorePassword(),
                 getExtraConfigFiles(),
+                getSystemPropertyProviders(),
                 getSystemProperties(),
-                getJvmArgs(),
-                getSecrets()
+                getJvmArgs()
             );
         }
     }

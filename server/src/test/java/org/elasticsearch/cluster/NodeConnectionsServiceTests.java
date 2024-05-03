@@ -13,8 +13,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -546,7 +546,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 transport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()),
+                boundAddress -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()),
                 null,
                 emptySet()
             );
@@ -620,8 +620,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 threadPool.generic().execute(() -> {
                     runConnectionBlock(connectionBlock);
                     listener.onResponse(new Connection() {
-                        private final ListenableActionFuture<Void> closeListener = new ListenableActionFuture<>();
-                        private final ListenableActionFuture<Void> removedListener = new ListenableActionFuture<>();
+                        private final SubscribableListener<Void> closeListener = new SubscribableListener<>();
+                        private final SubscribableListener<Void> removedListener = new SubscribableListener<>();
 
                         private final RefCounted refCounted = AbstractRefCounted.of(() -> closeListener.onResponse(null));
 

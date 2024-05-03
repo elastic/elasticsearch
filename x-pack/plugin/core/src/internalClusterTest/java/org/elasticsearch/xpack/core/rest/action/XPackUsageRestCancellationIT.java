@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
@@ -53,6 +52,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
+import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.xpackUsageFeatureAction;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -100,8 +100,8 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
     }
 
     public static class BlockingUsageActionXPackPlugin extends LocalStateCompositeXPackPlugin {
-        public static final XPackUsageFeatureAction BLOCKING_XPACK_USAGE = new XPackUsageFeatureAction("blocking_xpack_usage");
-        public static final XPackUsageFeatureAction NON_BLOCKING_XPACK_USAGE = new XPackUsageFeatureAction("regular_xpack_usage");
+        public static final ActionType<XPackUsageFeatureResponse> BLOCKING_XPACK_USAGE = xpackUsageFeatureAction("blocking_xpack_usage");
+        public static final ActionType<XPackUsageFeatureResponse> NON_BLOCKING_XPACK_USAGE = xpackUsageFeatureAction("regular_xpack_usage");
 
         public BlockingUsageActionXPackPlugin(Settings settings, Path configPath) {
             super(settings, configPath);
@@ -135,7 +135,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         }
 
         @Override
-        protected List<XPackUsageFeatureAction> usageActions() {
+        protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
             return List.of(BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE, BlockingUsageActionXPackPlugin.NON_BLOCKING_XPACK_USAGE);
         }
     }
@@ -147,9 +147,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
                 BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(),
@@ -186,9 +184,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
                 BlockingUsageActionXPackPlugin.NON_BLOCKING_XPACK_USAGE.name(),

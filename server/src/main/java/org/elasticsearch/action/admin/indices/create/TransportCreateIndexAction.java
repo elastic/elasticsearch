@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -42,6 +44,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
  * Create index action.
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    public static final ActionType<CreateIndexResponse> TYPE = new ActionType<>("indices:admin/create");
     private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);
 
     private final MetadataCreateIndexService createIndexService;
@@ -58,7 +61,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         SystemIndices systemIndices
     ) {
         super(
-            CreateIndexAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -66,7 +69,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             CreateIndexRequest::new,
             indexNameExpressionResolver,
             CreateIndexResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
         this.systemIndices = systemIndices;
@@ -132,10 +135,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
             final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                state.nodes().getSmallestNonClientNodeVersion()
+                state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
             );
             if (descriptor == null) {
-                final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");
+                final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index");
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;
@@ -162,7 +165,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
@@ -198,7 +201,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             request.index()
         );
 
-        return updateRequest.ackTimeout(request.timeout())
+        return updateRequest.ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)

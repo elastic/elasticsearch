@@ -9,14 +9,12 @@
 package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -132,7 +130,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             childTransportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(childTransportService));
             childTransportService.registerRequestHandler(
                 "internal:testAction[c]",
-                ThreadPool.Names.MANAGEMENT, // busy-wait for cancellation but not on a transport thread
+                threadPool.executor(ThreadPool.Names.MANAGEMENT), // busy-wait for cancellation but not on a transport thread
                 (StreamInput in) -> new TransportRequest.Empty(in) {
                     @Override
                     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
@@ -172,10 +170,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             );
 
             MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            resources.add(appender::stop);
-            Loggers.addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
-            resources.add(() -> Loggers.removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
+            resources.add(appender.capturing(TaskCancellationService.class));
 
             for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
                 appender.addExpectation(expectation);
@@ -229,7 +224,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return TransportResponseHandler.TRANSPORT_WORKER;
         }
 

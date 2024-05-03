@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -75,6 +76,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                     n
                 )
             );
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return BlockLoader.constantBytes(new BytesRef(blContext.indexName()));
         }
 
         @Override

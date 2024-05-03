@@ -8,19 +8,20 @@
 
 package org.elasticsearch.datastreams.lifecycle.rest;
 
+import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
@@ -41,14 +42,11 @@ public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
         ExplainDataStreamLifecycleAction.Request explainRequest = new ExplainDataStreamLifecycleAction.Request(indices);
         explainRequest.includeDefaults(restRequest.paramAsBoolean("include_defaults", false));
         explainRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
-        String masterNodeTimeout = restRequest.param("master_timeout");
-        if (masterNodeTimeout != null) {
-            explainRequest.masterNodeTimeout(masterNodeTimeout);
-        }
+        explainRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(
             ExplainDataStreamLifecycleAction.INSTANCE,
             explainRequest,
-            new RestChunkedToXContentListener<>(channel)
+            new RestRefCountedChunkedToXContentListener<>(channel)
         );
     }
 

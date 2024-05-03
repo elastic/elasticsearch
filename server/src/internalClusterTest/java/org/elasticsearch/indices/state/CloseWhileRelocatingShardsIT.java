@@ -31,7 +31,6 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,6 +48,7 @@ import static org.elasticsearch.indices.state.CloseIndexIT.assertException;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -95,7 +95,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     createIndex(indexName);
                     indexRandom(
                         randomBoolean(),
-                        IntStream.range(0, nbDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).toList()
+                        IntStream.range(0, nbDocs).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).toList()
                     );
                 }
                 default -> {
@@ -177,15 +177,11 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             };
 
-            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                targetNode
-            );
+            final var targetTransportService = MockTransportService.getInstance(targetNode);
 
             for (DiscoveryNode node : state.getNodes()) {
                 if (node.canContainData() && node.getName().equals(targetNode) == false) {
-                    final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
-                    targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
+                    targetTransportService.addSendBehavior(MockTransportService.getInstance(node.getName()), sendBehavior);
                 }
             }
 
@@ -196,9 +192,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             for (final String indexToClose : indices) {
                 final Thread thread = new Thread(() -> {
                     try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+                        safeAwait(latch);
                     } finally {
                         release.countDown();
                     }
@@ -248,20 +242,22 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             ensureGreen(indices);
 
             for (String index : acknowledgedCloses) {
-                long docsCount = client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
-                assertEquals(
-                    "Expected "
-                        + docsPerIndex.get(index)
-                        + " docs in index "
-                        + index
-                        + " but got "
-                        + docsCount
-                        + " (close acknowledged="
-                        + acknowledgedCloses.contains(index)
-                        + ")",
-                    (long) docsPerIndex.get(index),
-                    docsCount
-                );
+                assertResponse(prepareSearch(index).setSize(0).setTrackTotalHits(true), response -> {
+                    long docsCount = response.getHits().getTotalHits().value;
+                    assertEquals(
+                        "Expected "
+                            + docsPerIndex.get(index)
+                            + " docs in index "
+                            + index
+                            + " but got "
+                            + docsCount
+                            + " (close acknowledged="
+                            + acknowledgedCloses.contains(index)
+                            + ")",
+                        (long) docsPerIndex.get(index),
+                        docsCount
+                    );
+                });
             }
         } finally {
             updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));

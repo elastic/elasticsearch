@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authc.ldap.support;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -19,9 +18,19 @@ public final class LdapMetadataResolverSettings {
         key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
     );
 
+    public static final Function<String, Setting.AffixSetting<String>> FULL_NAME_SETTING = RealmSettings.affixSetting(
+        "user_full_name_attribute",
+        key -> Setting.simpleString(key, "cn", Setting.Property.NodeScope)
+    );
+
+    public static final Function<String, Setting.AffixSetting<String>> EMAIL_SETTING = RealmSettings.affixSetting(
+        "user_email_attribute",
+        key -> Setting.simpleString(key, "mail", Setting.Property.NodeScope)
+    );
+
     private LdapMetadataResolverSettings() {}
 
     public static List<Setting.AffixSetting<?>> getSettings(String type) {
-        return Collections.singletonList(ADDITIONAL_METADATA_SETTING.apply(type));
+        return List.of(ADDITIONAL_METADATA_SETTING.apply(type), EMAIL_SETTING.apply(type), FULL_NAME_SETTING.apply(type));
     }
 }

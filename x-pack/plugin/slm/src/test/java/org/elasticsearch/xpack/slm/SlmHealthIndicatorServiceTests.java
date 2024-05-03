@@ -181,7 +181,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 Map.of(
                     "test-policy",
                     SnapshotLifecyclePolicyMetadata.builder()
-                        .setPolicy(new SnapshotLifecyclePolicy("policy-id-1", "test-policy", "", "test-repository", null, null))
+                        .setPolicy(new SnapshotLifecyclePolicy("test-policy", "<test-policy-{now/d}>", "", "test-repository", null, null))
                         .setVersion(1L)
                         .setModifiedDate(System.currentTimeMillis())
                         .setLastSuccess(snapshotInvocation(execTime, execTime + 1000L))
@@ -191,7 +191,14 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     "test-policy-without-any-success",
                     SnapshotLifecyclePolicyMetadata.builder()
                         .setPolicy(
-                            new SnapshotLifecyclePolicy("policy-id-2", "test-policy-without-any-success", "", "test-repository", null, null)
+                            new SnapshotLifecyclePolicy(
+                                "test-policy-without-any-success",
+                                "<test-policy-{now/d}>",
+                                "",
+                                "test-repository",
+                                null,
+                                null
+                            )
                         )
                         .setVersion(1L)
                         .setModifiedDate(System.currentTimeMillis())
@@ -203,8 +210,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SnapshotLifecyclePolicyMetadata.builder()
                         .setPolicy(
                             new SnapshotLifecyclePolicy(
-                                "policy-id-3",
                                 "test-policy-without-success-start-time",
+                                "<test-policy-{now/d}>",
                                 "",
                                 "test-repository",
                                 null,
@@ -280,9 +287,9 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                     + failedInvocations3
                                     + "] repeated failures without successful execution",
                                 "Check the snapshot lifecycle policies for detailed failure info:\n"
-                                    + "- GET /_slm/policy/policy-id-1?human\n"
-                                    + "- GET /_slm/policy/policy-id-2?human\n"
-                                    + "- GET /_slm/policy/policy-id-3?human"
+                                    + "- GET /_slm/policy/test-policy?human\n"
+                                    + "- GET /_slm/policy/test-policy-without-any-success?human\n"
+                                    + "- GET /_slm/policy/test-policy-without-success-start-time?human"
 
                             ),
                             List.of(

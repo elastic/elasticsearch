@@ -22,6 +22,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.IOException;
@@ -166,7 +167,7 @@ public class JwkSetLoader implements Releasable {
         );
         // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
         final JwksAlgs jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, allowedJwksAlgsPkc);
-        logger.info(
+        logger.debug(
             "Usable PKC: JWKs=[{}] algorithms=[{}] sha256=[{}]",
             jwksAlgsPkc.jwks().size(),
             String.join(",", jwksAlgsPkc.algs()),

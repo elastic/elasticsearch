@@ -13,6 +13,7 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -133,6 +134,6 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

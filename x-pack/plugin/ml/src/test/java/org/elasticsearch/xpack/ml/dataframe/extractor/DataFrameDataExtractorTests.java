@@ -49,6 +49,7 @@ import java.util.Queue;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -134,7 +135,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         // Third batch should return empty
         rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
+        assertThat(rows, isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
 
         // Now let's assert we're sending the expected search requests
@@ -223,7 +224,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         // Next batch should return empty
         rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
+        assertThat(rows, isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
 
         // Notice we've done 4 searches
@@ -267,7 +268,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(rows.get().get(0).getValues(), equalTo(new String[] { "11", "21" }));
         assertThat(dataExtractor.hasNext(), is(true));
 
-        assertThat(dataExtractor.next().isEmpty(), is(true));
+        assertThat(dataExtractor.next(), isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
@@ -302,7 +303,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(rows.get().get(0).getValues(), equalTo(new String[] { "11", "21" }));
         assertThat(dataExtractor.hasNext(), is(true));
 
-        assertThat(dataExtractor.next().isEmpty(), is(true));
+        assertThat(dataExtractor.next(), isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
@@ -380,7 +381,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         // Third batch should return empty
         rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
+        assertThat(rows, isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
     }
 
@@ -414,7 +415,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         // Third batch should return empty
         rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
+        assertThat(rows, isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
     }
 
@@ -652,8 +653,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             searchHitBuilder.setLongSortValue(searchHitCounter++);
             hits.add(searchHitBuilder.build());
         }
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
-        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHits searchHits = new SearchHits(hits.toArray(SearchHits.EMPTY), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
+        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
         return searchResponse;
     }
 

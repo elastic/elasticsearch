@@ -18,7 +18,7 @@ import org.elasticsearch.transport.netty4.Netty4Plugin;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESTestCase.WithoutSecurityManager
@@ -31,15 +31,13 @@ public class ReloadAwarePluginTests extends ESTestCase {
         ) {
             PluginsService pluginsService = node.injector().getInstance(PluginsService.class);
 
-            var reloadAwarePlugins = pluginsService.filterPlugins(ReloadAwarePlugin.class).stream().toList();
-            var reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).stream().toList();
+            var reloadAwarePlugins = pluginsService.filterPlugins(ReloadAwarePlugin.class).toList();
+            var reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).toList();
 
-            assertThat(reloadAwarePlugins.size(), equalTo(1));
-            assertThat(reloadAwarePlugins.get(0), instanceOf(TestReloadAwarePlugin.class));
+            assertThat(reloadAwarePlugins, contains(instanceOf(TestReloadAwarePlugin.class)));
             TestReloadAwarePlugin reloadAwarePlugin = (TestReloadAwarePlugin) reloadAwarePlugins.get(0);
 
-            assertThat(reloadablePlugins.size(), equalTo(1));
-            assertThat(reloadablePlugins.get(0), instanceOf(TestReloadablePlugin.class));
+            assertThat(reloadablePlugins, contains(instanceOf(TestReloadablePlugin.class)));
             TestReloadablePlugin reloadablePlugin = (TestReloadablePlugin) reloadablePlugins.get(0);
 
             assertFalse("Plugin has been reloaded", reloadablePlugin.isReloaded());

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -23,7 +25,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
-public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSLMStatusAction.Request, GetSLMStatusAction.Response> {
+public class TransportGetSLMStatusAction extends TransportMasterNodeAction<AcknowledgedRequest.Plain, GetSLMStatusAction.Response> {
 
     @Inject
     public TransportGetSLMStatusAction(
@@ -39,17 +41,17 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSL
             clusterService,
             threadPool,
             actionFilters,
-            GetSLMStatusAction.Request::new,
+            AcknowledgedRequest.Plain::new,
             indexNameExpressionResolver,
             GetSLMStatusAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
     @Override
     protected void masterOperation(
         Task task,
-        GetSLMStatusAction.Request request,
+        AcknowledgedRequest.Plain request,
         ClusterState state,
         ActionListener<GetSLMStatusAction.Response> listener
     ) {
@@ -57,7 +59,7 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSL
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetSLMStatusAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(AcknowledgedRequest.Plain request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

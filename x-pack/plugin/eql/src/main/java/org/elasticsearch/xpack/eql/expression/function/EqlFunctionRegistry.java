@@ -40,7 +40,7 @@ import java.util.Locale;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 
-public class EqlFunctionRegistry extends FunctionRegistry {
+public final class EqlFunctionRegistry extends FunctionRegistry {
 
     public EqlFunctionRegistry() {
         register(functions());

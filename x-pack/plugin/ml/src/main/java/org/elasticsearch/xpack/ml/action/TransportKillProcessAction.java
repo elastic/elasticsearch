@@ -57,8 +57,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
             actionFilters,
             KillProcessAction.Request::new,
             KillProcessAction.Response::new,
-            KillProcessAction.Response::new,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.auditor = auditor;
     }

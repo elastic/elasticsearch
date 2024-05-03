@@ -58,7 +58,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
             GetSettingsRequest::new,
             indexNameExpressionResolver,
             GetSettingsResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexedScopedSettings;

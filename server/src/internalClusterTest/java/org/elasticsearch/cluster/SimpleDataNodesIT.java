@@ -8,11 +8,11 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,13 +46,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         internalCluster().startNode(nonDataNode());
         assertThat(
-            clusterAdmin().prepareHealth()
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNodes("2")
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .isTimedOut(),
+            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setLocal(true).get().isTimedOut(),
             equalTo(false)
         );
 
@@ -67,17 +61,11 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         // now, start a node data, and see that it gets with shards
         internalCluster().startNode(dataNode());
         assertThat(
-            clusterAdmin().prepareHealth()
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNodes("3")
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .isTimedOut(),
+            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setLocal(true).get().isTimedOut(),
             equalTo(false)
         );
 
-        IndexResponse indexResponse = client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON)).actionGet();
+        DocWriteResponse indexResponse = client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON)).actionGet();
         assertThat(indexResponse.getId(), equalTo("1"));
     }
 
@@ -87,10 +75,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
             new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
                 .waitForActiveShards(ActiveShardCount.NONE)
         ).actionGet();
-        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .execute()
-            .actionGet();
+        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
         assertThat(healthResponse1.isTimedOut(), equalTo(false));
         assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse1.getActiveShards(), equalTo(0));
@@ -102,8 +87,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("2")
                 .setWaitForGreenStatus()
-                .execute()
-                .actionGet()
+                .get()
                 .isTimedOut(),
             equalTo(false)
         );
@@ -115,10 +99,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
             new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
                 .waitForActiveShards(ActiveShardCount.NONE)
         ).actionGet();
-        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .execute()
-            .actionGet();
+        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
         assertThat(healthResponse1.isTimedOut(), equalTo(false));
         assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse1.getActiveShards(), equalTo(0));

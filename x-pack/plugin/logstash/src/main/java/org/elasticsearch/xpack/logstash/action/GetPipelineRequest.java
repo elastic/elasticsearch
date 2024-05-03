@@ -26,7 +26,7 @@ public class GetPipelineRequest extends ActionRequest {
 
     public GetPipelineRequest(StreamInput in) throws IOException {
         super(in);
-        ids = in.readStringList();
+        ids = in.readStringCollectionAsList();
     }
 
     public List<String> ids() {

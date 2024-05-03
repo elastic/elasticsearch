@@ -22,8 +22,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.internal.TwoPhaseCollector;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * When top docs as well as aggs are collected (because both collectors were provided), skipping low scoring hits via
  * {@link Scorable#setMinCompetitiveScore(float)} is not supported for either of the collectors.
  */
-public final class QueryPhaseCollector implements Collector {
+public final class QueryPhaseCollector implements TwoPhaseCollector {
     private final Collector aggsCollector;
     private final Collector topDocsCollector;
     private final TerminateAfterChecker terminateAfterChecker;
@@ -374,11 +373,10 @@ public final class QueryPhaseCollector implements Collector {
         }
     };
 
+    @Override
     public void doPostCollection() throws IOException {
-        if (aggsCollector instanceof BucketCollector.BucketCollectorWrapper bucketCollectorWrapper) {
-            bucketCollectorWrapper.bucketCollector().postCollection();
-        } else if (aggsCollector instanceof InternalProfileCollector profileCollector) {
-            profileCollector.doPostCollection();
+        if (aggsCollector instanceof TwoPhaseCollector twoPhaseCollector) {
+            twoPhaseCollector.doPostCollection();
         }
     }
 }

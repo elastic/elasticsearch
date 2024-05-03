@@ -8,8 +8,14 @@ package org.elasticsearch.xpack.sql.analysis.index;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -17,8 +23,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -394,6 +403,71 @@ public class IndexResolverTests extends ESTestCase {
             )
         );
         assertTrue(mergedMappings("*", new String[] { "empty" }, versionFC).isValid());
+    }
+
+    public void testMergeObjectIncompatibleTypes() throws Exception {
+        var response = readFieldCapsResponse("fc-incompatible-object-compatible-subfields.json");
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            SqlDataTypeRegistry.INSTANCE,
+            "*",
+            response,
+            (fieldName, types) -> null,
+            IndexResolver.PRESERVE_PROPERTIES,
+            null
+        );
+
+        assertTrue(resolution.isValid());
+        EsIndex esIndex = resolution.get();
+        assertEquals(Set.of("index-1", "index-2"), esIndex.concreteIndices());
+        EsField esField = esIndex.mapping().get("file");
+        assertEquals(InvalidMappedField.class, esField.getClass());
+
+        assertEquals(
+            "mapped as [2] incompatible types: [keyword] in [index-2], [object] in [index-1]",
+            ((InvalidMappedField) esField).errorMessage()
+        );
+
+        esField = esField.getProperties().get("name");
+        assertNotNull(esField);
+        assertEquals(esField.getDataType(), KEYWORD);
+        assertEquals(KeywordEsField.class, esField.getClass());
+    }
+
+    public void testMergeObjectUnsupportedTypes() throws Exception {
+        var response = readFieldCapsResponse("fc-unsupported-object-compatible-subfields.json");
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            SqlDataTypeRegistry.INSTANCE,
+            "*",
+            response,
+            (fieldName, types) -> null,
+            IndexResolver.PRESERVE_PROPERTIES,
+            null
+        );
+
+        assertTrue(resolution.isValid());
+        EsIndex esIndex = resolution.get();
+        assertEquals(Set.of("index-1", "index-2"), esIndex.concreteIndices());
+        EsField esField = esIndex.mapping().get("file");
+        assertEquals(InvalidMappedField.class, esField.getClass());
+
+        assertEquals(
+            "mapped as [2] incompatible types: [unknown] in [index-2], [object] in [index-1]",
+            ((InvalidMappedField) esField).errorMessage()
+        );
+
+        esField = esField.getProperties().get("name");
+        assertNotNull(esField);
+        assertEquals(esField.getDataType(), UNSUPPORTED);
+        assertEquals(UnsupportedEsField.class, esField.getClass());
+    }
+
+    private static FieldCapabilitiesResponse readFieldCapsResponse(String resourceName) throws IOException {
+        InputStream stream = IndexResolverTests.class.getResourceAsStream("/" + resourceName);
+        BytesReference ref = Streams.readFully(stream);
+        XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, ref, XContentType.JSON);
+        return FieldCapabilitiesResponse.fromXContent(parser);
     }
 
     public static IndexResolution merge(EsIndex... indices) {

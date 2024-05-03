@@ -91,7 +91,7 @@ use `*` or `_all`.
 [[knn-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [role="child_attributes"]
 [[knn-search-api-request-body]]
@@ -99,36 +99,36 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `knn`::
-(Required, object) 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
+(Required, object)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn]
 +
 .Properties of `knn` object
 [%collapsible%open]
 ====
 `field`::
-(Required, string) 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+(Required, string)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 
 `k`::
-(Required, integer) 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
+(Optional, integer)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 
 `num_candidates`::
-(Required, integer) 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+(Optional, integer)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::
-(Required, array of floats)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+(Required, array of floats or string)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 ====
 
-include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
-include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
-include::{es-repo-dir}/search/search.asciidoc[tag=source-filtering-def]
-include::{es-repo-dir}/search/search.asciidoc[tag=stored-fields-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=docvalue-fields-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=fields-param-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=source-filtering-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=stored-fields-def]
 
 [role="child_attributes"]
 [[knn-search-api-response-body]]

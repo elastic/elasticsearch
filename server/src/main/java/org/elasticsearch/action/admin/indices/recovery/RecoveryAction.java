@@ -19,6 +19,6 @@ public class RecoveryAction extends ActionType<RecoveryResponse> {
     public static final String NAME = "indices:monitor/recovery";
 
     private RecoveryAction() {
-        super(NAME, RecoveryResponse::new);
+        super(NAME);
     }
 }

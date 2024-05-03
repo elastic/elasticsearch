@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -119,7 +121,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             + "}";
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
-            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString))
+            () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
         );
         assertEquals(
             "Failed to parse mapping: unknown parameter [anything] on metadata field [" + fieldName() + "]",
@@ -135,15 +137,15 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
-            () -> mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString))
+            () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
         );
         assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
     }
 
     public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_6_0);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, previousVersion);
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_6_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, previousVersion);
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they will still be ignored in existing indices
@@ -160,13 +162,13 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
                 + "      }\n"
                 + "    }\n"
                 + "}";
-            assertNotNull(mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+            assertNotNull(mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString)));
         }
     }
 
     public void testTypeAndFriendsAreDeprecatedFrom_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_6_0, IndexVersion.current());
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_6_0, IndexVersion.current());
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they are now deprecated in new indices
@@ -183,7 +185,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
                 + "      }\n"
                 + "    }\n"
                 + "}";
-            assertNotNull(mapperService.parseMapping("_doc", new CompressedXContent(mappingAsString)));
+            assertNotNull(mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString)));
             assertWarnings("Parameter [" + param + "] has no effect on metadata field [" + fieldName() + "] and will be removed in future");
         }
     }

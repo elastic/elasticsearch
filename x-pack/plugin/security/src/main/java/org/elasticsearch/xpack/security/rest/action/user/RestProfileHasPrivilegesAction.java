@@ -18,7 +18,6 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.security.Security;
@@ -33,11 +32,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.INTERNAL)
 public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
 
-    private final SecurityContext securityContext;
-
-    public RestProfileHasPrivilegesAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
+    public RestProfileHasPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        this.securityContext = securityContext;
     }
 
     @Override
@@ -67,11 +63,7 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        }
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         if (Security.USER_PROFILE_COLLABORATION_FEATURE.check(licenseState)) {
             return null;
         } else {

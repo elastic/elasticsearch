@@ -23,10 +23,8 @@ import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
 import org.elasticsearch.common.inject.internal.SourceProvider;
 
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +39,6 @@ class InheritingState implements State {
     // Must be a linked hashmap in order to preserve order of bindings in Modules.
     private final Map<Key<?>, Binding<?>> explicitBindingsMutable = new LinkedHashMap<>();
     private final Map<Key<?>, Binding<?>> explicitBindings = Collections.unmodifiableMap(explicitBindingsMutable);
-    private final Map<Class<? extends Annotation>, Scope> scopes = new HashMap<>();
     private final List<MatcherAndConverter> converters = new ArrayList<>();
     private WeakKeySet blacklistedKeys = new WeakKeySet();
     private final Object lock;
@@ -70,17 +67,6 @@ class InheritingState implements State {
     @Override
     public void putBinding(Key<?> key, BindingImpl<?> binding) {
         explicitBindingsMutable.put(key, binding);
-    }
-
-    @Override
-    public Scope getScope(Class<? extends Annotation> annotationType) {
-        Scope scope = scopes.get(annotationType);
-        return scope != null ? scope : State.NONE.getScope(annotationType);
-    }
-
-    @Override
-    public void putAnnotation(Class<? extends Annotation> annotationType, Scope scope) {
-        scopes.put(annotationType, scope);
     }
 
     @Override

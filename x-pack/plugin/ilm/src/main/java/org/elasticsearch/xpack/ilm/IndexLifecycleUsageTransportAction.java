@@ -106,7 +106,7 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 
-    private void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
+    private static void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
         switch (actionName) {
             case AllocateAction.NAME -> {
                 AllocateAction allocateAction = (AllocateAction) action;

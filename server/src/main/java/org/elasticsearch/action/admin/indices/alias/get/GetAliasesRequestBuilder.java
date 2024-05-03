@@ -12,7 +12,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
 
-    public GetAliasesRequestBuilder(ElasticsearchClient client, GetAliasesAction action, String... aliases) {
-        super(client, action, aliases);
+    public GetAliasesRequestBuilder(ElasticsearchClient client, String... aliases) {
+        super(client, GetAliasesAction.INSTANCE, aliases);
     }
 }

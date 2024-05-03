@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -70,7 +72,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             actionFilters,
             PutAutoFollowPatternAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
@@ -99,7 +101,11 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
-        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster(), remoteClientResponseExecutor);
+        final var remoteClient = client.getRemoteClusterClient(
+            request.getRemoteCluster(),
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
             threadPool.getThreadContext(),
             clusterService.state()
@@ -107,7 +113,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-            ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, indices, e -> {
                 if (e == null) {
                     submitUnbatchedTask(
                         "put-auto-follow-pattern-" + request.getRemoteCluster(),

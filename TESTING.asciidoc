@@ -45,7 +45,7 @@ run it using Gradle:
 
 ==== Launching and debugging from an IDE
 
-If you want to run Elasticsearch from your IDE, the `./gradlew run` task
+If you want to run and debug Elasticsearch from your IDE, the `./gradlew run` task
 supports a remote debugging option. Run the following from your terminal:
 
 ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ supports a remote debugging option. Run the following from your terminal:
 Next start the "Debug Elasticsearch" run configuration in IntelliJ. This will enable the IDE to connect to the process and allow debug functionality.
 
 
-As such the IDE needs to be instructed to listen for connections on this port.
+As such the IDE needs to be instructed to listen for connections on the debug port.
 Since we might run multiple JVMs as part of configuring and starting the cluster it's
 recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
 is called "Auto restart" and needs to be checked.
@@ -63,6 +63,22 @@ is called "Auto restart" and needs to be checked.
 NOTE: If you have imported the project into IntelliJ according to the instructions in
 link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
 named "Debug Elasticsearch" will be created for you and configured appropriately.
+
+===== Debugging the CLI launcher
+
+The gradle task does not start the Elasticsearch server process directly; like in the Elasticsearch distribution,
+the job of starting the server process is delegated to a launcher CLI tool. If you need to debug the launcher itself,
+add the following option to the `run` task:
+---------------------------------------------------------------------------
+./gradlew run --debug-cli-jvm
+---------------------------------------------------------------------------
+This option can be specified in isolation or combined with `--debug-jvm`. Since the CLI launcher lifespan may overlap
+with the server process lifespan, the CLI launcher process will be started on a different port (5107 for the first node,
+5108 and following for additional cluster nodes).
+
+As with the `--debug-jvm` command, the IDE needs to be instructed to listen for connections on the debug port.
+You need to configure and start an appropriate Remote JVM Debug configuration, e.g. by cloning and editing
+the "Debug Elasticsearch" run configuration to point to the correct debug port.
 
 ==== Disabling assertions
 
@@ -103,11 +119,14 @@ password: `elastic-password`.
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 - In order to use a custom data directory: `--data-dir=/tmp/foo`
 - In order to preserve data in between executions: `--preserve-data`
-- In order to remotely attach a debugger to the process: `--debug-jvm`
+- In order to remotely attach a debugger to the server process: `--debug-jvm`
+- In order to remotely attach a debugger to the CLI launcher process: `--debug-cli-jvm`
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
 - In order to use HTTPS: ./gradlew run --https
+- In order to start a mock logging APM server on port 9999 and configure ES cluster to connect to it,
+use `./gradlew run --with-apm-server`
 
 ==== Customizing the test cluster for ./gradlew run
 
@@ -453,6 +472,11 @@ You can run a group of YAML test by using wildcards:
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
 ---------------------------------------------------------------------------
 
+Note that if the selected test via the `--tests` filter is not a valid test, i.e., the YAML test
+runner is not able to parse and load it, you might get an error message indicating that the test
+was not found. In such cases, running the whole suite without using the `--tests` could show more
+specific error messages about why the test runner is not able to parse or load a certain test.
+
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
 
 * `tests.rest.blacklist`: comma separated globs that identify tests that are
@@ -482,136 +506,16 @@ If in doubt about which command to use, simply run <gradle path>:check
 
 == Testing packaging
 
-The packaging tests use Vagrant virtual machines or cloud instances to verify
+The packaging tests are run on different build vm cloud instances to verify
 that installing and running Elasticsearch distributions works correctly on
 supported operating systems. These tests should really only be run on ephemeral
 systems because they're destructive; that is, these tests install and remove
 packages and freely modify system settings, so you will probably regret it if
 you execute them on your development machine.
 
-When you run a packaging test, Gradle will set up the target VM and mount your
-repository directory in the VM. Once this is done, a Gradle task will issue a
-Vagrant command to run a *nested* Gradle task on the VM. This nested Gradle
-runs the actual "destructive" test classes.
+=== Reproducing packaging tests
 
-. Install Virtual Box and Vagrant.
-+
-. (Optional) Install https://github.com/fgrehm/vagrant-cachier[vagrant-cachier] to squeeze
-a bit more performance out of the process:
-+
---------------------------------------
-vagrant plugin install vagrant-cachier
---------------------------------------
-+
-. You can run all of the OS packaging tests with `./gradlew packagingTest`.
-This task includes our legacy `bats` tests. To run only the OS tests that are
-written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar,
-zip, and deb packages and all the plugins. It will then run the tests on every
-available system. This will take a very long time.
-+
-Fortunately, the various systems under test have their own Gradle tasks under
-`qa/os`. To find the systems tested, do a listing of the `qa/os` directory.
-To find out what packaging combinations can be tested on a system, run
-the `tasks` task. For example:
-+
-----------------------------------
-./gradlew :qa:os:ubuntu-1804:tasks
-----------------------------------
-+
-If you want a quick test of the tarball and RPM packagings for Centos 7, you
-would run:
-+
--------------------------------------------------------------------------------------------------
-./gradlew :qa:os:centos-7:distroTest.default-rpm :qa:os:centos-7:distroTest.default-linux-archive
--------------------------------------------------------------------------------------------------
-
-Note that if you interrupt Gradle in the middle of running these tasks, any boxes started
-will remain running and you'll have to stop them manually with `./gradlew --stop` or
-`vagrant halt`.
-
-All the regular vagrant commands should just work so you can get a shell in a
-VM running trusty by running
-`vagrant up ubuntu-1804 --provider virtualbox && vagrant ssh ubuntu-1804`.
-
-=== Testing packaging on Windows
-
-The packaging tests also support Windows Server 2012R2 and Windows Server 2016.
-Unfortunately we're not able to provide boxes for them in open source use
-because of licensing issues. Any Virtualbox image that has WinRM and Powershell
-enabled for remote users should work.
-
-Specify the image IDs of the Windows boxes to gradle with the following project
-properties. They can be set in `~/.gradle/gradle.properties` like
-
-------------------------------------
-vagrant.windows-2012r2.id=my-image-id
-vagrant.windows-2016.id=another-image-id
-------------------------------------
-
-or passed on the command line like `-Pvagrant.windows-2012r2.id=my-image-id`
-`-Pvagrant.windows-2016=another-image-id`
-
-These properties are required for Windows support in all gradle tasks that
-handle packaging tests. Either or both may be specified.
-
-If you're running vagrant commands outside of gradle, specify the Windows boxes
-with the environment variables
-
-* `VAGRANT_WINDOWS_2012R2_BOX`
-* `VAGRANT_WINDOWS_2016_BOX`
-
-=== Testing VMs are disposable
-
-It's important to think of VMs like cattle. If they become lame you just shoot
-them and let vagrant reprovision them. Say you've hosed your precise VM:
-
-----------------------------------------------------
-vagrant ssh ubuntu-1604 -c 'sudo rm -rf /bin'; echo oops
-----------------------------------------------------
-
-All you've got to do to get another one is
-
-----------------------------------------------
-vagrant destroy -f ubuntu-1604 && vagrant up ubuntu-1604 --provider virtualbox
-----------------------------------------------
-
-The whole process takes a minute and a half on a modern laptop, two and a half
-without vagrant-cachier.
-
-It's possible that some downloads will fail and it'll be impossible to restart
-them. This is a bug in vagrant. See the instructions here for how to work
-around it:
-https://github.com/mitchellh/vagrant/issues/4479
-
-Some vagrant commands will work on all VMs at once:
-
-------------------
-vagrant halt
-vagrant destroy -f
-------------------
-
-`vagrant up` would normally start all the VMs but we've prevented that because
-that'd consume a ton of ram.
-
-=== Iterating on packaging tests
-
-Because our packaging tests are capable of testing many combinations of OS
-(e.g., Windows, Linux, etc.), package type (e.g., zip file, RPM, etc.),
-Elasticsearch distribution type (e.g., default or OSS), and so forth, it's
-faster to develop against smaller subsets of the tests. For example, to run
-tests for the default archive distribution on Fedora 28:
-
------------------------------------------------------------
-./gradlew :qa:os:fedora-28:distroTest.default-linux-archive
------------------------------------------------------------
-
-These test tasks can use the `--tests`, `--info`, and `--debug` parameters just like
-non-OS tests can. For example:
-
------------------------------------------------------------
-./gradlew :qa:os:fedora-28:distroTest.default-linux-archive \
-  --tests "com.elasticsearch.packaging.test.ArchiveTests"
------------------------------------------------------------
+To reproduce or debug packaging tests failures we recommend using using our provided https://github.com/elastic/elasticsearch-infra/blob/master/buildkite-tools/README.md[*buildkite tools*]
 
 == Testing backwards compatibility
 

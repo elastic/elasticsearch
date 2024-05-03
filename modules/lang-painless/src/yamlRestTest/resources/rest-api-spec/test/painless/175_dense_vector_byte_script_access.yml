@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "support for byte vectors added in 8.6"
 
 ---
@@ -13,6 +13,7 @@ setup:
             properties:
               v:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
 

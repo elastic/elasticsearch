@@ -12,7 +12,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Set;
 
@@ -58,6 +60,10 @@ public class TransportPrevalidateNodeRemovalActionTests extends ESTestCase {
     }
 
     private DiscoveryNode randomNode(String nodeName, String nodeId) {
-        return DiscoveryNodeUtils.builder(nodeId).name(nodeName).roles(emptySet()).version(randomVersion(random())).build();
+        return DiscoveryNodeUtils.builder(nodeId)
+            .name(nodeName)
+            .roles(emptySet())
+            .version(randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .build();
     }
 }

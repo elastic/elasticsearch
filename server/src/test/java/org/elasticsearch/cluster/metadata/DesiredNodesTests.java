@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
@@ -189,8 +188,7 @@ public class DesiredNodesTests extends DesiredNodesTestCase {
             desiredNode.settings(),
             desiredNode.minProcessors().count() + randomIntBetween(1, 10),
             ByteSizeValue.ofGb(desiredNode.memory().getGb() + randomIntBetween(15, 20)),
-            ByteSizeValue.ofGb(desiredNode.storage().getGb() + randomIntBetween(1, 100)),
-            Version.CURRENT
+            ByteSizeValue.ofGb(desiredNode.storage().getGb() + randomIntBetween(1, 100))
         );
     }
 }

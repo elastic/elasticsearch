@@ -10,6 +10,8 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,6 +86,7 @@ import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.QueryVectorBuilderSpec;
 import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
+import org.elasticsearch.plugins.SearchPlugin.RetrieverSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
@@ -225,6 +228,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -243,6 +250,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
@@ -302,6 +310,7 @@ public class SearchModule {
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
+        registerRetrieverParsers(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
         registerSorts();
@@ -315,6 +324,7 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec("GeoBoundingBox", GeoBoundingBox::new));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -652,6 +662,9 @@ public class SearchModule {
             }
         });
 
+        // Register GenericNamedWriteable classes for use in StreamOutput/StreamInput as generic types in query hits
+        registerFromPlugin(plugins, SearchPlugin::getGenericNamedWriteables, this::registerGenericNamedWriteable);
+
         return builder.build();
     }
 
@@ -676,6 +689,10 @@ public class SearchModule {
             // have to register usage explicitly here.
             builder.registerUsage(spec.getName().getPreferredName());
         }
+    }
+
+    private void registerGenericNamedWriteable(SearchPlugin.GenericNamedWriteableSpec spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(GenericNamedWriteable.class, spec.name(), spec.reader()));
     }
 
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {
@@ -1028,6 +1045,13 @@ public class SearchModule {
         fetchSubPhases.add(requireNonNull(subPhase, "FetchSubPhase must not be null"));
     }
 
+    private void registerRetrieverParsers(List<SearchPlugin> plugins) {
+        registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
+
+        registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
+    }
+
     private void registerQueryParsers(List<SearchPlugin> plugins) {
         registerQuery(new QuerySpec<>(MatchQueryBuilder.NAME, MatchQueryBuilder::new, MatchQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent));
@@ -1115,12 +1139,13 @@ public class SearchModule {
         );
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
-        registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, parser -> {
-            throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
-        }));
+        registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, KnnVectorQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");
+        }));
+        registerQuery(new QuerySpec<>(ExactKnnQueryBuilder.NAME, ExactKnnQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[exact_knn] queries cannot be provided directly");
         }));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
@@ -1182,6 +1207,17 @@ public class SearchModule {
                 IntervalsSourceProvider.class,
                 IntervalsSourceProvider.Fuzzy.NAME,
                 IntervalsSourceProvider.Fuzzy::new
+            )
+        );
+    }
+
+    private void registerRetriever(RetrieverSpec<?> spec) {
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                RetrieverBuilder.class,
+                spec.getName(),
+                (p, c) -> spec.getParser().fromXContent(p, (RetrieverParserContext) c),
+                spec.getName().getForRestApiVersion()
             )
         );
     }

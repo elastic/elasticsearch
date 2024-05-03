@@ -28,7 +28,12 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     UnpromotableShardRefreshRequest,
     ActionResponse.Empty> {
 
-    public static final String NAME = RefreshAction.NAME + "/unpromotable";
+    public static final String NAME = "indices:admin/refresh/unpromotable";
+
+    static {
+        // noinspection ConstantValue just for documentation
+        assert NAME.equals(RefreshAction.NAME + "/unpromotable");
+    }
 
     private final IndicesService indicesService;
 
@@ -47,7 +52,7 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             shardStateAction,
             actionFilters,
             UnpromotableShardRefreshRequest::new,
-            ThreadPool.Names.REFRESH
+            transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
         );
         this.indicesService = indicesService;
     }
@@ -60,7 +65,11 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     ) {
         ActionListener.run(responseListener, listener -> {
             IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-            shard.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> ActionResponse.Empty.INSTANCE));
+            shard.waitForPrimaryTermAndGeneration(
+                request.getPrimaryTerm(),
+                request.getSegmentGeneration(),
+                listener.map(l -> ActionResponse.Empty.INSTANCE)
+            );
         });
     }
 

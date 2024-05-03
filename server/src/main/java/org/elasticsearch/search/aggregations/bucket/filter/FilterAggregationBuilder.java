@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -151,7 +152,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     public static class FilterAggregatorFactory extends AggregatorFactory {

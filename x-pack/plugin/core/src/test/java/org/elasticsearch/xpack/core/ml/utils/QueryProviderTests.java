@@ -65,10 +65,10 @@ public class QueryProviderTests extends AbstractXContentSerializingTestCase<Quer
     }
 
     public static QueryProvider createRandomValidQueryProvider() {
-        return createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+        return createTestQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static QueryProvider createRandomValidQueryProvider(String field, String value) {
+    public static QueryProvider createTestQueryProvider(String field, String value) {
         Map<String, Object> terms = Collections.singletonMap(
             BoolQueryBuilder.NAME,
             Collections.singletonMap(

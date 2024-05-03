@@ -347,11 +347,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
             {
-                bodyBuilder.startArray("leader_index_patterns");
-                {
-                    bodyBuilder.value(pattern);
-                }
-                bodyBuilder.endArray();
+                bodyBuilder.array("leader_index_patterns", pattern);
                 if (followIndexPattern != null) {
                     bodyBuilder.field("follow_index_pattern", followIndexPattern);
                 }

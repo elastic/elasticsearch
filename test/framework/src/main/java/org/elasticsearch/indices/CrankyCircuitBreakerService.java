@@ -15,6 +15,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * {@link CircuitBreakerService} that fails one twentieth of the time when you
  * add bytes. This is useful to make sure code responds sensibly to circuit
@@ -27,31 +29,32 @@ public class CrankyCircuitBreakerService extends CircuitBreakerService {
     public static final String ERROR_MESSAGE = "cranky breaker";
 
     private final CircuitBreaker breaker = new CircuitBreaker() {
-        @Override
-        public void circuitBreak(String fieldName, long bytesNeeded) {
+        private final AtomicLong used = new AtomicLong();
 
-        }
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {}
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             if (ESTestCase.random().nextInt(20) == 0) {
                 throw new CircuitBreakingException(ERROR_MESSAGE, Durability.PERMANENT);
             }
+            used.addAndGet(bytes);
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
-
+            used.addAndGet(bytes);
         }
 
         @Override
         public long getUsed() {
-            return 0;
+            return used.get();
         }
 
         @Override
         public long getLimit() {
-            return 0;
+            return Long.MAX_VALUE;
         }
 
         @Override

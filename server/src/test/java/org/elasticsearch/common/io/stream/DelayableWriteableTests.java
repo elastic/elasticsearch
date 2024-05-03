@@ -9,6 +9,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -169,7 +170,7 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<T> delayed = copyInstance(
             original,
             writableRegistry(),
-            (out, d) -> d.writeTo(out),
+            StreamOutput::writeWriteable,
             in -> DelayableWriteable.delayed(reader, in),
             version
         );
@@ -178,7 +179,7 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<T> referencing = copyInstance(
             original,
             writableRegistry(),
-            (out, d) -> d.writeTo(out),
+            StreamOutput::writeWriteable,
             in -> DelayableWriteable.referencing(reader, in),
             version
         );
@@ -195,7 +196,7 @@ public class DelayableWriteableTests extends ESTestCase {
     private static TransportVersion randomOldVersion() {
         return TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
     }

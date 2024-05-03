@@ -22,9 +22,8 @@ import java.util.Objects;
 
 public class StatelessPrimaryRelocationAction {
 
-    public static final ActionType<ActionResponse.Empty> INSTANCE = new ActionType<>(
-        "internal:index/shard/recovery/stateless_primary_relocation",
-        in -> ActionResponse.Empty.INSTANCE
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
+        "internal:index/shard/recovery/stateless_primary_relocation"
     );
 
     public static class Request extends ActionRequest {
@@ -33,12 +32,14 @@ public class StatelessPrimaryRelocationAction {
         private final ShardId shardId;
         private final DiscoveryNode targetNode;
         private final String targetAllocationId;
+        private final long clusterStateVersion;
 
-        public Request(long recoveryId, ShardId shardId, DiscoveryNode targetNode, String targetAllocationId) {
+        public Request(long recoveryId, ShardId shardId, DiscoveryNode targetNode, String targetAllocationId, long clusterStateVersion) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
             this.targetNode = targetNode;
             this.targetAllocationId = targetAllocationId;
+            this.clusterStateVersion = clusterStateVersion;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -47,6 +48,7 @@ public class StatelessPrimaryRelocationAction {
             shardId = new ShardId(in);
             targetNode = new DiscoveryNode(in);
             targetAllocationId = in.readString();
+            clusterStateVersion = in.readVLong();
         }
 
         @Override
@@ -61,6 +63,7 @@ public class StatelessPrimaryRelocationAction {
             shardId.writeTo(out);
             targetNode.writeTo(out);
             out.writeString(targetAllocationId);
+            out.writeVLong(clusterStateVersion);
         }
 
         public long recoveryId() {
@@ -79,6 +82,10 @@ public class StatelessPrimaryRelocationAction {
             return targetAllocationId;
         }
 
+        public long clusterStateVersion() {
+            return clusterStateVersion;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -87,12 +94,13 @@ public class StatelessPrimaryRelocationAction {
             return recoveryId == request.recoveryId
                 && shardId.equals(request.shardId)
                 && targetNode.equals(request.targetNode)
-                && targetAllocationId.equals(request.targetAllocationId);
+                && targetAllocationId.equals(request.targetAllocationId)
+                && clusterStateVersion == request.clusterStateVersion;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId);
+            return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId, clusterStateVersion);
         }
     }
 }

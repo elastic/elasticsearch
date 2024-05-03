@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -79,7 +80,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
         );
     }
 
-    private static Consumer<IngestDocument> buildExecution(
+    private Consumer<IngestDocument> buildExecution(
         String fieldSplit,
         String valueSplit,
         TemplateScript.Factory field,
@@ -95,7 +96,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
         final Predicate<String> keyFilter;
         if (includeKeys == null) {
             if (excludeKeys == null) {
-                keyFilter = key -> true;
+                keyFilter = Predicates.always();
             } else {
                 keyFilter = key -> excludeKeys.contains(key) == false;
             }
@@ -164,20 +165,32 @@ public final class KeyValueProcessor extends AbstractProcessor {
         };
     }
 
-    private static Function<String, String> buildTrimmer(String trim) {
+    private Function<String, String> buildTrimmer(String trim) {
         if (trim == null) {
             return val -> val;
         } else {
             Pattern pattern = Pattern.compile("(^([" + trim + "]+))|([" + trim + "]+$)");
-            return val -> pattern.matcher(val).replaceAll("");
+            return val -> {
+                try {
+                    return pattern.matcher(val).replaceAll("");
+                } catch (Exception | StackOverflowError error) {
+                    throw logAndBuildException("Error trimming [" + val + "] using pattern [" + trim + "]", error);
+                }
+            };
         }
     }
 
-    private static Function<String, String[]> buildSplitter(String split, boolean fields) {
+    private Function<String, String[]> buildSplitter(String split, boolean fields) {
         int limit = fields ? 0 : 2;
         if (split.length() > 2 || split.length() == 2 && split.charAt(0) != '\\') {
             Pattern splitPattern = Pattern.compile(split);
-            return val -> splitPattern.split(val, limit);
+            return val -> {
+                try {
+                    return splitPattern.split(val, limit);
+                } catch (Exception | StackOverflowError error) {
+                    throw logAndBuildException("Error splitting [" + val + "] using pattern [" + split + "]", error);
+                }
+            };
         } else {
             return val -> val.split(split, limit);
         }

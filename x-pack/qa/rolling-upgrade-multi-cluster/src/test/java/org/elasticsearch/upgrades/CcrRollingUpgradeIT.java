@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -130,7 +132,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     createLeaderIndex(leaderClient(), leaderIndex1);
                     index(leaderClient(), leaderIndex1, 64);
                     assertBusy(() -> {
-
                         String followerIndex = "copy-" + leaderIndex1;
                         assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(1));
                         assertTotalHitCount(followerIndex, 64, followerClient());
@@ -224,8 +225,24 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 ResponseException.class,
                 () -> followIndex(leaderClient(), "follower", "not_supported", "not_supported")
             );
-            assertThat(e.getMessage(), containsString("the snapshot was created with Elasticsearch version ["));
-            assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
+
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    allOf(
+                        containsString("the snapshot was created with index version ["),
+                        containsString("] which is higher than the version used by this node [")
+                    ),
+                    allOf(
+                        containsString("the snapshot was created with version ["),
+                        containsString("] which is higher than the version of this node [")
+                    ),
+                    allOf(
+                        containsString("the snapshot was created with Elasticsearch version ["),
+                        containsString("] which is higher than the version of this node [")
+                    )
+                )
+            );
         } else if (clusterName == ClusterName.LEADER) {
             // At this point all nodes in both clusters have been updated and
             // the leader cluster can now follow not_supported index in the follower cluster:
@@ -368,7 +385,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     private static void verifyTotalHitCount(final String index, final int expectedTotalHits, final RestClient client) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        Map<?, ?> response = toMap(client.performRequest(request));
+        setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND); // trip the assertOK (i.e. retry an assertBusy) rather than throwing
+        Map<?, ?> response = toMap(assertOK(client.performRequest(request)));
         final int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(totalHits, equalTo(expectedTotalHits));
     }

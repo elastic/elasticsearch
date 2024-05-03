@@ -30,6 +30,10 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.endObject()));
     }
 
+    public static Iterator<ToXContent> startArray() {
+        return Iterators.single(((builder, params) -> builder.startArray()));
+    }
+
     public static Iterator<ToXContent> startArray(String name) {
         return Iterators.single(((builder, params) -> builder.startArray(name)));
     }
@@ -70,24 +74,54 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
     }
 
+    /**
+     * Creates an Iterator to serialize a named field where the value is represented by a {@link ChunkedToXContentObject}.
+     * Chunked equivalent for {@code XContentBuilder field(String name, ToXContent value)}
+     * @param name name of the field
+     * @param value value for this field
+     * @param params params to propagate for XContent serialization
+     * @return Iterator composing field name and value serialization
+     */
+    public static Iterator<ToXContent> field(String name, ChunkedToXContentObject value, ToXContent.Params params) {
+        return Iterators.concat(Iterators.single((builder, innerParam) -> builder.field(name)), value.toXContentChunked(params));
+    }
+
     public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), contents, ChunkedToXContentHelper.endArray());
+    }
+
+    /**
+     * Creates an Iterator to serialize a named field where the value is represented by an iterator of {@link ChunkedToXContentObject}.
+     * Chunked equivalent for {@code XContentBuilder array(String name, ToXContent value)}
+     * @param name name of the field
+     * @param contents values for this field
+     * @param params params to propagate for XContent serialization
+     * @return Iterator composing field name and value serialization
+     */
+    public static Iterator<ToXContent> array(String name, Iterator<? extends ChunkedToXContentObject> contents, ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startArray(name),
+            Iterators.flatMap(contents, c -> c.toXContentChunked(params)),
+            ChunkedToXContentHelper.endArray()
+        );
     }
 
     public static <T extends ToXContent> Iterator<ToXContent> wrapWithObject(String name, Iterator<T> iterator) {
         return Iterators.concat(startObject(name), iterator, endObject());
     }
 
-    private static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
+    public static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
         return wrapWithObject(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
-    public static Iterator<ToXContent> singleChunk(ToXContent... contents) {
-        return Iterators.single((builder, params) -> {
-            for (ToXContent content : contents) {
-                content.toXContent(builder, params);
-            }
-            return builder;
-        });
+    /**
+     * Creates an Iterator of a single ToXContent object that serializes the given object as a single chunk. Just wraps {@link
+     * Iterators#single}, but still useful because it avoids any type ambiguity.
+     *
+     * @param item Item to wrap
+     * @return Singleton iterator for the given item.
+     */
+    public static Iterator<ToXContent> singleChunk(ToXContent item) {
+        return Iterators.single(item);
     }
 }

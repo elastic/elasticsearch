@@ -2,87 +2,70 @@
 // tag::cloud[]
 include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
 
-. Click **Continue** to open {kib}.
+. Click **Continue** to open {kib}, the user interface for {ecloud}.
 
 . Click **Explore on my own**.
 // end::cloud[]
 
 // tag::self-managed[]
-**Install and run {es}**
+*Start a single-node cluster*
 
-ifeval::["{release-state}"=="unreleased"]
-NOTE: No Docker image is currently available for {es} {version}.
-endif::[]
+We'll use a single-node {es} cluster in this quick start, which makes sense for testing and development.
+Refer to <<docker>> for advanced Docker documentation.
 
-ifeval::["{release-state}"!="unreleased"]
-
-. Install and start https://www.docker.com/products/docker-desktop[Docker
-Desktop].
-
-. Run:
+. Run the following Docker commands:
 +
 [source,sh,subs="attributes"]
 ----
 docker network create elastic
-docker pull {docker-repo}:{version}
-docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
+docker pull {docker-image}
+docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t {docker-image}
 ----
-+
-When you start {es} for the first time, the following security configuration 
-occurs automatically:
-+
---
-* <<elasticsearch-security-certificates,Certificates and keys>> are generated
-for the transport and HTTP layers.
-* The Transport Layer Security (TLS) configuration settings are written to
-`elasticsearch.yml`.
-* A password is generated for the `elastic` user.
-* An enrollment token is generated for {kib}.
 
-NOTE: You might need to scroll back a bit in the terminal to view the password 
-and enrollment token.
---
-
-. Copy the generated password and enrollment token and save them in a secure 
-location. These values are shown only when you start {es} for the first time.
+. Copy the generated `elastic` password and enrollment token, which are output to your terminal.
 You'll use these to enroll {kib} with your {es} cluster and log in.
+These credentials are only shown when you start {es} for the first time.
 +
-[NOTE]
-====
-If you need to reset the password for the `elastic` user or other
-built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
-To generate new enrollment tokens for {kib} or {es} nodes, run the
-<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool.
-These tools are available in the {es} `bin` directory.
-====
-endif::[]
-
-**Install and run {kib}**
-
-To analyze, visualize, and manage {es} data using an intuitive UI, install
-{kib}.
-
-ifeval::["{release-state}"=="unreleased"]
-NOTE: No Docker image is currently available for {kib} {version}.
-endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
-
-. In a new terminal session, run:
+We recommend storing the `elastic` password as an environment variable in your shell. Example:
 +
-["source","txt",subs="attributes"]
+[source,sh]
 ----
-docker pull docker.elastic.co/kibana/kibana:{version}
-docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+export ELASTIC_PASSWORD="your_password"
 ----
 +
-When you start {kib}, a unique link is output to your terminal.
+. Copy the `http_ca.crt` SSL certificate from the container to your local machine.
++
+[source,sh]
+----
+docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
+----
++
+. Make a REST API call to {es} to ensure the {es} container is running.
++
+[source,sh]
+----
+curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
+----
+// NOTCONSOLE
 
-. To access {kib}, click the generated link in your terminal.
+*Run {kib}*
 
-  .. In your browser, paste the enrollment token that you copied and click the button to connect your {kib} instance with {es}.
+{kib} is the user interface for Elastic.
+It's great for getting started with {es} and exploring your data.  
+We'll be using the Dev Tools *Console* in {kib} to make REST API calls to {es}.
 
-  .. Log in to {kib} as the `elastic` user with the password that was generated when you started {es}.
+In a new terminal session, start {kib} and connect it to your {es} container:
 
-endif::[]
+[source,sh,subs="attributes"]
+----
+docker pull {kib-docker-image}
+docker run --name kibana --net elastic -p 5601:5601 {kib-docker-image}
+----
+
+When you start {kib}, a unique URL is output to your terminal.
+To access {kib}:
+
+. Open the generated URL in your browser.
+. Paste the enrollment token that you copied earlier, to connect your {kib} instance with {es}.
+. Log in to {kib} as the `elastic` user with the password that was generated when you started {es}.
 // end::self-managed[]

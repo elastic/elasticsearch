@@ -40,7 +40,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/autoscaling/put_autoscaling_policy";
 
     private PutAutoscalingPolicyAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -87,7 +87,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             super(in);
             this.name = in.readString();
             if (in.readBoolean()) {
-                this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
+                this.roles = in.readCollectionAsSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
             } else {
                 this.roles = null;
             }
@@ -109,7 +109,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             out.writeString(name);
             if (roles != null) {
                 out.writeBoolean(true);
-                out.writeCollection(roles, StreamOutput::writeString);
+                out.writeStringCollection(roles);
             } else {
                 out.writeBoolean(false);
             }

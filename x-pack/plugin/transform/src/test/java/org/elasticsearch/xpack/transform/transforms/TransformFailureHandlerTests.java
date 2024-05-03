@@ -50,7 +50,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void fail(String failureMessage, ActionListener<Void> listener) {
+        public void fail(Throwable exception, String failureMessage, ActionListener<Void> listener) {
             failed = true;
         }
 

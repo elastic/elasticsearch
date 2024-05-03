@@ -13,7 +13,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -34,7 +33,6 @@ import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -50,7 +48,7 @@ public abstract class GradleUtils {
     }
 
     public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
-        tasks.matching(t -> t.getName().equals(name)).configureEach(t -> config.execute(t));
+        tasks.matching(t -> t.getName().equals(name)).configureEach(config);
     }
 
     public static <T extends Task> void maybeConfigure(
@@ -59,7 +57,7 @@ public abstract class GradleUtils {
         Class<? extends T> type,
         Action<? super T> config
     ) {
-        tasks.withType(type).matching((Spec<T>) t -> t.getName().equals(name)).configureEach(task -> { config.execute(task); });
+        tasks.withType(type).matching((Spec<T>) t -> t.getName().equals(name)).configureEach(config);
     }
 
     public static TaskProvider<?> findByName(TaskContainer tasks, String name) {
@@ -183,22 +181,12 @@ public abstract class GradleUtils {
         }
     }
 
-    public static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
-        if (project.findProject(projectPath) == null) {
-            throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
-        }
-        Map<String, Object> depConfig = new HashMap<>();
-        depConfig.put("path", projectPath);
-        depConfig.put("configuration", projectConfig);
-        return project.getDependencies().project(depConfig);
-    }
-
     /**
      * To calculate the project path from a task path without relying on Task#getProject() which is discouraged during
      * task execution time.
      */
     public static String getProjectPathFromTask(String taskPath) {
-        int lastDelimiterIndex = taskPath.lastIndexOf(":");
+        int lastDelimiterIndex = taskPath.lastIndexOf(':');
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
     }
 

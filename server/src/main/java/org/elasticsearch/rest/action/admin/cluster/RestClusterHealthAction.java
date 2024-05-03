@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -21,7 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,6 +31,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterHealthAction extends BaseRestHandler {
@@ -54,7 +56,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
+            .health(clusterHealthRequest, new RestToXContentListener<>(channel, ClusterHealthResponse::status));
     }
 
     public static ClusterHealthRequest fromRequest(final RestRequest request) {
@@ -62,8 +64,12 @@ public class RestClusterHealthAction extends BaseRestHandler {
         final ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest(indices);
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
-        clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
         clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
+        if (request.hasParam("master_timeout")) {
+            clusterHealthRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        } else {
+            clusterHealthRequest.masterNodeTimeout(clusterHealthRequest.timeout());
+        }
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));

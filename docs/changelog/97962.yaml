@@ -1,6 +1,0 @@
-pr: 97962
-summary: Introduce Synonyms Management API used for synonym and synonym_graph filters
-area: Search
-type: enhancement
-issues:
-  - 38523

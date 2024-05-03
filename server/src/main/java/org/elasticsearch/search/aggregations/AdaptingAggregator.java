@@ -26,6 +26,7 @@ public abstract class AdaptingAggregator extends Aggregator {
     private final Aggregator parent;
     private final Aggregator delegate;
 
+    @SuppressWarnings("this-escape")
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,
@@ -127,10 +128,6 @@ public abstract class AdaptingAggregator extends Aggregator {
         Map<String, Object> delegateDebug = new HashMap<>();
         delegate.collectDebugInfo(delegateDebug::put);
         add.accept("delegate_debug", delegateDebug);
-    }
-
-    public Aggregator delegate() {
-        return delegate;
     }
 
     @Override

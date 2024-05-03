@@ -1,0 +1,67 @@
+// This file contains any ESQL snippets from the docs that don't have a home
+// anywhere else. The Isle of Misfit Toys. When you need to add new examples
+// for the docs you should try to convert an existing test first. Just add
+// the comments in whatever file the test already lives in. If you have to
+// write a new test to make an example in the docs then put it in whatever
+// file matches it's "theme" best. Put it next to similar tests. Not here.
+ 
+// Also! When Nik originally extracted examples from the docs to make them
+// testable he didn't spend a lot of time putting the docs into appropriate
+// files. He just made this one. He didn't put his toys away. We'd be better
+// off not adding to this strange toy-pile and instead moving things into
+// the appropriate files.
+
+enrich
+// tag::enrich[]
+ROW language_code = "1"  
+| ENRICH languages_policy
+// end::enrich[]
+;
+
+// tag::enrich-result[]
+language_code:keyword  | language_name:keyword 
+1                      | English 
+// end::enrich-result[]       
+;
+
+
+enrichOn
+// tag::enrich_on[]
+ROW a = "1"  
+| ENRICH languages_policy ON a
+// end::enrich_on[]
+;
+
+// tag::enrich_on-result[]
+a:keyword  | language_name:keyword 
+1          | English 
+// end::enrich_on-result[]       
+;
+
+
+enrichWith
+// tag::enrich_with[]
+ROW a = "1"  
+| ENRICH languages_policy ON a WITH language_name
+// end::enrich_with[]
+;
+
+// tag::enrich_with-result[]
+a:keyword  | language_name:keyword 
+1          | English 
+// end::enrich_with-result[]       
+;
+
+
+enrichRename
+// tag::enrich_rename[]
+ROW a = "1"  
+| ENRICH languages_policy ON a WITH name = language_name
+// end::enrich_rename[]
+;
+
+// tag::enrich_rename-result[]
+a:keyword  | name:keyword 
+1          | English 
+// end::enrich_rename-result[]       
+;

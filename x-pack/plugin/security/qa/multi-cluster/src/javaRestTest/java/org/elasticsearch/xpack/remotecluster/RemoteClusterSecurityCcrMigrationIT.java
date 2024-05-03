@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AnnotationTestOrdering;
 import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -162,7 +163,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
 
     // First migrate to RCS 2.0
     @Order(30)
-    public void testFollowerClusterRestartForRcs2() throws IOException {
+    public void testFollowerClusterCredentialsChangeForRcs2() throws IOException {
         // Update the ccr_user_role so that it is sufficient for both RCS 1.0 and 2.0
         final Request putRoleRequest = new Request("POST", "/_security/role/" + CCR_USER_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -202,9 +203,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
                 }
               ]
             }""");
-        keystoreSettings.put("cluster.remote.my_remote_cluster.credentials", (String) crossClusterAccessApiKey.get("encoded"));
-        queryCluster.restart(false);
-        closeClients();
+        configureRemoteClusterCredentials("my_remote_cluster", (String) crossClusterAccessApiKey.get("encoded"), keystoreSettings);
     }
 
     @Order(40)
@@ -239,7 +238,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
 
     // Second migrate back to RCS 1.0
     @Order(50)
-    public void testFollowerClusterRestartAgainForRcs1() throws IOException {
+    public void testFollowerClusterCredentialsChangeForRcs1() throws IOException {
         // Remove the RCS 2.0 remote cluster
         removeRemoteCluster();
 
@@ -266,9 +265,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         indexDocsToLeaderCluster("metrics-004", 1);
 
         // Remove remote cluster credentials to revert back to RCS 1.0
-        keystoreSettings.remove("cluster.remote.my_remote_cluster.credentials");
-        queryCluster.restart(false);
-        closeClients();
+        removeRemoteClusterCredentials("my_remote_cluster", keystoreSettings);
     }
 
     @Order(60)
@@ -363,13 +360,17 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
                 throw new AssertionError(e);
             }
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
-            assertThat(
-                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of(indices))
-            );
-        }, 30, TimeUnit.SECONDS);
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+            try {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
+                assertThat(
+                    Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
+                    equalTo(Set.of(indices))
+                );
+            } finally {
+                searchResponse.decRef();
+            }
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertFollowerInfo(String followIndexName, String leaderClusterName, String leadIndexName, String status)

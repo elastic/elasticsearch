@@ -30,7 +30,7 @@ public class GeoHashGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
     }
 
     @Override
-    protected GeoBoundingBox randomBBox() {
+    protected GeoBoundingBox randomBBox(int precision) {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
         return new GeoBoundingBox(
             new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),

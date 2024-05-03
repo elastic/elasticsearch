@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -77,11 +78,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         Index shrinkIndex = shrunkIndexMetadata.getIndex();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
@@ -121,11 +121,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         Index shrinkIndex = shrunkIndexMetadata.getIndex();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
@@ -157,11 +156,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .build();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

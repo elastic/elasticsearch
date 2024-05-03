@@ -8,6 +8,7 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -37,8 +38,8 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
 
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersion.V_8_7_0;
-    private static final TransportVersion CLUSTER_INFO_VERSION = TransportVersion.V_8_8_0;
+    private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersions.V_8_7_0;
+    private static final TransportVersion CLUSTER_INFO_VERSION = TransportVersions.V_8_8_0;
 
     private final DesiredBalanceStats stats;
     private final ClusterBalanceStats clusterBalanceStats;
@@ -76,12 +77,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         }
         out.writeMap(
             routingTable,
-            StreamOutput::writeString,
-            (shardsOut, shards) -> shardsOut.writeMap(
-                shards,
-                StreamOutput::writeVInt,
-                (desiredShardsOut, desiredShards) -> desiredShards.writeTo(desiredShardsOut)
-            )
+            (shardsOut, shards) -> shardsOut.writeMap(shards, StreamOutput::writeVInt, StreamOutput::writeWriteable)
         );
         if (out.getTransportVersion().onOrAfter(CLUSTER_INFO_VERSION)) {
             out.writeWriteable(clusterInfo);
@@ -92,10 +88,10 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             singleChunk(
-                (builder, p) -> builder.startObject(),
-                (builder, p) -> builder.field("stats", stats),
-                (builder, p) -> builder.field("cluster_balance_stats", clusterBalanceStats),
-                (builder, p) -> builder.startObject("routing_table")
+                (builder, p) -> builder.startObject()
+                    .field("stats", stats)
+                    .field("cluster_balance_stats", clusterBalanceStats)
+                    .startObject("routing_table")
             ),
             Iterators.flatMap(
                 routingTable.entrySet().iterator(),
@@ -164,26 +160,21 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     public record DesiredShards(List<ShardView> current, ShardAssignmentView desired) implements Writeable, ChunkedToXContentObject {
 
         public static DesiredShards from(StreamInput in) throws IOException {
-            return new DesiredShards(in.readList(ShardView::from), ShardAssignmentView.from(in));
+            return new DesiredShards(in.readCollectionAsList(ShardView::from), ShardAssignmentView.from(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(current);
+            out.writeCollection(current);
             desired.writeTo(out);
         }
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
-                singleChunk((builder, p) -> builder.startObject(), (builder, p) -> builder.startArray("current")),
+                singleChunk((builder, p) -> builder.startObject().startArray("current")),
                 current().iterator(),
-                singleChunk(
-                    (builder, p) -> builder.endArray(),
-                    (builder, p) -> builder.field("desired"),
-                    desired,
-                    (builder, p) -> builder.endObject()
-                )
+                singleChunk((builder, p) -> builder.endArray().field("desired").value(desired, p).endObject())
             );
         }
     }
@@ -202,9 +193,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         List<String> tierPreference
     ) implements Writeable, ToXContentObject {
 
-        private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
-        private static final TransportVersion ADD_TIER_PREFERENCE = TransportVersion.V_8_8_0;
-        private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersion.V_8_8_0;
+        private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersions.V_8_7_0;
+        private static final TransportVersion ADD_TIER_PREFERENCE = TransportVersions.V_8_8_0;
+        private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersions.V_8_8_0;
 
         public ShardView {
             assert (relocatingNode == null) == (relocatingNodeIsDesired == null)
@@ -231,7 +222,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) == false) {
                 in.readOptionalWriteable(AllocationId::new);
             }
-            List<String> tierPreference = in.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE) ? in.readStringList() : List.of();
+            List<String> tierPreference = in.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE)
+                ? in.readStringCollectionAsList()
+                : List.of();
             return new ShardView(
                 state,
                 primary,
@@ -295,7 +288,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         public static final ShardAssignmentView EMPTY = new ShardAssignmentView(Set.of(), 0, 0, 0);
 
         public static ShardAssignmentView from(StreamInput in) throws IOException {
-            final var nodeIds = in.readSet(StreamInput::readString);
+            final var nodeIds = in.readCollectionAsSet(StreamInput::readString);
             final var total = in.readVInt();
             final var unassigned = in.readVInt();
             final var ignored = in.readVInt();
@@ -308,7 +301,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(nodeIds, StreamOutput::writeString);
+            out.writeStringCollection(nodeIds);
             out.writeVInt(total);
             out.writeVInt(unassigned);
             out.writeVInt(ignored);

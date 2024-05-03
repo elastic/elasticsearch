@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
@@ -130,7 +130,9 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT),
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))

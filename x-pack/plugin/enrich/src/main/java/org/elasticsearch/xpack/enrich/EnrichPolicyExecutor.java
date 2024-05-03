@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -41,6 +42,7 @@ public class EnrichPolicyExecutor {
     public static final String TASK_ACTION = "policy_execution";
 
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final Client client;
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -54,6 +56,7 @@ public class EnrichPolicyExecutor {
     public EnrichPolicyExecutor(
         Settings settings,
         ClusterService clusterService,
+        IndicesService indicesService,
         Client client,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -61,6 +64,7 @@ public class EnrichPolicyExecutor {
         LongSupplier nowSupplier
     ) {
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.client = client;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -215,6 +219,7 @@ public class EnrichPolicyExecutor {
             task,
             listener,
             clusterService,
+            indicesService,
             client,
             indexNameExpressionResolver,
             enrichIndexName,

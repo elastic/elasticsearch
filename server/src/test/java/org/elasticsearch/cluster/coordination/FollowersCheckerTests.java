@@ -29,7 +29,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -547,7 +546,7 @@ public class FollowersCheckerTests extends ESTestCase {
             new FollowerCheckRequest(leaderTerm, leader),
             new TransportResponseHandler.Empty() {
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -636,7 +635,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(leaderTerm, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -703,7 +702,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -739,7 +738,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -828,7 +827,7 @@ public class FollowersCheckerTests extends ESTestCase {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return TransportResponseHandler.TRANSPORT_WORKER;
         }
 
@@ -839,7 +838,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
         @Override
         public void handleException(TransportException exp) {
-            throw new AssertionError("unexpected", exp);
+            fail(exp);
         }
 
         public boolean succeeded() {

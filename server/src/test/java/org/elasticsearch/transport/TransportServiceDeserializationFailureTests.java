@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -24,7 +25,6 @@ import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.List;
@@ -68,7 +68,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
 
         transportService.registerRequestHandler(
             testActionName,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             TransportRequest.Empty::new,
             (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE)
         );
@@ -90,7 +90,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -156,7 +156,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 

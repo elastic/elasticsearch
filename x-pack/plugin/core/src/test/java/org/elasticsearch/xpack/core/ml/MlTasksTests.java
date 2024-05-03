@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskP
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,7 +51,10 @@ public class MlTasksTests extends ESTestCase {
         );
         assertEquals(JobState.OPENING, MlTasks.getJobState("foo", tasksBuilder.build()));
 
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId("foo"), new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId(), null));
+        tasksBuilder.updateTaskState(
+            MlTasks.jobTaskId("foo"),
+            new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId(), null, Instant.now())
+        );
         assertEquals(JobState.OPENED, MlTasks.getJobState("foo", tasksBuilder.build()));
     }
 
@@ -327,7 +331,7 @@ public class MlTasksTests extends ESTestCase {
             new OpenJobAction.JobParams("foo-1"),
             new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
         );
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing"));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing", Instant.now()));
         tasksBuilder.addTask(
             MlTasks.jobTaskId("job-2"),
             MlTasks.JOB_TASK_NAME,
@@ -335,7 +339,7 @@ public class MlTasksTests extends ESTestCase {
             new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
         );
         if (randomBoolean()) {
-            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-2"), new JobTaskState(JobState.OPENED, 2, "testing"));
+            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-2"), new JobTaskState(JobState.OPENED, 2, "testing", Instant.now()));
         }
         tasksBuilder.addTask(
             MlTasks.jobTaskId("job-3"),
@@ -344,7 +348,7 @@ public class MlTasksTests extends ESTestCase {
             new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
         );
         if (randomBoolean()) {
-            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-3"), new JobTaskState(JobState.FAILED, 3, "testing"));
+            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-3"), new JobTaskState(JobState.FAILED, 3, "testing", Instant.now()));
         }
 
         assertThat(MlTasks.nonFailedJobTasksOnNode(tasksBuilder.build(), "node-1"), contains(hasProperty("id", equalTo("job-job-2"))));
@@ -514,7 +518,7 @@ public class MlTasksTests extends ESTestCase {
         if (state != null) {
             builder.updateTaskState(
                 MlTasks.dataFrameAnalyticsTaskId(jobId),
-                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null)
+                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null, Instant.now())
             );
         }
         PersistentTasksCustomMetadata tasks = builder.build();

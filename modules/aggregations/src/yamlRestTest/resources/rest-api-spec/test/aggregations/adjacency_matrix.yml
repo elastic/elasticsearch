@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 num:
@@ -64,18 +63,15 @@ setup:
 
 ---
 "Terms lookup":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason:  fixed in 7.9.0
-      features: node_selector
-
   - do:
       indices.create:
           index: lookup
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 num:
@@ -93,10 +89,9 @@ setup:
           { "num": [4] }
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
+        preference: hit-same-shard-copy
         body:
           size: 0
           aggs:
@@ -140,16 +135,15 @@ setup:
 
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
   # The second request should hit the cache
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
+        preference: hit-same-shard-copy
         body:
           size: 0
           aggs:
@@ -176,6 +170,6 @@ setup:
                         path: num
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }

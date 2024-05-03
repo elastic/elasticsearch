@@ -94,7 +94,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         out.writeString(jobID);
         out.writeString(rollupIndex);
         out.writeString(indexPattern);
-        out.writeMap(fieldCapLookup, StreamOutput::writeString, (o, value) -> value.writeTo(o));
+        out.writeMap(fieldCapLookup, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -211,7 +211,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             int size = in.readInt();
             List<Map<String, Object>> inAggs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                inAggs.add(in.readMap());
+                inAggs.add(in.readGenericMap());
             }
             this.aggs = Collections.unmodifiableList(inAggs);
         }

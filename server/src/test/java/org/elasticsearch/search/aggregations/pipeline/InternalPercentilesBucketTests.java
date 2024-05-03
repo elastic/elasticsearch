@@ -11,8 +11,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,7 +25,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.search.aggregations.metrics.InternalPercentilesTestCase.randomPercents;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,28 +62,12 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override
     protected void assertReduced(InternalPercentilesBucket reduced, List<InternalPercentilesBucket> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected final void assertFromXContent(InternalPercentilesBucket aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedPercentilesBucket);
-        ParsedPercentilesBucket parsedPercentiles = (ParsedPercentilesBucket) parsedAggregation;
-
-        for (Percentile percentile : aggregation) {
-            Double percent = percentile.getPercent();
-            assertEquals(aggregation.percentile(percent), parsedPercentiles.percentile(percent), 0);
-            // we cannot ensure we get the same as_string output for Double.NaN values since they are rendered as
-            // null and we don't have a formatted string representation in the rest output
-            if (Double.isNaN(aggregation.percentile(percent)) == false) {
-                assertEquals(aggregation.percentileAsString(percent), parsedPercentiles.percentileAsString(percent));
-            }
-        }
     }
 
     /**
@@ -104,10 +85,10 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             Percentile percentile = iterator.next();
             String percentileName = nameIterator.next();
 
-            assertEquals(percent, percentile.getPercent(), 0.0d);
+            assertEquals(percent, percentile.percent(), 0.0d);
             assertEquals(percent, Double.valueOf(percentileName), 0.0d);
 
-            assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
+            assertEquals(aggregation.percentile(percent), percentile.value(), 0.0d);
         }
         assertFalse(iterator.hasNext());
         assertFalse(nameIterator.hasNext());
@@ -124,16 +105,6 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             "The number of provided percents and percentiles didn't match. percents: [0.1, 0.2, 0.3], percentiles: [0.1, 0.2]",
             e.getMessage()
         );
-    }
-
-    public void testParsedAggregationIteratorOrder() throws IOException {
-        final InternalPercentilesBucket aggregation = createTestInstance();
-        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false, false);
-        Iterator<Percentile> it = aggregation.iterator();
-        Iterator<Percentile> parsedIt = parsedAggregation.iterator();
-        while (it.hasNext()) {
-            assertEquals(it.next(), parsedIt.next());
-        }
     }
 
     public void testEmptyRanksXContent() throws IOException {
@@ -184,11 +155,6 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
     }
 
     @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.endsWith(CommonFields.VALUES.getPreferredName());
-    }
-
-    @Override
     protected InternalPercentilesBucket mutateInstance(InternalPercentilesBucket instance) {
         String name = instance.getName();
         double[] percents = extractPercents(instance);
@@ -220,7 +186,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     private double[] extractPercentiles(InternalPercentilesBucket instance) {
         List<Double> values = new ArrayList<>();
-        instance.iterator().forEachRemaining(percentile -> values.add(percentile.getValue()));
+        instance.iterator().forEachRemaining(percentile -> values.add(percentile.value()));
         double[] valuesArray = new double[values.size()];
         for (int i = 0; i < values.size(); i++) {
             valuesArray[i] = values.get(i);
@@ -230,7 +196,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     private double[] extractPercents(InternalPercentilesBucket instance) {
         List<Double> percents = new ArrayList<>();
-        instance.iterator().forEachRemaining(percentile -> percents.add(percentile.getPercent()));
+        instance.iterator().forEachRemaining(percentile -> percents.add(percentile.percent()));
         double[] percentArray = new double[percents.size()];
         for (int i = 0; i < percents.size(); i++) {
             percentArray[i] = percents.get(i);

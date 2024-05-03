@@ -34,8 +34,8 @@ public class BWCTemplateTests extends ESSingleNodeTestCase {
         indicesAdmin().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
         indicesAdmin().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();
 
-        client().prepareIndex("metricbeat-foo").setId("1").setSource("message", "foo").get();
-        client().prepareIndex("packetbeat-foo").setId("1").setSource("message", "foo").get();
-        client().prepareIndex("filebeat-foo").setId("1").setSource("message", "foo").get();
+        prepareIndex("metricbeat-foo").setId("1").setSource("message", "foo").get();
+        prepareIndex("packetbeat-foo").setId("1").setSource("message", "foo").get();
+        prepareIndex("filebeat-foo").setId("1").setSource("message", "foo").get();
     }
 }

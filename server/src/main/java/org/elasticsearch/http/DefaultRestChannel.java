@@ -23,12 +23,10 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.LoggingChunkedRestResponseBody;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tracing.SpanId;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +38,7 @@ import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
  * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
  */
-public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+public class DefaultRestChannel extends AbstractRestChannel {
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -92,13 +90,12 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         // We're sending a response so we know we won't be needing the request content again and release it
         httpRequest.release();
 
-        final SpanId spanId = SpanId.forRestRequest(request);
-
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
         toClose.add(() -> tracer.stopTrace(request));
+        toClose.add(restResponse);
 
         boolean success = false;
         String opaque = null;
@@ -132,8 +129,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 httpResponse = httpRequest.createResponse(restResponse.status(), chunkedContent);
             } else {
                 final BytesReference content = restResponse.content();
-                if (content instanceof Releasable) {
-                    toClose.add((Releasable) content);
+                if (content instanceof Releasable releasable) {
+                    toClose.add(releasable);
                 }
                 toClose.add(this::releaseOutputBuffer);
 
@@ -172,9 +169,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            tracer.setAttribute(spanId, "http.status_code", restResponse.status().getStatus());
+            tracer.setAttribute(request, "http.status_code", restResponse.status().getStatus());
             restResponse.getHeaders()
-                .forEach((key, values) -> tracer.setAttribute(spanId, "http.response.headers." + key, String.join("; ", values)));
+                .forEach((key, values) -> tracer.setAttribute(request, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.releasing(Releasables.wrap(toClose));
             if (httpLogger != null) {

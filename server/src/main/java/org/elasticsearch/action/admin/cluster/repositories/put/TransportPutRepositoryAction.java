@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,6 +34,7 @@ import java.util.Set;
  */
 public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNodeAction<PutRepositoryRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/repository/put");
     private final RepositoriesService repositoriesService;
 
     @Inject
@@ -44,14 +47,14 @@ public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNod
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            PutRepositoryAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             PutRepositoryRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.repositoriesService = repositoriesService;
     }

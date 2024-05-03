@@ -13,9 +13,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -81,7 +82,13 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         Client client,
         ClusterService clusterService
     ) {
-        super(DeleteForecastAction.NAME, transportService, actionFilters, DeleteForecastAction.Request::new);
+        super(
+            DeleteForecastAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteForecastAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.clusterService = clusterService;
     }
@@ -109,7 +116,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             .query(query);
         SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).source(source);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, forecastStatsHandler);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, forecastStatsHandler);
     }
 
     static List<String> extractForecastIds(SearchHit[] forecastsToDelete, JobState jobState, String jobId) {
@@ -209,7 +216,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         return new Tuple<>(status, reason);
     }
 
-    private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
+    private static DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
         BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery()
             .must(
                 QueryBuilders.termsQuery(
@@ -242,7 +249,17 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                 );
             }
         } else {
-            listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));
+            if (e instanceof ElasticsearchException elasticsearchException) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "An error occurred while searching forecasts to delete",
+                        elasticsearchException.status(),
+                        elasticsearchException
+                    )
+                );
+            } else {
+                listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));
+            }
         }
     }
 }

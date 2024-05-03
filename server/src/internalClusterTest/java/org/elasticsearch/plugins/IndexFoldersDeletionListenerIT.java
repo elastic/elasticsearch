@@ -363,7 +363,8 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
     private static IndexFoldersDeletionListenerPlugin plugin(String nodeId) {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeId);
-        final List<IndexFoldersDeletionListenerPlugin> plugins = pluginsService.filterPlugins(IndexFoldersDeletionListenerPlugin.class);
+        final List<IndexFoldersDeletionListenerPlugin> plugins = pluginsService.filterPlugins(IndexFoldersDeletionListenerPlugin.class)
+            .toList();
         assertThat(plugins, hasSize(1));
         return plugins.get(0);
     }

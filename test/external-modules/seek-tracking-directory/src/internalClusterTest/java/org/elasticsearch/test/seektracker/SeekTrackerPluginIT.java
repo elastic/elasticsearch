@@ -41,13 +41,13 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("index"));
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            docs.add(client().prepareIndex("index").setSource("field", "term" + i % 5));
+            docs.add(prepareIndex("index").setSource("field", "term" + i % 5));
         }
         indexRandom(true, docs);
 
-        client().prepareSearch("index").setQuery(QueryBuilders.termQuery("field", "term2")).get();
+        prepareSearch("index").setQuery(QueryBuilders.termQuery("field", "term2")).get().decRef();
 
-        SeekStatsResponse response = client().execute(SeekStatsAction.INSTANCE, new SeekStatsRequest("index")).actionGet();
+        SeekStatsResponse response = client().execute(SeekTrackerPlugin.SEEK_STATS_ACTION, new SeekStatsRequest("index")).actionGet();
         List<ShardSeekStats> shardSeekStats = response.getSeekStats().get("index");
         assertThat(shardSeekStats.size(), greaterThan(0));
     }

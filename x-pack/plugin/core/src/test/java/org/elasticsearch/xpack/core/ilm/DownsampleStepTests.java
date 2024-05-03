@@ -26,8 +26,10 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
@@ -48,7 +50,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             nextStepKey,
             client,
             fixedInterval,
-            TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+            randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
         );
     }
 
@@ -65,7 +67,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             case 2 -> fixedInterval = randomValueOtherThan(instance.getFixedInterval(), ConfigTestHelpers::randomInterval);
             case 3 -> timeout = randomValueOtherThan(
                 instance.getWaitTimeout(),
-                () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+                () -> randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -96,7 +98,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        lifecycleState.setDownsampleIndexName(DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(im, step.getFixedInterval()));
+        lifecycleState.setDownsampleIndexName(generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, im, step.getFixedInterval()));
         return IndexMetadata.builder(im).putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()).build();
     }
 
@@ -105,7 +107,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         assertThat(request.getSourceIndex(), equalTo(sourceIndex));
         assertThat(
             request.getTargetIndex(),
-            equalTo(DOWNSAMPLED_INDEX_PREFIX + sourceIndex + "-" + request.getDownsampleConfig().getFixedInterval())
+            equalTo(DOWNSAMPLED_INDEX_PREFIX + request.getDownsampleConfig().getFixedInterval() + "-" + sourceIndex)
         );
     }
 
@@ -185,10 +187,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        String downsampleIndex = DownsamplePrepareLifeCycleStateStep.generateDownsampleIndexName(
-            sourceIndexMetadata,
-            step.getFixedInterval()
-        );
+        String downsampleIndex = generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexMetadata, step.getFixedInterval());
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(step.getKey().phase());
         lifecycleState.setAction(step.getKey().action());
@@ -253,7 +252,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .metadata(Metadata.builder().put(sourceIndexMetadata, true).build())
             .build();
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
@@ -267,7 +267,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             }
         }
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;

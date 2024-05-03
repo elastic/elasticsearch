@@ -21,10 +21,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -469,13 +470,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         synchronized (retentionLeasePersistenceLock) {
             retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
         }
+        return emptyIfNull(retentionLeases);
+    }
 
-        // TODO after backporting we expect this never to happen in 8.x, so adjust this to throw an exception instead.
-        assert Version.CURRENT.major <= 8 : "throw an exception instead of returning EMPTY on null";
-        if (retentionLeases == null) {
-            return RetentionLeases.EMPTY;
-        }
-        return retentionLeases;
+    @UpdateForV9
+    private static RetentionLeases emptyIfNull(RetentionLeases retentionLeases) {
+        // we expect never to see a null in 8.x, so adjust this to throw an exception from v9 onwards.
+        return retentionLeases == null ? RetentionLeases.EMPTY : retentionLeases;
     }
 
     private final Object retentionLeasePersistenceLock = new Object();
@@ -977,16 +978,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
-        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_6_0)
+        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)
             || (indexSettings.isSoftDeleteEnabled()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_4_0)
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_4_0)
                 && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
         this.useFsync = IndexModule.NODE_STORE_USE_FSYNC.get(indexSettings.getNodeSettings());
-        assert IndexVersion.ZERO.equals(indexSettings.getIndexVersionCreated()) == false;
+        assert IndexVersions.ZERO.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
 
@@ -1606,7 +1607,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(clusterStateVersion);
-            out.writeMap(checkpoints, (streamOutput, s) -> out.writeString(s), (streamOutput, cps) -> cps.writeTo(out));
+            out.writeMap(checkpoints, StreamOutput::writeWriteable);
             IndexShardRoutingTable.Builder.writeTo(routingTable, out);
         }
 

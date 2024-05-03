@@ -58,6 +58,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
+    @SuppressWarnings("this-escape")
     protected AggregatorBase(
         String name,
         AggregatorFactories factories,
@@ -141,8 +142,9 @@ public abstract class AggregatorBase extends Aggregator {
      * @return the cumulative size in bytes allocated by this aggregator to service this request
      */
     protected long addRequestCircuitBreakerBytes(long bytes) {
-        // Only use the potential to circuit break if bytes are being incremented
-        if (bytes > 0) {
+        // Only use the potential to circuit break if bytes are being incremented, In the case of 0
+        // bytes, it will trigger the parent circuit breaker.
+        if (bytes >= 0) {
             context.breaker().addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
             context.breaker().addWithoutBreaking(bytes);
@@ -266,8 +268,8 @@ public abstract class AggregatorBase extends Aggregator {
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
             subAggregatorbyName = Maps.newMapWithExpectedSize(subAggregators.length);
-            for (int i = 0; i < subAggregators.length; i++) {
-                subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
+            for (Aggregator subAggregator : subAggregators) {
+                subAggregatorbyName.put(subAggregator.name(), subAggregator);
             }
         }
         return subAggregatorbyName.get(aggName);

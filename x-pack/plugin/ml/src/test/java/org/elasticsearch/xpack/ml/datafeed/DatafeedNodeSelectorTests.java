@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,6 +56,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VAL
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -333,12 +335,22 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         assertNull(result.getExecutorNode());
         assertThat(
             result.getExplanation(),
-            equalTo(
-                "cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
-                    + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
-                    + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
-                    + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true]] "
-                    + "with exception [no such index [not_foo]]"
+            anyOf(
+                // TODO remove this first option and only allow the second once the failure store functionality is permanently switched on
+                equalTo(
+                    "cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
+                        + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
+                        + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
+                        + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true]] "
+                        + "with exception [no such index [not_foo]]"
+                ),
+                equalTo(
+                    "cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
+                        + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
+                        + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
+                        + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true, include_regular_indices=true, "
+                        + "include_failure_indices=false, allow_failure_indices=true]] with exception [no such index [not_foo]]"
+                )
             )
         );
 
@@ -355,13 +367,25 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "No node found to start datafeed [datafeed_id], allocation explanation "
-                    + "[cannot start datafeed [datafeed_id] because it failed resolving "
-                    + "indices given [not_foo] and indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, "
-                    + "expand_wildcards_open=true, expand_wildcards_closed=false, expand_wildcards_hidden=false, "
-                    + "allow_aliases_to_multiple_indices=true, forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true"
-                    + "]] with exception [no such index [not_foo]]]"
+            anyOf(
+                // TODO remove this first option and only allow the second once the failure store functionality is permanently switched on
+                containsString(
+                    "No node found to start datafeed [datafeed_id], allocation explanation "
+                        + "[cannot start datafeed [datafeed_id] because it failed resolving "
+                        + "indices given [not_foo] and indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, "
+                        + "expand_wildcards_open=true, expand_wildcards_closed=false, expand_wildcards_hidden=false, "
+                        + "allow_aliases_to_multiple_indices=true, forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true"
+                        + "]] with exception [no such index [not_foo]]]"
+                ),
+                containsString(
+                    "No node found to start datafeed [datafeed_id], allocation explanation "
+                        + "[cannot start datafeed [datafeed_id] because it failed resolving "
+                        + "indices given [not_foo] and indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, "
+                        + "expand_wildcards_open=true, expand_wildcards_closed=false, expand_wildcards_hidden=false, "
+                        + "allow_aliases_to_multiple_indices=true, forbid_closed_indices=true, ignore_aliases=false, "
+                        + "ignore_throttled=true, include_regular_indices=true, include_failure_indices=false, "
+                        + "allow_failure_indices=true]] with exception [no such index [not_foo]]]"
+                )
             )
         );
     }
@@ -441,7 +465,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
         // Set to lower allocationId, so job task is stale:
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0, null));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0, null, Instant.now()));
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
@@ -521,13 +545,24 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "No node found to start datafeed [datafeed_id], allocation explanation "
-                    + "[cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
-                    + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
-                    + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
-                    + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true]] "
-                    + "with exception [no such index [not_foo]]]"
+            anyOf(
+                // TODO remove this first option and only allow the second once the failure store functionality is permanently switched on
+                containsString(
+                    "No node found to start datafeed [datafeed_id], allocation explanation "
+                        + "[cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
+                        + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
+                        + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
+                        + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true]] "
+                        + "with exception [no such index [not_foo]]]"
+                ),
+                containsString(
+                    "No node found to start datafeed [datafeed_id], allocation explanation "
+                        + "[cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and "
+                        + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
+                        + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
+                        + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true, include_regular_indices=true, "
+                        + "include_failure_indices=false, allow_failure_indices=true]] with exception [no such index [not_foo]]]"
+                )
             )
         );
     }

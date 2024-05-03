@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
@@ -37,8 +38,8 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String snapLifecycleId = request.param("name");
         ExecuteSnapshotLifecycleAction.Request req = new ExecuteSnapshotLifecycleAction.Request(snapLifecycleId);
-        req.timeout(request.paramAsTime("timeout", req.timeout()));
-        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
+        req.ackTimeout(request.paramAsTime("timeout", req.ackTimeout()));
+        req.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.execute(ExecuteSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

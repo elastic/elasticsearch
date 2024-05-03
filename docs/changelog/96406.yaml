@@ -1,5 +1,0 @@
-pr: 96406
-summary: Fix tchar pattern in `RestRequest`
-area: Infra/REST API
-type: bug
-issues: []

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -310,7 +310,7 @@ public class TransformNodesTests extends ESTestCase {
     private static DiscoveryNode newDiscoveryNode(String id, TransformConfigVersion version, DiscoveryNodeRole... roles) {
         return DiscoveryNodeUtils.builder(id)
             .roles(Set.of(roles))
-            .version(Version.CURRENT)
+            .version(VersionInformation.CURRENT)
             .attributes(Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, version.toString()))
             .build();
     }

@@ -9,8 +9,8 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -207,13 +208,16 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         );
     }
 
+    // TODO[wrb]: add test where we have the old mappings version but not the new one
+    // Is this where we "placeholder" a "distant future" version string?
+
     /**
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0")))),
+                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -239,7 +243,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null)))),
+                markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null, null)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -253,9 +257,9 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
 
-        manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0"))))));
+        manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4))))));
 
-        verify(client, times(1)).execute(any(PutMappingAction.class), any(PutMappingRequest.class), any());
+        verify(client, times(1)).execute(same(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), any());
     }
 
     /**
@@ -405,13 +409,13 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     private static XContentBuilder getMappings() {
-        return getMappings(Version.CURRENT.toString());
+        return getMappings(Version.CURRENT.toString(), 6);
     }
 
-    private static XContentBuilder getMappings(String version) {
+    private static XContentBuilder getMappings(String nodeVersion, Integer mappingsVersion) {
         return getMappings(builder -> builder.object("_meta", meta -> {
-            meta.field("version", version);
-            meta.field(SystemIndexDescriptor.VERSION_META_KEY, 5);
+            meta.field("version", nodeVersion);
+            meta.field(SystemIndexDescriptor.VERSION_META_KEY, mappingsVersion);
         }));
     }
 

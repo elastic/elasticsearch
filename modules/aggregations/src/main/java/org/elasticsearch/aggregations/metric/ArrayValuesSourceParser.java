@@ -169,7 +169,7 @@ public abstract class ArrayValuesSourceParser implements Aggregator.Parser {
         return factory;
     }
 
-    private void parseMissingAndAdd(
+    private static void parseMissingAndAdd(
         final String aggregationName,
         final String currentFieldName,
         XContentParser parser,

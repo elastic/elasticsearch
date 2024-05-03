@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -24,10 +22,4 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("internalClusterTest").configure {
-    systemProperty 'es.dlm_feature_flag_enabled', 'true'
-  }
-}
 

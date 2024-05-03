@@ -100,15 +100,18 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
 
         SearchResponse response = searchWatchRecords(b -> QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"));
-
-        assertNoFailures(response);
-        XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
-        String body = source.getValue("result.actions.0.webhook.response.body");
-        assertThat(body, notNullValue());
-        assertThat(body, is("body"));
-        Number status = source.getValue("result.actions.0.webhook.response.status");
-        assertThat(status, notNullValue());
-        assertThat(status.intValue(), is(200));
+        try {
+            assertNoFailures(response);
+            XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
+            String body = source.getValue("result.actions.0.webhook.response.body");
+            assertThat(body, notNullValue());
+            assertThat(body, is("body"));
+            Number status = source.getValue("result.actions.0.webhook.response.status");
+            assertThat(status, notNullValue());
+            assertThat(status.intValue(), is(200));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testWebhookWithBasicAuth() throws Exception {

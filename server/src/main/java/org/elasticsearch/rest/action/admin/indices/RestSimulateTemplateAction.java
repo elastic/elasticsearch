@@ -9,10 +9,9 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.post.SimulateTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -23,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateTemplateAction extends BaseRestHandler {
@@ -40,20 +40,20 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SimulateTemplateAction.Request simulateRequest = new SimulateTemplateAction.Request();
         simulateRequest.templateName(request.param("name"));
-        if (DataStreamLifecycle.isFeatureEnabled()) {
-            simulateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        }
+        simulateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         if (request.hasContent()) {
-            PutComposableIndexTemplateAction.Request indexTemplateRequest = new PutComposableIndexTemplateAction.Request(
+            TransportPutComposableIndexTemplateAction.Request indexTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(
                 "simulating_template"
             );
-            indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
+            try (var parser = request.contentParser()) {
+                indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+            }
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));
 
             simulateRequest.indexTemplateRequest(indexTemplateRequest);
         }
-        simulateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", simulateRequest.masterNodeTimeout()));
+        simulateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.execute(SimulateTemplateAction.INSTANCE, simulateRequest, new RestToXContentListener<>(channel));
     }

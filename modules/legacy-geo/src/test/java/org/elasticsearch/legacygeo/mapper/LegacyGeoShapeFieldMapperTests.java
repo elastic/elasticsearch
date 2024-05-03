@@ -21,6 +21,7 @@ import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -60,6 +61,12 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testSupportsParsingObject() throws IOException {
+        super.testSupportsParsingObject();
+        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape").field("strategy", "recursive");
     }
@@ -67,6 +74,12 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsStoredFields() {
         return false;
+    }
+
+    @Override
+    public void testTotalFieldsCount() throws IOException {
+        super.testTotalFieldsCount();
+        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
     }
 
     @Override
@@ -109,7 +122,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
+        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
     }
 
     public void testLegacySwitches() throws IOException {

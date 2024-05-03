@@ -74,7 +74,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         createSourceIndices(client(), instance2);
         ResourceAlreadyExistsException exc = expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2)).actionGet()
+            client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2))
         );
         assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));
     }

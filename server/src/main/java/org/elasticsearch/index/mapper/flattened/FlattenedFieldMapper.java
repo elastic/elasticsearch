@@ -113,10 +113,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public static final int DEPTH_LIMIT = 20;
     }
 
-    private static FlattenedFieldMapper toType(FieldMapper in) {
-        return (FlattenedFieldMapper) in;
-    }
-
     private static Builder builder(Mapper in) {
         return ((FlattenedFieldMapper) in).builder;
     }
@@ -206,14 +202,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public FlattenedFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [fields]");
             }
-            CopyTo copyTo = this.copyTo.build();
             if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),
@@ -221,7 +216,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals.get(),
                 dimensions.get()
             );
-            return new FlattenedFieldMapper(name, ft, this);
+            return new FlattenedFieldMapper(name(), ft, this);
         }
     }
 
@@ -235,6 +230,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final String key;
         private final String rootName;
         private final boolean isDimension;
+
+        @Override
+        public boolean isDimension() {
+            return isDimension;
+        }
 
         KeyedFlattenedFieldType(
             String rootName,
@@ -283,24 +283,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
-        }
-
-        @Override
-        public void validateMatchedRoutingPath(final String routingPath) {
-            if (false == isDimension) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path "
-                        + "must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + this.rootName
-                        + "."
-                        + this.key
-                        + "] was ["
-                        + typeName()
-                        + "]."
-                );
-            }
         }
 
         @Override
@@ -742,17 +724,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public void validateMatchedRoutingPath(final String routingPath) {
-            if (false == isDimension && this.dimensions.contains(routingPath) == false) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path "
-                        + "must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + name()
-                        + "] was ["
-                        + typeName()
-                        + "]."
-                );
+            if (this.dimensions.contains(routingPath) == false) {
+                super.validateMatchedRoutingPath(routingPath);
             }
         }
     }
@@ -794,6 +767,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     public RootFlattenedFieldType fieldType() {
         return (RootFlattenedFieldType) super.fieldType();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override

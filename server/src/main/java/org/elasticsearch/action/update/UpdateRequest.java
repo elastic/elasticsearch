@@ -9,7 +9,7 @@
 package org.elasticsearch.action.update;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -57,7 +57,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
 
-    private static ObjectParser<UpdateRequest, Void> PARSER;
+    private static final ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
     private static final ParseField SCRIPTED_UPSERT_FIELD = new ParseField("scripted_upsert");
@@ -136,7 +136,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
         }
@@ -159,7 +159,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
@@ -182,6 +182,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
 
         if (ifSeqNo != UNASSIGNED_SEQ_NO) {
             if (retryOnConflict > 0) {
@@ -703,6 +705,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(BytesReference source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
+        return this;
+    }
+
+    /**
      * Sets the index request to be used if the document does not exists. Otherwise, a
      * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */
@@ -832,6 +842,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
+    public boolean isRequireDataStream() {
+        // Always false because data streams cannot accept update operations
+        return false;
+    }
+
+    @Override
     public void process(IndexRouting indexRouting) {
         // Nothing to do
     }
@@ -860,7 +876,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private void doWrite(StreamOutput out, boolean thin) throws IOException {
         waitForActiveShards.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);
@@ -905,7 +921,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
     }

@@ -52,26 +52,26 @@ public class ClusterSettingsUpdateWithFaultyMasterIT extends ESIntegTestCase {
         );
         internalCluster().setDisruptionScheme(networkDisruption);
 
-        logger.debug("--> updating cluster settings");
+        logger.info("--> updating cluster settings");
         var future = client(masterNode).admin()
             .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(BlockingClusterSettingTestPlugin.TEST_BLOCKING_SETTING.getKey(), true).build())
-            .setMasterNodeTimeout(TimeValue.timeValueMillis(10L))
+            .setMasterNodeTimeout(TimeValue.timeValueMillis(100L))
             .execute();
 
-        logger.debug("--> waiting for cluster state update to be blocked");
-        BlockingClusterSettingTestPlugin.blockLatch.await();
+        logger.info("--> waiting for cluster state update to be blocked");
+        safeAwait(BlockingClusterSettingTestPlugin.blockLatch);
 
-        logger.debug("--> isolating master eligible node [{}] from other nodes", blockedNode);
+        logger.info("--> isolating master eligible node [{}] from other nodes", blockedNode);
         networkDisruption.startDisrupting();
 
-        logger.debug("--> unblocking cluster state update");
+        logger.info("--> unblocking cluster state update");
         BlockingClusterSettingTestPlugin.releaseLatch.countDown();
 
         assertThat("--> cluster settings update should not be acknowledged", future.get().isAcknowledged(), equalTo(false));
 
-        logger.debug("--> stop network disruption");
+        logger.info("--> stop network disruption");
         networkDisruption.stopDisrupting();
         ensureStableCluster(3);
     }
@@ -86,16 +86,13 @@ public class ClusterSettingsUpdateWithFaultyMasterIT extends ESIntegTestCase {
 
         public static final Setting<Boolean> TEST_BLOCKING_SETTING = Setting.boolSetting("cluster.test.blocking_setting", false, value -> {
             if (blockOnce.compareAndSet(false, true)) {
-                logger.debug("--> setting validation is now blocking cluster state update");
+                logger.info("--> setting validation is now blocking cluster state update");
                 blockLatch.countDown();
-                try {
-                    logger.debug("--> setting validation is now waiting for release");
-                    releaseLatch.await();
-                    logger.debug("--> setting validation is done");
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
+                logger.info("--> setting validation is now waiting for release");
+                safeAwait(releaseLatch);
+                logger.info("--> setting validation is done");
+            } else {
+                logger.info("--> setting validation was blocked before");
             }
         }, Setting.Property.NodeScope, Setting.Property.Dynamic);
 

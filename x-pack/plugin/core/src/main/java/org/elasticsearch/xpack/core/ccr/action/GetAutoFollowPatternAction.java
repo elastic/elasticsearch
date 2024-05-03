@@ -27,7 +27,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
     public static final GetAutoFollowPatternAction INSTANCE = new GetAutoFollowPatternAction();
 
     private GetAutoFollowPatternAction() {
-        super(NAME, GetAutoFollowPatternAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -93,7 +93,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(autoFollowPatterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(autoFollowPatterns, StreamOutput::writeWriteable);
         }
 
         @Override

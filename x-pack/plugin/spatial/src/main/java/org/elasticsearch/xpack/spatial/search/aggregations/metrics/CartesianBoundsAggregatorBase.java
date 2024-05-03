@@ -29,6 +29,7 @@ public abstract class CartesianBoundsAggregatorBase extends MetricsAggregator {
     private DoubleArray lefts;
     private DoubleArray rights;
 
+    @SuppressWarnings("this-escape")
     public CartesianBoundsAggregatorBase(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
         throws IOException {
         super(name, context, parent, metadata);

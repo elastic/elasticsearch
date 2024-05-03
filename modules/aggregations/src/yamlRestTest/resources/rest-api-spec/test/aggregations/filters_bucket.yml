@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -139,8 +137,8 @@ setup:
 
 ---
 "named filters with bucket sort test":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: introduced in 8.8.0
   - do:
       search:
@@ -290,8 +288,8 @@ setup:
 
 ---
 no meta:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Fixed in 8.5"
 
   - do:
@@ -317,8 +315,8 @@ no meta:
 
 ---
 empty meta:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Fixed in 8.5"
 
   - do:
@@ -344,8 +342,8 @@ empty meta:
 
 ---
 null meta:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Fixed in 8.5"
 
   - do:
@@ -367,8 +365,8 @@ null meta:
 
 ---
 "Bad params":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: "empty bodies throws exception starting in 7.2"
   - do:
       catch: /\[filters\] cannot be empty/
@@ -392,10 +390,9 @@ null meta:
 
 ---
 "cache busting":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason:  cache fixed in 7.11.0
-      features: node_selector
 
   - do:
       bulk:
@@ -409,8 +406,6 @@ null meta:
             string_field: foo bar
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test_1
         body:
@@ -442,8 +437,6 @@ null meta:
 
   # This should be entirely fresh because updating the mapping busted the cache.
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test_1
         body:
@@ -465,8 +458,8 @@ null meta:
 
 ---
 nested:
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason:  fixed in 7.11.0
 
   # Tests that we don't accidentally match nested documents when the filter
@@ -475,8 +468,6 @@ nested:
       indices.create:
           index: test_nested
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 i:
@@ -516,16 +507,12 @@ nested:
 
 ---
 "cache hits":
-  - skip:
-      features: node_selector
-
   - do:
       indices.create:
           index: test
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 mentions:
@@ -544,12 +531,11 @@ nested:
           {"mentions" : ["abc"]}
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         index: test
         body:
           aggs:
@@ -578,17 +564,16 @@ nested:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         index: test
         body:
           aggs:
@@ -617,6 +602,6 @@ nested:
   # The second result with hit the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }

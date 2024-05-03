@@ -15,6 +15,6 @@ public class GetIndexTemplatesAction extends ActionType<GetIndexTemplatesRespons
     public static final String NAME = "indices:admin/template/get";
 
     protected GetIndexTemplatesAction() {
-        super(NAME, GetIndexTemplatesResponse::new);
+        super(NAME);
     }
 }

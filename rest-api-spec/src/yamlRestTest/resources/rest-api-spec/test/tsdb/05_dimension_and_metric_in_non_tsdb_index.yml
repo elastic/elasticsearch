@@ -1,6 +1,13 @@
-add time series mappings:
+---
+setup:
   - skip:
-      version: " - 7.15.99"
+      version: "8.7.00 - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
+---
+add time series mappings:
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: introduced in 7.16.0
 
   - do:
@@ -49,8 +56,8 @@ add time series mappings:
 
 ---
 can't shadow dimensions:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -114,8 +121,8 @@ can't shadow dimensions:
 
 ---
 can't shadow metrics:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -179,8 +186,8 @@ can't shadow metrics:
 ---
 # Test that _tsid field is not added if an index is not a time-series index
 no _tsid in standard indices:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: time series params only on time series indices introduced in 8.5.0
 
   - do:
@@ -210,8 +217,8 @@ no _tsid in standard indices:
 
 ---
 no nested dimensions:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   - do:

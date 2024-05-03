@@ -26,7 +26,7 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     public DeletePrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        this.found = in.readImmutableSet(StreamInput::readString);
+        this.found = in.readCollectionAsImmutableSet(StreamInput::readString);
     }
 
     public DeletePrivilegesResponse(Collection<String> found) {
@@ -45,7 +45,7 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(found, StreamOutput::writeString);
+        out.writeStringCollection(found);
     }
 
 }

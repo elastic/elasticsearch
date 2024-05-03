@@ -16,6 +16,7 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.junit.Before;
 
@@ -34,7 +35,7 @@ public class RestUpdateApiKeyActionTests extends RestActionTestCase {
         final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         requestHolder = new AtomicReference<>();
-        restAction = new RestUpdateApiKeyAction(settings, licenseState);
+        restAction = new RestUpdateApiKeyAction(settings, licenseState, new UpdateApiKeyRequestTranslator.Default());
         controller().registerHandler(restAction);
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(UpdateApiKeyRequest.class));

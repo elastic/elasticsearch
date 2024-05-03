@@ -24,9 +24,9 @@ import java.util.Map;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class BucketSelectorPipelineAggregator extends PipelineAggregator {
-    private GapPolicy gapPolicy;
-    private Script script;
-    private Map<String, String> bucketsPathsMap;
+    private final GapPolicy gapPolicy;
+    private final Script script;
+    private final Map<String, String> bucketsPathsMap;
 
     BucketSelectorPipelineAggregator(
         String name,

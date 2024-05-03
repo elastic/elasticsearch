@@ -11,20 +11,18 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexFieldTypeTests extends ESTestCase {
+public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
 
     public void testPrefixQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
@@ -52,6 +50,11 @@ public class IndexFieldTypeTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
 
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return IndexFieldMapper.IndexFieldType.INSTANCE;
+    }
+
     private SearchExecutionContext createContext() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -65,7 +68,6 @@ public class IndexFieldTypeTests extends ESTestCase {
             0,
             0,
             indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,

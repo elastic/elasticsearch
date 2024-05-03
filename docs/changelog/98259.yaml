@@ -1,6 +1,0 @@
-pr: 98259
-summary: Support getting active-only API keys via Get API keys API
-area: Security
-type: enhancement
-issues:
- - 97995

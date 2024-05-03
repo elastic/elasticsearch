@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -19,15 +20,15 @@ import java.util.function.Predicate;
 public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEmbeddingConfig> {
 
     public static TextEmbeddingConfig mutateForVersion(TextEmbeddingConfig instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_8_0)) {
-            return new TextEmbeddingConfig(
+        if (version.before(TransportVersions.V_8_8_0)) {
+            return TextEmbeddingConfig.create(
                 instance.getVocabularyConfig(),
                 InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
                 instance.getResultsField(),
                 null
             );
         } else {
-            return new TextEmbeddingConfig(
+            return TextEmbeddingConfig.create(
                 instance.getVocabularyConfig(),
                 InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
                 instance.getResultsField(),
@@ -74,17 +75,17 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
     public void testInvariants() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> new TextEmbeddingConfig(null, BertTokenizationTests.createRandom(), null, 0)
+            () -> TextEmbeddingConfig.create(null, BertTokenizationTests.createRandom(), null, 0)
         );
         assertEquals("[embedding_size] must be a number greater than 0; configured size [0]", e.getMessage());
 
         var invalidTokenization = new BertTokenization(true, true, 512, Tokenization.Truncate.NONE, 128);
-        e = expectThrows(ElasticsearchStatusException.class, () -> new TextEmbeddingConfig(null, invalidTokenization, null, 200));
+        e = expectThrows(ElasticsearchStatusException.class, () -> TextEmbeddingConfig.create(null, invalidTokenization, null, 200));
         assertEquals("[text_embedding] does not support windowing long text sequences; configured span [128]", e.getMessage());
     }
 
     public static TextEmbeddingConfig createRandom() {
-        return new TextEmbeddingConfig(
+        return TextEmbeddingConfig.create(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean()
                 ? null

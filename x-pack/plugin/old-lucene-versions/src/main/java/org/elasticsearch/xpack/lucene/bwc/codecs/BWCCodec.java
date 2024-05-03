@@ -109,7 +109,8 @@ public abstract class BWCCodec extends Codec {
                     0,
                     fieldInfo.getVectorEncoding(),
                     fieldInfo.getVectorSimilarityFunction(),
-                    fieldInfo.isSoftDeletesField()
+                    fieldInfo.isSoftDeletesField(),
+                    fieldInfo.isParentField()
                 )
             );
         }
@@ -130,6 +131,7 @@ public abstract class BWCCodec extends Codec {
             segmentInfo.name,
             segmentInfo.maxDoc(),
             segmentInfo.getUseCompoundFile(),
+            segmentInfo.getHasBlocks(),
             codec,
             segmentInfo.getDiagnostics(),
             segmentInfo.getId(),

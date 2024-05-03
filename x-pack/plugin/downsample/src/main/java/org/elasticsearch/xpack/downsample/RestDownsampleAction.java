@@ -35,7 +35,10 @@ public class RestDownsampleAction extends BaseRestHandler {
         String sourceIndex = restRequest.param("index");
         String targetIndex = restRequest.param("target_index");
         String timeout = restRequest.param("timeout");
-        DownsampleConfig config = DownsampleConfig.fromXContent(restRequest.contentParser());
+        DownsampleConfig config;
+        try (var parser = restRequest.contentParser()) {
+            config = DownsampleConfig.fromXContent(parser);
+        }
         DownsampleAction.Request request = new DownsampleAction.Request(
             sourceIndex,
             targetIndex,

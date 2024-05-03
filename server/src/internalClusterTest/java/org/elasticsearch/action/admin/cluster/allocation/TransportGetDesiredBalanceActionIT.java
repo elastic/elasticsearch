@@ -40,7 +40,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
+        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
             .get();
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
@@ -75,7 +75,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
+        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
             .get();
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());

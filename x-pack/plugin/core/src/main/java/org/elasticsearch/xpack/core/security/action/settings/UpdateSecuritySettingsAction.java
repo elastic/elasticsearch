@@ -45,7 +45,7 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
     );
 
     public UpdateSecuritySettingsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -78,9 +78,9 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
         }
 
         public Request(StreamInput in) throws IOException {
-            this.mainIndexSettings = in.readMap();
-            this.tokensIndexSettings = in.readMap();
-            this.profilesIndexSettings = in.readMap();
+            this.mainIndexSettings = in.readGenericMap();
+            this.tokensIndexSettings = in.readGenericMap();
+            this.profilesIndexSettings = in.readGenericMap();
         }
 
         @Override

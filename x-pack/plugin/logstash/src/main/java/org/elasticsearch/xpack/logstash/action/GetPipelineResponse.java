@@ -38,7 +38,7 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(pipelines, StreamOutput::writeString, StreamOutput::writeBytesReference);
+        out.writeMap(pipelines, StreamOutput::writeBytesReference);
     }
 
     @Override

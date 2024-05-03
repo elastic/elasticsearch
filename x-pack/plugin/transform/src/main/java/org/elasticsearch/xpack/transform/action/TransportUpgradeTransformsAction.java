@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Req
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransformUpdater.UpdateResult;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -44,7 +46,7 @@ import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 
 public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<Request, Response> {
@@ -56,6 +58,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     private final Settings settings;
     private final Client client;
     private final TransformAuditor auditor;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportUpgradeTransformsAction(
@@ -66,7 +69,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         Client client,
-        Settings settings
+        Settings settings,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             UpgradeTransformsAction.NAME,
@@ -77,7 +81,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transformConfigManager = transformServices.getConfigManager();
         this.settings = settings;
@@ -88,6 +92,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -103,7 +108,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), request.timeout(), ActionListener.wrap(updatesByStatus -> {
+        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), request.ackTimeout(), ActionListener.wrap(updatesByStatus -> {
             final long updated = updatesByStatus.getOrDefault(UpdateResult.Status.UPDATED, 0L);
             final long noAction = updatesByStatus.getOrDefault(UpdateResult.Status.NONE, 0L);
             final long needsUpdate = updatesByStatus.getOrDefault(UpdateResult.Status.NEEDS_UPDATE, 0L);
@@ -163,6 +168,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 dryRun,
                 false, // check access,
                 timeout,
+                destIndexSettings,
                 listener
             );
         }, failure -> {
@@ -193,7 +199,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         updateOneTransform(next, dryRun, timeout, ActionListener.wrap(updateResponse -> {
             if (UpdateResult.Status.DELETED.equals(updateResponse.getStatus()) == false) {
                 auditor.info(next, "Updated transform.");
-                logger.debug("[{}] Updated transform [{}]", next, updateResponse.getStatus());
+                logger.info("[{}] Updated transform [{}]", next, updateResponse.getStatus());
                 updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
             }
             if (transformsToUpgrade.isEmpty() == false) {
@@ -217,7 +223,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 return;
             }
 
-            Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
+            Map<UpdateResult.Status, Long> updatesByStatus = new EnumMap<>(UpdateResult.Status.class);
             updatesByStatus.put(UpdateResult.Status.NONE, totalAndIds.v1() - totalAndIds.v2().size());
 
             Deque<String> ids = new ArrayDeque<>(totalAndIds.v2());

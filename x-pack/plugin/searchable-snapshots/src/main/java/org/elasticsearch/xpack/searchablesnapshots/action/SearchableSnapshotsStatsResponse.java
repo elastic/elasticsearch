@@ -30,12 +30,12 @@ import static java.util.stream.Collectors.toList;
 
 public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
-    private List<SearchableSnapshotShardStats> stats;
+    private final List<SearchableSnapshotShardStats> stats;
     private volatile List<CacheIndexInputStats> total;
 
     SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {
         super(in);
-        this.stats = in.readList(SearchableSnapshotShardStats::new);
+        this.stats = in.readCollectionAsList(SearchableSnapshotShardStats::new);
     }
 
     SearchableSnapshotsStatsResponse(
@@ -73,7 +73,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(stats);
+        out.writeCollection(stats);
     }
 
     @Override

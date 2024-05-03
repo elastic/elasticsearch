@@ -27,7 +27,7 @@ tasks.withType(Test).configureEach {
   doFirst {
     delete(repoDir)
   }
-  systemProperty 'tests.path.repo', repoDir
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
@@ -37,6 +37,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   // This project tests that enterprise licensing is enforced,
   // therefore we use a basic license
   setting 'xpack.license.self_generated.type', 'basic'
-  setting 'path.repo', repoDir.absolutePath
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
   setting 'xpack.security.enabled', 'false'
 }

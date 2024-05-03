@@ -60,26 +60,24 @@ public class ArrayUtils {
     /**
      * Concatenates 2 arrays
      */
-    public static String[] concat(String[] one, String[] other) {
-        return concat(one, other, String.class);
-    }
-
-    /**
-     * Concatenates 2 arrays
-     */
-    public static <T> T[] concat(T[] one, T[] other, Class<T> clazz) {
+    public static <T> T[] concat(T[] one, T[] other) {
         @SuppressWarnings("unchecked")
-        T[] target = (T[]) Array.newInstance(clazz, one.length + other.length);
+        T[] target = (T[]) Array.newInstance(other.getClass().componentType(), one.length + other.length);
         System.arraycopy(one, 0, target, 0, one.length);
         System.arraycopy(other, 0, target, one.length, other.length);
         return target;
     }
 
     /**
-     * Concat a string to a string array.
+     * Copy the given array and the added element into a new array of size {@code array.length + 1}.
+     * @param array array to copy to the beginning of new returned array copy
+     * @param added last element in the newly created array
+     * @return copy that contains array and added element
+     * @param <T> type of the array elements
      */
-    public static String[] append(String[] array, String added) {
-        final String[] updated = new String[array.length + 1];
+    public static <T> T[] append(T[] array, T added) {
+        @SuppressWarnings("unchecked")
+        final T[] updated = (T[]) Array.newInstance(added.getClass(), array.length + 1);
         System.arraycopy(array, 0, updated, 0, array.length);
         updated[array.length] = added;
         return updated;

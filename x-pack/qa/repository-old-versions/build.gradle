@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.transform.UnzipTransform
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -25,7 +26,6 @@ configurations {
 
 dependencies {
   oldesFixture project(':test:fixtures:old-elasticsearch')
-  testImplementation project(':client:rest-high-level')
 }
 
 jdks {
@@ -86,7 +86,7 @@ if (OS.current() == OS.WINDOWS) {
       numberOfNodes = 2
       versions = [project.version, project.version] // to test full cluster restart
 
-      setting 'path.repo', repoLocation
+      setting 'path.repo', repoLocation, IGNORE_VALUE
       setting 'xpack.license.self_generated.type', 'trial'
 
       setting 'xpack.security.enabled', 'true'
@@ -151,7 +151,7 @@ if (OS.current() == OS.WINDOWS) {
     }
 
     tasks.matching { it.name.startsWith("javaRestTest") && it.name.endsWith(versionNoDots) }.configureEach {
-      it.systemProperty "tests.repo.location", repoLocation
+      it.nonInputProperties.systemProperty "tests.repo.location", repoLocation
       it.systemProperty "tests.es.version", version.toString()
 
       /* Use a closure on the string to delay evaluation until right before we

@@ -55,12 +55,12 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -520,25 +520,26 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         stateBuilder.metadata(metaBuilder);
         ClusterState clusterState = stateBuilder.build();
 
-        Set<ShardRouting> shards = IntStream.range(0, between(1, 10))
+        var shards = IntStream.range(0, between(1, 10))
             .mapToObj(i -> Tuple.tuple(new ShardId(indexMetadata.getIndex(), randomInt(10)), randomBoolean()))
             .distinct()
             .map(t -> TestShardRouting.newShardRouting(t.v1(), nodeId, t.v2(), ShardRoutingState.STARTED))
-            .collect(Collectors.toSet());
+            .toList();
 
         long minShardSize = randomLongBetween(1, 10);
 
-        Map<String, DiskUsage> diskUsages = new HashMap<>();
-        diskUsages.put(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
-        Map<String, Long> shardSize = new HashMap<>();
         ShardRouting missingShard = randomBoolean() ? randomFrom(shards) : null;
-        Collection<ShardRouting> shardsWithSizes = shards.stream().filter(s -> s != missingShard).collect(Collectors.toSet());
-        for (ShardRouting shard : shardsWithSizes) {
-            shardSize.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
+        Map<String, Long> shardSize = new HashMap<>();
+        for (ShardRouting shard : shards) {
+            if (shard != missingShard) {
+                shardSize.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
+            }
         }
-        if (shardsWithSizes.isEmpty() == false) {
-            shardSize.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
+        if (shardSize.isEmpty() == false) {
+            shardSize.put(randomFrom(shardSize.keySet()), ByteSizeUnit.KB.toBytes(minShardSize));
         }
+
+        var diskUsages = Map.of(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
         ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, Map.of(), Map.of(), Map.of());
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
@@ -553,11 +554,12 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
-        if (missingShard != null
-            && (missingShard.primary()
-                || clusterState.getRoutingNodes().activePrimary(missingShard.shardId()) == null
-                || info.getShardSize(clusterState.getRoutingNodes().activePrimary(missingShard.shardId())) == null)
-            || minShardSize < 5) {
+
+        Predicate<ShardRouting> shardSizeKnown = shard -> shard.primary()
+            ? info.getShardSize(shard.shardId(), true) != null
+            : info.getShardSize(shard.shardId(), true) != null || info.getShardSize(shard.shardId(), false) != null;
+
+        if ((missingShard != null && shardSizeKnown.test(missingShard) == false) || minShardSize < 5) {
             // the diff between used and high watermark is 5 KB.
             assertThat(result, equalTo(ByteSizeUnit.KB.toBytes(5)));
         } else {

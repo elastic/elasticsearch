@@ -1,5 +1,0 @@
-pr: 98206
-summary: Detect infinite loop in the WordPiece tokenizer
-area: Machine Learning
-type: bug
-issues: []

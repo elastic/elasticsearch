@@ -87,14 +87,15 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(IndexOptions.DOCS);
+            ft.setDocValuesType(DocValuesType.SORTED_SET);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
         public static TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
@@ -136,7 +137,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -160,7 +161,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
-        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
+        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
+            m -> toType(m).fieldType().getTextSearchInfo().similarity()
+        );
 
         private final Parameter<String> normalizer;
 
@@ -224,6 +227,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public boolean hasNormalizer() {
+            return this.normalizer.get() != null;
+        }
+
         Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
             return this;
@@ -234,9 +241,27 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public boolean hasDocValues() {
+            return this.hasDocValues.get();
+        }
+
         public Builder dimension(boolean dimension) {
             this.dimension.setValue(dimension);
             return this;
+        }
+
+        public Builder indexed(boolean indexed) {
+            this.indexed.setValue(indexed);
+            return this;
+        }
+
+        public Builder stored(boolean stored) {
+            this.stored.setValue(stored);
+            return this;
+        }
+
+        public boolean isStored() {
+            return this.stored.get();
         }
 
         private FieldValues<String> scriptValues() {
@@ -246,7 +271,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -286,7 +311,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         );
                         normalizer = Lucene.KEYWORD_ANALYZER;
                     } else {
-                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name() + "]");
                     }
                 }
                 searchAnalyzer = quoteAnalyzer = normalizer;
@@ -296,8 +321,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
+            if (inheritDimensionParameterFromParentObject(context)) {
+                dimension(true);
+            }
             return new KeywordFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 fieldType,
                 normalizer,
                 searchAnalyzer,
@@ -319,11 +347,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldtype = Defaults.FIELD_TYPE;
             }
             return new KeywordFieldMapper(
-                name,
+                name(),
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 context.isSourceSynthetic(),
                 this
             );
@@ -575,6 +603,35 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            }
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+            }
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
+            if (getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
+            }
+            if (isIndexed() || isStored()) {
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            }
+            return BlockSourceReader.lookupMatchingAll();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 
@@ -771,35 +828,18 @@ public final class KeywordFieldMapper extends FieldMapper {
             return ignoreAbove;
         }
 
-        /**
-         * @return true if field has been marked as a dimension field
-         */
         @Override
         public boolean isDimension() {
             return isDimension;
         }
 
         @Override
-        public void validateMatchedRoutingPath(final String routingPath) {
-            if (false == isDimension) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path "
-                        + "must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + name()
-                        + "] was not a dimension."
-                );
-            }
-            if (scriptValues != null) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + name()
-                        + "] has a [script] parameter."
-                );
-            }
+        public boolean hasScriptValues() {
+            return scriptValues != null;
+        }
+
+        public boolean hasNormalizer() {
+            return normalizer != Lucene.KEYWORD_ANALYZER;
         }
     }
 
@@ -807,7 +847,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final String indexOptions;
     private final FieldType fieldType;
-    private final SimilarityProvider similarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
@@ -831,8 +870,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.indexOptions = builder.indexOptions.getValue();
-        this.fieldType = fieldType;
-        this.similarity = builder.similarity.getValue();
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         this.script = builder.script.get();
@@ -887,7 +925,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), binaryValue);
+            context.getDimensions().addString(fieldType().name(), binaryValue).validate(context.indexSettings());
         }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to
@@ -988,7 +1026,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return syntheticFieldLoader(simpleName());
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

@@ -17,7 +17,7 @@ public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
     protected void createIndex() {
         logger.info("Creating index [test1] with alias [test]");
         try {
-            indicesAdmin().prepareDelete("test1").execute().actionGet();
+            indicesAdmin().prepareDelete("test1").get();
         } catch (Exception e) {
             // ignore
         }

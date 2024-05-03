@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;

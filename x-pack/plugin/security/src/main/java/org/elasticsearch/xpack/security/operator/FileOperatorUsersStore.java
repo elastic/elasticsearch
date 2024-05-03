@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
@@ -192,8 +193,10 @@ public class FileOperatorUsersStore {
                 }
             }
             if (authenticationType == Authentication.AuthenticationType.REALM) {
-                if (false == FileRealmSettings.TYPE.equals(realmType)) {
-                    validationException.addValidationError("[realm_type] requires [file] when [auth_type] is [realm] or not specified");
+                if (false == FileRealmSettings.TYPE.equals(realmType) && false == JwtRealmSettings.TYPE.equals(realmType)) {
+                    validationException.addValidationError(
+                        "when [auth_type] is defined as [realm] then [realm_type] must be defined as [file] or [jwt]"
+                    );
                 }
                 if (tokenNames != null) {
                     validationException.addValidationError("[token_names] is not valid when [realm_type] is [file]");

@@ -6,6 +6,7 @@
 # excluded.
 debian-8
 opensuse-leap-15.1
+opensuse-leap-15.5
 ol-7.7
 sles-12.3 # older version used in Vagrant image
 sles-12.5
@@ -13,6 +14,7 @@ sles-15.1
 sles-15.2
 sles-15.3
 sles-15.4
+sles-15.5
 
 # These OSes are deprecated and filtered starting with 8.0.0, but need to be excluded
 # for PR checks

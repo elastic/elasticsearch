@@ -173,8 +173,8 @@
 ---
 tsdb:
   - skip:
-      version: " - 8.4.99"
-      reason: Serialization for segment stats fixed in 8.5.0
+      version: " - 8.4.99, 8.7.00 - 8.9.99"
+      reason: Serialization for segment stats fixed in 8.5.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests
 
   - do:
       indices.create:

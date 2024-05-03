@@ -23,6 +23,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -56,8 +57,8 @@ public class TransportAckWatchActionTests extends ESTestCase {
 
     @Before
     public void setupAction() {
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         WatchParser watchParser = mock(WatchParser.class);
@@ -109,7 +110,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
-        PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AckWatchResponse> listener = new PlainActionFuture<>();
         action.doExecute(ackWatchRequest, listener);
 
         ExecutionException exception = expectThrows(ExecutionException.class, listener::get);
@@ -139,7 +140,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
-        PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AckWatchResponse> listener = new PlainActionFuture<>();
         action.doExecute(ackWatchRequest, listener);
 
         ExecutionException exception = expectThrows(ExecutionException.class, listener::get);

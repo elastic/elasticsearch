@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
@@ -53,10 +54,12 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
             || restRequest.hasParam("ignore_throttled")) {
             indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
         }
-        XContentParser parser = restRequest.contentParser();
-        UpdateDatafeedAction.Request updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
-        updateDatafeedRequest.timeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.timeout()));
-        updateDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", updateDatafeedRequest.masterNodeTimeout()));
+        UpdateDatafeedAction.Request updateDatafeedRequest;
+        try (XContentParser parser = restRequest.contentParser()) {
+            updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
+        }
+        updateDatafeedRequest.ackTimeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.ackTimeout()));
+        updateDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 
         return channel -> client.execute(UpdateDatafeedAction.INSTANCE, updateDatafeedRequest, new RestToXContentListener<>(channel));
     }

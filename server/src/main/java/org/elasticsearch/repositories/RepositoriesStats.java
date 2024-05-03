@@ -8,7 +8,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,7 +28,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
     private final Map<String, ThrottlingStats> repositoryThrottlingStats;
 
     public RepositoriesStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             repositoryThrottlingStats = in.readMap(ThrottlingStats::new);
         } else {
             repositoryThrottlingStats = new HashMap<>();
@@ -41,8 +41,8 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011)) {
-            out.writeMap(repositoryThrottlingStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeMap(repositoryThrottlingStats, StreamOutput::writeWriteable);
         }
     }
 

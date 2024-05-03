@@ -5,7 +5,7 @@ setup:
         wait_for_events: languid
 
 ---
-"Test traces-apm-* object fields":
+"Test traces-apm-* unmapped object fields":
   - do:
       bulk:
         index: traces-apm-testing
@@ -63,7 +63,7 @@ setup:
   - match: { hits.hits.6.fields: null }
 
 ---
-"Test logs-apm.error-* flattened fields":
+"Test logs-apm.error-* unmapped object fields":
   - do:
       bulk:
         index: logs-apm.error-testing

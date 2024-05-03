@@ -52,7 +52,7 @@ public final class Mapping implements ToXContentFragment {
         DocCountFieldMapper docCountFieldMapper = null;
         for (MetadataFieldMapper mappers : metadataMappers) {
             if (mappers.syntheticFieldLoader() != SourceLoader.SyntheticFieldLoader.NOTHING) {
-                assert docCountFieldMapper != null;
+                assert docCountFieldMapper == null;
                 docCountFieldMapper = (DocCountFieldMapper) mappers;
             }
         }

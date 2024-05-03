@@ -306,7 +306,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             blocks[i] = in.filter(backwards);
             in.close();
         }
-        scores.close();
     }
 
     private class LoadFromMany implements Releasable {
@@ -415,7 +414,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         public void close() {
             Releasables.closeExpectNoException(builders);
             Releasables.closeExpectNoException(scoreBuilder);
-            Releasables.closeExpectNoException(scores);
         }
     }
 

@@ -1,5 +1,6 @@
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -15,9 +16,11 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -31,10 +34,14 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -160,10 +167,13 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testWithSimpleMatch() throws IOException {
-        testWithQuery(QueryBuilders.matchQuery("stored_text", "time"));
+        testWithQuery(
+            QueryBuilders.matchQuery("stored_text", "time"),
+            List.of("3", "4", "1", "2")
+        );
     }
 
-    private void testWithQuery(AbstractQueryBuilder queryBuilder) throws IOException {
+    private void testWithQuery(AbstractQueryBuilder queryBuilder, List<String> expectedOrderedIds) throws IOException {
         initMapping();
         initIndex();
         int size = 4;
@@ -178,8 +188,10 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
 
         Operator op =  new ValuesSourceReaderOperator.Factory(
             List.of(
-                ValuesSourceReaderOperatorTests.fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
-            ),
+                ValuesSourceReaderOperatorTests.fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF),
+                ValuesSourceReaderOperatorTests.fieldInfo(storedTextField("_score"), ElementType.DOUBLE),
+                ValuesSourceReaderOperatorTests.fieldInfo(mapperService.fieldType("_id"), ElementType.BYTES_REF)
+                ),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
             0
         ).get(ctx);
@@ -191,11 +203,16 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         OperatorTestCase.assertDriverContext(ctx);
 
         long expectedS = 0;
+        double prevScore = Double.MAX_VALUE;
         for (Page page : results) {
-            BytesRefBlock keysBlock = page.getBlock(1);
+            BytesRefBlock idsBlock = page.getBlock(3);
+            DoubleBlock scoresBlock = page.getBlock(2);
             for (int i = 0; i < page.getPositionCount(); i++) {
-                var key = keysBlock.getBytesRef(i, new BytesRef()).utf8ToString();
-                assertTrue(key.length() > 0);
+                var id = idsBlock.getBytesRef(i, new BytesRef()).utf8ToString();
+                assertEquals(id, expectedOrderedIds.get(i));
+                var score = scoresBlock.getDouble(i);
+                assertTrue(score <= prevScore);
+                prevScore = score;
             }
         }
         int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
@@ -208,7 +225,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             true,
             true,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-            false, // TODO randomize - if the field is stored we should load from the stored field even if there is source
+            false,
             null,
             Map.of(),
             false,
@@ -267,21 +284,25 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         ) {
             writer.addDocument(
                 Arrays.asList(
+                    IdFieldMapper.standardIdField("1"),
                     new TextField("stored_text", "A brief history of time", Field.Store.YES)
                 )
             );
             writer.addDocument(
                 Arrays.asList(
+                    IdFieldMapper.standardIdField("2"),
                     new TextField("stored_text", "In search of lost time", Field.Store.YES)
                 )
             );
             writer.addDocument(
                 Arrays.asList(
+                    IdFieldMapper.standardIdField("3"),
                     new TextField("stored_text", "A time to kill", Field.Store.YES)
                 )
             );
             writer.addDocument(
                 Arrays.asList(
+                    IdFieldMapper.standardIdField("4"),
                     new TextField("stored_text", "The wheel of time", Field.Store.YES)
                 )
             );

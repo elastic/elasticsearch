@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -186,9 +188,11 @@ public class LuceneRetrieveOperator extends LuceneOperator {
         IntVector segments = null;
         IntVector docs = null;
         Page page = null;
+        DoubleVector scores = null;
         try (
             IntVector.Builder currentSegmentBuilder = blockFactory.newIntVectorFixedBuilder(size);
-            IntVector.Builder currentDocsBuilder = blockFactory.newIntVectorFixedBuilder(size)
+            IntVector.Builder currentDocsBuilder = blockFactory.newIntVectorFixedBuilder(size);
+            DoubleVector.Builder currentScoresBuilder = blockFactory.newDoubleVectorBuilder(size);
         ) {
             int start = offset;
             offset += size;
@@ -196,17 +200,20 @@ public class LuceneRetrieveOperator extends LuceneOperator {
             for (int i = start; i < offset; i++) {
                 int doc = scoreDocs[i].doc;
                 int segment = ReaderUtil.subIndex(doc, leafContexts);
+                float score = (float) ((FieldDoc) scoreDocs[i]).fields[0];
                 currentSegmentBuilder.appendInt(segment);
                 currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
+                currentScoresBuilder.appendDouble(score);
             }
 
             shard = blockFactory.newConstantIntBlockWith(perShardCollector.shardContext.index(), size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            page = new Page(size, new DocVector(shard.asVector(), segments, docs, null).asBlock());
+            scores = currentScoresBuilder.build();
+            page = new Page(size, new DocVector(shard.asVector(), segments, docs, scores, null).asBlock());
         } finally {
             if (page == null) {
-                Releasables.closeExpectNoException(shard, segments, docs);
+                Releasables.closeExpectNoException(shard, segments, docs, scores);
             }
         }
         pagesEmitted++;

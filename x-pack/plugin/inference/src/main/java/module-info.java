@@ -18,6 +18,7 @@ module org.elasticsearch.inference {
     requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.lucene.core;
     requires org.elasticsearch.logging;
+    requires org.apache.lucene.join;
     requires com.ibm.icu;
 
     exports org.elasticsearch.xpack.inference.action;

@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -80,7 +82,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -285,6 +287,14 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public Collection<ActionFilter> getActionFilters() {
         if (SemanticTextFeature.isEnabled()) {
             return singletonList(shardBulkInferenceActionFilter.get());
+        }
+        return List.of();
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        if (SemanticTextFeature.isEnabled()) {
+            return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
         }
         return List.of();
     }

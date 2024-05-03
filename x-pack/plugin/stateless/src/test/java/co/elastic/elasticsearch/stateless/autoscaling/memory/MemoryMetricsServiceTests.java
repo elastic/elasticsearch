@@ -58,7 +58,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         Sets.addToCopy(
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
             MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
-            MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING
+            MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+            MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING
         )
     );
 
@@ -312,7 +313,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         );
         assertThat(
             memoryMetrics.totalMemoryInBytes(),
-            equalTo(small ? HeapToSystemMemory.dataNode(1) : (size + MemoryMetricsService.SHARD_MEMORY_OVERHEAD) * 2)
+            equalTo(small ? HeapToSystemMemory.dataNode(1) : (size + service.shardMemoryOverhead.getBytes()) * 2)
         );
 
         // a relatively high starting point, coming from 500MB heap work * 2 (for memory)
@@ -332,7 +333,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(ByteSizeUnit.GB.toBytes(2)));
         assertThat(memoryMetrics.totalMemoryInBytes(), lessThan(ByteSizeUnit.GB.toBytes(4)));
         // * 2 to go from heap to system memory
-        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(300 * MemoryMetricsService.SHARD_MEMORY_OVERHEAD * 2));
+        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(300 * service.shardMemoryOverhead.getBytes() * 2));
 
         // show that one 4GB node is not enough, but 1.5 node would be.
         assertThat(memoryMetrics.totalMemoryInBytes() + memoryMetrics.nodeMemoryInBytes() * 2, greaterThan(ByteSizeUnit.GB.toBytes(4)));

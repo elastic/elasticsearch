@@ -125,10 +125,12 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
     }
 
     public void testMultilingual() throws IOException {
+        var vocab = XLMRobertaTestVocab.loadMultiLingualTestVocab();
+
         try (
             XLMRobertaTokenizer tokenizer = XLMRobertaTokenizer.builder(
-                XLMRobertaTestVocab.MULTILINGUAL_VOCAB,
-                XLMRobertaTestVocab.MULTILINGUAL_SCORES,
+                vocab.get(),
+                vocab.scores(),
                 new XLMRobertaTokenization(false, null, Tokenization.Truncate.NONE, -1)
             ).setWithSpecialTokens(true).build()
         ) {

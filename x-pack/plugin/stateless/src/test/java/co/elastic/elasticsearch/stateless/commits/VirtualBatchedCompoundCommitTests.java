@@ -303,9 +303,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 if (virtualBatchedCompoundCommit.getPendingCompoundCommits().size() > 0) {
                     try (BytesStreamOutput output = new BytesStreamOutput()) {
                         // Workaround to serialize VBCC without freezing for testing
-                        for (var compoundCommit : virtualBatchedCompoundCommit.getPendingCompoundCommits()) {
-                            compoundCommit.writeToStore(output);
-                        }
+                        virtualBatchedCompoundCommit.doWriteToStore(output);
+
                         var serializedBatchedCompoundCommit = output.bytes();
                         Long randomOffset = randomLongBetween(0, serializedBatchedCompoundCommit.length() - 1);
                         Long randomBytesToRead = randomLongBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);

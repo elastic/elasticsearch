@@ -420,7 +420,20 @@ public class Stateless extends Plugin
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
-        var commitService = createStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
+        var cacheWarmingService = createSharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(settings)
+        );
+        setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
+        var commitService = createStatelessCommitService(
+            settings,
+            objectStoreService,
+            clusterService,
+            client,
+            commitCleaner,
+            cacheWarmingService
+        );
         components.add(commitService);
         var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
         clusterService.addListener(clusterStateCleanupService);
@@ -520,8 +533,6 @@ public class Stateless extends Plugin
         components.add(searchMetricsService);
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
-        var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool, commitService.isStatelessUploadDelayed());
-        setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
 
         statelessIndexSettingProvider.initialize(services.indexNameExpressionResolver());
 
@@ -701,9 +712,10 @@ public class Stateless extends Plugin
         ObjectStoreService objectStoreService,
         ClusterService clusterService,
         Client client,
-        StatelessCommitCleaner commitCleaner
+        StatelessCommitCleaner commitCleaner,
+        SharedBlobCacheWarmingService cacheWarmingService
     ) {
-        return new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
+        return new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
     }
 
     protected StatelessCommitService wrapStatelessCommitService(StatelessCommitService instance) {

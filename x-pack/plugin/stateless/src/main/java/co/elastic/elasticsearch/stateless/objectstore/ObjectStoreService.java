@@ -74,7 +74,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -390,7 +389,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         Directory directory,
         long commitStartNanos,
         VirtualBatchedCompoundCommit pendingCommit,
-        ActionListener<BatchedCompoundCommit> listener
+        ActionListener<Void> listener
     ) {
         enqueueTask(
             listener,
@@ -664,13 +663,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private class BatchedCommitFileUploadTask extends ObjectStoreTask {
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
-        private final ActionListener<BatchedCompoundCommit> listener;
+        private final ActionListener<Void> listener;
 
         BatchedCommitFileUploadTask(
             long timeInNanos,
             VirtualBatchedCompoundCommit virtualBatchedCompoundCommit,
             BlobContainer blobContainer,
-            ActionListener<BatchedCompoundCommit> listener
+            ActionListener<Void> listener
         ) {
             super(
                 virtualBatchedCompoundCommit.getShardId(),
@@ -689,17 +688,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() {
-            BatchedCompoundCommit result = null;
+            boolean success = false;
             try {
                 var before = threadPool.relativeTimeInMillis();
                 // TODO: Ensure that out usage of this method for writing files is appropriate. The javadoc is a bit concerning. "This
                 // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
                 // in time and across all concurrent invocations of this method."
-                AtomicReference<BatchedCompoundCommit> batchedCompoundCommitRef = new AtomicReference<>();
-                blobContainer.writeMetadataBlob(OperationPurpose.INDICES, virtualBatchedCompoundCommit.getBlobName(), false, true, out -> {
-                    var batchedCommit = virtualBatchedCompoundCommit.writeToStore(out);
-                    batchedCompoundCommitRef.set(batchedCommit);
-                });
+                blobContainer.writeMetadataBlob(
+                    OperationPurpose.INDICES,
+                    virtualBatchedCompoundCommit.getBlobName(),
+                    false,
+                    true,
+                    virtualBatchedCompoundCommit::writeToStore
+                );
                 var after = threadPool.relativeTimeInMillis();
                 logger.debug(
                     () -> format(
@@ -711,18 +712,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                assert batchedCompoundCommitRef.get() != null;
-                assert batchedCompoundCommitRef.get().last() != null;
                 // assign this last, since it is used as a flag to successfully complete the listener below.
                 // this is critically important, since completing the listener successfully for a failed write can lead to
                 // erroneously deleted files.
-                result = batchedCompoundCommitRef.get();
+                success = true;
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
-                if (result != null) {
-                    listener.onResponse(result);
+                if (success) {
+                    listener.onResponse(null);
                 }
             }
         }

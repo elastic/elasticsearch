@@ -37,7 +37,8 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)) {
+            if (in.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)
+                || in.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)) {
                 // effectively super(in):
                 setParentTask(TaskId.readFromStream(in));
                 masterNodeTimeout(in.readTimeValue());
@@ -48,7 +49,8 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)) {
+            if (out.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)
+                || out.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)) {
                 super.writeTo(out);
             }
             out.writeString(this.nodeId);

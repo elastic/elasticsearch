@@ -229,7 +229,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.scheduledUploadMonitor = null;
         }
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-        this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
+        final ByteSizeValue bccUploadMaxSize = STATELESS_UPLOAD_MAX_SIZE.get(settings);
+        this.bccUploadMaxSizeInBytes = bccUploadMaxSize.getBytes();
+        if (statelessUploadDelayed) {
+            logger.info(
+                "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
+                bccMaxAmountOfCommits,
+                bccUploadMaxSize.getStringRep(),
+                virtualBccUploadMaxAge.getStringRep()
+            );
+        }
     }
 
     public boolean isStatelessUploadDelayed() {

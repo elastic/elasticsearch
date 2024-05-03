@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 plugins {
@@ -50,6 +51,8 @@ restResources {
     }
 }
 
+val uploadMaxCommits = BuildParams.getRandom().nextInt(1, 10)
+
 tasks {
     test {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
@@ -77,11 +80,42 @@ tasks {
         setClasspath(sourceSet.getRuntimeClasspath())
         jvmArgs("-XX:+UseG1GC", "--add-opens=java.base/java.io=ALL-UNNAMED")
         systemProperty("es.test.stateless.upload.delayed", "true")
+        systemProperty("es.test.stateless.upload.max_commits", uploadMaxCommits)
 
-        // A work-in-progress exclusion list of failed tests
-        filter {
-            // To mute a test, adds a line here following to the below example
-            // excludeTestsMatching("*.TestClassIT.testMethod")
+        if (uploadMaxCommits > 1) {
+            // A work-in-progress exclusion list of failed tests when BCC has more than one CC
+            filter {
+                // To mute a test, adds a line here following to the below example
+                // excludeTestsMatching("*.TestClassIT.testMethod")
+                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testIndicesWithUpdatedReplicasAreTakenIntoAccount")
+                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsAfterChangingBoostWindow")
+                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsInteractiveMetrics")
+                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsNonInteractiveMetrics")
+                excludeTestsMatching("*.GenerationalDocValuesIT.testBlobLocationsUpdates")
+                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizeWithDefinedMappingAndNewDataStreamEntries")
+                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizeWithDefinedMappingAndOldDataStreamEntries")
+                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizeWithoutTimestampField")
+                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizesWithAutodetectedMappingAndNewEntries")
+                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizesWithAutodetectedMappingAndOldEntries")
+                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizesWithClosedIndices")
+                excludeTestsMatching("*.StatelessBatchedBehavioursIT.testNewCommitNotificationOnCreation")
+                excludeTestsMatching("*.StatelessIT.testCompoundCommitHasNodeEphemeralId")
+                excludeTestsMatching("*.StatelessIT.testCreatesSearchShardsOfClosedIndex")
+                excludeTestsMatching("*.StatelessIT.testDownloadNewCommitsFromObjectStore")
+                excludeTestsMatching("*.StatelessIT.testDownloadNewReplicasFromObjectStore")
+                excludeTestsMatching("*.StatelessIT.testUploadToObjectStore")
+                excludeTestsMatching("*.StatelessRealTimeGetIT.testDataVisibility")
+                excludeTestsMatching("*.StatelessRealTimeGetIT.testStress")
+                excludeTestsMatching("*.StatelessRecoveryIT.testNewCommitNotificationOfRecoveringSearchShard")
+                excludeTestsMatching("*.StatelessRecoveryIT.testRecoveryMetricPublicationOnIndexingShardRelocation")
+                excludeTestsMatching("*.StatelessRecoveryIT.testTranslogRecoveryWithHeavyIndexing")
+                excludeTestsMatching("*.StatelessSearchIT.testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGenOnlyOnce")
+                excludeTestsMatching("*.StatelessSearchIT.testSearchShardsNotifiedOnNewCommits")
+                excludeTestsMatching("*.StatelessSearchIT.testSearchWithWaitForCheckpoint")
+                excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
+                excludeTestsMatching("*.S3ObjectStoreTests.testShouldRetryMoreThanMaxRetriesForIndicesData")
+                excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkOnLastVbcc")
+            }
         }
     }
 

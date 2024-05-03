@@ -105,7 +105,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         );
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
@@ -156,7 +155,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         );
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
@@ -213,7 +211,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         );
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
@@ -281,7 +278,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         );
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
@@ -318,7 +314,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         );
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
@@ -381,18 +376,16 @@ public class CppLogMessageHandlerTests extends ESTestCase {
 
     private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level, String jobId) throws IOException {
         Logger cppMessageLogger = LogManager.getLogger(CppLogMessageHandler.class);
-        Loggers.addAppender(cppMessageLogger, mockAppender);
-
         Level oldLevel = cppMessageLogger.getLevel();
         Loggers.setLevel(cppMessageLogger, level);
-        try (CppLogMessageHandler handler = new CppLogMessageHandler(jobId, is)) {
+        try (
+            var ignored = mockAppender.capturing(CppLogMessageHandler.class);
+            CppLogMessageHandler handler = new CppLogMessageHandler(jobId, is)
+        ) {
             handler.tailStream();
+            mockAppender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(cppMessageLogger, mockAppender);
             Loggers.setLevel(cppMessageLogger, oldLevel);
-            mockAppender.stop();
         }
-
-        mockAppender.assertAllExpectationsMatched();
     }
 }

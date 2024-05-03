@@ -63,10 +63,8 @@ public class JULBridgeTests extends ESTestCase {
         Level savedLevel = testLogger.getLevel();
         MockLogAppender mockAppender = new MockLogAppender();
 
-        try {
+        try (var ignored = mockAppender.capturing("")) {
             Loggers.setLevel(testLogger, Level.ALL);
-            mockAppender.start();
-            Loggers.addAppender(testLogger, mockAppender);
             for (var expectation : expectations) {
                 mockAppender.addExpectation(expectation);
             }
@@ -74,8 +72,6 @@ public class JULBridgeTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(testLogger, savedLevel);
-            Loggers.removeAppender(testLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

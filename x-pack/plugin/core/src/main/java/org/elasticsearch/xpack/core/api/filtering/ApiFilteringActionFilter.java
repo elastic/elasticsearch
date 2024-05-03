@@ -32,6 +32,11 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
     }
 
     @Override
+    public int order() {
+        return 0;
+    }
+
+    @Override
     public final String actionName() {
         return actionName;
     }

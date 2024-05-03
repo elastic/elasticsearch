@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -73,6 +74,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
                     ) },
+                null, // TODO: add tests here
                 null
             )
         );
@@ -129,7 +131,10 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
             new RoleDescriptorsIntersection(
-                randomValueOtherThanMany(rd -> false == rd.hasPrivilegesOtherThanIndex(), () -> RoleDescriptorTests.randomRoleDescriptor())
+                randomValueOtherThanMany(
+                    rd -> false == rd.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+                    () -> RoleDescriptorTests.randomRoleDescriptor()
+                )
             )
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -147,7 +152,8 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             assertThat(
                 actual.getMessage(),
                 equalTo(
-                    "Role descriptor for cross cluster access can only contain index privileges but other privileges found for subject ["
+                    "Role descriptor for cross cluster access can only contain index and "
+                        + "cluster privileges but other privileges found for subject ["
                         + expectedPrincipal
                         + "]"
                 )
@@ -181,6 +187,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                     ActionTestUtils.assertNoFailureListener(nothing -> {
                         authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                             concreteClusterAlias,
+                            TransportVersion.current(),
                             authentication.getEffectiveSubject(),
                             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
                                 assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
@@ -192,6 +199,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             } else {
                 authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                     concreteClusterAlias,
+                    TransportVersion.current(),
                     authentication.getEffectiveSubject(),
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
                         assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());

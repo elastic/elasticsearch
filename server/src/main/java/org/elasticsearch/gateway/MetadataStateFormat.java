@@ -195,8 +195,8 @@ public abstract class MetadataStateFormat<T> {
      * newly created state file if write fails.
      * See also {@link #write(Object, boolean, Path...)} and {@link #cleanupOldFiles(long, boolean, Path[])}.
      */
-    public final long writeAndCleanup(final T state, boolean useFsync, final Path... locations) throws WriteStateException {
-        return write(state, true, useFsync, locations);
+    public final long writeAndCleanup(final T state, boolean fsync, final Path... locations) throws WriteStateException {
+        return write(state, true, fsync, locations);
     }
 
     /**
@@ -219,11 +219,11 @@ public abstract class MetadataStateFormat<T> {
      * @throws WriteStateException if some exception during writing state occurs. See also {@link WriteStateException#isDirty()}.
      * @return generation of newly written state.
      */
-    public final long write(final T state, boolean useFsync, final Path... locations) throws WriteStateException {
-        return write(state, false, useFsync, locations);
+    public final long write(final T state, boolean fsync, final Path... locations) throws WriteStateException {
+        return write(state, false, fsync, locations);
     }
 
-    private long write(final T state, boolean cleanup, boolean useFsync, final Path... locations) throws WriteStateException {
+    private long write(final T state, boolean cleanup, boolean fsync, final Path... locations) throws WriteStateException {
         assert Transports.assertNotTransportThread("MetadataStateFormat#write does IO and must not run on transport thread");
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
@@ -250,7 +250,7 @@ public abstract class MetadataStateFormat<T> {
             for (Path location : locations) {
                 Path stateLocation = location.resolve(STATE_DIR_NAME);
                 try {
-                    directories.add(new Tuple<>(location, newDirectory(stateLocation, useFsync)));
+                    directories.add(new Tuple<>(location, newDirectory(stateLocation, fsync)));
                 } catch (IOException e) {
                     throw new WriteStateException(false, "failed to open state directory " + stateLocation, e);
                 }
@@ -259,13 +259,13 @@ public abstract class MetadataStateFormat<T> {
             writeStateToFirstLocation(state, directories.get(0).v1(), directories.get(0).v2(), tmpFileName);
             copyStateToExtraLocations(directories, tmpFileName);
             performRenames(tmpFileName, fileName, directories);
-            if (useFsync) {
+            if (fsync) {
                 performStateDirectoriesFsync(directories);
             }
             renamesSuccessful = true;
         } catch (WriteStateException e) {
             if (cleanup) {
-                cleanupOldFiles(oldGenerationId, useFsync, locations);
+                cleanupOldFiles(oldGenerationId, fsync, locations);
             }
             throw e;
         } finally {
@@ -278,7 +278,7 @@ public abstract class MetadataStateFormat<T> {
         }
 
         if (cleanup) {
-            cleanupOldFiles(newGenerationId, useFsync, locations);
+            cleanupOldFiles(newGenerationId, fsync, locations);
         }
 
         return newGenerationId;
@@ -341,9 +341,9 @@ public abstract class MetadataStateFormat<T> {
         }
     }
 
-    protected Directory newDirectory(Path dir, boolean useFsync) throws IOException {
+    protected Directory newDirectory(Path dir, boolean fsync) throws IOException {
         var directory = new NIOFSDirectory(dir);
-        if (useFsync) {
+        if (fsync) {
             return directory;
         }
         return new NoFsyncDirectory(directory);
@@ -355,12 +355,12 @@ public abstract class MetadataStateFormat<T> {
      * @param currentGeneration state generation to keep.
      * @param locations         state paths.
      */
-    public void cleanupOldFiles(final long currentGeneration, boolean useFsync, Path[] locations) {
+    public void cleanupOldFiles(final long currentGeneration, boolean fsync, Path[] locations) {
         final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);
             Path stateLocation = location.resolve(STATE_DIR_NAME);
-            try (Directory stateDir = newDirectory(stateLocation, useFsync)) {
+            try (Directory stateDir = newDirectory(stateLocation, fsync)) {
                 for (String file : stateDir.listAll()) {
                     if (file.startsWith(prefix) && file.equals(fileNameToKeep) == false) {
                         deleteFileIgnoreExceptions(stateLocation, stateDir, file);

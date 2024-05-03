@@ -645,7 +645,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         }
 
         @Override
-        protected Directory newDirectory(Path dir, boolean useFsync) {
+        protected Directory newDirectory(Path dir, boolean fsync) {
             MockDirectoryWrapper mock = newMockFSDirectory(dir);
             if (failureMode == FailureMode.FAIL_MULTIPLE_METHODS) {
                 final Set<String> failMethods = Set.of(failureMethods);

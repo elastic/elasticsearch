@@ -79,7 +79,6 @@ you configure the remotes.
 `cluster.remote.<cluster_alias>.credentials` (<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)::
 [[remote-cluster-credentials-setting]]
 
-beta:[]
   Per cluster setting for configuring <<remote-clusters-api-key,remote clusters with the API Key based model>>.
   This setting takes the encoded value of a
   <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and must be set

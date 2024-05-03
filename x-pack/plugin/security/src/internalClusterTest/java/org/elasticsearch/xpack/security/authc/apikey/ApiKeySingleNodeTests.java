@@ -595,7 +595,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
         final RoleDescriptor expectedRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -647,7 +647,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     public void testUpdateCrossClusterApiKey() throws IOException {
         final RoleDescriptor originalRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")

@@ -156,4 +156,9 @@ public final class QueryPragmas implements Writeable {
     public int hashCode() {
         return Objects.hash(settings);
     }
+
+    @Override
+    public String toString() {
+        return settings.toString();
+    }
 }

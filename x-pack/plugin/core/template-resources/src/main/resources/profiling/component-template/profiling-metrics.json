@@ -17,7 +17,7 @@
     },
     "mappings": {
       "_source": {
-        "enabled": false
+        "mode": "synthetic"
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},

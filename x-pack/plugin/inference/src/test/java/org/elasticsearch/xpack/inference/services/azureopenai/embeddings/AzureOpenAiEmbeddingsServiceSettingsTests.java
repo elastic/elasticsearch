@@ -390,7 +390,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":3},"dimensions_set_by_user":false}"""));
     }
 
-    public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
+    public void testToFilteredXContent_WritesAllValues_Except_DimensionsSetByUser_RateLimit() throws IOException {
         var entity = new AzureOpenAiEmbeddingsServiceSettings(
             "resource",
             "deployment",
@@ -409,7 +409,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
-            "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":1}}"""));
+            "dimensions":1024,"max_input_tokens":512}"""));
     }
 
     @Override

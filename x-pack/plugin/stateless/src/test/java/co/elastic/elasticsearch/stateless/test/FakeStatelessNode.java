@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.TestUtils;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -141,6 +142,7 @@ public class FakeStatelessNode implements Closeable {
     public final StatelessElectionStrategy electionStrategy;
     public final StatelessSharedBlobCacheService sharedCacheService;
     public final CacheBlobReaderService cacheBlobReaderService;
+    public final SharedBlobCacheWarmingService warmingService;
     private final StatelessCommitCleaner commitCleaner;
 
     private final Closeable closeables;
@@ -279,6 +281,11 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
+            warmingService = new SharedBlobCacheWarmingService(
+                sharedCacheService,
+                threadPool,
+                StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(nodeSettings)
+            );
             commitService = createCommitService();
             commitService.start();
             commitService.register(shardId, getPrimaryTerm(), () -> false);
@@ -397,7 +404,8 @@ public class FakeStatelessNode implements Closeable {
             this::getShardRoutingTable,
             clusterService.threadPool(),
             client,
-            commitCleaner
+            commitCleaner,
+            warmingService
         );
     }
 

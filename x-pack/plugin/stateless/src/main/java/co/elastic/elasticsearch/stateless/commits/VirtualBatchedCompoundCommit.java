@@ -163,7 +163,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    boolean isFrozen() {
+    public boolean isFrozen() {
         return frozen;
     }
 
@@ -328,18 +328,24 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     public BatchedCompoundCommit writeToStore(OutputStream output) throws IOException {
+        BatchedCompoundCommit frozenBatchedCompoundCommit = getFrozenBatchedCompoundCommit();
+        doWriteToStore(output);
+        return frozenBatchedCompoundCommit;
+    }
+
+    public BatchedCompoundCommit getFrozenBatchedCompoundCommit() {
         assert isFrozen() : "Cannot serialize before freeze";
         assert assertInternalConsistency();
-
-        for (PendingCompoundCommit compoundCommit : pendingCompoundCommits) {
-            compoundCommit.writeToStore(output);
-        }
 
         List<StatelessCompoundCommit> compoundCommits = new ArrayList<>(pendingCompoundCommits.size());
         for (PendingCompoundCommit pendingCompoundCommit : pendingCompoundCommits) {
             compoundCommits.add(pendingCompoundCommit.getStatelessCompoundCommit());
         }
         return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
+    }
+
+    void doWriteToStore(OutputStream output) throws IOException {
+        getBytesByRange(0, getTotalSizeInBytes(), output);
     }
 
     public String getBlobName() {
@@ -457,7 +463,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert offset >= 0;
         assert length >= 0 : "invalid length " + length;
         assert offset + length <= currentOffset.get() : "range [" + offset + ", " + length + "] more than " + currentOffset.get();
-        assert ThreadPool.assertCurrentThreadPool(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL);
+        assert ThreadPool.assertCurrentThreadPool(
+            Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            Stateless.SHARD_WRITE_THREAD_POOL,
+            Stateless.PREWARM_THREAD_POOL
+        );
 
         if (tryIncRef()) {
             try {
@@ -552,15 +562,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         void setPadding(int padding) {
             this.padding = padding;
             assert padding >= 0 : "padding " + padding + " is negative";
-        }
-
-        void writeToStore(OutputStream output) throws IOException {
-            output.write(header);
-            long writtenBytes = header.length;
-            writtenBytes += StatelessCompoundCommit.writeInternalFilesToStore(output, internalFiles, reference.getDirectory());
-            writePadding(output, padding);
-            writtenBytes += padding;
-            assert writtenBytes == getSizeInBytes() : writtenBytes + " != " + getSizeInBytes();
         }
 
         long getGeneration() {

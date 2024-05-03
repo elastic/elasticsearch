@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommit
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.reader.IndexingShardCacheBlobReader;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -170,9 +171,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
             Client client,
-            StatelessCommitCleaner commitCleaner
+            StatelessCommitCleaner commitCleaner,
+            SharedBlobCacheWarmingService cacheWarmingService
         ) {
-            statelessCommitService = new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
+            statelessCommitService = new TestStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                client,
+                commitCleaner,
+                cacheWarmingService
+            );
             return statelessCommitService;
         }
     }
@@ -185,9 +194,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
             Client client,
-            StatelessCommitCleaner commitCleaner
+            StatelessCommitCleaner commitCleaner,
+            SharedBlobCacheWarmingService cacheWarmingService
         ) {
-            super(settings, objectStoreService, clusterService, client, commitCleaner);
+            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService);
         }
 
         @Override

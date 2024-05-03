@@ -22,6 +22,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -37,6 +38,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -172,6 +174,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final TimeValue shardInactivityDuration;
     private final TimeValue shardInactivityMonitorInterval;
     private final ShardInactivityMonitor shardInactivityMonitor;
+    private final SharedBlobCacheWarmingService cacheWarmingService;
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final boolean statelessUploadDelayed;
     private final TimeValue virtualBccUploadMaxAge;
@@ -185,7 +188,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ObjectStoreService objectStoreService,
         ClusterService clusterService,
         Client client,
-        StatelessCommitCleaner commitCleaner
+        StatelessCommitCleaner commitCleaner,
+        SharedBlobCacheWarmingService cacheWarmingService
     ) {
         this(
             settings,
@@ -194,7 +198,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             (shardId) -> clusterService.state().routingTable().shardRoutingTable(shardId),
             clusterService.threadPool(),
             client,
-            commitCleaner
+            commitCleaner,
+            cacheWarmingService
         );
     }
 
@@ -205,7 +210,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Function<ShardId, IndexShardRoutingTable> shardRouting,
         ThreadPool threadPool,
         Client client,
-        StatelessCommitCleaner commitCleaner
+        StatelessCommitCleaner commitCleaner,
+        SharedBlobCacheWarmingService cacheWarmingService
     ) {
         this.objectStoreService = objectStoreService;
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
@@ -215,6 +221,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.commitCleaner = commitCleaner;
         this.shardInactivityDuration = SHARD_INACTIVITY_DURATION_TIME_SETTING.get(settings);
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
+        this.cacheWarmingService = cacheWarmingService;
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.statelessUploadDelayed = STATELESS_UPLOAD_DELAYED.get(settings);
         logger.info("[{}] is [{}]", STATELESS_UPLOAD_DELAYED.getKey(), statelessUploadDelayed ? "enabled" : "disabled");
@@ -550,8 +557,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final ShardId shardId;
         private final long generation;
         private final long startNanos;
-        private final AtomicLong uploadedFileCount = new AtomicLong();
-        private final AtomicLong uploadedFileBytes = new AtomicLong();
+        private final AtomicBoolean cacheWarmedAttempted = new AtomicBoolean();
         private int uploadTryNumber = 0;
 
         public BatchedCompoundCommitUpload(
@@ -645,36 +651,51 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void uploadBatchedCompoundCommitFile(ActionListener<BatchedCompoundCommit> listener) {
-            objectStoreService.uploadBatchedCompoundCommitFile(
-                virtualBcc.getPrimaryTermAndGeneration().primaryTerm(),
-                // TODO: The Directory is used to get the blobContainer which can be obtained by using
-                // objectStoreService, shardId and primary term. So there is no need to depend on StatelessCommitRef which gets
-                // awkward when there are multiple of them.
-                // For now we sill use StatelessCommitRef since VBCC can only have a single CC
-                virtualBcc.getPendingCompoundCommits().get(0).getCommitReference().getDirectory(),
-                startNanos,
-                virtualBcc,
-                listener.delegateFailure((l, uploadedBcc) -> {
-                    for (Map.Entry<String, BlobLocation> entry : virtualBcc.getInternalLocations().entrySet()) {
-                        uploadedFileCount.getAndIncrement();
-                        uploadedFileBytes.getAndAdd(entry.getValue().fileLength());
-                    }
-                    assert assertBccSizeAndDelayedSettingConsistency(uploadedBcc.size());
-                    shardCommitState.markBccUploaded(uploadedBcc);
-                    final long end = threadPool.relativeTimeInNanos();
-                    logger.debug(
-                        () -> format(
-                            "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
-                            shardId,
-                            generation,
-                            TimeValue.nsecToMSec(end - startNanos),
-                            uploadedFileCount.get(),
-                            uploadedFileBytes.get()
-                        )
-                    );
-                    l.onResponse(uploadedBcc);
-                })
-            );
+            try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
+                BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
+                assert uploadedBcc.last() != null;
+                assert assertBccSizeAndDelayedSettingConsistency(uploadedBcc.size());
+                shardCommitState.markBccUploaded(uploadedBcc);
+                l.onResponse(uploadedBcc);
+            }))) {
+                if (cacheWarmedAttempted.compareAndSet(false, true)) {
+                    cacheWarmingService.warmCacheBeforeUpload(virtualBcc, refCountingListener.acquire().delegateResponse((l, e) -> {
+                        logger.warn(format("%s unexpected error warming cache for commit upload", shardId), e);
+                        // A warm failure should not fail the upload
+                        l.onResponse(null);
+                    }));
+                }
+                objectStoreService.uploadBatchedCompoundCommitFile(
+                    virtualBcc.getPrimaryTermAndGeneration().primaryTerm(),
+                    // TODO: The Directory is used to get the blobContainer which can be obtained by using
+                    // objectStoreService, shardId and primary term. So there is no need to depend on StatelessCommitRef which gets
+                    // awkward when there are multiple of them.
+                    // For now we sill use StatelessCommitRef since VBCC can only have a single CC
+                    virtualBcc.getPendingCompoundCommits().get(0).getCommitReference().getDirectory(),
+                    startNanos,
+                    virtualBcc,
+                    refCountingListener.acquire().delegateFailure((l, uploadedBcc) -> {
+                        logger.debug(() -> {
+                            final long end = threadPool.relativeTimeInNanos();
+                            int uploadedFileCount = 0;
+                            long uploadedFileBytes = 0;
+                            for (Map.Entry<String, BlobLocation> entry : virtualBcc.getInternalLocations().entrySet()) {
+                                uploadedFileCount++;
+                                uploadedFileBytes += entry.getValue().fileLength();
+                            }
+                            return format(
+                                "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
+                                shardId,
+                                generation,
+                                TimeValue.nsecToMSec(end - startNanos),
+                                uploadedFileCount,
+                                uploadedFileBytes
+                            );
+                        });
+                        l.onResponse(null);
+                    })
+                );
+            }
         }
 
         @Override

@@ -428,7 +428,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
     public static void awaitIndexShardCloseAsyncTasks(IndicesClusterStateService indicesClusterStateService) {
         final var latch = new CountDownLatch(1);
-        indicesClusterStateService.onClusterStateShardsClosed(latch::countDown);
+        indicesClusterStateService.onClusterStateShardsClosed(-1, latch::countDown);
         safeAwait(latch);
     }
 }

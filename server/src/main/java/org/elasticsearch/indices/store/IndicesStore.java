@@ -174,6 +174,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                     switch (shardDeletionCheckResult) {
                         case FOLDER_FOUND_CAN_DELETE:
                             indicesClusterStateService.onClusterStateShardsClosed(
+                                event.state().version(),
                                 () -> deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable)
                             );
                             break;

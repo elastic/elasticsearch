@@ -229,6 +229,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
+    private long lastAppliedClusterStateVersion;
 
     private ActionListener<Void> getShardsClosedListener() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
@@ -241,12 +242,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
-     * @param action Action to run when all the shards removed by earlier-applied cluster states have fully closed. May run on the calling
-     *               thread, or on the thread that completed the closing of the last such shard.
+     * @param clusterStateVersion The expected last-applied cluster state version (or -1 on a test thread)
+     * @param action              Action to run when all the shards removed by earlier-applied cluster states have fully closed. May run on
+     *                            the calling thread, or on the thread that completed the closing of the last such shard.
      */
-    public void onClusterStateShardsClosed(Runnable action) {
-        // In practice, must be called from the applier thread and we should validate the last-applied cluster state version too
-        // ES-8334 TODO validate this is called properly
+    public void onClusterStateShardsClosed(long clusterStateVersion, Runnable action) {
+        assert clusterStateVersion == -1
+            ? ThreadPool.assertCurrentThreadPool() // May supply -1 on a test thread
+            : ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
+                && clusterStateVersion == lastAppliedClusterStateVersion // If not -1, must match last-applied version
+            : lastAppliedClusterStateVersion + " vs " + clusterStateVersion;
         lastClusterStateShardsClosedListener.andThenAccept(ignored -> action.run());
     }
 
@@ -261,6 +266,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;
+            lastAppliedClusterStateVersion = event.state().version();
         }
     }
 

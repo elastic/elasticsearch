@@ -1,6 +1,0 @@
-pr: 107432
-summary: "Percolator named queries: rewrite for matched info"
-area: Percolator
-type: bug
-issues:
- - 107176

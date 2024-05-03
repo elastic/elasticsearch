@@ -41,6 +41,12 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     @Override
     BytesRefVector asVector();
 
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+
     @Override
     BytesRefBlock filter(int... positions);
 

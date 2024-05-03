@@ -9,8 +9,6 @@
 package org.elasticsearch.health;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -23,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -592,129 +589,116 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
     public void testLoggingHappens() {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "overall",
-                HealthPeriodicLogger.class.getCanonicalName(),
-                Level.INFO,
-                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "master_is_stable",
-                HealthPeriodicLogger.class.getCanonicalName(),
-                Level.INFO,
-                String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "disk",
-                HealthPeriodicLogger.class.getCanonicalName(),
-                Level.INFO,
-                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "ilm",
-                HealthPeriodicLogger.class.getCanonicalName(),
-                Level.INFO,
-                String.format(Locale.ROOT, "%s=\"red\"", makeHealthStatusString("ilm"))
-            )
-        );
-        Logger periodicLoggerLogger = LogManager.getLogger(HealthPeriodicLogger.class);
-        Loggers.addAppender(periodicLoggerLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(HealthPeriodicLogger.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "overall",
+                    HealthPeriodicLogger.class.getCanonicalName(),
+                    Level.INFO,
+                    String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "master_is_stable",
+                    HealthPeriodicLogger.class.getCanonicalName(),
+                    Level.INFO,
+                    String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "disk",
+                    HealthPeriodicLogger.class.getCanonicalName(),
+                    Level.INFO,
+                    String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "ilm",
+                    HealthPeriodicLogger.class.getCanonicalName(),
+                    Level.INFO,
+                    String.format(Locale.ROOT, "%s=\"red\"", makeHealthStatusString("ilm"))
+                )
+            );
 
-        HealthService testHealthService = this.getMockedHealthService();
-        doAnswer(invocation -> {
-            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
-            assertNotNull(listener);
-            listener.onResponse(getTestIndicatorResults());
-            return null;
-        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
+            HealthService testHealthService = this.getMockedHealthService();
+            doAnswer(invocation -> {
+                ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+                assertNotNull(listener);
+                listener.onResponse(getTestIndicatorResults());
+                return null;
+            }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+            testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
 
-        // switch to Log only mode
-        this.clusterSettings.applySettings(
-            Settings.builder()
-                .put(HealthPeriodicLogger.OUTPUT_MODE_SETTING.getKey(), HealthPeriodicLogger.OutputMode.LOGS)
-                .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
-                .build()
-        );
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
-        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+            // switch to Log only mode
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.OUTPUT_MODE_SETTING.getKey(), HealthPeriodicLogger.OutputMode.LOGS)
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
+            );
+            testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+            assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
 
-        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
-        testHealthPeriodicLogger.triggered(event);
-
-        try {
+            SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+            testHealthPeriodicLogger.triggered(event);
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(periodicLoggerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
     public void testOutputModeNoLogging() {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "overall",
-                HealthPeriodicLogger.class.getCanonicalName(),
-                Level.INFO,
-                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "master_is_stable",
-                HealthPeriodicLogger.class.getCanonicalName(),
-                Level.INFO,
-                String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "disk",
-                HealthPeriodicLogger.class.getCanonicalName(),
-                Level.INFO,
-                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
-            )
-        );
-        Logger periodicLoggerLogger = LogManager.getLogger(HealthPeriodicLogger.class);
-        Loggers.addAppender(periodicLoggerLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(HealthPeriodicLogger.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "overall",
+                    HealthPeriodicLogger.class.getCanonicalName(),
+                    Level.INFO,
+                    String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "master_is_stable",
+                    HealthPeriodicLogger.class.getCanonicalName(),
+                    Level.INFO,
+                    String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "disk",
+                    HealthPeriodicLogger.class.getCanonicalName(),
+                    Level.INFO,
+                    String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
+                )
+            );
 
-        HealthService testHealthService = this.getMockedHealthService();
-        doAnswer(invocation -> {
-            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
-            assertNotNull(listener);
-            listener.onResponse(getTestIndicatorResults());
-            return null;
-        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
+            HealthService testHealthService = this.getMockedHealthService();
+            doAnswer(invocation -> {
+                ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+                assertNotNull(listener);
+                listener.onResponse(getTestIndicatorResults());
+                return null;
+            }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+            testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
 
-        // switch to Metrics only mode
-        this.clusterSettings.applySettings(
-            Settings.builder()
-                .put(HealthPeriodicLogger.OUTPUT_MODE_SETTING.getKey(), HealthPeriodicLogger.OutputMode.METRICS)
-                .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
-                .build()
-        );
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
-        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+            // switch to Metrics only mode
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.OUTPUT_MODE_SETTING.getKey(), HealthPeriodicLogger.OutputMode.METRICS)
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
+            );
+            testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+            assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
 
-        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
-        testHealthPeriodicLogger.triggered(event);
+            SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+            testHealthPeriodicLogger.triggered(event);
 
-        try {
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(periodicLoggerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

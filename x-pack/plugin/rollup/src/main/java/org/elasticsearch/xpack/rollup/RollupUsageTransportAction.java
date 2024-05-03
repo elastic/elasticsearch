@@ -68,12 +68,11 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
         int numberOfRollupIndices = 0;
         for (var imd : state.metadata()) {
             try (var parser = XContentHelper.createParser(PARSER_CONFIGURATION, imd.mapping().source().compressedReference())) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-
-                var rollupConfig = parser.map();
-                if (rollupConfig != null) {
-                    numberOfRollupIndices++;
+                if ("_rollup".equals(parser.currentName())) {
+                    var rollupConfig = parser.map();
+                    if (rollupConfig != null) {
+                        numberOfRollupIndices++;
+                    }
                 }
             } catch (IOException e) {
                 listener.onFailure(e);

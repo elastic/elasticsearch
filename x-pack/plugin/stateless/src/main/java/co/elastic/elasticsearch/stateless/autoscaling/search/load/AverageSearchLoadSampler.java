@@ -50,7 +50,7 @@ public class AverageSearchLoadSampler {
     );
 
     private final ThreadPool threadPool;
-    private final Map<String, AverageLoad> averageLoadPerExecutor = new HashMap<>();
+    private final Map<String, AverageLoad> averageThreadLoadPerExecutor = new HashMap<>();
     private final int numProcessors;
 
     public static AverageSearchLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
@@ -70,7 +70,7 @@ public class AverageSearchLoadSampler {
     AverageSearchLoadSampler(ThreadPool threadPool, TimeValue samplingFrequency, double ewmaAlpha, int numProcessors) {
         this.threadPool = threadPool;
         SEARCH_EXECUTORS.forEach(
-            name -> averageLoadPerExecutor.put(name, new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, ewmaAlpha))
+            name -> averageThreadLoadPerExecutor.put(name, new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, ewmaAlpha))
         );
         this.numProcessors = numProcessors;
     }
@@ -80,7 +80,7 @@ public class AverageSearchLoadSampler {
             var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
             long currentTotalNanos = executor.getTotalTaskExecutionTime();
             var ongoingTasks = executor.getOngoingTasks();
-            averageLoadPerExecutor.get(name).update(currentTotalNanos, ongoingTasks.values());
+            averageThreadLoadPerExecutor.get(name).update(currentTotalNanos, ongoingTasks.values());
         }
     }
 
@@ -90,7 +90,7 @@ public class AverageSearchLoadSampler {
         }
         var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(executorName);
         return new SearchExecutorStats(
-            averageLoadPerExecutor.get(executorName).get(),
+            averageThreadLoadPerExecutor.get(executorName).get(),
             executor.getTaskExecutionEWMA(),
             executor.getCurrentQueueSize(),
             executor.getMaximumPoolSize(),
@@ -99,7 +99,7 @@ public class AverageSearchLoadSampler {
     }
 
     private void updateEWMAAlpha(double alpha) {
-        averageLoadPerExecutor.forEach((s, averageLoad) -> averageLoad.updateEwmaAlpha(alpha));
+        averageThreadLoadPerExecutor.forEach((s, averageLoad) -> averageLoad.updateEwmaAlpha(alpha));
     }
 
     /**
@@ -121,7 +121,10 @@ public class AverageSearchLoadSampler {
         }
 
         public void update(long currentTotalExecutionTimeNanos, Collection<Long> ongoingTasksStartNanos) {
-            final long nowNanos = System.nanoTime();
+            update(currentTotalExecutionTimeNanos, ongoingTasksStartNanos, System.nanoTime());
+        }
+
+        void update(long currentTotalExecutionTimeNanos, Collection<Long> ongoingTasksStartNanos, final long nowNanos) {
             final long previous = previousTotalExecutionTimeNanos;
             long taskExecutionTimeSinceLastSample = calculateTaskExecutionTimeSinceLastSample(
                 currentTotalExecutionTimeNanos,
@@ -147,8 +150,7 @@ public class AverageSearchLoadSampler {
             // to the accumulated task execution time of the current sampling period, and this cannot be more than
             // the sampling period itself.
             long executionTimeOfOngoingTasks = ongoingTasksStartNanos.stream()
-                .map(t -> ensureRange(nowNanos - t, 0, samplingFrequency.nanos()))
-                .mapToLong(Long::longValue)
+                .mapToLong(t -> ensureRange(nowNanos - t, 0, samplingFrequency.nanos()))
                 .sum();
             assert executionTimeOfOngoingTasks >= 0;
             // We also cap the total task execution time within a sampling period to the max possible value which is

@@ -714,24 +714,26 @@ public class ObjectMapper extends Mapper {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(DocCountFieldMapper docCountFieldMapper) {
+        record Tuple(String fieldName, SourceLoader.SyntheticFieldLoader loader) {}
         int size = this.mappers.size();
         if (docCountFieldMapper != null) {
             size++;
         }
-        List<Mapper> mappers = new ArrayList<>(size);
-        for (Mapper mapper : this.mappers.values()) {
-            if (mapper.syntheticFieldLoader() != SourceLoader.SyntheticFieldLoader.NOTHING) {
-                mappers.add(mapper);
+        List<Tuple> mappers = new ArrayList<>(size);
+        for (var mapper : this.mappers.values()) {
+            var syntheticFieldLoader = mapper.syntheticFieldLoader();
+            if (syntheticFieldLoader != SourceLoader.SyntheticFieldLoader.NOTHING) {
+                mappers.add(new Tuple(mapper.name(), syntheticFieldLoader));
             }
         }
         if (docCountFieldMapper != null) {
-            mappers.add(docCountFieldMapper);
+            mappers.add(new Tuple(docCountFieldMapper.name(), docCountFieldMapper.syntheticFieldLoader()));
         }
-        mappers.sort(Comparator.comparing(Mapper::name));
+        mappers.sort(Comparator.comparing(Tuple::fieldName));
         return new SyntheticSourceFieldLoader(new AbstractList<>() {
             @Override
             public SourceLoader.SyntheticFieldLoader get(int index) {
-                return mappers.get(index).syntheticFieldLoader();
+                return mappers.get(index).loader;
             }
 
             @Override

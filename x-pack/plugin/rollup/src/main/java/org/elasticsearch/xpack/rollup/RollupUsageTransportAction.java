@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import java.io.IOException;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-
 public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withFiltering(

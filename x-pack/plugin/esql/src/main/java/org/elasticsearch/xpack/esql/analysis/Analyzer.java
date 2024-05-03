@@ -852,14 +852,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (left.dataType() == KEYWORD
                 && left.foldable()
-                && (canCastTo(right.dataType()))
+                && (supportsImplicitCasting(right.dataType()))
                 && ((left instanceof EsqlScalarFunction) == false)) {
                 targetDataType = right.dataType();
                 from = left;
             }
             if (right.dataType() == KEYWORD
                 && right.foldable()
-                && (canCastTo(left.dataType()))
+                && (supportsImplicitCasting(left.dataType()))
                 && ((right instanceof EsqlScalarFunction) == false)) {
                 targetDataType = left.dataType();
                 from = right;
@@ -877,15 +877,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression left = in.value();
             List<Expression> right = in.list();
 
-            if (left.resolved() == false || canCastTo(left.dataType()) == false) {
+            if (left.resolved() == false || supportsImplicitCasting(left.dataType()) == false) {
                 return in;
             }
             List<Expression> newChildren = new ArrayList<>(right.size() + 1);
             boolean childrenChanged = false;
 
-            for (int i = 0; i < right.size(); i++) {
-                Expression value = right.get(i);
-                if (value.dataType() == KEYWORD) {
+            for (Expression value : right) {
+                if (value.dataType() == KEYWORD && value.foldable()) {
                     Expression e = castStringLiteral(value, left.dataType());
                     newChildren.add(e);
                     childrenChanged = true;
@@ -897,7 +896,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? in.replaceChildren(newChildren) : in;
         }
 
-        private static boolean canCastTo(DataType type) {
+        private static boolean supportsImplicitCasting(DataType type) {
             return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 

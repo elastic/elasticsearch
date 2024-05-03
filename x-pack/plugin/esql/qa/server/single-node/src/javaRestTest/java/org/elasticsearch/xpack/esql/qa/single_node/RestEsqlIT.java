@@ -126,7 +126,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
-    public void testDoNotLogWithDebug() throws IOException {
+    public void testDoLogWithDebug() throws IOException {
         try {
             setLoggingLevel("DEBUG");
             RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_LOG_ME = 1");

@@ -64,7 +64,6 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
                 new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23 }),
                 new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 24 })
             )
-
         );
 
         String xContentResult = Strings.toString(entity, true, true);

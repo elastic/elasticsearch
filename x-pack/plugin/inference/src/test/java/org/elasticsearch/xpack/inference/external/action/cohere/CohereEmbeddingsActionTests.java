@@ -205,10 +205,6 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            // MatcherAssert.assertThat(
-            // result.asMap(),
-            // is(TextEmbeddingByteResultsTests.buildExpectation(List.of(List.of((byte) 0, (byte) -1))))
-            // );
             assertEquals(buildExpectationByte(List.of(new byte[] { 0, -1 })), result.asMap());
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());

@@ -1267,7 +1267,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("foo", floatResult.chunks().get(0).matchedText());
-                // assertEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding());
                 assertTrue(Arrays.equals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding()));
             }
             {
@@ -1275,7 +1274,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("bar", floatResult.chunks().get(0).matchedText());
-                // assertEquals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding());
                 assertTrue(Arrays.equals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding()));
             }
 

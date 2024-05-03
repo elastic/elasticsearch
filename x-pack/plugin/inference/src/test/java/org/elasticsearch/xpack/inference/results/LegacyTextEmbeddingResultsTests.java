@@ -37,7 +37,6 @@ public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTest
 
     private static LegacyTextEmbeddingResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
-        // List<Float> floats = new ArrayList<>(columns);
         float[] floats = new float[columns];
         for (int i = 0; i < columns; i++) {
             floats[i] = randomFloat();
@@ -68,7 +67,6 @@ public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTest
                 new LegacyTextEmbeddingResults.Embedding(new float[] { 0.1F }),
                 new LegacyTextEmbeddingResults.Embedding(new float[] { 0.2F })
             )
-
         );
 
         String xContentResult = Strings.toString(entity, true, true);

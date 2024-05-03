@@ -34,7 +34,6 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
 
     private static TextEmbeddingResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
-        // List<Float> floats = new ArrayList<>(columns);
         float[] floats = new float[columns];
         for (int i = 0; i < columns; i++) {
             floats[i] = randomFloat();

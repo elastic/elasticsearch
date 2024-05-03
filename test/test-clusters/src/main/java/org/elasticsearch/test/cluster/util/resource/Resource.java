@@ -32,6 +32,10 @@ public interface Resource {
     }
 
     static Resource fromFile(Path file) {
+        return fromFile(() -> file);
+    }
+
+    static Resource fromFile(Supplier<Path> file) {
         return new FileResource(file);
     }
 

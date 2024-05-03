@@ -29,4 +29,14 @@ public class HuggingFaceElserModelTests extends ESTestCase {
             new HuggingFaceElserSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
+
+    public static HuggingFaceElserModel createModel(String url, String apiKey, String modelId) {
+        return new HuggingFaceElserModel(
+            modelId,
+            TaskType.SPARSE_EMBEDDING,
+            "service",
+            new HuggingFaceElserServiceSettings(url),
+            new HuggingFaceElserSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
 }

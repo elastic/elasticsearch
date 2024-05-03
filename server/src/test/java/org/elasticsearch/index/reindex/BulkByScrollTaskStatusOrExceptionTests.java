@@ -41,7 +41,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
 
     @Override
     protected StatusOrException doParseInstance(XContentParser parser) throws IOException {
-        return StatusOrException.fromXContent(parser);
+        return BulkByScrollTaskStatusTests.parseStatusOrException(parser);
     }
 
     public static void assertEqualStatusOrException(

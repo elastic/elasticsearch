@@ -1,8 +1,8 @@
 ---
 setup:
-  - skip:
-      version: "8.7.00 - 8.9.99"
-      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       snapshot.create_repository:
@@ -20,10 +20,10 @@ teardown:
 
 ---
 "Create a snapshot and then restore it":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
 
   # Create index
   - do:
@@ -148,5 +148,5 @@ teardown:
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507}
-  - match: {hits.hits.0.fields._tsid: [ { k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod } ] }
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
 

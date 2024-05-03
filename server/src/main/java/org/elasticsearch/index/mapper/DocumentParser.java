@@ -21,7 +21,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,7 +40,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -53,17 +52,11 @@ public final class DocumentParser {
     public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
 
     private final XContentParserConfiguration parserConfiguration;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final MappingParserContext mappingParserContext;
 
-    DocumentParser(
-        XContentParserConfiguration parserConfiguration,
-        MappingParserContext mappingParserContext,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
-    ) {
+    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
     }
 
     /**
@@ -81,12 +74,9 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        // only observe a document if it was not already reported (done in IngestService)
-        DocumentParsingObserver documentParsingObserver = source.toBeReported()
-            ? documentParsingObserverSupplier.get()
-            : DocumentParsingObserver.EMPTY_INSTANCE;
+        DocumentSizeObserver documentSizeObserver = source.getDocumentSizeObserver();
         try (
-            XContentParser parser = documentParsingObserver.wrapParser(
+            XContentParser parser = documentSizeObserver.wrapParser(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
             )
         ) {
@@ -105,16 +95,11 @@ public final class DocumentParser {
 
         Mapping dynamicUpdate = createDynamicUpdate(context);
 
-        // if a mappingUpdate is required, the parsing will be triggered again
-        if (dynamicUpdate == null) {
-            documentParsingObserver.setIndexName(mappingParserContext.getIndexSettings().getIndex().getName());
-            documentParsingObserver.close();
-        }
         return new ParsedDocument(
             context.version(),
             context.seqID(),
             context.id(),
-            source.routing(),
+            context.routing(),
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
@@ -139,7 +124,17 @@ public final class DocumentParser {
 
             if (context.root().isEnabled() == false) {
                 // entire type is disabled
-                context.parser().skipChildren();
+                if (context.mappingLookup().isSourceSynthetic()) {
+                    context.addIgnoredField(
+                        new IgnoredSourceFieldMapper.NameValue(
+                            MapperService.SINGLE_MAPPING_NAME,
+                            0,
+                            XContentDataHelper.encodeToken(context.parser())
+                        )
+                    );
+                } else {
+                    context.parser().skipChildren();
+                }
             } else if (emptyDoc == false) {
                 parseObjectOrNested(context);
             }
@@ -261,18 +256,29 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
-            context.parser().skipChildren();
+            // entire type is disabled
+            if (context.mappingLookup().isSourceSynthetic()) {
+                context.addIgnoredField(
+                    new IgnoredSourceFieldMapper.NameValue(
+                        context.parent().fullPath(),
+                        context.parent().fullPath().indexOf(currentFieldName),
+                        XContentDataHelper.encodeToken(parser)
+                    )
+                );
+            } else {
+                parser.skipChildren();
+            }
             return;
         }
-        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
             return;
         }
 
-        String currentFieldName = parser.currentName();
         if (token.isValue()) {
             throwOnConcreteValue(context.parent(), currentFieldName, context);
         }
@@ -470,11 +476,12 @@ public final class DocumentParser {
 
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
         context.path().add(currentFieldName);
+        boolean withinLeafObject = context.path().isWithinLeafObject();
         if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() == false) {
             context.path().setWithinLeafObject(true);
         }
         parseObjectOrField(context, objectMapper);
-        context.path().setWithinLeafObject(false);
+        context.path().setWithinLeafObject(withinLeafObject);
         context.path().remove();
     }
 
@@ -514,7 +521,11 @@ public final class DocumentParser {
 
             }
             if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
-                context.addDynamicMapper(dynamicObjectMapper);
+                if (context.addDynamicMapper(dynamicObjectMapper) == false) {
+                    failIfMatchesRoutingPath(context, currentFieldName);
+                    context.parser().skipChildren();
+                    return;
+                }
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
@@ -556,7 +567,10 @@ public final class DocumentParser {
                 parseNonDynamicArray(context, currentFieldName, currentFieldName);
             } else {
                 if (parsesArrayValue(objectMapperFromTemplate)) {
-                    context.addDynamicMapper(objectMapperFromTemplate);
+                    if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
+                        context.parser().skipChildren();
+                        return;
+                    }
                     context.path().add(currentFieldName);
                     parseObjectOrField(context, objectMapperFromTemplate);
                     context.path().remove();
@@ -674,7 +688,9 @@ public final class DocumentParser {
             failIfMatchesRoutingPath(context, currentFieldName);
             return;
         }
-        context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
+        if (context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName) == false) {
+            failIfMatchesRoutingPath(context, currentFieldName);
+        }
     }
 
     private static void ensureNotStrict(DocumentParserContext context, String currentFieldName) {
@@ -701,6 +717,10 @@ public final class DocumentParser {
      */
     private static void parseCopyFields(DocumentParserContext context, List<String> copyToFields) throws IOException {
         for (String field : copyToFields) {
+            if (context.mappingLookup().inferenceFields().get(field) != null) {
+                // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
+                continue;
+            }
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
             LuceneDocument targetDoc = null;

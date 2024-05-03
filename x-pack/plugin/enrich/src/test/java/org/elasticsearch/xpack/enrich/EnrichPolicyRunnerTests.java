@@ -14,9 +14,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -2073,7 +2073,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ActionType<?> randomActionType = randomFrom(
             EnrichReindexAction.INSTANCE,
             GetIndexAction.INSTANCE,
-            CreateIndexAction.INSTANCE,
+            TransportCreateIndexAction.TYPE,
             ForceMergeAction.INSTANCE,
             RefreshAction.INSTANCE,
             IndicesSegmentsAction.INSTANCE,

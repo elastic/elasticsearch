@@ -182,14 +182,24 @@ class APMJvmOptions {
         return "-javaagent:" + agentJar + "=c=" + tmpPropertiesFile;
     }
 
-    private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
+    // package private for testing
+    static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
         final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = secrets.getString("tracing.apm." + key)) {
-                    propertiesMap.put(key, token.toString());
+            for (String prefix : List.of("telemetry.", "tracing.apm.")) {
+                if (settingNames.contains(prefix + key)) {
+                    if (propertiesMap.containsKey(key)) {
+                        throw new IllegalStateException(
+                            Strings.format("Duplicate telemetry setting: [telemetry.%s] and [tracing.apm.%s]", key, key)
+                        );
+                    }
+
+                    try (SecureString token = secrets.getString(prefix + key)) {
+                        propertiesMap.put(key, token.toString());
+                    }
                 }
             }
+
         }
     }
 

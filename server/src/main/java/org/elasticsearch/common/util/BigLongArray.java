@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -131,21 +132,30 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, Math.toIntExact(size), pages, Long.BYTES, LONG_PAGE_SIZE);
+        writePages(out, size, pages, Long.BYTES);
     }
 
-    static void writePages(StreamOutput out, int size, byte[][] pages, int bytesPerValue, int pageSize) throws IOException {
-        out.writeVInt(size * bytesPerValue);
-        int lastPageEnd = size % pageSize;
-        if (lastPageEnd == 0) {
-            for (byte[] page : pages) {
-                out.write(page);
-            }
-            return;
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
+        readPages(in, pages);
+    }
+
+    static void readPages(StreamInput in, byte[][] pages) throws IOException {
+        int remainedBytes = in.readVInt();
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[0].length);
+            in.readBytes(pages[i], 0, len);
+            remainedBytes -= len;
         }
-        for (int i = 0; i < pages.length - 1; i++) {
-            out.write(pages[i]);
+    }
+
+    static void writePages(StreamOutput out, long size, byte[][] pages, int bytesPerValue) throws IOException {
+        int remainedBytes = Math.toIntExact(size * bytesPerValue);
+        out.writeVInt(remainedBytes);
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[i].length);
+            out.writeBytes(pages[i], 0, len);
+            remainedBytes -= len;
         }
-        out.write(pages[pages.length - 1], 0, lastPageEnd * bytesPerValue);
     }
 }

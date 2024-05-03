@@ -44,6 +44,7 @@ dependencies {
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
+  testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
 
   // security deps
@@ -61,7 +62,6 @@ dependencies {
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
-  testImplementation project(":client:rest-high-level")
   // Needed for Fips140ProviderVerificationTests
   testCompileOnly('org.bouncycastle:bc-fips:1.0.2.4')
 

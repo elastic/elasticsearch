@@ -140,10 +140,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         if (isFinished()) {
             return null;
         }
-        if (isEmitting()) {
-            return emit(false);
-        } else {
-            return collect();
+        long start = System.nanoTime();
+        try {
+            if (isEmitting()) {
+                return emit(false);
+            } else {
+                return collect();
+            }
+        } finally {
+            processingNanos += System.nanoTime() - start;
         }
     }
 
@@ -227,8 +232,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     @Override
     protected void describe(StringBuilder sb) {
-        sb.append(", limit=").append(limit);
-        sb.append(", sorts=").append(sorts);
+        sb.append(", limit = ").append(limit);
+        String notPrettySorts = sorts.stream().map(Strings::toString).collect(Collectors.joining(","));
+        sb.append(", sorts = [").append(notPrettySorts).append("]");
     }
 
     static final class PerShardCollector {

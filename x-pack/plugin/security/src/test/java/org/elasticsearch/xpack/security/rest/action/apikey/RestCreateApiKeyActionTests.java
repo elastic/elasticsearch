@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 
 import java.time.Duration;
@@ -105,7 +106,11 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 }
             }
         };
-        final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState);
+        final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(
+            Settings.EMPTY,
+            mockLicenseState,
+            new CreateApiKeyRequestBuilderFactory.Default()
+        );
         restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
         final RestResponse restResponse = responseSetOnce.get();

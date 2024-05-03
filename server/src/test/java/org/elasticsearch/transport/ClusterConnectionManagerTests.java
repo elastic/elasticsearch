@@ -469,7 +469,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {
@@ -547,7 +547,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {

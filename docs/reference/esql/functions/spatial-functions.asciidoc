@@ -1,0 +1,24 @@
+[[esql-spatial-functions]]
+==== {esql} spatial functions
+
+++++
+<titleabbrev>Spatial functions</titleabbrev>
+++++
+
+{esql} supports these spatial functions:
+
+// tag::spatial_list[]
+* experimental:[] <<esql-st_intersects>>
+* experimental:[] <<esql-st_disjoint>>
+* experimental:[] <<esql-st_contains>>
+* experimental:[] <<esql-st_within>>
+* experimental:[] <<esql-st_x>>
+* experimental:[] <<esql-st_y>>
+// end::spatial_list[]
+
+include::st_intersects.asciidoc[]
+include::st_disjoint.asciidoc[]
+include::st_contains.asciidoc[]
+include::st_within.asciidoc[]
+include::st_x.asciidoc[]
+include::st_y.asciidoc[]

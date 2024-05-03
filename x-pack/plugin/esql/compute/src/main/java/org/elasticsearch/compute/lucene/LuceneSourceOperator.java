@@ -128,6 +128,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             assert currentPagePos == 0 : currentPagePos;
             return null;
         }
+        long start = System.nanoTime();
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
@@ -163,6 +164,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             return page;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            processingNanos += System.nanoTime() - start;
         }
     }
 
@@ -173,6 +176,6 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     protected void describe(StringBuilder sb) {
-        sb.append(", remainingDocs=").append(remainingDocs);
+        sb.append(", remainingDocs = ").append(remainingDocs);
     }
 }

@@ -1,6 +1,0 @@
-pr: 104586
-summary: Reduce the number of Evals `ReplaceMissingFieldWithNull` creates
-area: ES|QL
-type: bug
-issues:
- - 104583

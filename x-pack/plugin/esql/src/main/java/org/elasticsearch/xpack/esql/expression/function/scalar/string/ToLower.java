@@ -12,13 +12,12 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -31,17 +30,22 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class ToLower extends ConfigurationFunction implements EvaluatorMapper {
+public class ToLower extends EsqlConfigurationFunction {
 
     private final Expression field;
 
     @FunctionInfo(
         returnType = { "keyword", "text" },
-        description = "Returns a new string representing the input string converted to lower case."
+        description = "Returns a new string representing the input string converted to lower case.",
+        examples = @Example(file = "string", tag = "to_lower")
     )
     public ToLower(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }, description = "The input string") Expression field,
+        @Param(
+            name = "str",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression field,
         Configuration configuration
     ) {
         super(source, List.of(field), configuration);
@@ -65,11 +69,6 @@ public class ToLower extends ConfigurationFunction implements EvaluatorMapper {
     @Override
     public boolean foldable() {
         return field.foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator
@@ -100,10 +99,5 @@ public class ToLower extends ConfigurationFunction implements EvaluatorMapper {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, ToLower::new, field, configuration());
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 }

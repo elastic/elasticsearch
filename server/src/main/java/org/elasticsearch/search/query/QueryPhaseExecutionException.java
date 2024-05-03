@@ -13,18 +13,15 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class QueryPhaseExecutionException extends SearchException {
+public final class QueryPhaseExecutionException extends SearchException {
 
     public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable cause) {
-        super(shardTarget, "Query Failed [" + msg + "]", cause);
+        super(shardTarget, "Query Failed [" + msg + "]", Objects.requireNonNull(cause, "cause cannot be null"));
     }
 
     public QueryPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
-    }
-
-    public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg) {
-        super(shardTarget, msg);
     }
 }

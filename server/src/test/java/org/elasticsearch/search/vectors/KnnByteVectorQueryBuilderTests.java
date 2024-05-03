@@ -15,4 +15,13 @@ public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilde
     DenseVectorFieldMapper.ElementType elementType() {
         return DenseVectorFieldMapper.ElementType.BYTE;
     }
+
+    @Override
+    protected KnnVectorQueryBuilder createKnnVectorQueryBuilder(String fieldName, int numCands, Float similarity) {
+        byte[] vector = new byte[VECTOR_DIMENSION];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = randomByte();
+        }
+        return new KnnVectorQueryBuilder(fieldName, vector, numCands, similarity);
+    }
 }

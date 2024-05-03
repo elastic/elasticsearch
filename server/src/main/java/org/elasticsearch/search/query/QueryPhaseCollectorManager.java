@@ -35,9 +35,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.MaxScoreCollector;
@@ -256,21 +256,6 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 searchContext.scrollContext(),
                 searchContext.numberOfShards()
             );
-        } else if (searchContext.collapse() != null) {
-            boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
-            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return forCollapsing(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                searchContext.collapse(),
-                searchContext.sort(),
-                numDocs,
-                trackScores,
-                searchContext.searchAfter()
-            );
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
@@ -280,21 +265,37 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                     numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }
             }
-            return new WithHits(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                reader,
-                query,
-                searchContext.sort(),
-                searchContext.searchAfter(),
-                numDocs,
-                searchContext.trackScores(),
-                searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector
-            );
+            if (searchContext.collapse() != null) {
+                boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
+                return forCollapsing(
+                    postFilterWeight,
+                    terminateAfterChecker,
+                    aggsCollectorManager,
+                    searchContext.minimumScore(),
+                    searchContext.getProfilers() != null,
+                    searchContext.collapse(),
+                    searchContext.sort(),
+                    numDocs,
+                    trackScores,
+                    searchContext.searchAfter()
+                );
+            } else {
+                return new WithHits(
+                    postFilterWeight,
+                    terminateAfterChecker,
+                    aggsCollectorManager,
+                    searchContext.minimumScore(),
+                    searchContext.getProfilers() != null,
+                    reader,
+                    query,
+                    searchContext.sort(),
+                    searchContext.searchAfter(),
+                    numDocs,
+                    searchContext.trackScores(),
+                    searchContext.trackTotalHitsUpTo(),
+                    hasFilterCollector
+                );
+            }
         }
     }
 
@@ -413,14 +414,9 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 }
             }
             if (sortAndFormats == null) {
-                this.topDocsManager = TopScoreDocCollector.createSharedManager(numHits, searchAfter, hitCountThreshold);
+                this.topDocsManager = new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold);
             } else {
-                this.topDocsManager = TopFieldCollector.createSharedManager(
-                    sortAndFormats.sort,
-                    numHits,
-                    (FieldDoc) searchAfter,
-                    hitCountThreshold
-                );
+                this.topDocsManager = new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
             }
         }
 

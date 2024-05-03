@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -52,17 +51,22 @@ public class OptimizerRunTests extends ESTestCase {
     private final IndexResolution getIndexResult;
     private final Analyzer analyzer;
     private final Optimizer optimizer;
-    private static final Map<String, Class<? extends BinaryComparison>> COMPARISONS = new HashMap<>() {
-        {
-            put(EQ.symbol(), Equals.class);
-            put(NULLEQ.symbol(), NullEquals.class);
-            put(NEQ.symbol(), NotEquals.class);
-            put(GT.symbol(), GreaterThan.class);
-            put(GTE.symbol(), GreaterThanOrEqual.class);
-            put(LT.symbol(), LessThan.class);
-            put(LTE.symbol(), LessThanOrEqual.class);
-        }
-    };
+    private static final Map<String, Class<? extends BinaryComparison>> COMPARISONS = Map.of(
+        EQ.symbol(),
+        Equals.class,
+        NULLEQ.symbol(),
+        NullEquals.class,
+        NEQ.symbol(),
+        NotEquals.class,
+        GT.symbol(),
+        GreaterThan.class,
+        GTE.symbol(),
+        GreaterThanOrEqual.class,
+        LT.symbol(),
+        LessThan.class,
+        LTE.symbol(),
+        LessThanOrEqual.class
+    );
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     public OptimizerRunTests() {

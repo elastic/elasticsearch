@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRespons
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
-import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -164,11 +163,11 @@ public class NativeUsersStore {
         }
     }
 
-    public void queryUsers(SearchRequest searchRequest, ActionListener<QueryUserResponse> listener) {
+    public void queryUsers(SearchRequest searchRequest, ActionListener<QueryUserResults> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
-            listener.onResponse(QueryUserResponse.emptyResponse());
+            listener.onResponse(QueryUserResults.EMPTY);
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
@@ -183,15 +182,15 @@ public class NativeUsersStore {
                         final long total = searchResponse.getHits().getTotalHits().value;
                         if (total == 0) {
                             logger.debug("No users found for query [{}]", searchRequest.source().query());
-                            listener.onResponse(QueryUserResponse.emptyResponse());
+                            listener.onResponse(QueryUserResults.EMPTY);
                             return;
                         }
 
-                        final List<QueryUserResponse.Item> userItem = Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
+                        final List<QueryUserResult> userItems = Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
                             UserAndPassword userAndPassword = transformUser(hit.getId(), hit.getSourceAsMap());
-                            return userAndPassword != null ? new QueryUserResponse.Item(userAndPassword.user(), hit.getSortValues()) : null;
+                            return userAndPassword != null ? new QueryUserResult(userAndPassword.user(), hit.getSortValues()) : null;
                         }).filter(Objects::nonNull).toList();
-                        listener.onResponse(new QueryUserResponse(total, userItem));
+                        listener.onResponse(new QueryUserResults(userItems, total));
                     }, listener::onFailure)
                 )
             );
@@ -838,5 +837,17 @@ public class NativeUsersStore {
         static ReservedUserInfo defaultDisabledUserInfo() {
             return new ReservedUserInfo(new char[0], false);
         }
+    }
+
+    /**
+     * Result record for every document matching a user
+     */
+    public record QueryUserResult(User user, Object[] sortValues) {}
+
+    /**
+     * Total result for a Query User query
+     */
+    public record QueryUserResults(List<QueryUserResult> userQueryResult, long total) {
+        public static final QueryUserResults EMPTY = new QueryUserResults(List.of(), 0);
     }
 }

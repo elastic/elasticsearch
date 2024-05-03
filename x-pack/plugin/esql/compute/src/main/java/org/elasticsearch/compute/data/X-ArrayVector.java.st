@@ -10,13 +10,21 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
+
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 $endif$
 
 /**
@@ -44,10 +52,67 @@ $endif$
         this.values = values;
     }
 
+    static $Type$ArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+$if(BytesRef)$
+        final BytesRefArray values = new BytesRefArray(in, blockFactory.bigArrays());
+        boolean success = false;
+        try {
+            final var block = new BytesRefArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - values.bigArraysRamBytesUsed());
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+$else$
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * $BYTES$;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            $type$[] values = new $type$[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.read$Type$();
+            }
+            final var block = new $Type$ArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+$endif$
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+$if(BytesRef)$
+        values.writeTo(out);
+$elseif(boolean)$
+        // TODO: One bit for each boolean
+        for (int i = 0; i < positions; i++) {
+            out.writeBoolean(values[i]);
+        }
+$else$
+        for (int i = 0; i < positions; i++) {
+            out.write$Type$(values[i]);
+        }
+$endif$
+    }
+
     @Override
     public $Type$Block asBlock() {
         return new $Type$VectorBlock(this);
     }
+
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+$endif$
 
 $if(BytesRef)$
     @Override
@@ -116,7 +181,11 @@ $endif$
 $if(BytesRef)$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
 $else$
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        String valuesString = IntStream.range(0, getPositionCount())
+            .limit(10)
+            .mapToObj(n -> String.valueOf(values[n]))
+            .collect(Collectors.joining(", ", "[", getPositionCount() > 10 ? ", ...]" : "]"));
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
 $endif$
     }
 

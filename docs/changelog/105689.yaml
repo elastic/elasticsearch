@@ -1,0 +1,6 @@
+pr: 105689
+summary: Fix `uri_parts` processor behaviour for missing extensions
+area: Ingest Node
+type: bug
+issues:
+ - 105612

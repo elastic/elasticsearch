@@ -262,7 +262,7 @@ public class KoelnerPhonetik implements StringEncoder {
     }
 
     private static String expandUmlauts(String str) {
-        return str.replaceAll("\u00C4", "AE").replaceAll("\u00D6", "OE").replaceAll("\u00DC", "UE");
+        return str.replace("\u00C4", "AE").replace("\u00D6", "OE").replace("\u00DC", "UE");
     }
 
     private static String removeSequences(String str) {

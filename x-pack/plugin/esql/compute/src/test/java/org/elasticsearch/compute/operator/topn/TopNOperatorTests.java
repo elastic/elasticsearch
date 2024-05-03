@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockBuilder;
 import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
+import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -37,6 +38,7 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
 import java.net.InetAddress;
@@ -77,6 +79,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -134,15 +137,19 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo(
+            "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
+        );
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
+        );
     }
 
     @Override
@@ -431,7 +438,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             sortOrders,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders);
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
         rf.row(position, row);
         return row;
     }
@@ -1393,6 +1400,39 @@ public class TopNOperatorTests extends OperatorTestCase {
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
+        }
+    }
+
+    public void testRowResizes() {
+        int columns = 1000;
+        int rows = 1000;
+        CountingCircuitBreaker breaker = new CountingCircuitBreaker(
+            new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1))
+        );
+        List<ElementType> types = Collections.nCopies(columns, INT);
+        List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
+        try (
+            TopNOperator op = new TopNOperator(
+                driverContext().blockFactory(),
+                breaker,
+                10,
+                types,
+                encoders,
+                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                randomPageSize()
+            )
+        ) {
+            int[] blockValues = IntStream.range(0, rows).toArray();
+            Block block = blockFactory().newIntArrayVector(blockValues, rows).asBlock();
+            Block[] blocks = new Block[1000];
+            for (int i = 0; i < 1000; i++) {
+                blocks[i] = block;
+                block.incRef();
+            }
+            block.decRef();
+            op.addInput(new Page(blocks));
+
+            assertThat(breaker.getMemoryRequestCount(), is(94L));
         }
     }
 

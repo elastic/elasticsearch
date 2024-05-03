@@ -242,6 +242,27 @@ POST byte-image-index/_search
 // TEST[s/"k": 10/"k": 3/]
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
+
+_Note_: In addition to the standard byte array, one can also provide a hex-encoded string value
+for the `query_vector` param. As an example, the search request above can also be expressed as follows,
+which would yield the same results
+[source,console]
+----
+POST byte-image-index/_search
+{
+  "knn": {
+    "field": "byte-image-vector",
+    "query_vector": "fb09",
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
 [discrete]
 [[knn-search-quantized-example]]
 ==== Byte quantized kNN search
@@ -250,6 +271,8 @@ If you want to provide `float` vectors, but want the memory savings of `byte` ve
 <<dense-vector-quantization, quantization>> feature. Quantization allows you to provide `float` vectors, but
 internally they are indexed as `byte` vectors. Additionally, the original `float` vectors are still retained
 in the index.
+
+NOTE: The default index type for `dense_vector` is `int8_hnsw`.
 
 To use quantization, you can use the index type `int8_hnsw` object in the `dense_vector` mapping.
 
@@ -568,12 +591,12 @@ NOTE: `similarity` is the true <<dense-vector-similarity, similarity>> before it
 
 For each configured <<dense-vector-similarity, similarity>>, here is the corresponding inverted `_score` function. This is so if you are wanting to filter from a `_score` perspective, you can do this minor transformation to correctly reject irrelevant results.
 --
- - `l2_norm`: `sqrt((1 / _score) - 1)`
- - `cosine`: `(2 * _score) - 1`
- - `dot_product`: `(2 * _score) - 1`
- - `max_inner_product`:
-    - `_score < 1`: `1 - (1 / _score)`
-    - `_score >= 1`: `_score - 1`
+* `l2_norm`: `sqrt((1 / _score) - 1)`
+* `cosine`: `(2 * _score) - 1`
+* `dot_product`: `(2 * _score) - 1`
+* `max_inner_product`:
+** `_score < 1`: `1 - (1 / _score)`
+** `_score >= 1`: `_score - 1`
 --
 
 Here is an example. In this example we search for the given `query_vector` for `k` nearest neighbors. However, with
@@ -631,7 +654,10 @@ PUT passage_vectors
                 "properties": {
                     "vector": {
                         "type": "dense_vector",
-                        "dims": 2
+                        "dims": 2,
+                        "index_options": {
+                            "type": "hnsw"
+                        }
                     },
                     "text": {
                         "type": "text",
@@ -1015,7 +1041,7 @@ PUT image-index
 option is not supported.
 
 * {blank}
-include::{es-repo-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
+include::{es-ref-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
 
 NOTE: Approximate kNN search always uses the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type in order to gather

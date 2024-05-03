@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -19,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
@@ -83,11 +83,11 @@ public class HttpClient implements Closeable {
         }
     }
 
-    public void send(HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
+    public void send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
         // The caller must call start() first before attempting to send a request
         assert status.get() == Status.STARTED : "call start() before attempting to send a request";
 
-        SocketAccess.doPrivileged(() -> client.execute(request, context, new FutureCallback<>() {
+        SocketAccess.doPrivileged(() -> client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
                 respondUsingUtilityThread(response, request, listener);
@@ -95,23 +95,30 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                throttlerManager.warn(logger, format("Request [%s] failed", request.getRequestLine()), ex);
+                throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
             @Override
             public void cancelled() {
-                failUsingUtilityThread(new CancellationException(format("Request [%s] was cancelled", request.getRequestLine())), listener);
+                failUsingUtilityThread(
+                    new CancellationException(format("Request from inference entity id [%s] was cancelled", request.inferenceEntityId())),
+                    listener
+                );
             }
         }));
     }
 
-    private void respondUsingUtilityThread(HttpResponse response, HttpUriRequest request, ActionListener<HttpResult> listener) {
+    private void respondUsingUtilityThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                throttlerManager.warn(logger, format("Failed to create http result for [%s]", request.getRequestLine()), e);
+                throttlerManager.warn(
+                    logger,
+                    format("Failed to create http result from inference entity id [%s]", request.inferenceEntityId()),
+                    e
+                );
                 listener.onFailure(e);
             }
         });

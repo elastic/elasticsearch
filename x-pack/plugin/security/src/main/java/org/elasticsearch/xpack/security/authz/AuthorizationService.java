@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -139,6 +140,7 @@ public class AuthorizationService {
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
+    private final AuthorizationDenialMessages authorizationDenialMessages;
 
     public AuthorizationService(
         Settings settings,
@@ -154,7 +156,8 @@ public class AuthorizationService {
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices
+        RestrictedIndices restrictedIndices,
+        AuthorizationDenialMessages authorizationDenialMessages
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -178,6 +181,7 @@ public class AuthorizationService {
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
+        this.authorizationDenialMessages = authorizationDenialMessages;
     }
 
     public void checkPrivileges(
@@ -215,6 +219,7 @@ public class AuthorizationService {
 
     public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
+        final TransportVersion remoteClusterVersion,
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
@@ -239,6 +244,7 @@ public class AuthorizationService {
                 listener.delegateFailure(
                     (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
+                        remoteClusterVersion,
                         resolvedAuthzInfo,
                         wrapPreservingContext(delegatedLister, threadContext)
                     )
@@ -477,7 +483,7 @@ public class AuthorizationService {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                     return;
                 }
-                final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
@@ -778,7 +784,7 @@ public class AuthorizationService {
                     }
                     return resolved;
                 });
-                actionToIndicesMap.compute(itemAction, (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex));
+                actionToIndicesMap.computeIfAbsent(itemAction, k -> new HashSet<>()).add(resolvedIndex);
             }
 
             final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener = ActionListener.wrap(
@@ -800,15 +806,9 @@ public class AuthorizationService {
                         final String resolvedIndex = resolvedIndexNames.get(item.index());
                         final String itemAction = getAction(item);
                         if (actionToIndicesAccessControl.get(itemAction).hasIndexPermissions(resolvedIndex)) {
-                            actionToGrantedIndicesMap.compute(
-                                itemAction,
-                                (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex)
-                            );
+                            actionToGrantedIndicesMap.computeIfAbsent(itemAction, ignore -> new HashSet<>()).add(resolvedIndex);
                         } else {
-                            actionToDeniedIndicesMap.compute(
-                                itemAction,
-                                (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex)
-                            );
+                            actionToDeniedIndicesMap.computeIfAbsent(itemAction, ignore -> new HashSet<>()).add(resolvedIndex);
                             item.abort(
                                 resolvedIndex,
                                 actionDenied(
@@ -876,14 +876,8 @@ public class AuthorizationService {
         }, listener::onFailure));
     }
 
-    private static Set<String> addToOrCreateSet(Set<String> set, String item) {
-        final Set<String> localSet = set != null ? set : new HashSet<>(4);
-        localSet.add(item);
-        return localSet;
-    }
-
-    private static String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {
-        final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
+    private String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {
+        final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
             getAction(bulkItemRequest),
             bulkItemRequest.request()
         );
@@ -934,7 +928,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.runAsDenied(authentication, authorizationInfo, action),
+            () -> authorizationDenialMessages.runAsDenied(authentication, authorizationInfo, action),
             null
         );
     }
@@ -944,7 +938,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
+            () -> authorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
             null
         );
     }
@@ -979,7 +973,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.actionDenied(authentication, authorizationInfo, action, request, context),
+            () -> authorizationDenialMessages.actionDenied(authentication, authorizationInfo, action, request, context),
             cause
         );
     }

@@ -19,7 +19,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -41,7 +40,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 /**
  * Base class for functions that converts a field into a function-specific type.
  */
-public abstract class AbstractConvertFunction extends UnaryScalarFunction implements EvaluatorMapper {
+public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(
@@ -100,11 +99,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     }
 
     protected abstract Map<DataType, BuildFactory> factories();
-
-    @Override
-    public final Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -63,7 +64,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.EnumSet;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -84,7 +84,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         return pluginList(FrozenIndices.class, LocalStateCompositeXPackPlugin.class);
     }
 
-    String openReaders(TimeValue keepAlive, String... indices) {
+    BytesReference openReaders(TimeValue keepAlive, String... indices) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
             .keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
@@ -146,7 +146,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         }
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        String pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
+        BytesReference pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
         try {
             for (int from = 0; from < 3; from++) {
                 assertResponse(
@@ -275,7 +275,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("test-idx").indicesOptions(
-                    new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class), EnumSet.of(IndicesOptions.WildcardStates.OPEN))
+                    IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(false)).build()
                 )
             )
         );
@@ -499,7 +499,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("id*").setFreeze(false)
                     .indicesOptions(
-                        new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class), EnumSet.of(IndicesOptions.WildcardStates.OPEN))
+                        IndicesOptions.builder()
+                            .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(false))
+                            .build()
                     )
             )
         );

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -20,6 +22,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
@@ -32,6 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105543")
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class EsqlActionBreakerIT extends EsqlActionIT {
 
@@ -76,18 +80,31 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .build();
     }
 
-    @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    private EsqlQueryResponse runWithBreaking(EsqlQueryRequest request) throws CircuitBreakingException {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 2048)));
         try {
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         } catch (Exception e) {
             logger.info("request failed", e);
             ensureBlocksReleased();
+            throw e;
         } finally {
             setRequestCircuitBreakerLimit(null);
         }
-        return super.run(request);
+    }
+
+    @Override
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        try {
+            return runWithBreaking(request);
+        } catch (Exception e) {
+            try (EsqlQueryResponse resp = super.run(request)) {
+                assertThat(e, instanceOf(CircuitBreakingException.class));
+                assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                resp.incRef();
+                return resp;
+            }
+        }
     }
 
     /**
@@ -113,7 +130,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
         try {
             final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-                var request = new EsqlQueryRequest();
+                var request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
                 request.query("from test_breaker | stats count_distinct(foo) by bar");
                 request.pragmas(randomPragmas());
                 try (var ignored = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES)) {

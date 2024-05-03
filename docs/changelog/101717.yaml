@@ -1,5 +1,0 @@
-pr: 101717
-summary: Pause shard snapshots on graceful shutdown
-area: Snapshot/Restore
-type: enhancement
-issues: []

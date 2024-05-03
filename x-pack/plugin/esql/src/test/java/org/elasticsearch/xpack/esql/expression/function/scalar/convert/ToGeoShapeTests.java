@@ -13,10 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
+@FunctionName("to_geoshape")
 public class ToGeoShapeTests extends AbstractFunctionTestCase {
     public ToGeoShapeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -38,8 +41,9 @@ public class ToGeoShapeTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToGeoShape" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_SHAPE, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoShape(suppliers, attribute, EsqlDataTypes.GEO_SHAPE, v -> v, List.of());
-        // random strings that don't look like a geo point
+        // random strings that don't look like a geo shape
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("FromString"),
@@ -54,21 +58,22 @@ public class ToGeoShapeTests extends AbstractFunctionTestCase {
             }
         );
         // strings that are geo_shape representations
-        TestCaseSupplier.unary(
-            suppliers,
-            evaluatorName.apply("FromString"),
-            List.of(
-                new TestCaseSupplier.TypedDataSupplier(
-                    "<geo_shape as string>",
-                    () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))),
-                    DataTypes.KEYWORD
-                )
-            ),
-            EsqlDataTypes.GEO_SHAPE,
-            bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
-            List.of()
-        );
-
+        for (DataType dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
+            TestCaseSupplier.unary(
+                suppliers,
+                evaluatorName.apply("FromString"),
+                List.of(
+                    new TestCaseSupplier.TypedDataSupplier(
+                        "<geo_shape as string>",
+                        () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))),
+                        dt
+                    )
+                ),
+                EsqlDataTypes.GEO_SHAPE,
+                bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
+                List.of()
+            );
+        }
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

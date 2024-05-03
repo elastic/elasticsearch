@@ -87,17 +87,26 @@ the top `size` results.
 `query_vector`::
 +
 --
-(Required, array of floats) Query vector. Must have the same number of dimensions
-as the vector field you are searching against.
+(Optional, array of floats or string) Query vector. Must have the same number of dimensions
+as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
+Either this or `query_vector_builder` must be provided.
 --
+
+`query_vector_builder`::
++
+--
+(Optional, object) Query vector builder.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
+--
+
 
 `num_candidates`::
 +
 --
-(Required, integer) The number of nearest neighbor candidates to consider per shard.
+(Optional, integer) The number of nearest neighbor candidates to consider per shard.
 Cannot exceed 10,000. {es} collects `num_candidates` results from each shard, then
 merges them to find the top results. Increasing `num_candidates` tends to improve the
-accuracy of the final results.
+accuracy of the final results. Defaults to `Math.min(1.5 * size, 10_000)`.
 --
 
 `filter`::

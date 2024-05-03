@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -32,7 +31,7 @@ import java.util.Objects;
 public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuilder> {
     public static final String NAME = "exact_knn";
     private final String field;
-    private final float[] query;
+    private final VectorData query;
 
     /**
      * Creates a query builder.
@@ -41,13 +40,27 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
      * @param field    the field that was used for the kNN query
      */
     public ExactKnnQueryBuilder(float[] query, String field) {
+        this(VectorData.fromFloats(query), field);
+    }
+
+    /**
+     * Creates a query builder.
+     *
+     * @param query    the query vector
+     * @param field    the field that was used for the kNN query
+     */
+    public ExactKnnQueryBuilder(VectorData query, String field) {
         this.query = query;
         this.field = field;
     }
 
     public ExactKnnQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.query = in.readFloatArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+            this.query = in.readOptionalWriteable(VectorData::new);
+        } else {
+            this.query = VectorData.fromFloats(in.readFloatArray());
+        }
         this.field = in.readString();
     }
 
@@ -55,7 +68,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
         return field;
     }
 
-    float[] getQuery() {
+    VectorData getQuery() {
         return query;
     }
 
@@ -66,7 +79,11 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeFloatArray(query);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+            out.writeOptionalWriteable(query);
+        } else {
+            out.writeFloatArray(query.asFloatVector());
+        }
         out.writeString(field);
     }
 
@@ -96,12 +113,12 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     protected boolean doEquals(ExactKnnQueryBuilder other) {
-        return field.equals(other.field) && Arrays.equals(query, other.query);
+        return field.equals(other.field) && Objects.equals(query, other.query);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, Arrays.hashCode(query));
+        return Objects.hash(field, Objects.hashCode(query));
     }
 
     @Override

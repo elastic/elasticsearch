@@ -12,8 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 
-import java.io.IOException;
-
 public class TaskTransportChannel implements TransportChannel {
 
     private final long taskId;
@@ -32,7 +30,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) {
         try {
             channel.sendResponse(response);
         } finally {
@@ -41,7 +39,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Exception exception) throws IOException {
+    public void sendResponse(Exception exception) {
         try {
             channel.sendResponse(exception);
         } finally {

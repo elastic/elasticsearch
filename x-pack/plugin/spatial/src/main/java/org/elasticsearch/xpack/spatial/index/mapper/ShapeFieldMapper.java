@@ -29,13 +29,15 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicCartesianShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
@@ -116,14 +118,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             );
             Parser<Geometry> parser = new ShapeParser(geometryParser);
             ShapeFieldType ft = new ShapeFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
                 meta.get()
             );
-            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new ShapeFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
     }
 

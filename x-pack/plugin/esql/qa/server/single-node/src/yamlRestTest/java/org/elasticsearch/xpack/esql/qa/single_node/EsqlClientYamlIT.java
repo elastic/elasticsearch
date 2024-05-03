@@ -15,6 +15,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
  * Run the ESQL yaml tests against the synchronous API.
  */
 public class EsqlClientYamlIT extends AbstractEsqlClientYamlIT {
+
     public EsqlClientYamlIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

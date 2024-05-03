@@ -35,7 +35,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -1039,6 +1039,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105122")
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex(
@@ -1916,11 +1917,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
                                 // Now the GCP has advanced the replica won't be marked in-sync so respond to the TRANSLOG_OPS request
                                 // to start recovery finalization
-                                try {
-                                    channel.sendResponse(response);
-                                } catch (IOException ex) {
-                                    fail(ex);
-                                }
+                                channel.sendResponse(response);
 
                                 // Wait a short while for finalization to block on advancing the replica's GCP and then delete the index
                                 threadPool.schedule(
@@ -1939,7 +1936,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // delay the delivery of the replica write until the end of the test so the replica never becomes in-sync
         replicaNodeTransportService.addRequestHandlingBehavior(
-            BulkAction.NAME + "[s][r]",
+            TransportBulkAction.NAME + "[s][r]",
             (handler, request, channel, task) -> recoveryCompleteListener.addListener(
                 assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task))
             )

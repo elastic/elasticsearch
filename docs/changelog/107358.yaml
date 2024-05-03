@@ -1,0 +1,6 @@
+pr: 107358
+summary: Check node shutdown before fail
+area: Transform
+type: enhancement
+issues:
+ - 100891

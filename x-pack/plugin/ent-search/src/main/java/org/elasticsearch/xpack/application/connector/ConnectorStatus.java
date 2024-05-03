@@ -37,6 +37,6 @@ public enum ConnectorStatus {
                 return connectorStatus;
             }
         }
-        throw new IllegalArgumentException("Unknown ConnectorStatus: " + status);
+        throw new IllegalArgumentException("Unknown " + ConnectorStatus.class.getSimpleName() + " [" + status + "].");
     }
 }

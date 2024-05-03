@@ -143,6 +143,14 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
         return builder.value(id);
     }
 
+    /**
+     * Returns a string representing the Elasticsearch release version of this index version,
+     * if applicable for this deployment, otherwise the raw version number.
+     */
+    public String toReleaseVersion() {
+        return IndexVersions.VERSION_LOOKUP.apply(id);
+    }
+
     @Override
     public String toString() {
         return Integer.toString(id);

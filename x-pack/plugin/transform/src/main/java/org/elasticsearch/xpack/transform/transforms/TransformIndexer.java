@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -57,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -119,8 +123,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private Map<String, Object> nextChangeCollectorBucketPosition = null;
 
     private volatile Integer initialConfiguredPageSize;
-    private volatile long logEvery = 1;
-    private volatile long logCount = 0;
+    private final AtomicInteger remainingCheckpointsUntilAudit = new AtomicInteger(0);
     private volatile TransformCheckpoint lastCheckpoint;
     private volatile TransformCheckpoint nextCheckpoint;
 
@@ -170,6 +173,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
 
     abstract void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener);
+
+    abstract void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener);
 
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
@@ -263,32 +268,43 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
-            logger.debug("[{}] attempted to start while failed.", getJobId());
+            logger.debug("[{}] attempted to start while in state [{}].", getJobId(), TransformTaskState.FAILED.value());
             listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
             return;
         }
 
-        SetOnce<Map<String, String>> deducedDestIndexMappings = new SetOnce<>();
-
-        ActionListener<Void> finalListener = ActionListener.wrap(r -> {
-            try {
-                // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
-                if (context.getPageSize() == 0) {
-                    configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
-                }
-
-                runState = determineRunStateAtStart();
-                listener.onResponse(true);
-            } catch (Exception e) {
-                listener.onFailure(e);
+        switch (getState()) {
+            case ABORTING, STOPPING, STOPPED -> {
+                logger.debug("[{}] attempted to start while in state [{}].", getJobId(), getState().value());
+                listener.onResponse(false);
                 return;
             }
-        }, listener::onFailure);
+        }
+
+        if (context.getAuthState() != null && HealthStatus.RED.equals(context.getAuthState().getStatus())) {
+            // AuthorizationState status is RED which means there was permission check error during PUT or _update.
+            listener.onFailure(
+                new ElasticsearchSecurityException(
+                    TransformMessages.getMessage(TransformMessages.TRANSFORM_CANNOT_START_WITHOUT_PERMISSIONS, getConfig().getId())
+                )
+            );
+            return;
+        }
+
+        ActionListener<Void> finalListener = listener.delegateFailureAndWrap((l, r) -> {
+            // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
+            if (context.getPageSize() == 0) {
+                configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
+            }
+
+            runState = determineRunStateAtStart();
+            l.onResponse(true);
+        });
 
         // On each run, we need to get the total number of docs and reset the count of processed docs
         // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
         // the progress here, and not in the executor.
-        ActionListener<Void> configurationReadyListener = ActionListener.wrap(r -> {
+        ActionListener<Boolean> configurationReadyListener = ActionListener.wrap(unused -> {
             initializeFunction();
 
             if (initialRun()) {
@@ -331,6 +347,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
+        var deducedDestIndexMappings = new SetOnce<Map<String, String>>();
+        var shouldMaybeCreateDestIndexForUnattended = context.getCheckpoint() == 0
+            && TransformEffectiveSettings.isUnattended(transformConfig.getSettings());
+
         ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
             if (destIndexMappings.isEmpty() == false) {
                 // If we managed to fetch destination index mappings, we use them from now on ...
@@ -339,7 +359,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 // ... otherwise we fall back to index mappings deduced based on source indices
                 this.fieldMappings = deducedDestIndexMappings.get();
             }
-            configurationReadyListener.onResponse(null);
+            // Since the unattended transform could not have created the destination index yet, we do it here.
+            // This is important to create the destination index explicitly before indexing first documents. Otherwise, the destination
+            // index aliases may be missing.
+            if (destIndexMappings.isEmpty() && shouldMaybeCreateDestIndexForUnattended) {
+                doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener);
+            } else {
+                configurationReadyListener.onResponse(null);
+            }
         }, listener::onFailure);
 
         ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(updateConfigResponse -> {
@@ -353,7 +380,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             deducedDestIndexMappings.set(validationResponse.getDestIndexMappings());
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
-                    if (transformConfig.equals(config) && fieldMappings != null) {
+                    if (transformConfig.equals(config) && fieldMappings != null && shouldMaybeCreateDestIndexForUnattended == false) {
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {
@@ -363,11 +390,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
-                    // If the transform config index or the transform config is gone, something serious occurred
-                    // We are in an unknown state and should fail out
+                    // If the transform config index or the transform config is gone, then it is possible the transform was deleted.
+                    // If the transform was deleted, it will be in the Aborting state, and we can safely return out. If it is not in the
+                    // Aborting state, then something serious has occurred, and we should fail out.
                     if (failure instanceof ResourceNotFoundException) {
-                        logger.error(msg, failure);
-                        reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        if (IndexerState.ABORTING == getState()) {
+                            logger.atDebug()
+                                .withThrowable(failure)
+                                .log("Transform is in state [{}] during possible failure [{}].", IndexerState.ABORTING.value(), msg);
+                            listener.onResponse(false);
+                        } else {
+                            logger.error(msg, failure);
+                            reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        }
                     } else {
                         logger.warn(msg, failure);
                         auditor.warning(getJobId(), msg);
@@ -401,7 +436,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 hasSourceChanged = true;
                 listener.onFailure(failure);
             }));
-        } else if (context.getCheckpoint() == 0 && Boolean.TRUE.equals(transformConfig.getSettings().getUnattended())) {
+        } else if (context.getCheckpoint() == 0 && TransformEffectiveSettings.isUnattended(transformConfig.getSettings())) {
             // this transform runs in unattended mode and has never run, to go on
             validate(changedSourceListener);
         } else {
@@ -524,7 +559,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private void finalizeCheckpoint(ActionListener<Void> listener) {
         try {
             // reset the page size, so we do not memorize a low page size forever
-            context.setPageSize(function.getInitialPageSize());
+            if (function != null) {
+                context.setPageSize(function.getInitialPageSize());
+            }
             // reset the changed bucket to free memory
             if (changeCollector != null) {
                 changeCollector.clear();
@@ -1154,26 +1191,31 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     /**
-     * Indicates if an audit message should be written when onFinish is called for the given checkpoint
-     * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
-     * Then we audit every 100, until completedCheckpoint == 999
-     *
-     * Then we always audit every 1_000 checkpoints
+     * Indicates if an audit message should be written when onFinish is called for the given checkpoint.
+     * We audit every checkpoint for the first 10 checkpoints until completedCheckpoint == 9.
+     * Then we audit every 10th checkpoint until completedCheckpoint == 99.
+     * Then we audit every 100th checkpoint until completedCheckpoint == 999.
+     * Then we always audit every 1_000th checkpoints.
      *
      * @param completedCheckpoint The checkpoint that was just completed
      * @return {@code true} if an audit message should be written
      */
     protected boolean shouldAuditOnFinish(long completedCheckpoint) {
-        if (++logCount % logEvery != 0) {
-            return false;
-        }
-        if (completedCheckpoint == 0) {
-            return true;
-        }
-        int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint));
-        logEvery = log10Checkpoint >= 3 ? 1_000 : (int) Math.pow(10.0, log10Checkpoint);
-        logCount = 0;
-        return true;
+        return remainingCheckpointsUntilAudit.getAndUpdate(count -> {
+            if (count > 0) {
+                return count - 1;
+            }
+
+            if (completedCheckpoint >= 1000) {
+                return 999;
+            } else if (completedCheckpoint >= 100) {
+                return 99;
+            } else if (completedCheckpoint >= 10) {
+                return 9;
+            } else {
+                return 0;
+            }
+        }) == 0;
     }
 
     private RunState determineRunStateAtStart() {

@@ -20,22 +20,24 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +50,8 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
+    public static final NodeFeature NULL_VALUES_OFF_BY_ONE_FIX = new NodeFeature("mapper.range.null_values_off_by_one_fix");
+
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
@@ -116,7 +120,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         protected RangeFieldType setupFieldType(MapperBuilderContext context) {
-            String fullName = context.buildFullName(name);
+            String fullName = context.buildFullName(name());
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException(
@@ -163,7 +167,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
+            return new RangeFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
         }
     }
 
@@ -380,61 +384,12 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        Range range;
         XContentParser parser = context.parser();
-        final XContentParser.Token start = parser.currentToken();
-        if (start == XContentParser.Token.VALUE_NULL) {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
-        } else if (start == XContentParser.Token.START_OBJECT) {
-            RangeFieldType fieldType = fieldType();
-            RangeType rangeType = fieldType.rangeType;
-            String fieldName = null;
-            Object from = rangeType.minValue();
-            Object to = rangeType.maxValue();
-            boolean includeFrom = DEFAULT_INCLUDE_LOWER;
-            boolean includeTo = DEFAULT_INCLUDE_UPPER;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                } else {
-                    if (fieldName.equals(GT_FIELD.getPreferredName())) {
-                        includeFrom = false;
-                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
-                        }
-                    } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
-                        includeFrom = true;
-                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
-                        }
-                    } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
-                        includeTo = false;
-                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                        }
-                    } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
-                        includeTo = true;
-                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
-                        }
-                    } else {
-                        throw new DocumentParsingException(
-                            parser.getTokenLocation(),
-                            "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
-                        );
-                    }
-                }
-            }
-            range = new Range(rangeType, from, to, includeFrom, includeTo);
-        } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
-            range = parseIpRangeFromCidr(parser);
-        } else {
-            throw new DocumentParsingException(
-                parser.getTokenLocation(),
-                "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
-            );
         }
+
+        Range range = parseRange(parser);
         context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
         if (hasDocValues == false && (index || store)) {
@@ -442,21 +397,104 @@ public class RangeFieldMapper extends FieldMapper {
         }
     }
 
+    private Range parseRange(XContentParser parser) throws IOException {
+        final XContentParser.Token start = parser.currentToken();
+        if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
+            return parseIpRangeFromCidr(parser);
+        }
+
+        if (start != XContentParser.Token.START_OBJECT) {
+            throw new DocumentParsingException(
+                parser.getTokenLocation(),
+                "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
+            );
+        }
+
+        RangeFieldType fieldType = fieldType();
+        RangeType rangeType = fieldType.rangeType;
+        String fieldName = null;
+        Object parsedFrom = null;
+        Object parsedTo = null;
+        boolean includeFrom = DEFAULT_INCLUDE_LOWER;
+        boolean includeTo = DEFAULT_INCLUDE_UPPER;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else {
+                if (fieldName.equals(GT_FIELD.getPreferredName())) {
+                    includeFrom = false;
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                        parsedFrom = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                    }
+                } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
+                    includeFrom = true;
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                        parsedFrom = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                    }
+                } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
+                    includeTo = false;
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                        parsedTo = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                    }
+                } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
+                    includeTo = true;
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                        parsedTo = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                    }
+                } else {
+                    throw new DocumentParsingException(
+                        parser.getTokenLocation(),
+                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                    );
+                }
+            }
+        }
+
+        Object from = parsedFrom != null ? parsedFrom : rangeType.defaultFrom(includeFrom);
+        Object to = parsedTo != null ? parsedTo : rangeType.defaultTo(includeTo);
+
+        return new Range(rangeType, from, to, includeFrom, includeTo);
+    }
+
     private static Range parseIpRangeFromCidr(final XContentParser parser) throws IOException {
-        final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(parser.text());
-        // create the lower value by zeroing out the host portion, upper value by filling it with all ones.
-        byte[] lower = cidr.v1().getAddress();
-        byte[] upper = lower.clone();
-        for (int i = cidr.v2(); i < 8 * lower.length; i++) {
-            int m = 1 << 7 - (i & 7);
-            lower[i >> 3] &= (byte) ~m;
-            upper[i >> 3] |= (byte) m;
+        final InetAddresses.IpRange range = InetAddresses.parseIpRangeFromCidr(parser.text());
+        return new Range(RangeType.IP, range.lowerBound(), range.upperBound(), true, true);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
         }
-        try {
-            return new Range(RangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);
-        } catch (UnknownHostException bogus) {
-            throw new AssertionError(bogus);
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
         }
+        return new BinaryDocValuesSyntheticFieldLoader(name()) {
+            @Override
+            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                List<Range> ranges = type.decodeRanges(value);
+
+                switch (ranges.size()) {
+                    case 0:
+                        return;
+                    case 1:
+                        b.field(simpleName());
+                        ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
+                        break;
+                    default:
+                        b.startArray(simpleName());
+                        for (var range : ranges) {
+                            range.toXContent(b, fieldType().dateTimeFormatter);
+                        }
+                        b.endArray();
+                }
+            }
+        };
     }
 
     /** Class defining a range */
@@ -515,6 +553,30 @@ public class RangeFieldMapper extends FieldMapper {
 
         public Object getTo() {
             return to;
+        }
+
+        public XContentBuilder toXContent(XContentBuilder builder, DateFormatter dateFormatter) throws IOException {
+            builder.startObject();
+
+            if (includeFrom) {
+                builder.field("gte");
+            } else {
+                builder.field("gt");
+            }
+            Object f = includeFrom || from.equals(type.minValue()) ? from : type.nextDown(from);
+            builder.value(type.formatValue(f, dateFormatter));
+
+            if (includeTo) {
+                builder.field("lte");
+            } else {
+                builder.field("lt");
+            }
+            Object t = includeTo || to.equals(type.maxValue()) ? to : type.nextUp(to);
+            builder.value(type.formatValue(t, dateFormatter));
+
+            builder.endObject();
+
+            return builder;
         }
     }
 

@@ -61,6 +61,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -96,6 +97,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public static final String NATIVE_ROLES_ENABLED = "xpack.security.authc.native_roles.enabled";
 
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
+
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
 
     private final Settings settings;
     private final Client client;
@@ -257,14 +260,21 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "all nodes must have transport version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                             + "] or higher to support remote indices privileges"
                     )
                 );
-            } else {
-                innerPutRole(request, role, listener);
-            }
+            } else if (role.hasRemoteClusterPermissions()
+                && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
+                        )
+                    );
+                } else {
+                    innerPutRole(request, role, listener);
+                }
     }
 
     // pkg-private for testing
@@ -367,6 +377,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )
+                        .add(
+                            client.prepareSearch(SECURITY_MAIN_ALIAS)
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .filter(existsQuery("remote_cluster"))
+                                )
+                                .setTrackTotalHits(true)
+                                .setSize(0)
+                        )
                         .request(),
                     new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
@@ -392,6 +412,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 usageStats.put("remote_indices", 0);
                             } else {
                                 usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value);
+                            }
+                            if (responses[4].isFailure()) {
+                                usageStats.put("remote_cluster", 0);
+                            } else {
+                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value);
                             }
                             delegate.onResponse(usageStats);
                         }
@@ -482,9 +507,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
-            // we pass true as allow2xFormat parameter because we do not want to reject permissions if the field permissions
-            // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON, false);
+            // we do not want to reject permissions if the field permissions are given in 2.x syntax, hence why we allow2xFormat
+            RoleDescriptor roleDescriptor = ROLE_DESCRIPTOR_PARSER.parse(name, sourceBytes, XContentType.JSON);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
@@ -510,6 +534,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     roleDescriptor.getMetadata(),
                     transientMap,
                     roleDescriptor.getRemoteIndicesPrivileges(),
+                    roleDescriptor.getRemoteClusterPermissions(),
                     roleDescriptor.getRestriction()
                 );
             } else {

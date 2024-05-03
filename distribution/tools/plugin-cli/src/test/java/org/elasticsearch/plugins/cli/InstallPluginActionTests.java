@@ -101,13 +101,13 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachFileRecursively;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -1286,7 +1286,7 @@ public class InstallPluginActionTests extends ESTestCase {
             )
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
-        assertThat(e, hasToString(matches("checksum file at \\[.*\\] is not for this plugin")));
+        assertThat(e, hasToString(matchesRegex(".*checksum file at \\[.*\\] is not for this plugin.*")));
     }
 
     public void testInvalidShaFileContainingExtraLine() throws Exception {

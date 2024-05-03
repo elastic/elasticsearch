@@ -26,7 +26,7 @@ public final class ResourceUtils {
                 throw new RuntimeException("Failed to load " + resourcePath + " from classpath");
             }
             InputStream inputStream = resourceUrl.openStream();
-            File outputFile = new File(targetFolder.toFile(), resourcePath.substring(resourcePath.lastIndexOf("/")));
+            File outputFile = new File(targetFolder.toFile(), resourcePath.substring(resourcePath.lastIndexOf('/')));
             Files.copy(inputStream, outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             return outputFile.toPath();
         } catch (IOException e) {

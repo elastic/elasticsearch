@@ -63,6 +63,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -104,10 +105,10 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     private volatile TimeValue waitForMetadataTimeOut;
 
     public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService, SettingsModule settingsModule) {
-        super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
+        super(ShardFollowTask.NAME, threadPool.executor(Ccr.CCR_THREAD_POOL_NAME));
         this.client = client;
         this.threadPool = threadPool;
-        this.ccrExecutor = threadPool.executor(getExecutor());
+        this.ccrExecutor = getExecutor();
         this.clusterService = clusterService;
         this.indexScopedSettings = settingsModule.getIndexScopedSettings();
         this.retentionLeaseRenewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(settingsModule.getSettings());
@@ -574,7 +575,8 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 // this client is only used for lightweight single-index metadata responses and for the shard-changes actions themselves
                 // which are about as easy to parse as shard bulks, and which handle their own forking, so we can handle responses on the
                 // transport thread
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
             ),
             params.getHeaders(),
             clusterService.state()

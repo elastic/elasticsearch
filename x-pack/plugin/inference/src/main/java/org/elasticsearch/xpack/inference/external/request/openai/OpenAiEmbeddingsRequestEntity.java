@@ -15,11 +15,18 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record OpenAiEmbeddingsRequestEntity(List<String> input, String model, @Nullable String user) implements ToXContentObject {
+public record OpenAiEmbeddingsRequestEntity(
+    List<String> input,
+    String model,
+    @Nullable String user,
+    @Nullable Integer dimensions,
+    boolean dimensionsSetByUser
+) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
     private static final String MODEL_FIELD = "model";
     private static final String USER_FIELD = "user";
+    private static final String DIMENSIONS_FIELD = "dimensions";
 
     public OpenAiEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -34,6 +41,10 @@ public record OpenAiEmbeddingsRequestEntity(List<String> input, String model, @N
 
         if (user != null) {
             builder.field(USER_FIELD, user);
+        }
+
+        if (dimensionsSetByUser && dimensions != null) {
+            builder.field(DIMENSIONS_FIELD, dimensions);
         }
 
         builder.endObject();

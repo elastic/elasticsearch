@@ -56,7 +56,7 @@ public class RawInferenceResults implements InferenceResults {
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(value), featureImportance);
+        return Objects.hash(Arrays.hashCode(value), Arrays.deepHashCode(featureImportance));
     }
 
     @Override

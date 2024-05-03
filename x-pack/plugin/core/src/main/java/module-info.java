@@ -65,6 +65,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
+    exports org.elasticsearch.xpack.core.esql.action;
+    exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
     exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
@@ -81,7 +83,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.annotations;
     exports org.elasticsearch.xpack.core.ml.autoscaling;
     exports org.elasticsearch.xpack.core.ml.calendars;
-    exports org.elasticsearch.xpack.core.ml.datafeed.extractor;
     exports org.elasticsearch.xpack.core.ml.datafeed;
     exports org.elasticsearch.xpack.core.ml.dataframe.analyses;
     exports org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
@@ -231,7 +232,8 @@ module org.elasticsearch.xcore {
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with
             org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
-            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
+            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent,
+            org.elasticsearch.xpack.core.security.action.apikey.ApiKey.VersionComponent;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.core.XPackFeatures;
 }

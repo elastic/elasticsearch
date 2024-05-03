@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.Map;
@@ -29,8 +30,15 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
 
     @Override
     public ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = model.overrideWith(taskSettings);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, taskSettings);
 
         return new OpenAiEmbeddingsAction(sender, overriddenModel, serviceComponents);
+    }
+
+    @Override
+    public ExecutableAction create(OpenAiChatCompletionModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = OpenAiChatCompletionModel.of(model, taskSettings);
+
+        return new OpenAiChatCompletionAction(sender, overriddenModel, serviceComponents);
     }
 }

@@ -44,6 +44,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -52,6 +53,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
@@ -107,10 +109,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -139,7 +141,7 @@ public class InternalEngine extends Engine {
     private final ExternalReaderManager externalReaderManager;
     private final ElasticsearchReaderManager internalReaderManager;
 
-    private final Lock flushLock = new ReentrantLock();
+    private final ReentrantLock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
 
     // A uid (in the form of BytesRef) to the version map
@@ -149,7 +151,7 @@ public class InternalEngine extends Engine {
     // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
     // generation it is safe to rely on the LiveVersionMap for a real-time get.
     // TODO: move the following two to the stateless plugin
-    private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
+    private final AtomicLong lastUnsafeSegmentGenerationForGets;
     // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
     private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
 
@@ -178,6 +180,8 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocDeletes = new CounterMetric();
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
+    private final MeanMetric totalFlushTimeExcludingWaitingOnLock = new MeanMetric();
+
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
@@ -287,6 +291,7 @@ public class InternalEngine extends Engine {
             this.internalReaderManager = internalReaderManager;
             this.externalReaderManager = externalReaderManager;
             internalReaderManager.addListener(versionMap);
+            this.lastUnsafeSegmentGenerationForGets = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
@@ -811,7 +816,7 @@ public class InternalEngine extends Engine {
             index,
             mappingLookup,
             documentParser,
-            config().getAnalyzer(),
+            config(),
             translogInMemorySegmentsCount::incrementAndGet
         );
         final Engine.Searcher searcher = new Engine.Searcher(
@@ -2177,10 +2182,9 @@ public class InternalEngine extends Engine {
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         ensureOpen(); // best-effort, a concurrent failEngine() can still happen but that's ok
         if (force && waitIfOngoing == false) {
-            assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
-            throw new IllegalArgumentException(
-                "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
-            );
+            final String message = "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
         final long generation;
         if (flushLock.tryLock() == false) {
@@ -2197,6 +2201,7 @@ public class InternalEngine extends Engine {
             logger.trace("acquired flush lock immediately");
         }
 
+        final long startTime = System.nanoTime();
         try {
             // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
             // newly created commit points to a different translog generation (can free translog),
@@ -2248,9 +2253,12 @@ public class InternalEngine extends Engine {
             listener.onFailure(e);
             return;
         } finally {
+            totalFlushTimeExcludingWaitingOnLock.inc(System.nanoTime() - startTime);
             flushLock.unlock();
             logger.trace("released flush lock");
         }
+
+        afterFlush(generation);
 
         // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
         // (e.g., moves backwards) we will at least still sometimes prune deleted tombstones:
@@ -2259,6 +2267,10 @@ public class InternalEngine extends Engine {
         }
 
         waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
+    }
+
+    protected final boolean isFlushLockIsHeldByCurrentThread() {
+        return flushLock.isHeldByCurrentThread();
     }
 
     protected boolean hasUncommittedChanges() {
@@ -2287,6 +2299,8 @@ public class InternalEngine extends Engine {
             store.decRef();
         }
     }
+
+    protected void afterFlush(long generation) {}
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
@@ -2569,8 +2583,13 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
+        return segments(false);
+    }
+
+    @Override
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
         try (var ignored = acquireEnsureOpenRef()) {
-            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
@@ -2611,6 +2630,7 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
+                    assert ClusterApplierService.assertNotApplyingClusterState();
                     indexWriter.rollback();
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);
@@ -2697,7 +2717,14 @@ public class InternalEngine extends Engine {
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());
-        iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
+        boolean useCompoundFile = engineConfig.getUseCompoundFile();
+        iwc.setUseCompoundFile(useCompoundFile);
+        if (useCompoundFile == false) {
+            logger.warn(
+                "[{}] is set to false, this should only be used in tests and can cause serious problems in production environments",
+                EngineConfig.USE_COMPOUND_FILE
+            );
+        }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
         }
@@ -2858,6 +2885,7 @@ public class InternalEngine extends Engine {
      * @param translog the translog
      */
     protected void commitIndexWriter(final IndexWriter writer, final Translog translog) throws IOException {
+        assert isFlushLockIsHeldByCurrentThread();
         ensureCanFlush();
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
@@ -3050,6 +3078,11 @@ public class InternalEngine extends Engine {
      */
     long getNumDocUpdates() {
         return numDocUpdates.count();
+    }
+
+    @Override
+    public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
+        return TimeUnit.NANOSECONDS.toMillis(totalFlushTimeExcludingWaitingOnLock.sum());
     }
 
     @Override

@@ -65,7 +65,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     // Build at post-collection phase
     @Nullable
-    private HyperLogLogPlusPlusSparse counts;
+    private HyperLogLogPlusPlus counts;
     private ObjectArray<BitArray> visitedOrds;
     private SortedSetDocValues values;
 
@@ -206,6 +206,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             // This optimization only applies to top-level cardinality aggregations that apply to fields indexed with an inverted index.
             final Terms indexTerms = aggCtx.getLeafReaderContext().reader().terms(field);
             if (indexTerms != null) {
+                visitedOrds = bigArrays.grow(visitedOrds, 1);
                 BitArray bits = visitedOrds.get(0);
                 final int numNonVisitedOrds = maxOrd - (bits == null ? 0 : (int) bits.cardinality());
                 if (maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING || numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
@@ -269,13 +270,13 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
             @Override
             public void collect(int doc, long bucketOrd) throws IOException {
-                visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-                BitArray bits = visitedOrds.get(bucketOrd);
-                if (bits == null) {
-                    bits = new BitArray(maxOrd, bigArrays);
-                    visitedOrds.set(bucketOrd, bits);
-                }
                 if (docValues.advanceExact(doc)) {
+                    visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
+                    BitArray bits = visitedOrds.get(bucketOrd);
+                    if (bits == null) {
+                        bits = new BitArray(maxOrd, bigArrays);
+                        visitedOrds.set(bucketOrd, bits);
+                    }
                     for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
                         bits.set((int) ord);
                     }
@@ -285,7 +286,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     }
 
     protected void doPostCollection() throws IOException {
-        counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
+        counts = new HyperLogLogPlusPlus(precision, bigArrays, visitedOrds.size());
         try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
@@ -308,7 +309,6 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 try (BitArray bits = visitedOrds.get(bucket)) {
                     if (bits != null) {
                         visitedOrds.set(bucket, null); // remove bitset from array
-                        counts.ensureCapacity(bucket, bits.cardinality());
                         for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
                             ? bits.nextSetBit(ord + 1)
                             : Long.MAX_VALUE) {

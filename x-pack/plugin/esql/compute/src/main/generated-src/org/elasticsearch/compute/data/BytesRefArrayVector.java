@@ -9,8 +9,12 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that stores an array of BytesRef values.
@@ -30,9 +34,33 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
         this.values = values;
     }
 
+    static BytesRefArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        final BytesRefArray values = new BytesRefArray(in, blockFactory.bigArrays());
+        boolean success = false;
+        try {
+            final var block = new BytesRefArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - values.bigArraysRamBytesUsed());
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
+    }
+
     @Override
     public BytesRefBlock asBlock() {
         return new BytesRefVectorBlock(this);
+    }
+
+    @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
     }
 
     @Override

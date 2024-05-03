@@ -93,7 +93,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+        performMappingUpdate(concreteIndices, request, listener, metadataMappingService, true);
     }
 
 }

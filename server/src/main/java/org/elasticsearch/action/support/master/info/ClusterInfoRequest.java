@@ -28,6 +28,11 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     public ClusterInfoRequest() {}
 
+    // So subclasses can override the default indices options, if needed
+    protected ClusterInfoRequest(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+    }
+
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();

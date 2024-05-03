@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -46,6 +47,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -155,7 +157,8 @@ public class ActionModuleTests extends ESTestCase {
                 IndexScopedSettings indexScopedSettings,
                 SettingsFilter settingsFilter,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<DiscoveryNodes> nodesInCluster
+                Supplier<DiscoveryNodes> nodesInCluster,
+                Predicate<NodeFeature> clusterSupportsFeature
             ) {
                 return singletonList(new RestNodesInfoAction(new SettingsFilter(emptyList())) {
 
@@ -217,7 +220,8 @@ public class ActionModuleTests extends ESTestCase {
                 IndexScopedSettings indexScopedSettings,
                 SettingsFilter settingsFilter,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<DiscoveryNodes> nodesInCluster
+                Supplier<DiscoveryNodes> nodesInCluster,
+                Predicate<NodeFeature> clusterSupportsFeature
             ) {
                 return singletonList(new FakeHandler());
             }

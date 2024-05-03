@@ -1,6 +1,6 @@
 setup:
   - skip:
-      version: " - 7.7.99"
+      cluster_features: [ "gte_v7.8.0" ]
       reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
@@ -22,9 +22,6 @@ setup:
 
 ---
 "Get index template":
-  - skip:
-      version: " - 7.99.99"
-      reason: "index template v2 API has not been backported"
 
   - do:
       indices.get_index_template:
@@ -37,10 +34,6 @@ setup:
 
 ---
 "Get all index templates":
-  - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -61,10 +54,6 @@ setup:
 
 ---
 "Pattern matching in index templates":
-  - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -93,9 +82,6 @@ setup:
 
 ---
 "Get index template with local flag":
-  - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
 
   - do:
       indices.get_index_template:
@@ -107,7 +93,7 @@ setup:
 ---
 "Add data stream lifecycle":
   - skip:
-      version: " - 8.10.99"
+      cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
@@ -142,7 +128,7 @@ setup:
 ---
 "Get data stream lifecycle with default rollover":
   - skip:
-      version: " - 8.10.99"
+      cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
@@ -170,8 +156,8 @@ setup:
 
 ---
 "Reject data stream lifecycle without data stream configuration":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
   - do:
       catch:  bad_request
@@ -188,3 +174,16 @@ setup:
                   type: keyword
             lifecycle:
               data_retention: "30d"
+
+---
+"Get index template always shows composed_of":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "A bug was fixed in 8.13.0 to make `composed_of` always returned"
+
+  - do:
+      indices.get_index_template:
+        name: test
+
+  - match: {index_templates.0.name: test}
+  - match: {index_templates.0.index_template.composed_of: []}

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
@@ -65,8 +67,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2, 1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2, 1]}"))));
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -96,7 +98,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of("1-suffix", "1-suffix", "2-suffix")));
+                assertThat(results, containsInAnyOrder("1-suffix", "1-suffix", "2-suffix"));
             }
         }
     }
@@ -104,9 +106,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"d\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"d\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
@@ -122,9 +124,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aaa\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aaa\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -152,8 +154,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
@@ -163,11 +165,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testFuzzyQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));   // No edits, matches
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caat\"]}"))));  // Single insertion, matches
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cta\"]}"))));   // Single transposition, matches
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caaat\"]}")))); // Two insertions, no match
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));   // Totally wrong, no match
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));   // No edits, matches
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caat\"]}"))));  // Single insertion, matches
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cta\"]}"))));   // Single transposition, matches
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caaat\"]}")))); // Two insertions, no match
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));   // Totally wrong, no match
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -199,9 +201,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testPrefixQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().prefixQuery("cat", null, mockContext())), equalTo(2));
@@ -224,9 +226,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -267,9 +269,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testRegexpQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -293,8 +295,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
@@ -311,10 +313,10 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [3]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [3]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("1", "2"), mockContext())), equalTo(2));
@@ -329,8 +331,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testWildcardQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().wildcardQuery("a*b", null, mockContext())), equalTo(1));
@@ -341,8 +343,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     // Normalized WildcardQueries are requested by the QueryStringQueryParser
     public void testNormalizedWildcardQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().normalizedWildcardQuery("a*b", null, mockContext())), equalTo(1));
@@ -364,8 +366,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testMatchQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
@@ -377,9 +379,16 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     public void testBlockLoader() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}")))
+                )
+            );
             try (DirectoryReader reader = iw.getReader()) {
                 KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
                 assertThat(

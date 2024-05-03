@@ -9,17 +9,18 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.TimeValue;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.rest.RestRequest.RESPONSE_RESTRICTED;
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 
 public class RestUtils {
 
@@ -28,7 +29,7 @@ public class RestUtils {
      */
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
-    public static final PathTrie.Decoder REST_DECODER = RestUtils::decodeComponent;
+    public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {
@@ -38,7 +39,7 @@ public class RestUtils {
             return;
         }
 
-        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
+        int queryStringLength = s.contains("#") ? s.indexOf('#') : s.length();
 
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region
@@ -81,8 +82,8 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
-        if (RESPONSE_RESTRICTED.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("parameter [" + RESPONSE_RESTRICTED + "] is reserved and may not set");
+        if (PATH_RESTRICTED.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("parameter [" + PATH_RESTRICTED + "] is reserved and may not set");
         }
         params.put(name, value);
     }
@@ -254,6 +255,29 @@ public class RestUtils {
      */
     public static Optional<String> extractTraceId(String traceparent) {
         return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
+    }
+
+    /**
+     * The name of the common {@code ?master_timeout} query parameter.
+     */
+    public static final String REST_MASTER_TIMEOUT_PARAM = "master_timeout";
+
+    /**
+     * The default value for the common {@code ?master_timeout} query parameter.
+     */
+    public static final TimeValue REST_MASTER_TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(30);
+
+    /**
+     * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?master_timeout} parameter
+     * @return the timeout from the request, with a default of {@link #REST_MASTER_TIMEOUT_DEFAULT} ({@code 30s}) if the request does not
+     *         specify the parameter
+     */
+    public static TimeValue getMasterNodeTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_MASTER_TIMEOUT_PARAM, REST_MASTER_TIMEOUT_DEFAULT);
     }
 
 }

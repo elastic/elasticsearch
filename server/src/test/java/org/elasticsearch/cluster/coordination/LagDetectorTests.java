@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -259,7 +259,7 @@ public class LagDetectorTests extends ESTestCase {
         final var expectedBody = randomUnicodeOfLengthBetween(1, 20000);
         assertEquals(
             expectedBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(LOGGER_NAME),
                 Level.DEBUG,
                 "hot threads from node ["

@@ -119,7 +119,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
-        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests, null) {
+        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(numberOfRequests, null) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 ctx.fireChannelRead(pipelinedRequest);
@@ -185,7 +185,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1, null));
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(numberOfRequests + 1, null));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
@@ -493,7 +493,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private Netty4HttpPipeliningHandler getTestHttpHandler() {
-        return new Netty4HttpPipeliningHandler(logger, Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class)) {
+        return new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class)) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 ctx.fireChannelRead(pipelinedRequest);
@@ -522,9 +522,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             public String getResponseContentTypeString() {
                 return "application/octet-stream";
             }
-
-            @Override
-            public void close() {}
         };
     }
 

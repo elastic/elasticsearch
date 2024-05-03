@@ -68,7 +68,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
-            op = op.with(new TestFieldExtractOperatorFactory(attr, fieldExtractExec.extractPreference(attr)), layout.build());
+            op = op.with(
+                new TestFieldExtractOperatorFactory(attr, PlannerUtils.extractPreference(fieldExtractExec.hasDocValuesAttribute(attr))),
+                layout.build()
+            );
         }
         return op;
     }
@@ -273,8 +276,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return new TestHashAggregationOperator(
                 aggregators,
                 () -> BlockHash.build(
-                    List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
-                    driverContext,
+                    List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType)),
+                    driverContext.blockFactory(),
                     pageSize,
                     false
                 ),

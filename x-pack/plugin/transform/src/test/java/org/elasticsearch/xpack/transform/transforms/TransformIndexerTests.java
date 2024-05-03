@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
@@ -255,6 +256,11 @@ public class TransformIndexerTests extends ESTestCase {
             fieldMappingsListener.onResponse(Collections.emptyMap());
         }
 
+        @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
         public boolean waitingForNextSearch() {
             return super.getScheduledNextSearch() != null;
         }
@@ -449,7 +455,8 @@ public class TransformIndexerTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            mock(TransformNode.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

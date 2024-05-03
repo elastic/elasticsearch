@@ -59,6 +59,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -100,6 +101,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private QueryBuilder aliasFilter;
     private boolean rewriteToNamedQueries = false;
 
+    private final Integer requestSize;
+
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */
@@ -139,6 +142,52 @@ public class SearchExecutionContext extends QueryRewriteContext {
             client,
             searcher,
             nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings,
+            null
+        );
+    }
+
+    public SearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSettings indexSettings,
+        BitsetFilterCache bitsetFilterCache,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        MappingLookup mappingLookup,
+        SimilarityService similarityService,
+        ScriptCompiler scriptService,
+        XContentParserConfiguration parserConfiguration,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, Object> runtimeMappings,
+        Integer requestSize
+    ) {
+        this(
+            shardId,
+            shardRequestIndex,
+            indexSettings,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            mappingLookup,
+            similarityService,
+            scriptService,
+            parserConfiguration,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
             indexNameMatcher,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
@@ -147,7 +196,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
-            null
+            requestSize
         );
     }
 
@@ -172,7 +221,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
-            source.allowedFields
+            source.requestSize
         );
     }
 
@@ -196,7 +245,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
-        Predicate<String> allowedFields
+        Integer requestSize
     ) {
         super(
             parserConfig,
@@ -205,14 +254,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mapperService,
             mappingLookup,
             runtimeMappings,
-            allowedFields,
             indexSettings,
             fullyQualifiedIndex,
             indexNameMatcher,
             namedWriteableRegistry,
             valuesSourceRegistry,
             allowExpensiveQueries,
-            scriptService
+            scriptService,
+            null
         );
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -221,6 +270,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
+        this.requestSize = requestSize;
     }
 
     private void reset() {
@@ -332,6 +382,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return false;
         }
         return mapperService.isMultiField(field);
+    }
+
+    public Iterable<MappedFieldType> dimensionFields() {
+        List<MappedFieldType> dimensionFields = new ArrayList<>();
+        for (var mapper : mapperService.mappingLookup().fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                var fieldType = fieldMapper.fieldType();
+                if (fieldType.isDimension()) {
+                    dimensionFields.add(fieldType);
+                }
+            }
+        }
+        return dimensionFields;
     }
 
     public Set<String> sourcePath(String fullName) {
@@ -592,6 +655,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public IndexSearcher searcher() {
         return searcher;
+    }
+
+    public Integer requestSize() {
+        return requestSize;
     }
 
     /**

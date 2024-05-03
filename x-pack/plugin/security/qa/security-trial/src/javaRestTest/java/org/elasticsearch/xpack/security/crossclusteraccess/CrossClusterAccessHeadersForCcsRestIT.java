@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -119,6 +120,16 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                   "privileges": ["read", "read_cross_cluster"],
                   "clusters": ["my_remote_cluster_b"]
                 }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["my_remote_cluster*"]
+                },
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["my_remote_cluster_b"]
+                }
               ]
             }""");
         assertOK(adminClient().performRequest(putRoleRequest));
@@ -180,12 +191,13 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 new RoleDescriptorsIntersection(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        new String[] { "monitor_enrich" },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("index-a")
                                 .privileges("read", "read_cross_cluster")
                                 .build() },
+                        null,
                         null,
                         null,
                         null,
@@ -248,12 +260,13 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 new RoleDescriptorsIntersection(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        new String[] { "monitor_enrich" },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("index-a")
                                 .privileges("read", "read_cross_cluster")
                                 .build() },
+                        null,
                         null,
                         null,
                         null,
@@ -275,7 +288,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
                                         .indices("index-a")
@@ -285,6 +298,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-b")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -331,6 +345,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     {
                       "names": ["index-b*"],
                       "privileges": ["all"],
+                      "clusters": ["my_remote_cluster_b"]
+                    }
+                  ],
+                  "remote_cluster": [
+                    {
+                      "privileges": ["monitor_enrich"],
                       "clusters": ["my_remote_cluster_b"]
                     }
                   ]
@@ -388,9 +408,10 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                null, // intentionally null to test that cluster A does not have remote_cluster privs
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -404,12 +425,13 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -433,10 +455,11 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build(),
                                     RoleDescriptor.IndicesPrivileges.builder().indices("index-b*").privileges("all").build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -449,7 +472,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
                                         .indices("index-a")
@@ -459,6 +482,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                                         .indices("index-b")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -495,6 +519,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                           "privileges": ["all"],
                           "clusters": ["my_remote_cluster*"]
                         }
+                      ],
+                      "remote_cluster": [
+                        {
+                          "privileges": ["monitor_enrich"],
+                          "clusters": ["my_remote_cluster*"]
+                        }
                       ]
                     },
                     "role-b": {
@@ -508,6 +538,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         {
                           "names": ["index-b*"],
                           "privileges": ["all"],
+                          "clusters": ["my_remote_cluster_b"]
+                        }
+                      ],
+                      "remote_cluster": [
+                        {
+                          "privileges": ["monitor_enrich"],
                           "clusters": ["my_remote_cluster_b"]
                         }
                       ]
@@ -535,9 +571,10 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -551,12 +588,13 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -574,12 +612,13 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -618,6 +657,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                           "privileges": ["all"],
                           "clusters": ["my_remote_cluster*"]
                         }
+                      ],
+                      "remote_cluster": [
+                        {
+                          "privileges": ["monitor_enrich"],
+                          "clusters": ["my_remote_cluster*"]
+                        }
                       ]
                     },
                     "role-b": {
@@ -631,6 +676,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         {
                           "names": ["index-b*"],
                           "privileges": ["all"],
+                          "clusters": ["my_remote_cluster_b"]
+                        }
+                      ],
+                      "remote_cluster": [
+                        {
+                          "privileges": ["monitor_enrich"],
                           "clusters": ["my_remote_cluster_b"]
                         }
                       ]
@@ -652,9 +703,10 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -668,12 +720,13 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -691,12 +744,13 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         Set.of(
                             new RoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
-                                null,
+                                new String[] { "monitor_enrich" },
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
                                         .indices("index-a")
                                         .privileges("read", "read_cross_cluster")
                                         .build() },
+                                null,
                                 null,
                                 null,
                                 null,
@@ -1148,24 +1202,28 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(
-                        new SearchResponse(
-                            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                            InternalAggregations.EMPTY,
-                            null,
-                            false,
-                            null,
-                            null,
-                            1,
-                            null,
-                            1,
-                            1,
-                            0,
-                            100,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
+                    try (
+                        var searchResponseRef = ReleasableRef.of(
+                            new SearchResponse(
+                                SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                                InternalAggregations.EMPTY,
+                                null,
+                                false,
+                                null,
+                                null,
+                                1,
+                                null,
+                                1,
+                                1,
+                                0,
+                                100,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            )
                         )
-                    );
+                    ) {
+                        channel.sendResponse(searchResponseRef.get());
+                    }
                 }
             );
             service.start();

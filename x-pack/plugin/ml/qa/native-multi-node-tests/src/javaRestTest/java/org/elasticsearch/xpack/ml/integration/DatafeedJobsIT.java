@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -73,6 +74,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105239")
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After

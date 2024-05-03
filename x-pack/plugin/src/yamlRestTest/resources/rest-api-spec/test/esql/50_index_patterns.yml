@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
 
 ---
 disjoint_mappings:
@@ -51,6 +51,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -67,6 +68,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 | limit 2'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -81,6 +83,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 desc nulls last | limit 1'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -95,6 +98,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1, message2'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -113,6 +117,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1, message2 | limit 3'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -130,6 +135,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 desc nulls first, message2 | limit 3'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -146,6 +152,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1, message2 | limit 2'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -162,6 +169,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 nulls first, message2'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -182,6 +190,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 nulls first, message2 nulls first'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -202,6 +211,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 desc nulls first, message2 desc nulls first'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -222,6 +232,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | where message1 == "foo1" | keep message1, message2 | sort message1, message2'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -236,6 +247,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | where message1 == "foo1" or message2 == 2 | keep message1, message2 | sort message1, message2'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -252,6 +264,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | stats x = max(message2)'
+          version: 2024.04.01
   - match: { columns.0.name: x }
   - match: { columns.0.type: long }
   - length: { values: 1 }
@@ -263,6 +276,7 @@ disjoint_mappings:
       esql.query:
         body:
           query: 'from test1,test2 | sort message1, message2 | eval x = message1, y = message2 + 1 | keep message1, message2, x, y'
+          version: 2024.04.01
   - match: { columns.0.name: message1 }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: message2 }
@@ -311,7 +325,6 @@ same_name_different_type:
               message:
                 type: long
 
-
   - do:
       bulk:
         index: test1
@@ -338,7 +351,8 @@ same_name_different_type:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test1,test2  '
+          query: 'from test1,test2'
+          version: 2024.04.01
   - match: { columns.0.name: message }
   - match: { columns.0.type: unsupported }
   - length: { values: 4 }
@@ -390,6 +404,7 @@ same_name_different_type_same_family:
       esql.query:
         body:
           query: 'from test1,test2 | sort message | keep message'
+          version: 2024.04.01
   - match: { columns.0.name: message }
   - match: { columns.0.type: keyword }
   - length: { values: 4 }

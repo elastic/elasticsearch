@@ -50,7 +50,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                         "Unknown service [{}] for model [{}]. ",
                         RestStatus.INTERNAL_SERVER_ERROR,
                         unparsedModel.service(),
-                        unparsedModel.modelId()
+                        unparsedModel.inferenceEntityId()
                     )
                 );
                 return;
@@ -71,7 +71,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
 
             var model = service.get()
                 .parsePersistedConfigWithSecrets(
-                    unparsedModel.modelId(),
+                    unparsedModel.inferenceEntityId(),
                     unparsedModel.taskType(),
                     unparsedModel.settings(),
                     unparsedModel.secrets()
@@ -79,7 +79,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             inferOnService(model, request, service.get(), delegate);
         });
 
-        modelRegistry.getModelWithSecrets(request.getModelId(), getModelListener);
+        modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
     }
 
     private void inferOnService(
@@ -90,8 +90,11 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     ) {
         service.infer(
             model,
+            request.getQuery(),
             request.getInput(),
             request.getTaskSettings(),
+            request.getInputType(),
+            request.getInferenceTimeout(),
             listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)))
         );
     }

@@ -68,8 +68,8 @@ A node that has the `master` role, which makes it eligible to be
 
 <<data-node,Data node>>::
 
-A node that has the `data` role. Data nodes hold data and perform data
-related operations such as CRUD, search, and aggregations. A node with the `data` role can fill any of the specialised data node roles.
+A node that has one of several data roles. Data nodes hold data and perform data
+related operations such as CRUD, search, and aggregations. A node with a generic `data` role can fill any of the specialized data node roles.
 
 <<node-ingest-node,Ingest node>>::
 
@@ -220,7 +220,7 @@ therefore ensure that the storage and networking available to the nodes in your
 cluster are good enough to meet your performance goals.
 
 [[data-node]]
-==== Data node
+==== Data nodes
 
 Data nodes hold the shards that contain the documents you have indexed. Data
 nodes handle data related operations like CRUD, search, and aggregations.
@@ -230,23 +230,30 @@ monitor these resources and to add more data nodes if they are overloaded.
 The main benefit of having dedicated data nodes is the separation of the master
 and data roles.
 
-To create a dedicated data node, set:
+In a multi-tier deployment architecture, you use specialized data roles to
+assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
+`data_cold`, or `data_frozen`. A node can belong to multiple tiers. 
+
+If you want to include a node in all tiers, or if your cluster does not use multiple tiers, then you can use the generic `data` role.
+
+WARNING: If you assign a node to a specific tier using a specialized data role, then you shouldn't also assign it the generic `data` role. The generic `data` role takes precedence over specialized data roles.
+
+[[generic-data-node]]
+===== Generic data node
+
+Generic data nodes are included in all content tiers. 
+
+To create a dedicated generic data node, set:
 [source,yaml]
 ----
 node.roles: [ data ]
 ----
 
-In a multi-tier deployment architecture, you use specialized data roles to
-assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
-`data_cold`, or `data_frozen`. A node can belong to multiple tiers, but a node
-that has one of the specialized data roles cannot have the generic `data` role.
-
-[role="xpack"]
 [[data-content-node]]
-==== Content data node
+===== Content data node
 
 Content data nodes are part of the content tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=content-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=content-tier]
 
 To create a dedicated content node, set:
 [source,yaml]
@@ -254,12 +261,11 @@ To create a dedicated content node, set:
 node.roles: [ data_content ]
 ----
 
-[role="xpack"]
 [[data-hot-node]]
-==== Hot data node
+===== Hot data node
 
 Hot data nodes are part of the hot tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=hot-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=hot-tier]
 
 To create a dedicated hot node, set:
 [source,yaml]
@@ -267,12 +273,11 @@ To create a dedicated hot node, set:
 node.roles: [ data_hot ]
 ----
 
-[role="xpack"]
 [[data-warm-node]]
-==== Warm data node
+===== Warm data node
 
 Warm data nodes are part of the warm tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=warm-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=warm-tier]
 
 To create a dedicated warm node, set:
 [source,yaml]
@@ -280,12 +285,11 @@ To create a dedicated warm node, set:
 node.roles: [ data_warm ]
 ----
 
-[role="xpack"]
 [[data-cold-node]]
-==== Cold data node
+===== Cold data node
 
 Cold data nodes are part of the cold tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=cold-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=cold-tier]
 
 To create a dedicated cold node, set:
 [source,yaml]
@@ -293,12 +297,11 @@ To create a dedicated cold node, set:
 node.roles: [ data_cold ]
 ----
 
-[role="xpack"]
 [[data-frozen-node]]
-==== Frozen data node
+===== Frozen data node
 
 Frozen data nodes are part of the frozen tier.
-include::{es-repo-dir}/datatiers.asciidoc[tag=frozen-tier]
+include::{es-ref-dir}/datatiers.asciidoc[tag=frozen-tier]
 
 To create a dedicated frozen node, set:
 [source,yaml]

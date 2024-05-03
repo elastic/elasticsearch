@@ -9,15 +9,17 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -152,7 +154,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -258,6 +260,11 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, format));
         targetNumBuckets = in.readVInt();
+        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+            // list is mutable by #readCollectionAsList contract
+            buckets.sort(Comparator.comparingDouble(b -> b.centroid));
+        }
     }
 
     @Override
@@ -306,45 +313,30 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         return ((Bucket) bucket).centroid;
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
-        long docCount = 0;
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+        assert buckets.isEmpty() == false;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
         double sum = 0;
-        for (InternalVariableWidthHistogram.Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-            min = Math.min(min, bucket.bounds.min);
-            max = Math.max(max, bucket.bounds.max);
-            sum += bucket.docCount * bucket.centroid;
-            aggregations.add((InternalAggregations) bucket.getAggregations());
+        try (BucketReducer<Bucket> reducer = new BucketReducer<>(buckets.get(0), context, buckets.size())) {
+            for (Bucket bucket : buckets) {
+                min = Math.min(min, bucket.bounds.min);
+                max = Math.max(max, bucket.bounds.max);
+                sum += bucket.docCount * bucket.centroid;
+                reducer.accept(bucket);
+            }
+            final double centroid = sum / reducer.getDocCount();
+            final Bucket.BucketBounds bounds = new Bucket.BucketBounds(min, max);
+            return new Bucket(centroid, bounds, reducer.getDocCount(), format, reducer.getAggregations());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        double centroid = sum / docCount;
-        Bucket.BucketBounds bounds = new Bucket.BucketBounds(min, max);
-        return new Bucket(centroid, bounds, docCount, format, aggs);
     }
 
-    public List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
-            @Override
-            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                return Double.compare(a.current().centroid, b.current().centroid) < 0;
-            }
-        };
-        for (InternalAggregation aggregation : aggregations) {
-            InternalVariableWidthHistogram histogram = (InternalVariableWidthHistogram) aggregation;
-            if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
-            }
-        }
-
+    public List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             double key = pq.top().current().centroid();
             // list of buckets coming from different shards that have the same key
-            List<Bucket> currentBuckets = new ArrayList<>();
+            final List<Bucket> currentBuckets = new ArrayList<>();
             do {
                 IteratorAndCurrent<Bucket> top = pq.top();
 
@@ -531,15 +523,34 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+                @Override
+                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                    return Double.compare(a.current().centroid, b.current().centroid) < 0;
+                }
+            };
 
-        if (reduceContext.isFinalReduce()) {
-            buckets.sort(Comparator.comparing(Bucket::min));
-            mergeBucketsWithSameMin(reducedBuckets, reduceContext);
-            adjustBoundsForOverlappingBuckets(reducedBuckets);
-        }
-        return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets, format, metadata);
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final InternalVariableWidthHistogram histogram = (InternalVariableWidthHistogram) aggregation;
+                if (histogram.buckets.isEmpty() == false) {
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                final List<Bucket> reducedBuckets = reduceBuckets(pq, reduceContext);
+                if (reduceContext.isFinalReduce()) {
+                    buckets.sort(Comparator.comparing(Bucket::min));
+                    mergeBucketsWithSameMin(reducedBuckets, reduceContext);
+                    adjustBoundsForOverlappingBuckets(reducedBuckets);
+                }
+                return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets, format, metadata);
+            }
+        };
     }
 
     @Override

@@ -423,7 +423,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void analyseRepository(RepositoryAnalyzeAction.Request request) {
-        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(5L, TimeUnit.MINUTES);
     }
 
     private static void assertPurpose(OperationPurpose purpose) {
@@ -710,6 +710,17 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
+        }
+
+        @Override
+        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+            assertPurpose(purpose);
+            final var register = registers.get(key);
+            if (register == null) {
+                listener.onResponse(OptionalBytesReference.EMPTY);
+            } else {
+                listener.onResponse(OptionalBytesReference.of(register.get()));
+            }
         }
 
         @Override

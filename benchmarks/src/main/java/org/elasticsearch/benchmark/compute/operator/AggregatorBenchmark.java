@@ -124,30 +124,27 @@ public class AggregatorBenchmark {
                 driverContext
             );
         }
-        List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
-            case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));
-            case INTS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.INT));
-            case DOUBLES -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.DOUBLE));
-            case BOOLEANS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BOOLEAN));
-            case BYTES_REFS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF));
-            case TWO_LONGS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.LONG)
-            );
+        List<BlockHash.GroupSpec> groups = switch (grouping) {
+            case LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
+            case INTS -> List.of(new BlockHash.GroupSpec(0, ElementType.INT));
+            case DOUBLES -> List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE));
+            case BOOLEANS -> List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN));
+            case BYTES_REFS -> List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
+            case TWO_LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG));
             case LONGS_AND_BYTES_REFS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.BYTES_REF)
+                new BlockHash.GroupSpec(0, ElementType.LONG),
+                new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
             );
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
-                new HashAggregationOperator.GroupSpec(0, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(1, ElementType.LONG),
-                new HashAggregationOperator.GroupSpec(2, ElementType.BYTES_REF)
+                new BlockHash.GroupSpec(0, ElementType.LONG),
+                new BlockHash.GroupSpec(1, ElementType.LONG),
+                new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
-            () -> BlockHash.build(groups, driverContext, 16 * 1024, false),
+            () -> BlockHash.build(groups, driverContext.blockFactory(), 16 * 1024, false),
             driverContext
         );
     }
@@ -575,13 +572,14 @@ public class AggregatorBenchmark {
         };
 
         DriverContext driverContext = driverContext();
-        Operator operator = operator(driverContext, grouping, op, dataType);
-        Page page = page(driverContext.blockFactory(), grouping, blockType);
-        for (int i = 0; i < opCount; i++) {
-            operator.addInput(page);
+        try (Operator operator = operator(driverContext, grouping, op, dataType)) {
+            Page page = page(driverContext.blockFactory(), grouping, blockType);
+            for (int i = 0; i < opCount; i++) {
+                operator.addInput(page.shallowCopy());
+            }
+            operator.finish();
+            checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
         }
-        operator.finish();
-        checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
     }
 
     static DriverContext driverContext() {

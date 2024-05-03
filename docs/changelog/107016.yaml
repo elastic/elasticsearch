@@ -1,0 +1,5 @@
+pr: 107016
+summary: "ESQL: Enable VALUES agg for datetime"
+area: Aggregations
+type: bug
+issues: []

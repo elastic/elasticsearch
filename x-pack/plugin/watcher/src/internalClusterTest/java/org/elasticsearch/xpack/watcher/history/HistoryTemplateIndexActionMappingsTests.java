@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -55,7 +55,7 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
             response -> {
                 assertThat(response, notNullValue());
                 assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
-                Aggregations aggs = response.getAggregations();
+                InternalAggregations aggs = response.getAggregations();
                 assertThat(aggs, notNullValue());
 
                 Terms terms = aggs.get("index_action_indices");

@@ -19,6 +19,7 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -32,7 +33,7 @@ import java.util.Set;
 public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withFiltering(
-        Set.of("_meta._rollup"),
+        Set.of("_doc._meta._rollup"),
         null,
         false
     );
@@ -62,13 +63,21 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
+        // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
         int numberOfRollupIndices = 0;
         for (var imd : state.metadata()) {
             try (var parser = XContentHelper.createParser(PARSER_CONFIGURATION, imd.mapping().source().compressedReference())) {
-                if ("_rollup".equals(parser.currentName())) {
-                    var rollupConfig = parser.map();
-                    if (rollupConfig != null) {
-                        numberOfRollupIndices++;
+                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                    if ("_doc".equals(parser.nextFieldName())) {
+                        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                            if ("_meta".equals(parser.nextFieldName())) {
+                                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                                    if ("_rollup".equals(parser.nextFieldName())) {
+                                        numberOfRollupIndices++;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             } catch (IOException e) {

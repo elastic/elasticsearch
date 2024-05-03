@@ -226,7 +226,7 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
                 assertThat(dataStream.newEffectiveRetention(), equalTo(globalRetention.getMaxRetention()));
             } else {
                 assertThat(affectedDataStreams.size(), is(1));
-                var dataStream = affectedDataStreams.get(1);
+                var dataStream = affectedDataStreams.get(0);
                 assertThat(dataStream.dataStreamName(), equalTo(dataStreamNoRetention));
                 assertThat(dataStream.previousEffectiveRetention(), nullValue());
                 assertThat(dataStream.newEffectiveRetention(), equalTo(globalRetention.getMaxRetention()));

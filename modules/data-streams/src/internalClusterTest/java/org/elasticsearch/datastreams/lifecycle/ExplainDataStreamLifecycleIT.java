@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -204,48 +206,61 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
     public void testSystemExplainLifecycle() throws Exception {
         /*
          * This test makes sure that for system data streams, we correctly ignore the global retention when calling
-         * ExplainDataStreamLifecycle. It is very simila to testExplainLifecycle, but only focuses on the retention for a system index.
+         * ExplainDataStreamLifecycle. It is very similar to testExplainLifecycle, but only focuses on the retention for a system index.
          */
-        String dataStreamName = SYSTEM_DATA_STREAM_NAME;
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-
-        indexDocs(dataStreamName, 1);
-
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
-
-        ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
-            new String[] {
-                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-                DataStream.getDefaultBackingIndexName(dataStreamName, 2) }
-        );
-        ExplainDataStreamLifecycleAction.Response response = client().execute(
-            ExplainDataStreamLifecycleAction.INSTANCE,
-            explainIndicesRequest
+        // Putting in place a global retention that we expect will be ignored by the system data stream:
+        final int globalRetentionSeconds = 10;
+        client().execute(
+            PutDataStreamGlobalRetentionAction.INSTANCE,
+            new PutDataStreamGlobalRetentionAction.Request(
+                TimeValue.timeValueSeconds(globalRetentionSeconds),
+                TimeValue.timeValueSeconds(globalRetentionSeconds)
+            )
         ).actionGet();
-        assertThat(response.getIndices().size(), is(2));
-        // we requested the explain for indices with the default include_details=false
-        assertThat(response.getRolloverConfiguration(), nullValue());
-        for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
-            assertThat(explainIndex.isManagedByLifecycle(), is(true));
-            assertThat(explainIndex.getIndexCreationDate(), notNullValue());
-            assertThat(explainIndex.getLifecycle(), notNullValue());
-            assertThat(
-                explainIndex.getLifecycle().getDataStreamRetention(),
-                equalTo(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+        try {
+            String dataStreamName = SYSTEM_DATA_STREAM_NAME;
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+            client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+            indexDocs(dataStreamName, 1);
+
+            assertBusy(() -> {
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+                List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+                assertThat(backingIndices.size(), equalTo(2));
+                String backingIndex = backingIndices.get(0).getName();
+                assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
+                String writeIndex = backingIndices.get(1).getName();
+                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+            });
+
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                new String[] {
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2) }
             );
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(2));
+            // we requested the explain for indices with the default include_details=false
+            assertThat(response.getRolloverConfiguration(), nullValue());
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+                assertThat(explainIndex.isManagedByLifecycle(), is(true));
+                assertThat(explainIndex.getIndexCreationDate(), notNullValue());
+                assertThat(explainIndex.getLifecycle(), notNullValue());
+                assertThat(
+                    explainIndex.getLifecycle().getDataStreamRetention(),
+                    equalTo(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+                );
+            }
+        } finally {
+            client().execute(DeleteDataStreamGlobalRetentionAction.INSTANCE, new DeleteDataStreamGlobalRetentionAction.Request());
         }
     }
 

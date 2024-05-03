@@ -2168,7 +2168,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .build();
     }
 
-    private static Map<String, Object> addDefaults(Map<String, Object> override) {
+    public static Map<String, Object> addDefaults(Map<String, Object> override) {
         return Map.of(
             "unassigned_primaries",
             override.getOrDefault("unassigned_primaries", 0),

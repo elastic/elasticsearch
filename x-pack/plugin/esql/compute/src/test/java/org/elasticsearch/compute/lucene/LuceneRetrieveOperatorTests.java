@@ -160,7 +160,12 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testWithSimpleMatch() throws IOException {
+        testWithQuery(QueryBuilders.matchQuery("stored_text", "time"));
+    }
+
+    private void testWithQuery(AbstractQueryBuilder queryBuilder) throws IOException {
         initMapping();
+        initIndex();
         int size = 4;
         int limit = 100;
         DriverContext ctx = driverContext();
@@ -168,7 +173,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             DataPartitioning.SHARD,
             10_000,
             100,
-            QueryBuilders.matchQuery("stored_text", "lost")
+            queryBuilder
         );
 
         Operator op =  new ValuesSourceReaderOperator.Factory(
@@ -208,56 +213,6 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             Map.of(),
             false,
             true
-        );
-    }
-
-    private LuceneRetrieveOperator.Factory getFactory(DataPartitioning dataPartitioning, int size, int limit, AbstractQueryBuilder queryBuilder) throws IOException {
-        try (
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
-            writer.addDocument(
-                Arrays.asList(
-                    new TextField("stored_text", "A brief history of time", Field.Store.YES)
-                )
-            );
-            writer.addDocument(
-                Arrays.asList(
-                    new TextField("stored_text", "In search of lost time", Field.Store.YES)
-                )
-            );
-            writer.addDocument(
-                Arrays.asList(
-                    new TextField("stored_text", "A time to kill", Field.Store.YES)
-                )
-            );
-            writer.addDocument(
-                Arrays.asList(
-                    new TextField("stored_text", "The wheel of time", Field.Store.YES)
-                )
-            );
-            writer.commit();
-            reader = writer.getReader();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-        SearchExecutionContext sec = getSearchExecutionContext(ctx.searcher());
-        Query query = queryBuilder.toQuery(sec);
-        Function<ShardContext, Query> queryFunction = c -> query;
-        int taskConcurrency = 0;
-        int maxPageSize = between(10, Math.max(10, size));
-        return new LuceneRetrieveOperator.Factory(
-            List.of(ctx),
-            queryFunction,
-            dataPartitioning,
-            taskConcurrency,
-            maxPageSize,
-            limit
         );
     }
 
@@ -301,6 +256,41 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             b.endObject();
         }));
     }
+
+    private void initIndex() {
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            writer.addDocument(
+                Arrays.asList(
+                    new TextField("stored_text", "A brief history of time", Field.Store.YES)
+                )
+            );
+            writer.addDocument(
+                Arrays.asList(
+                    new TextField("stored_text", "In search of lost time", Field.Store.YES)
+                )
+            );
+            writer.addDocument(
+                Arrays.asList(
+                    new TextField("stored_text", "A time to kill", Field.Store.YES)
+                )
+            );
+            writer.addDocument(
+                Arrays.asList(
+                    new TextField("stored_text", "The wheel of time", Field.Store.YES)
+                )
+            );
+            writer.commit();
+            reader = writer.getReader();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     private SearchExecutionContext getSearchExecutionContext(IndexSearcher searcher) {
         Settings settings = Settings.builder().build();
         IndexMetadata indexMetadata = IndexMetadata.builder(mapperService.getIndexSettings().getIndexMetadata()).build();
@@ -334,6 +324,23 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             () -> true,
             null,
             Collections.emptyMap()
+        );
+    }
+
+    private LuceneRetrieveOperator.Factory getFactory(DataPartitioning dataPartitioning, int size, int limit, AbstractQueryBuilder queryBuilder) throws IOException {
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        SearchExecutionContext sec = getSearchExecutionContext(ctx.searcher());
+        Query query = queryBuilder.toQuery(sec);
+        Function<ShardContext, Query> queryFunction = c -> query;
+        int taskConcurrency = 0;
+        int maxPageSize = between(10, Math.max(10, size));
+        return new LuceneRetrieveOperator.Factory(
+            List.of(ctx),
+            queryFunction,
+            dataPartitioning,
+            taskConcurrency,
+            maxPageSize,
+            limit
         );
     }
 }

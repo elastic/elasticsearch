@@ -334,11 +334,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             backwards = docVector.shardSegmentDocMapBackwards();
             builders = new Block.Builder[target.length];
             rowStride = new BlockLoader.RowStrideReader[target.length];
+            scoreBuilder = blockFactory.newDoubleBlockBuilder(docs.getPositionCount());
         }
 
         void run() throws IOException {
-            DoubleBlock.Builder scoreBuilder = blockFactory.newDoubleBlockBuilder(docs.getPositionCount());
-
             int scoreBuilderIndex = -1;
             for (int f = 0; f < fields.length; f++) {
                 /*

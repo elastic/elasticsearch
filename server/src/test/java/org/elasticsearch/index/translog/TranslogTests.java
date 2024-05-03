@@ -297,7 +297,8 @@ public class TranslogTests extends ESTestCase {
             NON_RECYCLING_INSTANCE,
             bufferSize,
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
-            Objects.requireNonNullElse(listener, (d, s, l) -> {})
+            Objects.requireNonNullElse(listener, (d, s, l) -> {}),
+            true
         );
     }
 
@@ -1390,7 +1391,9 @@ public class TranslogTests extends ESTestCase {
             temp.getIndexSettings(),
             temp.getBigArrays(),
             new ByteSizeValue(1, ByteSizeUnit.KB),
-            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            true
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();

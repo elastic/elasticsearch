@@ -26,6 +26,7 @@ public final class TranslogConfig {
 
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
     public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
+    public static final OperationListener NOOP_OPERATION_LISTENER = (d, s, l) -> {};
     private final BigArrays bigArrays;
     private final DiskIoBufferPool diskIoBufferPool;
     private final IndexSettings indexSettings;
@@ -33,6 +34,7 @@ public final class TranslogConfig {
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
     private final OperationListener operationListener;
+    private final boolean fsync;
 
     /**
      * Creates a new TranslogConfig instance
@@ -42,18 +44,16 @@ public final class TranslogConfig {
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
      */
     public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, DiskIoBufferPool.INSTANCE);
-    }
-
-    TranslogConfig(
-        ShardId shardId,
-        Path translogPath,
-        IndexSettings indexSettings,
-        BigArrays bigArrays,
-        ByteSizeValue bufferSize,
-        DiskIoBufferPool diskIoBufferPool
-    ) {
-        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, (d, s, l) -> {});
+        this(
+            shardId,
+            translogPath,
+            indexSettings,
+            bigArrays,
+            DEFAULT_BUFFER_SIZE,
+            DiskIoBufferPool.INSTANCE,
+            NOOP_OPERATION_LISTENER,
+            true
+        );
     }
 
     public TranslogConfig(
@@ -63,7 +63,8 @@ public final class TranslogConfig {
         BigArrays bigArrays,
         ByteSizeValue bufferSize,
         DiskIoBufferPool diskIoBufferPool,
-        OperationListener operationListener
+        OperationListener operationListener,
+        boolean fsync
     ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
@@ -72,6 +73,7 @@ public final class TranslogConfig {
         this.bigArrays = bigArrays;
         this.diskIoBufferPool = diskIoBufferPool;
         this.operationListener = operationListener;
+        this.fsync = fsync;
     }
 
     /**
@@ -119,5 +121,12 @@ public final class TranslogConfig {
 
     public OperationListener getOperationListener() {
         return operationListener;
+    }
+
+    /**
+     * @return true if translog writes needs to be followed by fsync
+     */
+    public boolean fsync() {
+        return fsync;
     }
 }

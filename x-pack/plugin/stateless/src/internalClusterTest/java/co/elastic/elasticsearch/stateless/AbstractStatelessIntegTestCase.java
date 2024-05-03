@@ -100,6 +100,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         System.getProperty("es.test.stateless.upload.delayed", "false")
     );
 
+    public static final int STATELESS_UPLOAD_MAX_COMMITS = Integer.parseInt(
+        System.getProperty("es.test.stateless.upload.max_commits", "1")
+    );
+
     @Override
     protected boolean addMockInternalEngine() {
         return false;
@@ -148,7 +152,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     @Override
     protected void beforeIndexDeletion() throws Exception {
         if (internalCluster().size() > 0) {
-            flush(); // clear out index commits that could be held by current VBCC
+            flush(".*", "*"); // clear out index commits that could be held by current VBCC
         }
         super.beforeIndexDeletion();
     }
@@ -220,6 +224,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
         if (STATELESS_UPLOAD_DELAYED) {
             builder.put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true);
+            builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), STATELESS_UPLOAD_MAX_COMMITS);
         }
         return builder;
     }

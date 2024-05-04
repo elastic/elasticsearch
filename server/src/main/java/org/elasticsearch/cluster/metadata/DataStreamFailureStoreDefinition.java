@@ -71,7 +71,10 @@ public class DataStreamFailureStoreDefinition {
              *           "pipeline_trace": {
              *              "type": "keyword"
              *           },
-             *           "processor": {
+             *           "processor_tag": {
+             *              "type": "keyword"
+             *           },
+             *           "processor_type": {
              *              "type": "keyword"
              *           }
              *         }
@@ -123,7 +126,10 @@ public class DataStreamFailureStoreDefinition {
                     .startObject("pipeline_trace")
                     .field("type", "keyword")
                     .endObject()
-                    .startObject("processor")
+                    .startObject("processor_tag")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("processor_type")
                     .field("type", "keyword")
                     .endObject()
                     .endObject()

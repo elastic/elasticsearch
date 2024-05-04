@@ -16,6 +16,8 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.util.List;
+
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -24,13 +26,16 @@ import static org.hamcrest.CoreMatchers.startsWith;
 
 public class FailureStoreDocumentConverterTests extends ESTestCase {
 
-    public void testFailureStoreDocumentConverstion() throws Exception {
+    public void testFailureStoreDocumentConversion() throws Exception {
         IndexRequest source = new IndexRequest("original_index").routing("fake_routing")
             .id("1")
             .source(JsonXContent.contentBuilder().startObject().field("key", "value").endObject());
 
         // The exception will be wrapped for the test to make sure the converter correctly unwraps it
-        Exception exception = new ElasticsearchException("Test exception please ignore");
+        ElasticsearchException exception = new ElasticsearchException("Test exception please ignore");
+        exception.addHeader("pipeline_origin", List.of("some-pipeline", "some-failing-pipeline"));
+        exception.addHeader("processor_tag", "foo-tag");
+        exception.addHeader("processor_type", "bar-type");
         exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);
 
         String targetIndexName = "rerouted_index";
@@ -68,8 +73,15 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
         );
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentConverterTests.testFailureStoreDocumentConverstion")
+            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentConverterTests.testFailureStoreDocumentConversion")
         );
+        assertThat(
+            ObjectPath.eval("error.pipeline_trace", convertedRequest.sourceAsMap()),
+            is(equalTo(List.of("some-pipeline", "some-failing-pipeline")))
+        );
+        assertThat(ObjectPath.eval("error.pipeline", convertedRequest.sourceAsMap()), is(equalTo("some-failing-pipeline")));
+        assertThat(ObjectPath.eval("error.processor_tag", convertedRequest.sourceAsMap()), is(equalTo("foo-tag")));
+        assertThat(ObjectPath.eval("error.processor_type", convertedRequest.sourceAsMap()), is(equalTo("bar-type")));
 
         assertThat(convertedRequest.isWriteToFailureStore(), is(true));
     }

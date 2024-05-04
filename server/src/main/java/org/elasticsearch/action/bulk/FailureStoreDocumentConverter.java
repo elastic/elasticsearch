@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -23,6 +24,8 @@ import java.util.function.Supplier;
  * Transforms an indexing request using error information into a new index request to be stored in a data stream's failure store.
  */
 public class FailureStoreDocumentConverter {
+
+    private static final List<String> INGEST_EXCEPTION_HEADERS = List.of("pipeline_origin", "processor_tag", "processor_type");
 
     /**
      * Combines an {@link IndexRequest} that has failed during the bulk process with the error thrown for that request. The result is a
@@ -96,10 +99,28 @@ public class FailureStoreDocumentConverter {
                 builder.field("type", ElasticsearchException.getExceptionName(unwrapped));
                 builder.field("message", unwrapped.getMessage());
                 builder.field("stack_trace", ExceptionsHelper.stackTrace(unwrapped));
-                // Further fields not yet tracked (Need to expose via specific exceptions)
-                // - pipeline
-                // - pipeline_trace
-                // - processor
+                // Try to find the IngestProcessorException somewhere in the stack trace. Since IngestProcessorException is package-private,
+                // we can't instantiate it in tests, so we'll have to check for the headers directly.
+                var ingestException = ExceptionsHelper.<ElasticsearchException>unwrapCausesAndSuppressed(
+                    exception,
+                    t -> t instanceof ElasticsearchException e && e.getHeaderKeys().stream().anyMatch(INGEST_EXCEPTION_HEADERS::contains)
+                ).orElse(null);
+                if (ingestException != null) {
+                    List<String> pipelineOrigin = ingestException.getHeaderKeys().contains("pipeline_origin")
+                        ? ingestException.getHeader("pipeline_origin")
+                        : List.of();
+                    builder.field("pipeline_trace", pipelineOrigin);
+                    String pipeline = pipelineOrigin.isEmpty() ? "unknown" : pipelineOrigin.get(pipelineOrigin.size() - 1);
+                    builder.field("pipeline", pipeline);
+                    String processorTag = ingestException.getHeaderKeys().contains("processor_tag")
+                        ? ingestException.getHeader("processor_tag").get(0)
+                        : "unknown";
+                    builder.field("processor_tag", processorTag);
+                    String processorType = ingestException.getHeaderKeys().contains("processor_type")
+                        ? ingestException.getHeader("processor_type").get(0)
+                        : "unknown";
+                    builder.field("processor_type", processorType);
+                }
             }
             builder.endObject();
         }

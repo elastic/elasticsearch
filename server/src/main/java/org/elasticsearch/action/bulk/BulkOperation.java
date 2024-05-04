@@ -80,6 +80,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreDocumentConverter failureStoreDocumentConverter;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
+    private final FailureStoreMetrics failureStoreMetrics;
 
     BulkOperation(
         Task task,
@@ -93,7 +94,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
-        ActionListener<BulkResponse> listener
+        ActionListener<BulkResponse> listener,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this(
             task,
@@ -109,7 +111,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             startTimeNanos,
             listener,
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
-            new FailureStoreDocumentConverter()
+            new FailureStoreDocumentConverter(),
+            failureStoreMetrics
         );
     }
 
@@ -127,7 +130,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         ClusterStateObserver observer,
-        FailureStoreDocumentConverter failureStoreDocumentConverter
+        FailureStoreDocumentConverter failureStoreDocumentConverter,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         super(listener);
         this.task = task;
@@ -144,6 +148,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.client = client;
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
+        this.failureStoreMetrics = failureStoreMetrics;
     }
 
     @Override
@@ -371,6 +376,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                         if (failureStoreReference != null) {
                             addDocumentToRedirectRequests(bulkItemRequest, bulkItemResponse.getFailure().getCause(), failureStoreReference);
                         }
+                        FailureStoreMetrics.incrementForIndex(failureStoreMetrics.failureCounter(), bulkItemRequest.index());
                         addFailure(bulkItemResponse);
                     } else {
                         bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
@@ -391,6 +397,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     if (failureStoreReference != null) {
                         addDocumentToRedirectRequests(request, e, failureStoreReference);
                     }
+                    FailureStoreMetrics.incrementForIndex(failureStoreMetrics.failureCounter(), request.index());
                     addFailure(docWriteRequest, request.id(), indexName, e);
                 }
                 completeShardOperation();
@@ -452,6 +459,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @param failureStoreReference The data stream that contains the failure store for this item
      */
     private void addDocumentToRedirectRequests(BulkItemRequest request, Exception cause, String failureStoreReference) {
+        FailureStoreMetrics.incrementForIndex(failureStoreMetrics.redirectCounter(), failureStoreReference);
         // Convert the document into a failure document
         IndexRequest failureStoreRequest;
         try {

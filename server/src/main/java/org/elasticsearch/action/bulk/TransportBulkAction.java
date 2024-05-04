@@ -101,6 +101,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
     private final OriginSettingClient rolloverClient;
+    private final FailureStoreMetrics failureStoreMetrics;
 
     private final Executor writeExecutor;
     private final Executor systemWriteExecutor;
@@ -116,7 +117,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this(
             threadPool,
@@ -129,7 +131,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            System::nanoTime,
+            failureStoreMetrics
         );
     }
 
@@ -144,7 +147,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this(
             TYPE,
@@ -159,7 +163,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            relativeTimeProvider
+            relativeTimeProvider,
+            failureStoreMetrics
         );
     }
 
@@ -176,7 +181,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
@@ -195,6 +201,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.writeExecutor = threadPool.executor(Names.WRITE);
         this.systemWriteExecutor = threadPool.executor(Names.SYSTEM_WRITE);
+        this.failureStoreMetrics = failureStoreMetrics;
     }
 
     /**
@@ -658,7 +665,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             relativeTimeProvider,
             startTimeNanos,
-            listener
+            listener,
+            failureStoreMetrics
         ).run();
     }
 

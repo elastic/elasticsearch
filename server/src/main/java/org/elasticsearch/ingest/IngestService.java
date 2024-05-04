@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -116,6 +117,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
+    private final FailureStoreMetrics failureStoreMetrics;
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
 
@@ -184,7 +186,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        DocumentParsingProvider documentParsingProvider
+        DocumentParsingProvider documentParsingProvider,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -206,6 +209,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
+        this.failureStoreMetrics = failureStoreMetrics;
     }
 
     /**
@@ -222,6 +226,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.taskQueue = ingestService.taskQueue;
         this.pipelines = ingestService.pipelines;
         this.state = ingestService.state;
+        this.failureStoreMetrics = ingestService.failureStoreMetrics;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -879,7 +884,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ingestDocument.resetReroute();
         final String originalIndex = indexRequest.indices()[0];
         final Consumer<Exception> exceptionHandler = (Exception e) -> {
+            FailureStoreMetrics.incrementForIndex(failureStoreMetrics.failureCounter(), originalIndex);
             if (shouldStoreFailure.test(originalIndex)) {
+                FailureStoreMetrics.incrementForIndex(failureStoreMetrics.redirectCounter(), originalIndex);
                 listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
             } else {
                 listener.onFailure(e);

@@ -59,7 +59,9 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            System::nanoTime,
+            // We don't want to record metrics for simulate requests.
+            FailureStoreMetrics.NOOP
         );
     }
 

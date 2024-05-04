@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -152,7 +153,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -172,7 +174,8 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
-                DocumentParsingProvider.EMPTY_INSTANCE
+                DocumentParsingProvider.EMPTY_INSTANCE,
+                FailureStoreMetrics.NOOP
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -189,7 +192,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -2290,7 +2294,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2645,7 +2650,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            FailureStoreMetrics.NOOP
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -2944,7 +2950,8 @@ public class IngestServiceTests extends ESTestCase {
             }),
             client,
             null,
-            documentParsingProvider
+            documentParsingProvider,
+            FailureStoreMetrics.NOOP
         );
         if (randomBoolean()) {
             /*

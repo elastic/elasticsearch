@@ -1,0 +1,5 @@
+pr: 107481
+summary: Block specific config files from being read after startup
+area: Security
+type: bug
+issues: []

@@ -156,7 +156,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         String versionString = null;
-        // TODO: skip tests with explicitly set version and/or strip the version if it's 2024.04.01.
+        // TODO: Read version range from csv-spec and skip if none of the versions are available.
         if (availableVersions().isEmpty() == false) {
             EsqlVersion version = randomFrom(availableVersions());
             versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();

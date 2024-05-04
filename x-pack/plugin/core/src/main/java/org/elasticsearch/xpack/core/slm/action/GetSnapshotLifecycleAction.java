@@ -32,7 +32,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
 
     public static class Request extends AcknowledgedRequest<GetSnapshotLifecycleAction.Request> {
 
-        private String[] lifecycleIds;
+        private final String[] lifecycleIds;
 
         public Request(String... lifecycleIds) {
             this.lifecycleIds = Objects.requireNonNull(lifecycleIds, "ids may not be null");

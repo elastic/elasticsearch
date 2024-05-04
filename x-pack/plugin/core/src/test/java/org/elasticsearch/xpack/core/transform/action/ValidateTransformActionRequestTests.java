@@ -18,7 +18,7 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomTransformConfig(), randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(randomTransformConfig(), randomBoolean(), randomTimeValue());
     }
 
     @Override

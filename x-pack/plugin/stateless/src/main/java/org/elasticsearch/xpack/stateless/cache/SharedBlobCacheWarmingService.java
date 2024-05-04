@@ -40,7 +40,6 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -141,7 +140,7 @@ public class SharedBlobCacheWarmingService {
         this.throttledTaskRunner = new ThrottledTaskRunner(
             "prewarming-cache",
             1 + threadPool.info(Stateless.PREWARM_THREAD_POOL).getMax(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE // forks to the fetch pool pretty much straight away
+            threadPool.generic() // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
         );
     }
 

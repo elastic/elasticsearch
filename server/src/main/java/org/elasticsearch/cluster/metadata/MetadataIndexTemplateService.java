@@ -61,6 +61,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1050,29 +1051,24 @@ public class MetadataIndexTemplateService {
             .reduce(Sets::union)
             .orElse(Set.of());
 
+        // Filter and sort all composable templates in advance, to speed up template retrieval later on.
+        var templates = state.metadata()
+            .templatesV2()
+            .entrySet()
+            .stream()
+            .filter(
+                entry -> templateNames.contains(entry.getKey()) == false
+                    && isGlobalAndHasIndexHiddenSetting(metadata, entry.getValue(), entry.getKey()) == false
+            )
+            .sorted(Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()))
+            .toList();
+
         return metadata.dataStreams()
             .values()
             .stream()
             // Limit to checking data streams that match any of the templates' index patterns
             .filter(ds -> namePatterns.stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
-            .filter(ds -> {
-                // Retrieve the templates that match the data stream name ordered by priority
-                List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(metadata, ds.getName(), ds.isHidden());
-                if (candidates.isEmpty()) {
-                    throw new IllegalStateException("Data stream " + ds.getName() + " did not match any composable index templates.");
-                }
-
-                // Limit data streams that can ONLY use any of the specified templates, we do this by filtering
-                // the matching templates that are others than the ones requested and could be a valid template to use.
-                return candidates.stream()
-                    .filter(
-                        template -> templateNames.contains(template.v1()) == false
-                            && isGlobalAndHasIndexHiddenSetting(metadata, template.v2(), template.v1()) == false
-                    )
-                    .map(Tuple::v1)
-                    .toList()
-                    .isEmpty();
-            })
+            .filter(ds -> findV2Template(state.metadata(), templates, ds.getName(), ds.isHidden(), true) == null)
             .map(DataStream::getName)
             .collect(Collectors.toSet());
     }
@@ -1268,7 +1264,27 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
-        final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(metadata, indexName, isHidden);
+        return findV2Template(metadata, metadata.templatesV2().entrySet(), indexName, isHidden, false);
+    }
+
+    /**
+     * Return the name (id) of the highest matching index template for the given index name. In
+     * the event that no templates are matched, {@code null} is returned.
+     */
+    @Nullable
+    public static String findV2Template(
+        Metadata metadata,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templateEntries,
+        String indexName,
+        boolean isHidden,
+        boolean exitOnFirstMatch
+    ) {
+        final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(
+            templateEntries,
+            indexName,
+            isHidden,
+            exitOnFirstMatch
+        );
         if (candidates.isEmpty()) {
             return null;
         }
@@ -1296,26 +1312,44 @@ public class MetadataIndexTemplateService {
     /**
      * Return an ordered list of the name (id) and composable index templates that would apply to an index. The first
      * one is the winner template that is applied to this index. In the event that no templates are matched,
-     * an empty list is returned.
+     * an empty list is returned. If <code>exitOnFirstMatch</code> is true, we return immediately after finding a match.
      */
-    static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(Metadata metadata, String indexName, boolean isHidden) {
+    static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templateEntries,
+        String indexName,
+        boolean isHidden,
+        boolean exitOnFirstMatch
+    ) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
-        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
+        outerLoop:
+        for (Map.Entry<String, ComposableIndexTemplate> entry : templateEntries) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
             if (isHidden == false) {
-                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
-                    candidates.add(Tuple.tuple(name, template));
+                for (String indexPattern : template.indexPatterns()) {
+                    if (Regex.simpleMatch(indexPattern, resolvedIndexName)) {
+                        candidates.add(Tuple.tuple(name, template));
+                        if (exitOnFirstMatch) {
+                            return candidates;
+                        }
+                    }
                 }
             } else {
-                final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
-                if (isNotMatchAllTemplate) {
-                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
-                        candidates.add(Tuple.tuple(name, template));
+                // For hidden indices, we don't want to return any templates that match "all".
+                boolean match = false;
+                for (String indexPattern : template.indexPatterns()) {
+                    if (Regex.isMatchAllPattern(indexPattern)) {
+                        continue outerLoop;
                     }
+                    // If we've already found a match, we still want to keep looping to make sure this template doesn't have a "*" pattern.
+                    if (match == false && Regex.simpleMatch(indexPattern, resolvedIndexName)) {
+                        candidates.add(Tuple.tuple(name, template));
+                        match = true;
+                    }
+                }
+                if (match && exitOnFirstMatch) {
+                    return candidates;
                 }
             }
         }

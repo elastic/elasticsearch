@@ -46,7 +46,6 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
 
-
     @Override
     protected Codec getCodec() {
         return codec;
@@ -131,8 +130,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     public void testOneDocManyValues() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig();
-        try (Directory dir = newDirectory();
-             IndexWriter writer = new IndexWriter(dir, config)) {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
             int numValues = 128 + random().nextInt(1024); // > 2^7 to require two blocks
             Document d = new Document();
             for (int i = 0; i < numValues; i++) {

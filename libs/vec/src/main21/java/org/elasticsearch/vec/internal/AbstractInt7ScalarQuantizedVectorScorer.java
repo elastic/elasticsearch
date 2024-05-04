@@ -18,7 +18,8 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 
-abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScorer permits DotProduct, Euclidean, MaximumInnerProduct {
+abstract sealed class AbstractInt7ScalarQuantizedVectorScorer implements VectorScorer permits Int7DotProduct, Int7Euclidean,
+    Int7MaximumInnerProduct {
 
     static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
@@ -36,7 +37,7 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
 
     private final ScalarQuantizedVectorSimilarity fallbackScorer;
 
-    protected AbstractScalarQuantizedVectorScorer(
+    protected AbstractInt7ScalarQuantizedVectorScorer(
         int dims,
         int maxOrd,
         float scoreCorrectionConstant,
@@ -114,13 +115,13 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
         return index >= 0 && index < length;
     }
 
-    static final MethodHandle DOT_PRODUCT = DISTANCE_FUNCS.dotProductHandle();
-    static final MethodHandle SQUARE_DISTANCE = DISTANCE_FUNCS.squareDistanceHandle();
+    static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.dotProductHandle7u();
+    static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
 
-    static int dotProduct(MemorySegment a, MemorySegment b, int length) {
+    static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         // assert assertSegments(a, b, length);
         try {
-            return (int) DOT_PRODUCT.invokeExact(a, b, length);
+            return (int) DOT_PRODUCT_7U.invokeExact(a, b, length);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;
@@ -132,10 +133,10 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
         }
     }
 
-    static int squareDistance(MemorySegment a, MemorySegment b, int length) {
+    static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
         // assert assertSegments(a, b, length);
         try {
-            return (int) SQUARE_DISTANCE.invokeExact(a, b, length);
+            return (int) SQUARE_DISTANCE_7U.invokeExact(a, b, length);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

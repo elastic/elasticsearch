@@ -1,5 +1,0 @@
-pr: 106602
-summary: Raise loglevel of events related to transform lifecycle from DEBUG to INFO
-area: Transform
-type: enhancement
-issues: []

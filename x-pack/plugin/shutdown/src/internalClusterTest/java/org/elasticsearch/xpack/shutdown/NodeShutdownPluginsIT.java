@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,21 +41,8 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String remainNode;
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        final String node1Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node1))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
-        final String node2Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node2))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
+        final String node1Id = getNodeId(node1);
+        final String node2Id = getNodeId(node2);
 
         if (randomBoolean()) {
             shutdownNode = node1Id;

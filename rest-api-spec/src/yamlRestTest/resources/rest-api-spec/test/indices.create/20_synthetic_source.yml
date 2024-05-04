@@ -1,6 +1,6 @@
 invalid:
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: introduced in 8.3.0
 
   - do:
@@ -18,8 +18,8 @@ invalid:
 
 ---
 nested is disabled:
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: introduced in 8.3.0
 
   - do:
@@ -36,3 +36,307 @@ nested is disabled:
                 properties:
                   foo:
                     type: keyword
+
+---
+object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true, "a.very.deeply.nested.field": "AAAA" }'
+          - '{ "create": { } }'
+          - '{ "name": "bbbb", "some_string": "BbBb", "some_int": 2000, "some_double": 321.987654, "some_bool": false, "a.very.deeply.nested.field": "BBBB" }'
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.some_string: AaAa }
+  - match: { hits.hits.0._source.some_int: 1000 }
+  - match: { hits.hits.0._source.some_double: 123.456789 }
+  - match: { hits.hits.0._source.a.very.deeply.nested.field: AAAA }
+  - match: { hits.hits.0._source.some_bool: true }
+  - match: { hits.hits.1._source.name: bbbb }
+  - match: { hits.hits.1._source.some_string: BbBb }
+  - match: { hits.hits.1._source.some_int: 2000 }
+  - match: { hits.hits.1._source.some_double: 321.987654 }
+  - match: { hits.hits.1._source.a.very.deeply.nested.field: BBBB }
+
+
+---
+nested object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.name": "aaaa", "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+          - '{ "create": { } }'
+          - '{ "path.to.name": "bbbb", "path.to.surname": "BbBb", "path.some.other.name": "BbBbBb"  }'
+
+  - do:
+      search:
+        index: test
+        sort: path.to.name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.path.to.name: aaaa }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
+  - match: { hits.hits.1._source.path.to.name: bbbb }
+  - match: { hits.hits.1._source.path.to.surname: BbBb }
+  - match: { hits.hits.1._source.path.some.other.name: BbBbBb }
+
+
+---
+empty object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
+
+
+---
+disabled root object:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            enabled: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true, "a.very.deeply.nested.field": "AAAA" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.some_string: AaAa }
+  - match: { hits.hits.0._source.some_int: 1000 }
+  - match: { hits.hits.0._source.some_double: 123.456789 }
+  - match: { hits.hits.0._source.a.very.deeply.nested.field: AAAA }
+
+
+---
+disabled object:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to.a.very.deeply.nested.field": "AAAA" } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.some_int: 1000 }
+  - match: { hits.hits.0._source.path.to.a.very.deeply.nested.field: AAAA }
+
+
+---
+disabled subobject:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to": { "some_text": "AAAA" } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.some_int: 1000 }
+  - match: { hits.hits.0._source.path.to.some_text: AAAA }
+
+
+---
+mixed disabled and enabled objects:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      foo:
+                        enabled: false
+                      bar:
+                        enabled: true
+                      baz:
+                        enabled: false
+                      bad:
+                        enabled: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path": { "to": { "foo": { "value": "foo" }, "bar": { "value": "bar" }, "baz": { "value": 1000 }, "bad": { "value": false } } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.foo.value: foo }
+  - match: { hits.hits.0._source.path.to.bar.value: bar }
+  - match: { hits.hits.0._source.path.to.baz.value: 1000 }
+  - match: { hits.hits.0._source.path.to.bad.value: false }

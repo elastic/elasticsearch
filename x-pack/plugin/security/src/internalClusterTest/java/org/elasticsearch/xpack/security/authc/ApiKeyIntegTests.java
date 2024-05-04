@@ -658,24 +658,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private Client waitForInactiveApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
-        String nodeWithMostRecentRun = null;
-        long apiKeyLastTrigger = -1L;
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
-            if (apiKeyService != null) {
-                if (apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > apiKeyLastTrigger) {
-                    nodeWithMostRecentRun = nodeName;
-                    apiKeyLastTrigger = apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered();
-                }
-            }
-        }
-        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
-        final long lastRunTime = apiKeyLastTrigger;
-        assertBusy(() -> { assertThat(threadPool.relativeTimeInMillis() - lastRunTime, greaterThan(DELETE_INTERVAL_MILLIS)); });
-        return internalCluster().client(nodeWithMostRecentRun);
-    }
-
     private void doTestDeletionBehaviorWhenKeysBecomeInvalidBeforeAndAfterRetentionPeriod(String namePrefix) throws Exception {
         assertThat(deleteRetentionPeriodDays, greaterThan(0L));
         Client client = waitForInactiveApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
@@ -818,6 +800,35 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             }
         }
         assertThat(getApiKeyResponseListener.get().getApiKeyInfoList().size(), is(4));
+    }
+
+    private Client waitForInactiveApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
+        String[] nodeNames = internalCluster().getNodeNames();
+        // Default to first node in list of no remover run detected
+        String nodeWithMostRecentRun = nodeNames[0];
+        final long[] apiKeyRemoverLastTriggerTimestamp = new long[] { -1 };
+
+        for (String nodeName : nodeNames) {
+            ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
+            if (apiKeyService != null) {
+                if (apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > apiKeyRemoverLastTriggerTimestamp[0]) {
+                    nodeWithMostRecentRun = nodeName;
+                    apiKeyRemoverLastTriggerTimestamp[0] = apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered();
+                }
+            }
+        }
+        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
+
+        // If remover didn't run, no need to wait, just return a client
+        if (apiKeyRemoverLastTriggerTimestamp[0] == -1) {
+            return internalCluster().client(nodeWithMostRecentRun);
+        }
+
+        // If remover ran, wait until delete interval has passed to make sure next invalidate will trigger remover
+        assertBusy(
+            () -> assertThat(threadPool.relativeTimeInMillis() - apiKeyRemoverLastTriggerTimestamp[0], greaterThan(DELETE_INTERVAL_MILLIS))
+        );
+        return internalCluster().client(nodeWithMostRecentRun);
     }
 
     private void refreshSecurityIndex() throws Exception {
@@ -2758,7 +2769,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false, true, false)
+                    () -> RoleDescriptorTests.randomRoleDescriptor(false, true, false, true)
                 )
             );
             case 2 -> null;
@@ -2874,12 +2885,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         for (RoleDescriptor expectedRoleDescriptor : expectedRoleDescriptors) {
             assertThat(rawRoleDescriptor, hasKey(expectedRoleDescriptor.getName()));
             final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
-            final var roleDescriptor = RoleDescriptor.parse(
-                expectedRoleDescriptor.getName(),
-                XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
-                false,
-                XContentType.JSON
-            );
+            final var roleDescriptor = RoleDescriptor.parserBuilder()
+                .allowRestriction(true)
+                .build()
+                .parse(
+                    expectedRoleDescriptor.getName(),
+                    XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
+                    XContentType.JSON
+                );
             assertEquals(expectedRoleDescriptor, roleDescriptor);
         }
     }

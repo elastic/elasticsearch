@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -69,7 +67,7 @@ public record ChatCompletionResults(List<Result> results) implements InferenceSe
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        throw new UnsupportedOperationException();
+        return results;
     }
 
     @Override
@@ -89,7 +87,7 @@ public record ChatCompletionResults(List<Result> results) implements InferenceSe
         return map;
     }
 
-    public record Result(String content) implements Writeable, ToXContentObject {
+    public record Result(String content) implements InferenceResults, Writeable {
 
         public static final String RESULT = "result";
 
@@ -112,13 +110,34 @@ public record ChatCompletionResults(List<Result> results) implements InferenceSe
         }
 
         @Override
-        public String toString() {
-            return Strings.toString(this);
+        public String getResultsField() {
+            return RESULT;
         }
 
+        @Override
         public Map<String, Object> asMap() {
-            return Map.of(RESULT, content);
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(RESULT, content);
+            return map;
         }
+
+        @Override
+        public Map<String, Object> asMap(String outputField) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(outputField, content);
+            return map;
+        }
+
+        @Override
+        public Object predictedValue() {
+            return content;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
     }
 
 }

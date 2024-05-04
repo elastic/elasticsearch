@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -191,8 +192,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.fetchPhase().execute(subSearchContext, docIdsToLoad);
-        FetchSearchResult fetchResult = subSearchContext.fetchResult();
+        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad);
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -214,6 +214,19 @@ class TopHitsAggregator extends MetricsAggregator {
             fetchResult.hits(),
             metadata()
         );
+    }
+
+    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
+        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
+            @Override
+            public SearchExecutionContext getSearchExecutionContext() {
+                return searchExecutionContext;
+            }
+        };
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad);
+        return fetchSubSearchContext.fetchResult();
     }
 
     @Override

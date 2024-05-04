@@ -319,6 +319,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(DocCountFieldMapper.class)
                 .item(FieldNamesFieldMapper.class)
                 .item(IgnoredFieldMapper.class)
+                .item(IgnoredSourceFieldMapper.class)
                 .item(IndexFieldMapper.class)
                 .item(NestedPathFieldMapper.class)
                 .item(ProvidedIdFieldMapper.class)
@@ -336,6 +337,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(FieldNamesFieldMapper.CONTENT_TYPE)
                 .item(IdFieldMapper.CONTENT_TYPE)
                 .item(IgnoredFieldMapper.CONTENT_TYPE)
+                .item(IgnoredSourceFieldMapper.NAME)
                 .item(IndexFieldMapper.CONTENT_TYPE)
                 .item(NestedPathFieldMapper.NAME)
                 .item(RoutingFieldMapper.CONTENT_TYPE)
@@ -464,7 +466,11 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 threads[threadId] = new Thread(() -> {
                     try {
                         latch.await();
-                        mapperService.parseMapping("_doc", new CompressedXContent(Strings.toString(builders[threadId])));
+                        mapperService.parseMapping(
+                            "_doc",
+                            MergeReason.MAPPING_UPDATE,
+                            new CompressedXContent(Strings.toString(builders[threadId]))
+                        );
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }

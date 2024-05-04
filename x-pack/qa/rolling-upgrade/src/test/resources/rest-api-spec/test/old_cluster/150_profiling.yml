@@ -1,7 +1,7 @@
 ---
 "Test Profiling Index Management creates indices":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason:  status check API has been introduced with 8.11.0
 
   - do:

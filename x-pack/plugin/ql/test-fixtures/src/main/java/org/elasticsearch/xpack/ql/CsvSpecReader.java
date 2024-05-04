@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
@@ -68,7 +69,17 @@ public final class CsvSpecReader {
                 // read data
                 String lower = line.toLowerCase(Locale.ROOT);
                 if (lower.startsWith("warning:")) {
+                    if (testCase.expectedWarningsRegex.isEmpty() == false) {
+                        throw new IllegalArgumentException("Cannot mix warnings and regex warnings in CSV SPEC files: [" + line + "]");
+                    }
                     testCase.expectedWarnings.add(line.substring("warning:".length()).trim());
+                } else if (lower.startsWith("warningregex:")) {
+                    if (testCase.expectedWarnings.isEmpty() == false) {
+                        throw new IllegalArgumentException("Cannot mix warnings and regex warnings in CSV SPEC files: [" + line + "]");
+                    }
+                    String regex = line.substring("warningregex:".length()).trim();
+                    testCase.expectedWarningsRegexString.add(regex);
+                    testCase.expectedWarningsRegex.add(warningRegexToPattern(regex));
                 } else if (lower.startsWith("ignoreorder:")) {
                     testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
                 } else if (line.startsWith(";")) {
@@ -88,11 +99,17 @@ public final class CsvSpecReader {
         }
     }
 
+    private static Pattern warningRegexToPattern(String regex) {
+        return Pattern.compile(".*" + regex + ".*");
+    }
+
     public static class CsvTestCase {
         public String query;
         public String earlySchema;
         public String expectedResults;
         private final List<String> expectedWarnings = new ArrayList<>();
+        private final List<String> expectedWarningsRegexString = new ArrayList<>();
+        private final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public boolean ignoreOrder;
         public List<String> requiredFeatures = List.of();
 
@@ -136,6 +153,13 @@ public final class CsvSpecReader {
          */
         public void adjustExpectedWarnings(Function<String, String> updater) {
             expectedWarnings.replaceAll(updater::apply);
+            expectedWarningsRegexString.replaceAll(updater::apply);
+            expectedWarningsRegex.clear();
+            expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+        }
+
+        public List<Pattern> expectedWarningsRegex() {
+            return expectedWarningsRegex;
         }
     }
 

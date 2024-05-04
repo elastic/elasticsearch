@@ -98,7 +98,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         // other bucket
         assertAggs(API_KEY_USER_AUTH_HEADER, typedAggs, """
             {
-              "aggs": {
+              "aggregations": {
                 "only_user_keys": {
                   "filters": {
                     "other_bucket_key": "other_user_keys",
@@ -267,7 +267,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                           "good-api-key-invalidated": { "term": {"invalidated": false}}
                         }
                       },
-                      "aggs": {
+                      "aggregations": {
                         "wrong-field": {
                           "filters": {
                             "filters": {
@@ -487,7 +487,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                       { "usernames": { "terms": { "field": "username" } } }
                     ]
                   },
-                  "aggs": {
+                  "aggregations": {
                     "not_expired": {
                       "filter": {
                         "range": {
@@ -564,7 +564,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             );
             request.setJsonEntity("""
                 {
-                  "aggs": {
+                  "aggregations": {
                     "all_.security_docs": {
                       "global": {},
                       "aggs": {

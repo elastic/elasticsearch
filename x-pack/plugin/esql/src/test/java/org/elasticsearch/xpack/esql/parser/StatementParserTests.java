@@ -7,20 +7,23 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -40,7 +43,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -242,7 +245,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithGroups() {
         assertEquals(
-            new Aggregate(
+            new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 List.of(attribute("c"), attribute("d.e")),
@@ -258,7 +261,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithoutGroups() {
         assertEquals(
-            new Aggregate(
+            new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 List.of(),
@@ -273,7 +276,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithoutAggs() throws Exception {
         assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
+            new EsqlAggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
@@ -299,7 +302,7 @@ public class StatementParserTests extends ESTestCase {
             """ };
 
         for (String query : queries) {
-            expectError(query, "Cannot specify grouping expression [a] as an aggregate");
+            expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
     }
 
@@ -705,7 +708,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testFromOptionsWithMetadata() {
-        var plan = statement(FROM + " OPTIONS \"preference\"=\"foo\" METADATA _id");
+        var plan = statement(FROM + " METADATA _id OPTIONS \"preference\"=\"foo\"");
         var unresolved = as(plan, EsqlUnresolvedRelation.class);
         assertNotNull(unresolved.esSourceOptions());
         assertThat(unresolved.esSourceOptions().preference(), is("foo"));
@@ -866,18 +869,19 @@ public class StatementParserTests extends ESTestCase {
 
     public void testInputParams() {
         LogicalPlan stm = statement(
-            "row x = ?, y = ?, a = ?, b = ?, c = ?",
+            "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?",
             List.of(
                 new TypedParamValue("integer", 1),
                 new TypedParamValue("keyword", "2"),
                 new TypedParamValue("date_period", "2 days"),
                 new TypedParamValue("time_duration", "4 hours"),
-                new TypedParamValue("version", "1.2.3")
+                new TypedParamValue("version", "1.2.3"),
+                new TypedParamValue("ip", "127.0.0.1")
             )
         );
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
-        assertThat(row.fields().size(), is(5));
+        assertThat(row.fields().size(), is(6));
 
         NamedExpression field = row.fields().get(0);
         assertThat(field.name(), is("x"));
@@ -907,8 +911,15 @@ public class StatementParserTests extends ESTestCase {
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold().getClass(), is(Version.class));
-        assertThat(alias.child().fold().toString(), is("1.2.3"));
+        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold().toString(), is(new Version("1.2.3").toBytesRef().toString()));
+
+        field = row.fields().get(5);
+        assertThat(field.name(), is("d"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold().toString(), is(StringUtils.parseIP("127.0.0.1").toString()));
     }
 
     public void testWrongIntervalParams() {
@@ -1026,6 +1037,18 @@ public class StatementParserTests extends ESTestCase {
         assertThat(ua.name(), is("`name`* = language_name"));
     }
 
+    public void testInlineConvertWithNonexistentType() {
+        expectError("ROW 1::doesnotexist", "line 1:9: Unknown data type named [doesnotexist]");
+        expectError("ROW \"1\"::doesnotexist", "line 1:11: Unknown data type named [doesnotexist]");
+        expectError("ROW false::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+        expectError("ROW abs(1)::doesnotexist", "line 1:14: Unknown data type named [doesnotexist]");
+        expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+    }
+
+    public void testInlineConvertUnsupportedType() {
+        expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
+    }
+
     private LogicalPlan statement(String e) {
         return statement(e, List.of());
     }
@@ -1102,6 +1125,11 @@ public class StatementParserTests extends ESTestCase {
 
     private void expectError(String query, String errorMessage) {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    private void expectVerificationError(String query, String errorMessage) {
+        VerificationException e = expectThrows(VerificationException.class, "Expected syntax error for " + query, () -> statement(query));
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 

@@ -949,8 +949,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 out.writeVInt(registerOperationCount);
             } else if (registerOperationCount != concurrency) {
                 throw new IllegalArgumentException(
-                    "cannot send request with registerOperationCount != concurrency on transport version ["
-                        + out.getTransportVersion()
+                    "cannot send request with registerOperationCount != concurrency to version ["
+                        + out.getTransportVersion().toReleaseVersion()
                         + "]"
                 );
             }
@@ -965,7 +965,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
                 throw new IllegalArgumentException(
-                    "cannot send abortWritePermitted request on transport version [" + out.getTransportVersion() + "]"
+                    "cannot send abortWritePermitted request to version [" + out.getTransportVersion().toReleaseVersion() + "]"
                 );
             }
         }

@@ -1,5 +1,0 @@
-pr: 106799
-summary: Add test to exercise reduction of terms aggregation order by key
-area: Aggregations
-type: bug
-issues: []

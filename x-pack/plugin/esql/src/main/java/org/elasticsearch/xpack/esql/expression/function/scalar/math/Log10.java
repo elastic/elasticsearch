@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -28,8 +29,22 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log10 extends UnaryScalarFunction {
-    @FunctionInfo(returnType = "double", description = "Returns the log base 10.")
-    public Log10(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the logarithm of a value to base 10. The input can "
+            + "be any numeric value, the return value is always a double.\n"
+            + "\n"
+            + "Logs of 0 and negative numbers return `null` as well as a warning.",
+        examples = @Example(file = "math", tag = "log10")
+    )
+    public Log10(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression n
+    ) {
         super(source, n);
     }
 

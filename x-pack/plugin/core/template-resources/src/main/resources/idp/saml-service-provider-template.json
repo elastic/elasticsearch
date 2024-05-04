@@ -13,10 +13,12 @@
     "index.priority": 10,
     "index.format": 1
   },
+  "version": ${idp.template.version},
   "mappings": {
     "_doc": {
       "_meta": {
-        "idp-version": "${idp.template.version}"
+        "idp-version": "${idp.template.version_deprecated}",
+        "idp-template-version": "${idp.template.version}"
       },
       "dynamic": "strict",
       "properties": {

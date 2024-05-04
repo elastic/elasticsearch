@@ -73,6 +73,13 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
                 countDownLatch.countDown();
             }
         }
+
+        @Override
+        protected void processInitialFileMissing() {
+            if (countDownLatch != null) {
+                countDownLatch.countDown();
+            }
+        }
     }
 
     private AbstractFileWatchingService fileWatchingService;

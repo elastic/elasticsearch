@@ -30,6 +30,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
@@ -435,7 +436,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -470,7 +479,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -593,7 +610,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, new ChunkingOptions(null, null), listener);
+            service.chunkedInfer(
+                model,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT).get(0);
             assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
@@ -644,7 +669,15 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, new ChunkingOptions(null, null), listener);
+            service.chunkedInfer(
+                model,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT).get(0);
 

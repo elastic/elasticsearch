@@ -64,6 +64,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -105,12 +106,15 @@ public class TransportRolloverActionTests extends ESTestCase {
     final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
     final Client mockClient = mock(Client.class);
     final AllocationService mockAllocationService = mock(AllocationService.class);
+    final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
     final MetadataRolloverService rolloverService = new MetadataRolloverService(
         mockThreadPool,
         mockCreateIndexService,
         mdIndexAliasesService,
         EmptySystemIndices.INSTANCE,
-        WriteLoadForecaster.DEFAULT
+        WriteLoadForecaster.DEFAULT,
+        mockClusterService,
+        telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
     );
 
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
@@ -426,17 +430,10 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(backingIndexMetadata, false).put(dataStream))
             .build();
@@ -488,17 +485,11 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            randomIntBetween(1, 10),
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(randomIntBetween(1, 10))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
             .build();
@@ -558,17 +549,11 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(1)
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         Metadata.Builder metadataBuilder = Metadata.builder().put(backingIndexMetadata, false).put(dataStream);
         metadataBuilder.put("ds-alias", dataStream.getName(), true, null);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();

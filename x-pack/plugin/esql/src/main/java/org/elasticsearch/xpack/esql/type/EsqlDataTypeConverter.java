@@ -13,13 +13,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -33,13 +49,30 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static java.util.Map.entry;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
@@ -55,6 +88,25 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
+    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
+        entry(BOOLEAN, ToBoolean::new),
+        entry(CARTESIAN_POINT, ToCartesianPoint::new),
+        entry(CARTESIAN_SHAPE, ToCartesianShape::new),
+        entry(DATETIME, ToDatetime::new),
+        // ToDegrees, typeless
+        entry(DOUBLE, ToDouble::new),
+        entry(GEO_POINT, ToGeoPoint::new),
+        entry(GEO_SHAPE, ToGeoShape::new),
+        entry(INTEGER, ToInteger::new),
+        entry(IP, ToIP::new),
+        entry(LONG, ToLong::new),
+        // ToRadians, typeless
+        entry(KEYWORD, ToString::new),
+        entry(TEXT, ToString::new),
+        entry(UNSIGNED_LONG, ToUnsignedLong::new),
+        entry(VERSION, ToVersion::new)
+    );
+
     /**
      * Returns true if the from type can be converted to the to type, false - otherwise
      */
@@ -69,15 +121,41 @@ public class EsqlDataTypeConverter {
 
     public static Converter converterFor(DataType from, DataType to) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
+        if (isString(from)) {
+            if (to == DataTypes.DATETIME) {
+                return EsqlConverter.STRING_TO_DATETIME;
+            }
+            if (to == DataTypes.IP) {
+                return EsqlConverter.STRING_TO_IP;
+            }
+            if (to == DataTypes.VERSION) {
+                return EsqlConverter.STRING_TO_VERSION;
+            }
+            if (to == DataTypes.DOUBLE) {
+                return EsqlConverter.STRING_TO_DOUBLE;
+            }
+            if (to == DataTypes.LONG) {
+                return EsqlConverter.STRING_TO_LONG;
+            }
+            if (to == DataTypes.INTEGER) {
+                return EsqlConverter.STRING_TO_INT;
+            }
+            if (to == DataTypes.BOOLEAN) {
+                return EsqlConverter.STRING_TO_BOOLEAN;
+            }
+            if (EsqlDataTypes.isSpatial(to)) {
+                return EsqlConverter.STRING_TO_SPATIAL;
+            }
+            if (to == EsqlDataTypes.TIME_DURATION) {
+                return EsqlConverter.STRING_TO_TIME_DURATION;
+            }
+            if (to == EsqlDataTypes.DATE_PERIOD) {
+                return EsqlConverter.STRING_TO_DATE_PERIOD;
+            }
+        }
         Converter converter = DataTypeConverter.converterFor(from, to);
         if (converter != null) {
             return converter;
-        }
-        if (isString(from) && to == EsqlDataTypes.TIME_DURATION) {
-            return EsqlConverter.STRING_TO_TIME_DURATION;
-        }
-        if (isString(from) && to == EsqlDataTypes.DATE_PERIOD) {
-            return EsqlConverter.STRING_TO_DATE_PERIOD;
         }
         return null;
     }
@@ -215,6 +293,10 @@ public class EsqlDataTypeConverter {
         return new Version(field.utf8ToString()).toBytesRef();
     }
 
+    public static BytesRef stringToVersion(String field) {
+        return new Version(field).toBytesRef();
+    }
+
     public static String versionToString(BytesRef field) {
         return new Version(field).toString();
     }
@@ -349,7 +431,15 @@ public class EsqlDataTypeConverter {
 
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.DATE_PERIOD)),
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION)),
-        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono);
+        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
+        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
+        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),
+        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion((String) x)),
+        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble((String) x)),
+        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong((String) x)),
+        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt((String) x)),
+        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean((String) x)),
+        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial((String) x));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;
@@ -379,5 +469,9 @@ public class EsqlDataTypeConverter {
             }
             return converter.apply(l);
         }
+    }
+
+    public static BiFunction<Source, Expression, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
+        return TYPE_TO_CONVERTER_FUNCTION.get(toType);
     }
 }

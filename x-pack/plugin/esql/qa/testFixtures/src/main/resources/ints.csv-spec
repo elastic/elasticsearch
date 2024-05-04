@@ -71,8 +71,8 @@ convertDoubleToUL
 required_feature:esql.convert_warn
 
 row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
-warning:Line 1:48: evaluation of [to_ul(1e20)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:48: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E20] out of [unsigned_long] range
+warningRegex:Line 1:48: evaluation of \[to_ul\(1e20\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:48: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[1.0E20\] out of \[unsigned_long\] range
 
 d:double       |ul:ul      |overflow:ul
 123.4          |123        |null
@@ -130,8 +130,8 @@ convertULToLong
 required_feature:esql.convert_warn
 
 row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
-warning:Line 1:67: evaluation of [to_long(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:67: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
+warningRegex:Line 1:67: evaluation of \[to_long\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:67: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[long\] range
 
                     ul:ul                 |       long:long
 [9223372036854775807, 9223372036854775808]|9223372036854775807
@@ -173,8 +173,8 @@ convertDoubleToLong
 required_feature:esql.convert_warn
 
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
-warning:Line 1:51: evaluation of [to_long(1e19)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:51: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [long] range
+warningRegex:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:51: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
 
 d:double       |d2l:long      |overflow:long     
 123.4          |123           |null    
@@ -197,8 +197,8 @@ ROW long = [5013792, 2147483647, 501379200000]
 | EVAL int = TO_INTEGER(long)
 // end::to_int-long[]
 ;
-warning:Line 2:14: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range
+warningRegex:Line 2:14: evaluation of \[TO_INTEGER\(long\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:14: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[501379200000\] out of \[integer\] range
 
 // tag::to_int-long-result[]
 long:long                           |int:integer
@@ -210,8 +210,8 @@ convertULToInt
 required_feature:esql.convert_warn
 
 row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
-warning:Line 1:57: evaluation of [to_int(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:57: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [integer] range
+warningRegex:Line 1:57: evaluation of \[to_int\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:57: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[integer\] range
 
                     ul:ul        |int:integer
 [2147483647, 9223372036854775808]|2147483647
@@ -257,8 +257,8 @@ convertDoubleToInt
 required_feature:esql.convert_warn
 
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
-warning:Line 1:54: evaluation of [to_integer(1e19)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:54: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [integer] range
+warningRegex:Line 1:54: evaluation of \[to_integer\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:54: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[integer\] range
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
@@ -642,56 +642,6 @@ emp_no:integer | salary_change.long:long | a1:long
 10005          | [-2, 13]                | [-2, 13]
 ;
 
-autoBucket
-// tag::auto_bucket[]
-FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
-| SORT hire_date, salary
-| KEEP hire_date, salary, bs
-// end::auto_bucket[]
-;
-
-// tag::auto_bucket-result[]
-hire_date:date           | salary:integer | bs:double
-1985-02-18T00:00:00.000Z | 66174          | 65000.0
-1985-02-24T00:00:00.000Z | 26436          | 25000.0
-1985-05-13T00:00:00.000Z | 44817          | 40000.0
-1985-07-09T00:00:00.000Z | 62405          | 60000.0
-1985-09-17T00:00:00.000Z | 49095          | 45000.0
-1985-10-14T00:00:00.000Z | 54329          | 50000.0
-1985-10-20T00:00:00.000Z | 48735          | 45000.0
-1985-11-19T00:00:00.000Z | 52833          | 50000.0
-1985-11-20T00:00:00.000Z | 33956          | 30000.0
-1985-11-20T00:00:00.000Z | 74999          | 70000.0
-1985-11-21T00:00:00.000Z | 56371          | 55000.0
-// end::auto_bucket-result[]
-;
-
-docsAutoBucketNumeric
-//tag::docsAutoBucketNumeric[]
-FROM employees
-| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
-| STATS COUNT(*) by bs
-| SORT bs
-//end::docsAutoBucketNumeric[]
-;
-
-//tag::docsAutoBucketNumeric-result[]
-   COUNT(*):long    |    bs:double
-9              |25000.0        
-9              |30000.0        
-18             |35000.0        
-11             |40000.0        
-11             |45000.0        
-10             |50000.0        
-7              |55000.0        
-9              |60000.0        
-8              |65000.0        
-8              |70000.0        
-//end::docsAutoBucketNumeric-result[]
-;
-
 cos
 ROW a=2 | EVAL cos=COS(a);
 
@@ -781,39 +731,20 @@ ROW deg = [90, 180, 270]
 [90, 180, 270] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
 ;
 
-warningWithFromSource-Ignore
+warningWithFromSource
 from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
-warning:Line 1:89: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:89: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
+warningRegex:Line 1:89: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:89: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
 
 y:boolean
 null
 ;
 
 // the test is also notable through having the "failing" operation in the filter, which will be part of the fragment sent to a data node
-multipleWarnings-Ignore
+multipleWarnings
 from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
-warning:Line 1:76: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100020000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100030000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100040000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100050000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100060000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100070000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100080000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100090000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100100000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100110000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100120000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100130000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100140000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100150000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100160000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100170000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100180000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100190000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100200000000] out of [integer] range
+warningRegex:Line 1:76: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:76: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
 
 x:long
 ;
@@ -987,4 +918,71 @@ required_feature: esql.agg_values
            5 | Support Engineer
       [3, 5] | Tech Lead
       [1, 4] | null
+;
+
+signumOfPositiveInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = 100 | eval s = signum(i);
+
+i:integer | s:double
+100       | 1.0
+;
+
+signumOfNegativeInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = -100 | eval s = signum(i);
+
+i:integer | s:double
+-100      | -1.0
+;
+
+signumOfZeroInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = 0 | eval s = signum(i);
+
+i:integer | s:double
+0         | 0.0
+;
+
+signumOfPositiveLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(100) | eval s = signum(l);
+
+l:long | s:double
+100    | 1.0
+;
+
+signumOfNegativeLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(-100) | eval s = signum(l);
+
+l:long | s:double
+-100   | -1.0
+;
+
+signumOfZeroLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(0) | eval s = signum(l);
+
+l:long | s:double
+0      | 0.0
+;
+
+signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+
+from employees
+| eval s = signum(mv_min(salary_change.int))
+| where signum(mv_max(salary_change.int)) >= 0
+| STATS x=AVG(signum(60000 - salary));
+
+x:double
+0.5409836065573771
+;
+
+signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+from employees
+| eval s = signum(60000 - salary)
+| where signum(salary - 55000) >= 0
+| keep s, emp_no, salary
+| sort s DESC, salary ASC
+| limit 3;
+
+s:double | emp_no:integer | salary:integer
+1.0     | 10052          | 55360
+1.0     | 10002          | 56371
+1.0     | 10041          | 56415
 ;

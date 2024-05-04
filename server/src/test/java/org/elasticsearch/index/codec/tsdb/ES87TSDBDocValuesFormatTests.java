@@ -11,13 +11,18 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -27,12 +32,20 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;
 
     private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+
 
     @Override
     protected Codec getCodec() {
@@ -116,4 +129,84 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         }
     }
 
+    public void testOneDocManyValues() throws Exception {
+        IndexWriterConfig config = new IndexWriterConfig();
+        try (Directory dir = newDirectory();
+             IndexWriter writer = new IndexWriter(dir, config)) {
+            int numValues = 128 + random().nextInt(1024); // > 2^7 to require two blocks
+            Document d = new Document();
+            for (int i = 0; i < numValues; i++) {
+                d.add(new SortedSetDocValuesField("dv", new BytesRef("v-" + i)));
+            }
+            writer.addDocument(d);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+                SortedSetDocValues dv = leaf.reader().getSortedSetDocValues("dv");
+                for (int i = 0; i < 3; i++) {
+                    assertTrue(dv.advanceExact(0));
+                    assertThat(dv.docValueCount(), equalTo(numValues));
+                    for (int v = 0; v < dv.docValueCount(); v++) {
+                        assertThat(dv.nextOrd(), greaterThanOrEqualTo(0L));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testManyDocsWithManyValues() throws Exception {
+        final int numDocs = 10 + random().nextInt(20);
+        final Map<String, List<String>> documents = new HashMap<>(); // key -> doc-values
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig conf = newIndexWriterConfig();
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory, conf)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    String key = "k-" + i;
+                    doc.add(new StringField("key", new BytesRef(key), Field.Store.YES));
+                    int numValues = random().nextInt(600);
+                    List<String> values = new ArrayList<>();
+                    for (int v = 0; v < numValues; v++) {
+                        String dv = "v-" + random().nextInt(3) + ":" + v;
+                        values.add(dv);
+                        doc.add(new SortedSetDocValuesField("dv", new BytesRef(dv)));
+                    }
+                    documents.put(key, values.stream().sorted().toList());
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (IndexReader reader = maybeWrapWithMergingReader(DirectoryReader.open(directory))) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    StoredFields storedFields = leaf.reader().storedFields();
+                    int iters = 1 + random().nextInt(5);
+                    for (int i = 0; i < iters; i++) {
+                        SortedSetDocValues dv = leaf.reader().getSortedSetDocValues("dv");
+                        int doc = random().nextInt(leaf.reader().maxDoc());
+                        while ((doc = dv.advance(doc)) != DocIdSetIterator.NO_MORE_DOCS) {
+                            String key = storedFields.document(doc).getBinaryValue("key").utf8ToString();
+                            List<String> expected = documents.get(key);
+                            List<String> actual = new ArrayList<>();
+                            for (int v = 0; v < dv.docValueCount(); v++) {
+                                long ord = dv.nextOrd();
+                                actual.add(dv.lookupOrd(ord).utf8ToString());
+                            }
+                            assertEquals(expected, actual);
+                            int repeats = random().nextInt(3);
+                            for (int r = 0; r < repeats; r++) {
+                                assertTrue(dv.advanceExact(doc));
+                                actual.clear();
+                                for (int v = 0; v < dv.docValueCount(); v++) {
+                                    long ord = dv.nextOrd();
+                                    actual.add(dv.lookupOrd(ord).utf8ToString());
+                                }
+                                assertEquals(expected, actual);
+                            }
+                            doc++;
+                            doc += random().nextInt(3);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

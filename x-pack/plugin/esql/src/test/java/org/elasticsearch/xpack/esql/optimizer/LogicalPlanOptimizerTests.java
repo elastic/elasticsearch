@@ -4710,8 +4710,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // Right is the lookup table
         var right = as(join.right(), LocalRelation.class);
         assertMap(
-            right.output().stream().map(Object::toString).toList(),
-            matchesList().item(containsString("name{f}")).item(containsString("int{f}"))
+            right.output().stream().map(Object::toString).sorted().toList(),
+            matchesList().item(containsString("int{f}")).item(containsString("name{f}"))
         );
 
         // Left is the rest of the query
@@ -4762,12 +4762,23 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var agg = as(limit.child(), Aggregate.class);
         assertMap(
-            agg.aggregates().stream().map(Object::toString).toList(),
+            agg.aggregates().stream().map(Object::toString).sorted().toList(),
             matchesList().item(startsWith("MIN(emp_no)")).item(startsWith("name{f}"))
         );
         assertMap(agg.groupings().stream().map(Object::toString).toList(), matchesList().item(startsWith("name{f}")));
 
-        // NOCOMMIT the join itself
+        var join = as(agg.child(), Join.class);
+        // Right is the lookup table
+        var right = as(join.right(), LocalRelation.class);
+        assertMap(
+            right.output().stream().map(Object::toString).toList(),
+            matchesList().item(containsString("name{f}")).item(containsString("int{f}"))
+        );
+
+        // Left is the rest of the query
+        var left = as(join.left(), EsqlProject.class);
+        assertThat(left.output().toString(), containsString("int{r}"));
+        as(left.child(), EsRelation.class);
     }
 
     private Literal nullOf(DataType dataType) {

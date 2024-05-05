@@ -7,18 +7,27 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     private final LocalSourceExec joinData;
     private final List<NamedExpression> unionFields;  // NOCOMMIT why sometimes NamedExpression and sometimes Attribute?!
     private final List<Attribute> output;
+    private AttributeSet lazyAddedFields;
 
     public HashJoinExec(
         Source source,
@@ -33,12 +42,35 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         this.output = output;
     }
 
+    public HashJoinExec(PlanStreamInput in) throws IOException {
+        super(in.readSource(), in.readPhysicalPlanNode());
+        this.joinData = null;
+        this.unionFields = in.readCollectionAsList(i -> in.readNamedExpression());
+        this.output = in.readCollectionAsList(i -> in.readAttribute());
+    }
+
+    public void writeTo(PlanStreamOutput out) throws IOException {
+        out.writeSource(source());
+        out.writePhysicalPlanNode(child());
+        // NOCOMMIT write joinData
+        out.writeCollection(unionFields, (o, v) -> out.writeNamedExpression(v));
+        out.writeCollection(output, (o, v) -> out.writeAttribute(v));
+    }
+
     public LocalSourceExec joinData() {
         return joinData;
     }
 
     public List<NamedExpression> unionFields() {
         return unionFields;
+    }
+
+    public Set<Attribute> addedFields() {
+        if (lazyAddedFields == null) {
+            lazyAddedFields = outputSet();
+            lazyAddedFields.removeAll(child().output());
+        }
+        return lazyAddedFields;
     }
 
     @Override

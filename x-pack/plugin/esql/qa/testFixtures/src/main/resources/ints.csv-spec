@@ -998,9 +998,9 @@ FROM employees
 | KEEP emp_no, languages, lang_name
 ;
 
-emp_no:long | languages:int | lang_name:keyword
-      10001 |             2 | two
-      10002 |             5 | five
-      10003 |             4 | four
-      10004 |             5 | five
+emp_no:integer | languages:integer | lang_name:keyword
+         10001 |                 2 | two
+         10002 |                 5 | five
+         10003 |                 4 | four
+         10004 |                 5 | five
 ;

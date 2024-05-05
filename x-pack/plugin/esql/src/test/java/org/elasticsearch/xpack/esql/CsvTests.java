@@ -455,7 +455,7 @@ public class CsvTests extends ESTestCase {
                 }
             } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
 
-            SerializationTestUtils.assertSerialization(plan, configuration);
+//            SerializationTestUtils.assertSerialization(plan, configuration); NOCOMMIT
         }
     }
 

@@ -518,17 +518,9 @@ public class LocalExecutionPlanner {
         source = source.with(new HashLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
-        int loadedFields = 0;
-        for (Attribute f : join.output()) {
-            if (join.child().outputSet().contains(f)) {
-                continue;
-            }
-            loadedFields++;
+        for (Attribute f : join.addedFields()) {
             source = source.with(
-                new ColumnLoadOperator.Factory(
-                    new ColumnLoadOperator.Values(f.name(), fieldToLocalData.get(f.name())),
-                    positionsChannel
-                ),
+                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), fieldToLocalData.get(f.name())), positionsChannel),
                 layout
             );
         }
@@ -536,7 +528,7 @@ public class LocalExecutionPlanner {
         // Drop the "positions" of the match
         List<Integer> projection = new ArrayList<>();
         IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
-        IntStream.range(positionsChannel + 1, positionsChannel + 1 + loadedFields).boxed().forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + join.addedFields().size()).boxed().forEach(projection::add);
         return source.with(new ProjectOperatorFactory(projection), layout);
     }
 

@@ -72,6 +72,7 @@ public class Lookup extends UnaryPlan {
     public List<Attribute> output() {
         if (lazyOutput == null) {
             List<? extends NamedExpression> rightSide = localRelation != null ? localRelation.output() : matchFields;
+            // NOCOMMIT This puts the right hand side stuff before the left hand side stuff - probably should be the other way around
             lazyOutput = mergeOutputAttributes(child().output(), rightSide);
         }
         return lazyOutput;

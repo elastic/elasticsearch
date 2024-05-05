@@ -16,8 +16,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -314,6 +316,20 @@ public final class EsqlTestUtils {
                 Map.of("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
             );
         }
+        try (
+            DoubleBlock.Builder doubles = factory.newDoubleBlockBuilder(10);
+            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(10);
+        ) {
+            doubles.appendDouble(2.03);
+            names.appendBytesRef(new BytesRef("two point zero three"));
+            doubles.appendDouble(2.08);
+            names.appendBytesRef(new BytesRef("two point zero eight"));
+            tables.put(
+                "double_number_names",
+                Map.of("double", new Column(DataTypes.DOUBLE, doubles.build()), "name", new Column(DataTypes.KEYWORD, names.build()))
+            );
+        }
+
         return unmodifiableMap(tables);
     }
 }

@@ -1,0 +1,5 @@
+pr: 108283
+summary: Fix `BlockHash` `DirectEncoder`
+area: ES|QL
+type: bug
+issues: []

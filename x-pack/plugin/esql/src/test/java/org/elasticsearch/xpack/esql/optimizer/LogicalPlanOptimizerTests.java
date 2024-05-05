@@ -4704,17 +4704,21 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
             """);
-        var limit = as(plan, Limit.class);
-        var join = as(limit.child(), Join.class);
+        System.err.println(plan);
+        var join = as(plan, Join.class);
 
-        // Left and right look sensible
-        var left = as(join.left(), EsqlProject.class);
-        assertThat(left.output().toString(), containsString("int{r}"));
+        // Right is the lookup table
         var right = as(join.right(), LocalRelation.class);
         assertMap(
             right.output().stream().map(Object::toString).toList(),
-            matchesList().item(containsString("int{f}")).item(containsString("name{f}"))
+            matchesList().item(containsString("name{f}")).item(containsString("int{f}"))
         );
+
+        // Left is the rest of the query
+        var left = as(join.left(), EsqlProject.class);
+        assertThat(left.output().toString(), containsString("int{r}"));
+        var limit = as(left.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
 
         // Join's output looks sensible too
         assertMap(
@@ -4733,6 +4737,37 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                  */
                 .item(containsString("int{r}"))
         );
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[name{f}#20],[MIN(emp_no{f}#10) AS MIN(emp_no), name{f}#20]]
+     *   \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
+     *     |_EsqlProject[[_meta_field{f}#16, ...]]
+     *     | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *     \_LocalRelation[[name{f}#20, int{f}#21],[BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]], IntVectorBlock[vector=I
+     * ntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]]]
+     */
+    public void testLookupStats() {
+        var plan = optimizedPlan("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            | STATS MIN(emp_no) BY name
+            """);
+        System.err.println(plan);
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var agg = as(limit.child(), Aggregate.class);
+        assertMap(
+            agg.aggregates().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("MIN(emp_no)")).item(startsWith("name{f}"))
+        );
+        assertMap(agg.groupings().stream().map(Object::toString).toList(), matchesList().item(startsWith("name{f}")));
+
+        // NOCOMMIT the join itself
     }
 
     private Literal nullOf(DataType dataType) {

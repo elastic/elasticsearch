@@ -122,7 +122,19 @@ public class Mapper {
         if (p instanceof BinaryPlan bp) {
             var left = map(bp.left());
             var right = map(bp.right());
-            return map(bp, addExchangeForFragment(left), addExchangeForFragment(right));
+
+            if (left instanceof FragmentExec) {
+                if (right instanceof FragmentExec) {
+                    throw new EsqlIllegalArgumentException("can't plan binary [" + p.nodeName() + "]");
+                }
+                // in case of a fragment, push to it any current streaming operator
+                return new FragmentExec(p);
+            }
+            if (right instanceof FragmentExec) {
+                // in case of a fragment, push to it any current streaming operator
+                return new FragmentExec(p);
+            }
+            return map(bp, left, right);
         }
 
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");

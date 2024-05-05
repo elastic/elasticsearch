@@ -658,6 +658,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         }
                     }
                 }
+            } else if (limit.child() instanceof Join join) {
+                if (join.config().type() == JoinType.LEFT && join.right() instanceof LocalRelation) {
+                    // This is a hash join from something like a lookup.
+                    return join.replaceChildren(limit.replaceChild(join.left()), join.right());
+                }
             }
             return limit;
         }

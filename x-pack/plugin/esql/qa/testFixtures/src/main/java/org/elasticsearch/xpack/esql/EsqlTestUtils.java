@@ -278,7 +278,7 @@ public final class EsqlTestUtils {
         }
     }
 
-    static Map<String, Map<String, Column>> tables() {
+    public static Map<String, Map<String, Column>> tables() {
         BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
         Map<String, Map<String, Column>> tables = new HashMap<>();
         try (
@@ -289,19 +289,7 @@ public final class EsqlTestUtils {
             for (int i = 0; i < 10; i++) {
                 ints.appendInt(i);
                 longs.appendLong(i);
-                names.appendBytesRef(new BytesRef(switch (i) {
-                    case 0 -> "zero";
-                    case 1 -> "one";
-                    case 2 -> "two";
-                    case 3 -> "three";
-                    case 4 -> "four";
-                    case 5 -> "five";
-                    case 6 -> "six";
-                    case 7 -> "seven";
-                    case 8 -> "eight";
-                    case 9 -> "nine";
-                    default -> throw new IllegalArgumentException();
-                }));
+                names.appendBytesRef(new BytesRef(numberName(i)));
             }
 
             IntBlock intsBlock = ints.build();
@@ -331,5 +319,21 @@ public final class EsqlTestUtils {
         }
 
         return unmodifiableMap(tables);
+    }
+
+    public static String numberName(int i) {
+        return switch (i) {
+            case 0 -> "zero";
+            case 1 -> "one";
+            case 2 -> "two";
+            case 3 -> "three";
+            case 4 -> "four";
+            case 5 -> "five";
+            case 6 -> "six";
+            case 7 -> "seven";
+            case 8 -> "eight";
+            case 9 -> "nine";
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

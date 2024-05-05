@@ -22,11 +22,14 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -34,11 +37,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
@@ -154,6 +161,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        builder.query(testCase.query);
 
         String versionString = null;
         // TODO: Read version range from csv-spec and skip if none of the versions are available.
@@ -161,12 +169,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             EsqlVersion version = randomFrom(availableVersions());
             versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
         }
+        builder.version(versionString);
 
-        Map<String, Object> answer = runEsql(
-            builder.query(testCase.query).version(versionString),
-            testCase.expectedWarnings(false),
-            testCase.expectedWarningsRegex()
-        );
+        if (testCase.query.contains("LOOKUP")) {
+            builder.tables(tables());
+        }
+
+        Map<String, Object> answer = runEsql(builder, testCase.expectedWarnings(false), testCase.expectedWarningsRegex());
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -275,5 +284,31 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 );
             }
         });
+    }
+
+    private Map<String, Map<String, List<?>>> tables() {
+        Map<String, Map<String, List<?>>> tables = new TreeMap<>();
+        tables.put(
+            "int_number_names",
+            Map.ofEntries(
+                Map.entry("int:integer", IntStream.range(0, 10).boxed().toList()),
+                Map.entry("name:keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+            )
+        );
+        tables.put(
+            "long_number_names",
+            Map.ofEntries(
+                Map.entry("long:long", LongStream.range(0, 10).boxed().toList()),
+                Map.entry("name:keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
+            )
+        );
+        tables.put(
+            "double_number_names",
+            Map.ofEntries(
+                Map.entry("double:double", List.of(2.03, 2.08)),
+                Map.entry("name:keyword", List.of("two point zero three", "two point zero eight"))
+            )
+        );
+        return tables;
     }
 }

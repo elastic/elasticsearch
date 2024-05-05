@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -22,7 +21,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 
@@ -86,21 +84,6 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
-     *
-     * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
-     *                      explosion of groups caused by multivalued fields
-     */
-    public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
-        if (Assertions.ENABLED) {
-            if (Randomness.get().nextBoolean()) {
-                return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
-            }
-        }
-        return build(groups, blockFactory, emitBatchSize, false);
-    }
-
-    /**
-     * Creates a specialized hash table that maps one or more {@link Block}s to ids.
      * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
      *                      explosion of groups caused by multivalued fields
      * @param allowBrokenOptimizations true to allow optimizations with bad null handling. We will fix their
@@ -108,8 +91,7 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      *                                 production until we can. And this lets us continue to compile and
      *                                 test them.
      */
-    // for testing only
-    static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
+    public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }

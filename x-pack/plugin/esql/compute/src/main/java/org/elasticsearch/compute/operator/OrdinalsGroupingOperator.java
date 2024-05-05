@@ -499,7 +499,12 @@ public class OrdinalsGroupingOperator implements Operator {
             );
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, groupingElementType)), driverContext.blockFactory(), maxPageSize),
+                () -> BlockHash.build(
+                    List.of(new GroupSpec(channelIndex, groupingElementType)),
+                    driverContext.blockFactory(),
+                    maxPageSize,
+                    false
+                ),
                 driverContext
             );
         }

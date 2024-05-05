@@ -1011,6 +1011,7 @@ public class BasicBlockTests extends ESTestCase {
         int maxDupsPerPosition
     ) {
         List<List<Object>> values = new ArrayList<>();
+        Block.MvOrdering mvOrdering = Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
             boolean bytesRefFromPoints = randomBoolean();
             Supplier<Point> pointSupplier = randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
@@ -1071,6 +1072,19 @@ public class BasicBlockTests extends ESTestCase {
                 if (valueCount != 1 || dupCount != 0) {
                     builder.endPositionEntry();
                 }
+                if (dupCount > 0) {
+                    mvOrdering = Block.MvOrdering.UNORDERED;
+                } else if (mvOrdering != Block.MvOrdering.UNORDERED) {
+                    List<Object> dedupedAndSortedList = valuesAtPosition.stream().sorted().distinct().toList();
+                    if (dedupedAndSortedList.size() != valuesAtPosition.size()) {
+                        mvOrdering = Block.MvOrdering.UNORDERED;
+                    } else if (dedupedAndSortedList.equals(valuesAtPosition) == false) {
+                        mvOrdering = Block.MvOrdering.DEDUPLICATED_UNORDERD;
+                    }
+                }
+            }
+            if (randomBoolean()) {
+                builder.mvOrdering(mvOrdering);
             }
             return new RandomBlock(values, builder.build());
         }

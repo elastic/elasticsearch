@@ -46,7 +46,7 @@ public class HashAggregationOperator implements Operator {
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
+                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize),
                 driverContext
             );
         }

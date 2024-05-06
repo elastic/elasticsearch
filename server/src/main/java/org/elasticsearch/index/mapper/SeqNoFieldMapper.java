@@ -235,8 +235,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
-        // see InternalEngine.innerIndex to see where the real version value is set
-        // also see ParsedDocument.updateSeqID (called by innerIndex)
         // In the case of nested docs, let's fill nested docs with the original
         // so that Lucene doesn't write a Bitset for documents that
         // don't have the field. This is consistent with the default value

@@ -80,6 +80,8 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
             for (var entry : getNodesMap().entrySet()) {
                 NodeResponse response = entry.getValue();
 
@@ -87,6 +89,8 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
                 response.toXContent(builder, params);
                 builder.endObject();
             }
+
+            builder.endObject();
             return builder;
         }
 

@@ -41,7 +41,8 @@ public class GetInferenceStatsActionResponseTests extends AbstractWireSerializin
         String xContentResult = org.elasticsearch.common.Strings.toString(builder);
 
         assertThat(xContentResult, CoreMatchers.is("""
-            {"connection_pool_stats":{"leased_connections":1,"pending_connections":2,"available_connections":3,"max_connections":4}}"""));
+            {"id":{"connection_pool_stats":{"leased_connections":1,"pending_connections":2,"available_connections":3,""" + """
+            "max_connections":4}}}"""));
     }
 
     @Override

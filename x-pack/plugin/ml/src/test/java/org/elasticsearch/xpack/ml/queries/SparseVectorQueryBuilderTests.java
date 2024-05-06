@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.ml.MachineLearning;
+
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;

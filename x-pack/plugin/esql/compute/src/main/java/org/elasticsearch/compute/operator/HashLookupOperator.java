@@ -122,8 +122,13 @@ public class HashLookupOperator extends AbstractPageMappingToIteratorOperator {
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
         Page mapped = page.projectBlocks(blockMapping);
-        page.releaseBlocks();
-        return appendBlocks(mapped, hash.lookup(mapped, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
+        // TODO maybe this should take an array of Blocks instead?
+        try {
+            // hash.lookup increments any references we need to keep for the iterator
+            return appendBlocks(page, hash.lookup(mapped, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
+        } finally {
+            mapped.releaseBlocks();
+        }
     }
 
     @Override

@@ -1645,4 +1645,8 @@ public abstract class EngineTestCase extends ESTestCase {
             fail(e);
         }
     }
+
+    public static void ensureOpen(Engine engine) {
+        engine.ensureOpen();
+    }
 }

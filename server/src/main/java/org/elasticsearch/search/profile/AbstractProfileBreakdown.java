@@ -44,7 +44,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * @param timingType the timing type to create a new {@link Timer} for
      * @return a new {@link Timer} instance
      */
-    public Timer getNewTimer(T timingType) {
+    public final Timer getNewTimer(T timingType) {
         Timer timer = new Timer();
         timings.get(timingType).add(timer);
         return timer;

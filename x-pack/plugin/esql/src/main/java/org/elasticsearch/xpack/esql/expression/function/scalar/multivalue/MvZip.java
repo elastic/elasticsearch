@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -42,13 +43,19 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
 
     @FunctionInfo(
         returnType = { "keyword" },
-        description = "Combines the values from two multivalued fields with a delimiter that joins them together."
+        description = "Combines the values from two multivalued fields with a delimiter that joins them together.",
+        examples = @Example(file = "string", tag = "mv_zip")
     )
     public MvZip(
         Source source,
-        @Param(name = "string1", type = { "keyword", "text" }, description = "A multivalued field") Expression mvLeft,
-        @Param(name = "string2", type = { "keyword", "text" }, description = "A multivalued field") Expression mvRight,
-        @Param(name = "delim", type = { "keyword", "text" }, description = "delimiter", optional = true) Expression delim
+        @Param(name = "string1", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvLeft,
+        @Param(name = "string2", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvRight,
+        @Param(
+            name = "delim",
+            type = { "keyword", "text" },
+            description = "Delimiter. Optional; if omitted, `,` is used as a default delimiter.",
+            optional = true
+        ) Expression delim
     ) {
         super(source, delim == null ? Arrays.asList(mvLeft, mvRight, COMMA) : Arrays.asList(mvLeft, mvRight, delim));
         this.mvLeft = mvLeft;

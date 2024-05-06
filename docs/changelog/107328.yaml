@@ -1,7 +1,0 @@
-pr: 107328
-summary: "ESQL: Fix missing refs due to pruning renamed grouping columns"
-area: ES|QL
-type: bug
-issues:
- - 107083
- - 107166

@@ -99,6 +99,9 @@
                     "upgradeable": {
                       "type": "boolean"
                     },
+                    "unprivileged": {
+                      "type": "boolean"
+                    },
                     "version": {
                       "type": "text",
                       "fields": {

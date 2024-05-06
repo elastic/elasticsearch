@@ -311,9 +311,9 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends ESTestCase {
             Map.of(
                 AzureAiStudioConstants.TARGET_FIELD,
                 target,
-                AzureAiStudioConstants.PROVIDER,
+                AzureAiStudioConstants.PROVIDER_FIELD,
                 provider,
-                AzureAiStudioConstants.ENDPOINT_TYPE,
+                AzureAiStudioConstants.ENDPOINT_TYPE_FIELD,
                 endpointType
             )
         );

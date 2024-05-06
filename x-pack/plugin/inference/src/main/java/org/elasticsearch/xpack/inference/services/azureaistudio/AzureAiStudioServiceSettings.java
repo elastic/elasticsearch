@@ -25,8 +25,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequriedEnum;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
 
 public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
@@ -47,7 +47,7 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
         AzureAiStudioEndpointType endpointType = extractRequriedEnum(
             map,
-            ENDPOINT_TYPE,
+            ENDPOINT_TYPE_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
             AzureAiStudioEndpointType::fromString,
             EnumSet.allOf(AzureAiStudioEndpointType.class),
@@ -56,7 +56,7 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
 
         AzureAiStudioProvider provider = extractRequriedEnum(
             map,
-            PROVIDER,
+            PROVIDER_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
             AzureAiStudioProvider::fromString,
             EnumSet.allOf(AzureAiStudioProvider.class),
@@ -128,8 +128,8 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
 
     protected void addExposedXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(TARGET_FIELD, this.target);
-        builder.field(PROVIDER, this.provider);
-        builder.field(ENDPOINT_TYPE, this.endpointType);
+        builder.field(PROVIDER_FIELD, this.provider);
+        builder.field(ENDPOINT_TYPE_FIELD, this.endpointType);
         rateLimitSettings.toXContent(builder, params);
     }
 

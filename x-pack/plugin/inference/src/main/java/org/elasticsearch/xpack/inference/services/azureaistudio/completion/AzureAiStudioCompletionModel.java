@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -35,31 +34,6 @@ public class AzureAiStudioCompletionModel extends AzureAiStudioModel {
 
         var requestTaskSettings = AzureAiStudioCompletionRequestTaskSettings.fromMap(taskSettings);
         var taskSettingToUse = AzureAiStudioCompletionTaskSettings.of(modelAsCompletionModel.getTaskSettings(), requestTaskSettings);
-
-        ValidationException validationException = new ValidationException();
-
-        if (taskSettingToUse.temperature() != null) {
-            // TODO -- add validation error message
-            validationException.addValidationError("");
-        }
-        if (taskSettingToUse.topP() != null) {
-            // TODO -- add validation error message
-            validationException.addValidationError("");
-        }
-        if (taskSettingToUse.doSample() != null) {
-            // TODO -- add validation error message
-            validationException.addValidationError("");
-        }
-        if (taskSettingToUse.maxTokens() != null) {
-            // TODO -- add validation error message
-            validationException.addValidationError("");
-        }
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        // TODO - add request limiting
 
         return new AzureAiStudioCompletionModel(modelAsCompletionModel, taskSettingToUse);
     }
@@ -94,16 +68,8 @@ public class AzureAiStudioCompletionModel extends AzureAiStudioModel {
         );
     }
 
-    public AzureAiStudioCompletionModel(AzureAiStudioCompletionModel model, AzureAiStudioCompletionServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-    }
-
     public AzureAiStudioCompletionModel(AzureAiStudioCompletionModel model, AzureAiStudioCompletionTaskSettings taskSettings) {
         super(model, taskSettings, model.getServiceSettings().rateLimitSettings());
-    }
-
-    protected AzureAiStudioCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets);
     }
 
     @Override

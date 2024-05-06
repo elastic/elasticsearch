@@ -90,7 +90,7 @@ public class AzureAiStudioCompletionServiceSettings extends AzureAiStudioService
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        builder.startObject();
 
         super.addXContentFields(builder, params);
 
@@ -118,11 +118,12 @@ public class AzureAiStudioCompletionServiceSettings extends AzureAiStudioService
 
         return Objects.equals(target, that.target)
             && Objects.equals(provider, that.provider)
-            && Objects.equals(endpointType, that.endpointType);
+            && Objects.equals(endpointType, that.endpointType)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(target, provider, endpointType);
+        return Objects.hash(target, provider, endpointType, rateLimitSettings);
     }
 }

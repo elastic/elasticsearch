@@ -289,17 +289,13 @@ public class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
-        Float optionalField = ServiceUtils.removeAsType(map, settingName, Float.class);
-
-        if (optionalField != null && optionalField <= 0) {
-            validationException.addValidationError(ServiceUtils.mustBeAFloatingPointNumberErrorMessage(settingName, scope));
-        }
+        var optionalValue = ServiceUtils.removeAsType(map, settingName, Float.class);
 
         if (validationException.validationErrors().isEmpty() == false) {
             return null;
         }
 
-        return optionalField;
+        return optionalValue;
     }
 
     public static <E extends Enum<E>> E extractRequriedEnum(

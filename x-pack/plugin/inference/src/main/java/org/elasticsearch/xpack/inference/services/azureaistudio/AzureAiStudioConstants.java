@@ -13,8 +13,8 @@ public class AzureAiStudioConstants {
 
     // common service settings fields
     public static final String TARGET_FIELD = "target";
-    public static final String ENDPOINT_TYPE = "endpoint_type";
-    public static final String PROVIDER = "provider";
+    public static final String ENDPOINT_TYPE_FIELD = "endpoint_type";
+    public static final String PROVIDER_FIELD = "provider";
 
     // embeddings service settings
     public static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";

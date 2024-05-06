@@ -39,6 +39,22 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
         return blockFactory().newConstantIntVector(value, positions.length);
     }
 
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        return value;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        return value;
+    }
+
     @Override
     public ElementType elementType() {
         return ElementType.INT;

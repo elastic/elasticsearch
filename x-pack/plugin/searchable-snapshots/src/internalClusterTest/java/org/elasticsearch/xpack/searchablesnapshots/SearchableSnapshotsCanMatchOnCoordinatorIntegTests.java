@@ -647,9 +647,10 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexWithinSearchRange)).snapshotId();
-        assertAcked(indicesAdmin().prepareDelete(indexWithinSearchRange));
+        assertAcked(indicesAdmin().prepareDelete(indexWithinSearchRange));  // MP TODO: why do we delete this index? test passes without
+                                                                            // this
 
-        final String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String searchableSnapshotIndexWithinSearchRangex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         // Block the repository for the node holding the searchable snapshot shards
         // to delay its restore

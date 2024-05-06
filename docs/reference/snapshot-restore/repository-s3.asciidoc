@@ -309,10 +309,11 @@ include::repository-shared-settings.asciidoc[]
     `intelligent_tiering`. Defaults to `standard`. See
     <<repository-s3-storage-classes>> for more information.
 
-`deletion_batch_size`::
+`delete_objects_max_size`::
 
-    (<<number,numeric>>) Sets the batch size, betewen 1 and 1000, used for bulk
-    deletions. Defaults to 1000 which is the maximum number supported by the
+    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
+    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
+    supported by the
     https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
     DeleteObjects API].
 

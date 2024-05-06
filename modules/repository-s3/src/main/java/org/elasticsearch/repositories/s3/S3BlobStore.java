@@ -319,17 +319,14 @@ class S3BlobStore implements BlobStore {
         try (AmazonS3Reference clientReference = clientReference()) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
             final AtomicReference<Exception> aex = new AtomicReference<>();
-
             blobNames.forEachRemaining(key -> {
                 partition.add(key);
                 if (partition.size() == bulkDeletionBatchSize) {
-                    logger.info("--> deleting INSIDE {}", partition);
                     deletePartition(purpose, clientReference, partition, aex);
                     partition.clear();
                 }
             });
             if (partition.isEmpty() == false) {
-                logger.info("--> deleting outside {}", partition);
                 deletePartition(purpose, clientReference, partition, aex);
             }
             if (aex.get() != null) {

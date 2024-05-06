@@ -173,10 +173,10 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
     /**
-     * The batch size for bulk deletion
+     * The batch size for DeleteObjects request
      */
     static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
-        "deletion_batch_size",
+        "delete_objects_max_size",
         S3BlobStore.MAX_BULK_DELETES,
         1,
         S3BlobStore.MAX_BULK_DELETES

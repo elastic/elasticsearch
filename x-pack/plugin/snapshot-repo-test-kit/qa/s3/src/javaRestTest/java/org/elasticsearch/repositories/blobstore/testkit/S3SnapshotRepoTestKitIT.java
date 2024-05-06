@@ -65,7 +65,7 @@ public class S3SnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTest
             .put("client", "repo_test_kit")
             .put("bucket", bucket)
             .put("base_path", basePath)
-            .put("deletion_batch_size", between(1, 1000))
+            .put("delete_objects_max_size", between(1, 1000))
             .build();
     }
 }

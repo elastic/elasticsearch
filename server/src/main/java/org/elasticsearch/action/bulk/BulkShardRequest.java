@@ -173,5 +173,4 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         }
         return sum;
     }
-
 }

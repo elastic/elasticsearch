@@ -79,7 +79,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         long startTime
     ) {
         assert bulkRequest instanceof SimulateBulkRequest;
-        super.createMissingIndicesAndIndexData(task, bulkRequest, executorName, new ActionListener<>() {
+        super.createMissingIndicesAndIndexData(task, bulkRequest, executor, new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse bulkResponse) {
                 BulkItemResponse[] originalResponses = bulkResponse.getItems();

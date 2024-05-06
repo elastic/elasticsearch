@@ -306,7 +306,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     public final void testEvaluateBlockWithoutNulls() {
-        assumeTrue("sometimes test data are too large to fit in the memory, just skip these cases", testCase.getExpectedWarnings() == null);
+        assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
         try {
             testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
         } catch (CircuitBreakingException ex) {
@@ -320,7 +320,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * some null values inserted between.
      */
     public final void testEvaluateBlockWithNulls() {
-        assumeTrue("sometimes test data too large to fit in the memory, just skip these cases", testCase.getExpectedWarnings() == null);
+        assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
         try {
             testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
         } catch (CircuitBreakingException ex) {

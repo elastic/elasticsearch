@@ -137,7 +137,7 @@ public final class TranslogConfig {
     }
 
     /**
-     * @return true if translog writes needs to be followed by fsync
+     * @return true if translog writes need to be followed by fsync
      */
     public boolean fsync() {
         return fsync;

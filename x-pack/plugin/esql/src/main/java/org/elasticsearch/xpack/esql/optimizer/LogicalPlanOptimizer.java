@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -86,7 +87,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
-import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
 
@@ -961,21 +961,21 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
         @Override
         protected LogicalPlan rule(Eval eval) {
-            return pushGeneratingPlanPastProjectAndOrderBy(eval, asAttributes(eval.fields()));
+            return pushGeneratingPlanPastProjectAndOrderBy(eval);
         }
     }
 
     protected static class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
         @Override
         protected LogicalPlan rule(RegexExtract re) {
-            return pushGeneratingPlanPastProjectAndOrderBy(re, asAttributes(re.extractedFields()));
+            return pushGeneratingPlanPastProjectAndOrderBy(re);
         }
     }
 
     protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
         @Override
         protected LogicalPlan rule(Enrich en) {
-            return pushGeneratingPlanPastProjectAndOrderBy(en, asAttributes(en.enrichFields()));
+            return pushGeneratingPlanPastProjectAndOrderBy(en);
         }
     }
 
@@ -1005,14 +1005,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      *
      * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
      */
-    private static LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(UnaryPlan generatingPlan, List<Attribute> generatedAttributes) {
+    private static <Plan extends UnaryPlan & GeneratingPlan<Plan>> LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(
+        Plan generatingPlan
+    ) {
         LogicalPlan child = generatingPlan.child();
-
         if (child instanceof OrderBy orderBy) {
-            Set<String> evalFieldNames = new LinkedHashSet<>(Expressions.names(generatedAttributes));
+            // TODO: We can simplify this and make it similar to the pushdown past project by just renaming the generated attributes.
+            Set<String> generatedFieldNames = new LinkedHashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
 
             // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
+            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(generatedFieldNames, orderBy.order());
 
             AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
             @SuppressWarnings("unchecked")
@@ -1030,9 +1032,66 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return orderBy.replaceChild(generatingPlan.replaceChild(orderBy.child()));
-        } else if (child instanceof Project) {
-            var projectWithEvalChild = pushDownPastProject(generatingPlan);
-            return projectWithEvalChild.withProjections(mergeOutputExpressions(generatedAttributes, projectWithEvalChild.projections()));
+        } else if (child instanceof Project project) {
+            AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
+            project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
+            var aliases = aliasBuilder.build();
+
+            // Resolve Project's renames in the eval.
+            @SuppressWarnings("unchecked")
+            Plan generatingPlanWithResolvedExpressions = (Plan) generatingPlan.transformExpressionsOnly(
+                ReferenceAttribute.class,
+                r -> aliases.resolve(r, r)
+            );
+
+            // Look for generated Attributes that currently shadow any of the Project's references.
+            // We need to generate them using a different, non-shadowing name to avoid inconsistencies.
+            List<Attribute> generatedAttributes = generatingPlan.generatedAttributes();
+            Set<String> projectReferencedNames = project.references().names();
+            Map<String, String> renameGeneratedAttributeTo = new HashMap<>();
+            for (Attribute attr : generatedAttributes) {
+                String name = attr.name();
+                if (projectReferencedNames.contains(name)) {
+                    renameGeneratedAttributeTo.putIfAbsent(
+                        name,
+                        // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
+                        // Do not use the attribute's id, as multiple attributes with the same name can occur.
+                        SubstituteSurrogates.rawTemporaryName(name, "temp_name", "")
+                    );
+                }
+            }
+            List<String> newNames = generatedAttributes.stream()
+                .map(attr -> renameGeneratedAttributeTo.getOrDefault(attr.name(), attr.name()))
+                .toList();
+            Plan generatingPlanWithRenamedAttributes = generatingPlanWithResolvedExpressions.withGeneratedNames(newNames);
+
+            // Put the project at the top, but include the generated attributes.
+            // Any generated attributes that had to be renamed need to be re-renamed to their original names.
+            List<NamedExpression> generatedAttributesRenamedToOriginal = new ArrayList<>(generatedAttributes.size());
+            List<Attribute> renamedGeneratedAttributes = generatingPlanWithRenamedAttributes.generatedAttributes();
+            for (int i = 0; i < generatedAttributes.size(); i++) {
+                Attribute originalAttribute = generatedAttributes.get(i);
+                Attribute renamedAttribute = renamedGeneratedAttributes.get(i);
+                if (originalAttribute.name().equals(renamedAttribute.name())) {
+                    generatedAttributesRenamedToOriginal.add(renamedAttribute);
+                } else {
+                    generatedAttributesRenamedToOriginal.add(
+                        new Alias(
+                            originalAttribute.source(),
+                            originalAttribute.name(),
+                            originalAttribute.qualifier(),
+                            renamedAttribute,
+                            originalAttribute.id(),
+                            originalAttribute.synthetic()
+                        )
+                    );
+                }
+            }
+
+            Project projectWithGeneratingChild = project.replaceChild(generatingPlanWithRenamedAttributes.replaceChild(project.child()));
+            return projectWithGeneratingChild.withProjections(
+                mergeOutputExpressions(generatedAttributesRenamedToOriginal, projectWithGeneratingChild.projections())
+            );
         }
 
         return generatingPlan;
@@ -1056,6 +1115,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
+                        // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
                         String tempName = SubstituteSurrogates.rawTemporaryName(a.name(), "temp_name", a.id().toString());
                         // TODO: this should be synthetic
                         return new Alias(a.source(), tempName, null, a, null, false);

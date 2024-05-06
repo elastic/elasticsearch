@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
@@ -17,6 +19,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 
 public class Dissect extends RegexExtract {
     private final Parser parser;
@@ -52,6 +56,16 @@ public class Dissect extends RegexExtract {
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
         return NodeInfo.create(this, Dissect::new, child(), input, parser, extractedFields);
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
+        return asAttributes(extractedFields);
+    }
+
+    @Override
+    public Dissect withGeneratedNames(List<String> newNames) {
+        return new Dissect(source(), child(), input, parser, GeneratingPlan.renameAliases(extractedFields, newNames));
     }
 
     @Override

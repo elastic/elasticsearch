@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -19,8 +20,9 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 
-public class Eval extends UnaryPlan {
+public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
 
     private final List<Alias> fields;
     private List<Attribute> lazyOutput;
@@ -41,6 +43,16 @@ public class Eval extends UnaryPlan {
         }
 
         return lazyOutput;
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
+        return asAttributes(fields);
+    }
+
+    @Override
+    public Eval withGeneratedNames(List<String> newNames) {
+        return new Eval(source(), child(), GeneratingPlan.renameAliases(fields, newNames));
     }
 
     @Override

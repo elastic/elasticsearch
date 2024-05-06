@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -30,6 +31,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 
 public class Grok extends RegexExtract {
 
@@ -112,6 +115,16 @@ public class Grok extends RegexExtract {
     @Override
     public List<Attribute> output() {
         return NamedExpressions.mergeOutputAttributes(extractedFields, child().output());
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
+        return asAttributes(extractedFields);
+    }
+
+    @Override
+    public Grok withGeneratedNames(List<String> newNames) {
+        return new Grok(source(), child(), input, parser, GeneratingPlan.renameAliases(extractedFields, newNames));
     }
 
     @Override

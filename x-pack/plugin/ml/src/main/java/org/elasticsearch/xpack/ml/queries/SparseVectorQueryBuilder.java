@@ -28,6 +28,8 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,6 +44,8 @@ import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +67,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     private static final boolean DEFAULT_PRUNE = false;
     private final String fieldName;
-    private final List<WeightedToken> tokens;
+    private final List<WeightedToken> queryVectors;
     private final String inferenceId;
     private final String text;
     private final Boolean shouldPruneTokens;
@@ -83,41 +87,48 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     public SparseVectorQueryBuilder(
         String fieldName,
-        @Nullable List<WeightedToken> tokens,
+        @Nullable List<WeightedToken> queryVectors,
         @Nullable String inferenceId,
         @Nullable String text,
         @Nullable Boolean shouldPruneTokens,
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
-        this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
+        this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a field");
         this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
-        this.tokens = tokens;
+        this.queryVectors = queryVectors;
         this.inferenceId = inferenceId;
         this.text = text;
         this.tokenPruningConfig = tokenPruningConfig;
 
-        if (tokens == null ^ inferenceId == null == false) {
+        if (queryVectors == null ^ inferenceId == null == false) {
             throw new IllegalArgumentException(
                 "["
                     + NAME
-                    + "] requires one of "
+                    + "] requires one of ["
                     + QUERY_VECTOR_FIELD.getPreferredName()
-                    + " or "
+                    + "] or ["
                     + INFERENCE_ID_FIELD.getPreferredName()
-                    + "; tokens: " // TODO remove
-                    + tokens
-                    + "; inferenceId: "
-                    + inferenceId
+                    + "]"
             );
         }
-        // TODO additional validation
+        if (inferenceId != null && text == null) {
+            throw new IllegalArgumentException(
+                "["
+                    + NAME
+                    + "] requires ["
+                    + TEXT_FIELD.getPreferredName()
+                    + "] when ["
+                    + INFERENCE_ID_FIELD.getPreferredName()
+                    + "] is specified"
+            );
+        }
     }
 
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
         this.shouldPruneTokens = in.readOptionalBoolean();
-        this.tokens = in.readOptionalCollectionAsList(WeightedToken::new);
+        this.queryVectors = in.readOptionalCollectionAsList(WeightedToken::new);
         this.inferenceId = in.readOptionalString();
         this.text = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
@@ -126,7 +137,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
         this.fieldName = other.fieldName;
         this.shouldPruneTokens = other.shouldPruneTokens;
-        this.tokens = other.tokens;
+        this.queryVectors = other.queryVectors;
         this.inferenceId = other.inferenceId;
         this.text = other.text;
         this.tokenPruningConfig = other.tokenPruningConfig;
@@ -137,11 +148,23 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return fieldName;
     }
 
+    public List<WeightedToken> getQueryVectors() {
+        return queryVectors;
+    }
+
+    public boolean shouldPruneTokens() {
+        return shouldPruneTokens;
+    }
+
+    public TokenPruningConfig getTokenPruningConfig() {
+        return tokenPruningConfig;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeOptionalBoolean(shouldPruneTokens);
-        out.writeOptionalCollection(tokens);
+        out.writeOptionalCollection(queryVectors);
         out.writeOptionalString(inferenceId);
         out.writeOptionalString(text);
         out.writeOptionalWriteable(tokenPruningConfig);
@@ -151,9 +174,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
-        if (tokens != null) {
+        if (queryVectors != null) {
             builder.startObject(QUERY_VECTOR_FIELD.getPreferredName());
-            for (var token : tokens) {
+            for (var token : queryVectors) {
                 token.toXContent(builder, params);
             }
             builder.endObject();
@@ -219,6 +242,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+
+        if (queryVectors == null) {
+            return new MatchNoDocsQuery("Empty query vectors");
+        }
+
         final MappedFieldType ft = context.getFieldType(fieldName);
         if (ft == null) {
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against a field that does not exist");
@@ -227,19 +255,19 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         final String fieldTypeName = ft.typeName();
         if (fieldTypeName.equals(ALLOWED_FIELD_TYPE) == false) {
             throw new ElasticsearchParseException(
-                "field [" + fieldName + " must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + fieldTypeName + "]"
+                "field [" + fieldName + "] must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + fieldTypeName + "]"
             );
         }
 
         return (this.tokenPruningConfig == null)
-            ? queryBuilderWithAllTokens(tokens, ft, context)
-            : queryBuilderWithPrunedTokens(tokens, ft, context);
+            ? queryBuilderWithAllTokens(queryVectors, ft, context)
+            : queryBuilderWithPrunedTokens(queryVectors, ft, context);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
 
-        if (tokens != null) {
+        if (queryVectors != null) {
             return this;
         } else if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
@@ -339,12 +367,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     protected boolean doEquals(SparseVectorQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
-            && tokens.equals(other.tokens);
+            && Objects.equals(queryVectors, other.queryVectors);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, tokens, tokenPruningConfig);
+        return Objects.hash(fieldName, queryVectors, tokenPruningConfig);
     }
 
     @Override
@@ -360,16 +388,35 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
         String fieldName = (String) a[0];
         @SuppressWarnings("unchecked")
-        Map<String, Double> weightedTokenMap = (Map<String, Double>) a[1];
-        List<WeightedToken> weightedTokens = weightedTokenMap != null
-            ? weightedTokenMap.entrySet().stream().map(e -> new WeightedToken(e.getKey(), e.getValue().floatValue())).toList()
-            : null;
+        List<WeightedToken> weightedTokens = parseWeightedTokens((Map<String, Object>) a[1]);
         String inferenceId = (String) a[2];
         String text = (String) a[3];
         Boolean shouldPruneTokens = (Boolean) a[4];
         TokenPruningConfig tokenPruningConfig = (TokenPruningConfig) a[5];
         return new SparseVectorQueryBuilder(fieldName, weightedTokens, inferenceId, text, shouldPruneTokens, tokenPruningConfig);
     });
+
+    private static List<WeightedToken> parseWeightedTokens(Map<String, Object> weightedTokenMap) {
+        List<WeightedToken> weightedTokens = null;
+        if (weightedTokenMap != null) {
+            weightedTokens = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : weightedTokenMap.entrySet()) {
+                String token = entry.getKey();
+                Object weight = entry.getValue();
+                if (weight instanceof Float) {
+                    WeightedToken weightedToken = new WeightedToken(token, (Float) entry.getValue());
+                    weightedTokens.add(weightedToken);
+                } else if (weight instanceof Double) {
+                    WeightedToken weightedToken = new WeightedToken(token, ((Double) entry.getValue()).floatValue());
+                    weightedTokens.add(weightedToken);
+                } else {
+                    throw new IllegalArgumentException("Weight must be a float or double");
+                }
+            }
+        }
+        return weightedTokens;
+    }
+
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), QUERY_VECTOR_FIELD);

@@ -357,6 +357,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (metadata.equals(that.getMetadata()) == false) return false;
         if (Arrays.equals(runAs, that.runAs) == false) return false;
         if (Arrays.equals(remoteIndicesPrivileges, that.remoteIndicesPrivileges) == false) return false;
+        if (remoteClusterPermissions.equals(that.remoteClusterPermissions) == false) return false;
         return restriction.equals(that.restriction);
     }
 
@@ -370,6 +371,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         result = 31 * result + Arrays.hashCode(runAs);
         result = 31 * result + metadata.hashCode();
         result = 31 * result + Arrays.hashCode(remoteIndicesPrivileges);
+        result = 31 * result + remoteClusterPermissions.hashCode();
         result = 31 * result + restriction.hashCode();
         return result;
     }
@@ -382,6 +384,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             && runAs.length == 0
             && metadata.size() == 0
             && remoteIndicesPrivileges.length == 0
+            && remoteClusterPermissions.groups().isEmpty()
             && restriction.isEmpty();
     }
 

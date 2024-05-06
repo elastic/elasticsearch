@@ -25,8 +25,6 @@ in one of the three formats:
 2. Or, set both `username` and `realm_name` to match the user's identity.
 3. Or, if the request is issued by an API key, i.e. an API key invalidates itself, specify its ID in the `ids` field.
 
-[[security-api-invalidate-api-key-path-params]]
-
 [[security-api-invalidate-api-key-desc]]
 ==== {api-description-title}
 

@@ -1,5 +1,0 @@
-pr: 108291
-summary: Optimize `FieldData#toString` methods for single value fields
-area: Aggregations
-type: enhancement
-issues: []

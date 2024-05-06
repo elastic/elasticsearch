@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -28,6 +31,18 @@ public class Join extends BinaryPlan {
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right);
         this.config = config;
+    }
+
+    public Join(PlanStreamInput in) throws IOException {
+        super(in.readSource(), in.readLogicalPlanNode(), in.readLogicalPlanNode());
+        this.config = new JoinConfig(in);
+    }
+
+    public void writeTo(PlanStreamOutput out) throws IOException {
+        out.writeSource(source());
+        out.writeLogicalPlanNode(left());
+        out.writeLogicalPlanNode(right());
+        config.writeTo(out);
     }
 
     public JoinConfig config() {

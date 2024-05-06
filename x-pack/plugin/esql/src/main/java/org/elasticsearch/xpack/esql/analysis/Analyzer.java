@@ -331,43 +331,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Source source = lookup.source();
             Expression tableNameExpression = lookup.tableName();
             String tableName = lookup.tableName().toString();
-            Map<String, Map<String, Column>> tables = context.configuration().tables();
-            LocalRelation localRelation = null;
+            LocalRelation.FromConfig localRelation = null;
 
-            if (tables.containsKey(tableName) == false) {
+            if (context.configuration().tables().containsKey(tableName) == false) {
                 String message = "Unknown table [" + tableName + "]";
                 // typos check
-                List<String> potentialMatches = StringUtils.findSimilar(tableName, tables.keySet());
+                List<String> potentialMatches = StringUtils.findSimilar(tableName, context.configuration().tables().keySet());
                 if (CollectionUtils.isEmpty(potentialMatches) == false) {
                     message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
                 }
                 tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, null, message);
-            }
-            // wrap the table in a local relationship for idiomatic field resolution
-            else {
-                localRelation = tableMapAsRelation(source, tables.get(tableName));
-                // postpone the resolution for ResolveRefs
+            } else {
+                // wrap the table in a local relationship for idiomatic field resolution
+                localRelation = LocalRelation.fromConfig(source, context.configuration(), tableName);
+                // postpone remaining resolution for ResolveRefs
             }
 
             return new Lookup(source, lookup.child(), tableNameExpression, lookup.matchFields(), localRelation);
-        }
-
-        private LocalRelation tableMapAsRelation(Source source, Map<String, Column> mapTable) {
-            Block[] blocks = new Block[mapTable.size()];
-
-            List<Attribute> attributes = new ArrayList<>(blocks.length);
-            int i = 0;
-            for (Map.Entry<String, Column> entry : mapTable.entrySet()) {
-                String name = entry.getKey();
-                Column column = entry.getValue();
-                // create a fake ES field - alternative is to use a ReferenceAttribute
-                EsField field = new EsField(name, column.type(), null, false, false);
-                attributes.add(new FieldAttribute(source, null, name, field));
-                // prepare the block for the supplier
-                blocks[i++] = column.values();
-            }
-            LocalSupplier supplier = LocalSupplier.of(blocks);
-            return new LocalRelation(source, attributes, supplier);
         }
     }
 

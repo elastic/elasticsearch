@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -28,9 +29,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
@@ -60,12 +63,15 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     private static final Supplier<LongFunction<NameId>> DEFAULT_NAME_ID_FUNC = NameIdMapper::new;
 
+    private final List<Block> cachedBlocks = new ArrayList<>();
+
     private final PlanNameRegistry registry;
 
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
     private final EsqlConfiguration configuration;
+
 
     public PlanStreamInput(
         StreamInput streamInput,
@@ -191,4 +197,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         assert false : e;
         throw e;
     }
+
+
 }

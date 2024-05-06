@@ -1078,7 +1078,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Int8HnswIndexOptions int8HnswIndexOptions = (Int8HnswIndexOptions) update;
                 // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
                 // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
-                updatable = int8HnswIndexOptions.m >= this.m && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval);
+                updatable = int8HnswIndexOptions.m >= this.m;
+                updatable &= confidenceInterval == null ||
+                    int8HnswIndexOptions.confidenceInterval != null && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval)
+                ;
             }
             return updatable;
         }

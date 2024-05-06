@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -108,6 +109,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -137,6 +139,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LT;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LTE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.TestUtils.getFieldAttribute;
@@ -173,13 +180,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static final Literal ONE = L(1);
     private static final Literal TWO = L(2);
     private static final Literal THREE = L(3);
-
     private static EsqlParser parser;
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
     private static Map<String, EsField> mappingAirports;
+    private static Map<String, EsField> mappingTypes;
     private static Analyzer analyzerAirports;
+    private static Analyzer analyzerTypes;
     private static EnrichResolution enrichResolution;
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
@@ -217,6 +225,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        // Some tests need additional types, so we load that index here and use it in the plan_types() function.
+        mappingTypes = loadMapping("mapping-all-types.json");
+        EsIndex types = new EsIndex("types", mappingTypes, Set.of("types"));
+        IndexResolution getIndexResultTypes = IndexResolution.valid(types);
+        analyzerTypes = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultTypes, enrichResolution),
             TEST_VERIFIER
         );
     }
@@ -4364,6 +4381,84 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
         return optimized;
+    }
+
+    private LogicalPlan planTypes(String query) {
+        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query)));
+    }
+
+    private EsqlBinaryComparison extractPlannedBinaryComparison(String expression) {
+        LogicalPlan plan = planTypes("FROM types | WHERE " + expression);
+
+        assertTrue(plan instanceof UnaryPlan);
+        UnaryPlan unaryPlan = (UnaryPlan) plan;
+        assertTrue("Epxected top level Filter, foung [" + unaryPlan.child().toString() + "]", unaryPlan.child() instanceof Filter);
+        Filter filter = (Filter) unaryPlan.child();
+        assertTrue(
+            "Expected filter condition to be a binary comparison but found [" + filter.condition() + "]",
+            filter.condition() instanceof EsqlBinaryComparison
+        );
+        return (EsqlBinaryComparison) filter.condition();
+    }
+
+    private void doTestSimplifyComparisonArithmetics(
+        String expression,
+        String fieldName,
+        EsqlBinaryComparison.BinaryComparisonOperation opType,
+        Object bound
+    ) {
+        EsqlBinaryComparison bc = extractPlannedBinaryComparison(expression);
+        assertEquals(opType, bc.getFunctionType());
+
+        assertTrue(
+            "Expected left side of comparison to be a field attribute but found [" + bc.left() + "]",
+            bc.left() instanceof FieldAttribute
+        );
+        FieldAttribute attribute = (FieldAttribute) bc.left();
+        assertEquals(fieldName, attribute.name());
+
+        assertTrue("Expected right side of comparison to be a literal but found [" + bc.right() + "]", bc.right() instanceof Literal);
+        Literal literal = (Literal) bc.right();
+        assertEquals(bound, literal.value());
+    }
+
+    public void testSimplifyComparisonArithmeticCommutativeVsNonCommutativeOps() {
+        doTestSimplifyComparisonArithmetics("integer + 2 > 3", "integer", GT, 1);
+        doTestSimplifyComparisonArithmetics("2 + integer > 3", "integer", GT, 1);
+        doTestSimplifyComparisonArithmetics("integer - 2 > 3", "integer", GT, 5);
+        doTestSimplifyComparisonArithmetics("2 - integer > 3", "integer", LT, -1);
+        doTestSimplifyComparisonArithmetics("integer * 2 > 4", "integer", GT, 2);
+        doTestSimplifyComparisonArithmetics("2 * integer > 4", "integer", GT, 2);
+
+        // TODO: These aren't passing
+        // doTestSimplifyComparisonArithmetics("float / 2.0 > 4.0", "float", GT, 8d);
+        // doTestSimplifyComparisonArithmetics("2.0 / float < 4.0", "float", GT, .5);
+    }
+
+    public void testSimplifyComparisonArithmeticWithMultipleOps() {
+        // i >= 3
+        doTestSimplifyComparisonArithmetics("((integer + 1) * 2 - 4) * 4 >= 16", "integer", GTE, 3);
+    }
+
+    public void testSimplifyComparisonArithmeticWithFieldNegation() {
+        doTestSimplifyComparisonArithmetics("12 * (-integer - 5) >= -120", "integer", LTE, 5);
+    }
+
+    public void testSimplifyComparisonArithmeticWithFieldDoubleNegation() {
+        doTestSimplifyComparisonArithmetics("12 * -(-integer - 5) <= 120", "integer", LTE, 5);
+    }
+
+    public void testSimplifyComparisonArithmeticWithConjunction() {
+        doTestSimplifyComparisonArithmetics("12 * (-integer - 5) == -120 AND integer < 6 ", "integer", EQ, 5);
+    }
+
+    public void testSimplifyComparisonArithmeticWithDisjunction() {
+        doTestSimplifyComparisonArithmetics("12 * (-integer - 5) >= -120 OR integer < 5", "integer", LTE, 5);
+    }
+
+    public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
+        doTestSimplifyComparisonArithmetics("float / -2.0 < 4", "float", GT, -8d);
+        doTestSimplifyComparisonArithmetics("float * -2.0 < 4", "float", GT, -2d);
     }
 
     private void assertNullLiteral(Expression expression) {

@@ -11,7 +11,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -4691,12 +4690,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
      *   |_EsqlProject[[...]]
      *   | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   \_LocalRelation[[int{f}#17, name{f}#18],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
+     * }</pre>
      */
     public void testLookupSimple() {
         var plan = optimizedPlan("""
@@ -4704,7 +4705,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
             """);
-        System.err.println(plan);
         var join = as(plan, Join.class);
 
         // Right is the lookup table
@@ -4741,6 +4741,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[name{f}#20],[MIN(emp_no{f}#10) AS MIN(emp_no), name{f}#20]]
      *   \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
@@ -4748,6 +4749,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      *     \_LocalRelation[[name{f}#20, int{f}#21],[BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]], IntVectorBlock[vector=I
      * ntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]]]
+     * }</pre>
      */
     public void testLookupStats() {
         var plan = optimizedPlan("""
@@ -4756,7 +4758,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP int_number_names ON int
             | STATS MIN(emp_no) BY name
             """);
-        System.err.println(plan);
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 

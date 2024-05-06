@@ -126,7 +126,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
@@ -4163,6 +4162,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
+     * <pre>{@code
      * ProjectExec[[emp_no{f}#17, int{r}#5 AS languages, name{f}#28 AS lang_name]]
      * \_HashJoinExec[
      *      LocalSourceExec[[int{f}#27, name{f}#28],[...]],
@@ -4174,6 +4174,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_ProjectExec[[emp_no{f}#17, ..., languages{f}#20]]
      *           \_FieldExtractExec[emp_no{f}#17, _meta_field{f}#23, first_name{f}#18, ..]<[]>
      *             \_EsQueryExec[...]
+     * }</pre>
      */
     public void testLookupThenProject() {
         PhysicalPlan plan = optimizedPlan(physicalPlan("""

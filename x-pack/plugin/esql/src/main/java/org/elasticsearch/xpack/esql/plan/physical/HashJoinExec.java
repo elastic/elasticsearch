@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -106,9 +103,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
             return false;
         }
         HashJoinExec hash = (HashJoinExec) o;
-        return joinData.equals(hash.joinData)
-            && unionFields.equals(hash.unionFields)
-            && output.equals(hash.output);
+        return joinData.equals(hash.joinData) && unionFields.equals(hash.unionFields) && output.equals(hash.output);
     }
 
     @Override

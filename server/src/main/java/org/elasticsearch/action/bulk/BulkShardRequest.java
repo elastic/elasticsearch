@@ -35,11 +35,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     private final BulkItemRequest[] items;
 
-    private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
+    private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of();
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        inferenceFieldMap = in.readMap(InferenceFieldMetadata::new);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -61,7 +62,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
      */
     public Map<String, InferenceFieldMetadata> consumeInferenceFieldMap() {
         Map<String, InferenceFieldMetadata> ret = inferenceFieldMap;
-        inferenceFieldMap = null;
+        inferenceFieldMap = Map.of();
         return ret;
     }
 
@@ -122,6 +123,10 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
                 o.writeBoolean(false);
             }
         }, items);
+        if (inferenceFieldMap == null) {
+            throw new IllegalStateException("Tried to serialize with an inferenceFieldMap that has already been consumed");
+        }
+        out.writeMap(inferenceFieldMap, (o, item) -> item.writeTo(o));
     }
 
     @Override

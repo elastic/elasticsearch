@@ -106,7 +106,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             case TransportShardBulkAction.ACTION_NAME:
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
                 var fieldInferenceMetadata = bulkShardRequest.consumeInferenceFieldMap();
-                if (fieldInferenceMetadata != null && fieldInferenceMetadata.isEmpty() == false) {
+                if (fieldInferenceMetadata.isEmpty() == false) {
                     Runnable onInferenceCompletion = () -> chain.proceed(task, action, request, listener);
                     processBulkShardRequest(fieldInferenceMetadata, bulkShardRequest, onInferenceCompletion);
                 } else {

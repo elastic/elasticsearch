@@ -191,17 +191,4 @@ public class StringMatcher implements Predicate<String> {
             return description;
         }
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        StringMatcher that = (StringMatcher) o;
-        return Objects.equals(description, that.description) && Objects.equals(predicate, that.predicate);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(description, predicate);
-    }
 }

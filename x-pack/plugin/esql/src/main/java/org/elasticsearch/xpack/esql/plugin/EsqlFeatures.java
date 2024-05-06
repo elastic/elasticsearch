@@ -127,7 +127,17 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields");
 
     /**
-     * Support for {@code LOOKUP} command
+     * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature("esql.string_literal_auto_casting_extended");
+
+    /**
+     * Support for metadata fields.
+     */
+    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
+
+    /**
+     * Support for {@code LOOKUP} command.
      */
     public static final NodeFeature LOOKUP_COMMAND = new NodeFeature("esql.lookup_command");
 
@@ -151,6 +161,8 @@ public class EsqlFeatures implements FeatureSpecification {
             CASTING_OPERATOR,
             MV_ORDERING_SORTED_ASCENDING,
             METRICS_COUNTER_FIELDS,
+            STRING_LITERAL_AUTO_CASTING_EXTENDED,
+            METADATA_FIELDS,
             LOOKUP_COMMAND
         );
     }

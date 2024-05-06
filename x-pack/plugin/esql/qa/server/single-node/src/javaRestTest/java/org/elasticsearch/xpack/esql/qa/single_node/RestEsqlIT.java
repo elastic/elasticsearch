@@ -14,15 +14,18 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +34,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -103,6 +107,58 @@ public class RestEsqlIT extends RestEsqlTestCase {
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
+    }
+
+    public void testDoNotLogWithInfo() throws IOException {
+        try {
+            setLoggingLevel("INFO");
+            RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_NOT_LOG_ME = 1");
+            Map<String, Object> result = runEsql(builder);
+            assertEquals(2, result.size());
+            Map<String, String> colA = Map.of("name", "DO_NOT_LOG_ME", "type", "integer");
+            assertEquals(List.of(colA), result.get("columns"));
+            assertEquals(List.of(List.of(1)), result.get("values"));
+            try (InputStream log = cluster.getNodeLog(0, LogType.SERVER)) {
+                Streams.readAllLines(log, line -> { assertThat(line, not(containsString("DO_NOT_LOG_ME"))); });
+            }
+        } finally {
+            setLoggingLevel(null);
+        }
+    }
+
+    public void testDoLogWithDebug() throws IOException {
+        try {
+            setLoggingLevel("DEBUG");
+            RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_LOG_ME = 1");
+            Map<String, Object> result = runEsql(builder);
+            assertEquals(2, result.size());
+            Map<String, String> colA = Map.of("name", "DO_LOG_ME", "type", "integer");
+            assertEquals(List.of(colA), result.get("columns"));
+            assertEquals(List.of(List.of(1)), result.get("values"));
+            try (InputStream log = cluster.getNodeLog(0, LogType.SERVER)) {
+                boolean[] found = new boolean[] { false };
+                Streams.readAllLines(log, line -> {
+                    if (line.contains("DO_LOG_ME")) {
+                        found[0] = true;
+                    }
+                });
+                assertThat(found[0], equalTo(true));
+            }
+        } finally {
+            setLoggingLevel(null);
+        }
+    }
+
+    private void setLoggingLevel(String level) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "logger.org.elasticsearch.xpack.esql.action": $LEVEL$
+                }
+            }
+            """.replace("$LEVEL$", level == null ? "null" : '"' + level + '"'));
+        client().performRequest(request);
     }
 
     public void testIncompatibleMappingsErrors() throws IOException {

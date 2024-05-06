@@ -116,6 +116,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -1041,7 +1042,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/105122",
-        value = "org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.index.shard:TRACE,org.elasticsearch.index.engine:TRACE"
+        value = "org.elasticsearch.indices.recovery:TRACE," +
+            "org.elasticsearch.index.shard:TRACE," +
+            "org.elasticsearch.index.engine:TRACE," +
+            "org.apache.lucene:TRACE"
     )
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);

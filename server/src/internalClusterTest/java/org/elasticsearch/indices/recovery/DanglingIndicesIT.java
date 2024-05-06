@@ -190,6 +190,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         // tombstone has been pushed out of the graveyard.
         createIndex("additional");
         assertAcked(indicesAdmin().prepareDelete("additional"));
+        internalCluster().awaitIndexShardCloseAsyncTasks();
         assertThat(listDanglingIndices(), is(empty()));
     }
 

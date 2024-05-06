@@ -82,7 +82,7 @@ searched for each document, and the score combined to obtain relevant results.
 
 Once ingested, a `semantic_text` field will have the following structure:
 
-[source,console]
+[source,console-result]
 ------------------------------------------------------------
 "inference_field": {
   "text": "these are not the droids you're looking for", <1>
@@ -95,7 +95,7 @@ Once ingested, a `semantic_text` field will have the following structure:
       {
         "text": "these are not the droids you're looking for",
         "embeddings": {
-		...
+		(...)
         }
       }
     ]

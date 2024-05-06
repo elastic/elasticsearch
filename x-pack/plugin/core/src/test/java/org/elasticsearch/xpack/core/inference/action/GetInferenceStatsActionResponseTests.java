@@ -8,26 +8,34 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.util.List;
 
-public class GetInferenceStatsActionResponseTests extends AbstractBWCWireSerializationTestCase<GetInferenceStatsAction.Response> {
+public class GetInferenceStatsActionResponseTests extends AbstractWireSerializingTestCase<GetInferenceStatsAction.Response> {
 
     public static GetInferenceStatsAction.Response createRandom() {
-        return new GetInferenceStatsAction.Response(new PoolStats(randomInt(), randomInt(), randomInt(), randomInt()));
+        List<GetInferenceStatsAction.NodeResponse> responses = randomList(1, 10, GetInferenceStatsActionNodeResponseTests::createRandom);
+        return new GetInferenceStatsAction.Response(ClusterName.DEFAULT, responses, List.of());
     }
 
     public void testToXContent() throws IOException {
-        var entity = new GetInferenceStatsAction.Response(new PoolStats(1, 2, 3, 4));
+        var node = DiscoveryNodeUtils.create("id");
+        var poolStats = new PoolStats(1, 2, 3, 4);
+        var entity = new GetInferenceStatsAction.Response(
+            ClusterName.DEFAULT,
+            List.of(new GetInferenceStatsAction.NodeResponse(node, poolStats)),
+            List.of()
+        );
+
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = org.elasticsearch.common.Strings.toString(builder);
@@ -47,52 +55,11 @@ public class GetInferenceStatsActionResponseTests extends AbstractBWCWireSeriali
     }
 
     @Override
-    protected GetInferenceStatsAction.Response mutateInstance(GetInferenceStatsAction.Response instance) throws IOException {
-        var select = randomIntBetween(0, 3);
-        var connPoolStats = instance.getConnectionPoolStats();
-
-        return switch (select) {
-            case 0 -> new GetInferenceStatsAction.Response(
-                new PoolStats(
-                    randomInt(),
-                    connPoolStats.getPendingConnections(),
-                    connPoolStats.getAvailableConnections(),
-                    connPoolStats.getMaxConnections()
-                )
-            );
-            case 1 -> new GetInferenceStatsAction.Response(
-                new PoolStats(
-                    connPoolStats.getLeasedConnections(),
-                    randomInt(),
-                    connPoolStats.getAvailableConnections(),
-                    connPoolStats.getMaxConnections()
-                )
-            );
-            case 2 -> new GetInferenceStatsAction.Response(
-                new PoolStats(
-                    connPoolStats.getLeasedConnections(),
-                    connPoolStats.getPendingConnections(),
-                    randomInt(),
-                    connPoolStats.getMaxConnections()
-                )
-            );
-            case 3 -> new GetInferenceStatsAction.Response(
-                new PoolStats(
-                    connPoolStats.getLeasedConnections(),
-                    connPoolStats.getPendingConnections(),
-                    connPoolStats.getAvailableConnections(),
-                    randomInt()
-                )
-            );
-            default -> throw new UnsupportedEncodingException(Strings.format("Encountered unsupported case %s", select));
-        };
-    }
-
-    @Override
-    protected GetInferenceStatsAction.Response mutateInstanceForVersion(
-        GetInferenceStatsAction.Response instance,
-        TransportVersion version
-    ) {
-        return instance;
+    protected GetInferenceStatsAction.Response mutateInstance(GetInferenceStatsAction.Response instance) {
+        return new GetInferenceStatsAction.Response(
+            ClusterName.DEFAULT,
+            instance.getNodes().subList(1, instance.getNodes().size()),
+            List.of()
+        );
     }
 }

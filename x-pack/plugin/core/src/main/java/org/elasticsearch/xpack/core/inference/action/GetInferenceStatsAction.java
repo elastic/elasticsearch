@@ -8,16 +8,23 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.Response> {
@@ -29,9 +36,11 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<GetInferenceStatsAction.Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
-        public Request() {}
+        public Request() {
+            super((String[]) null);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -51,16 +60,58 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class NodeRequest extends TransportRequest {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public NodeRequest() {}
+    }
+
+    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            for (var entry : getNodesMap().entrySet()) {
+                NodeResponse response = entry.getValue();
+
+                builder.startObject(entry.getKey());
+                response.toXContent(builder, params);
+                builder.endObject();
+            }
+            return builder;
+        }
+
+        @Override
+        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readCollectionAsList(NodeResponse::new);
+        }
+
+        @Override
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
+            out.writeCollection(nodes);
+        }
+    }
+
+    public static class NodeResponse extends BaseNodeResponse implements ToXContentFragment {
         static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
 
         private final ConnectionPoolStats connectionPoolStats;
 
-        public Response(PoolStats poolStats) {
+        public NodeResponse(DiscoveryNode node, PoolStats poolStats) {
+            super(node);
             connectionPoolStats = ConnectionPoolStats.of(poolStats);
         }
 
-        public Response(StreamInput in) throws IOException {
+        public NodeResponse(StreamInput in) throws IOException {
             super(in);
 
             connectionPoolStats = new ConnectionPoolStats(in);
@@ -73,9 +124,7 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
             builder.field(CONNECTION_POOL_STATS_FIELD_NAME, connectionPoolStats, params);
-            builder.endObject();
             return builder;
         }
 
@@ -83,7 +132,7 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
+            NodeResponse response = (NodeResponse) o;
             return Objects.equals(connectionPoolStats, response.connectionPoolStats);
         }
 

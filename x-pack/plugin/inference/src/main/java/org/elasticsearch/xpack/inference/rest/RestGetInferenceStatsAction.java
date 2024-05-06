@@ -20,7 +20,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_STATS_PATH;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetInferenceStatsAction extends BaseRestHandler {
 
     @Override

@@ -1,0 +1,3 @@
+[cohere-es]
+=== Tutorial: Using Cohere with {es}
+

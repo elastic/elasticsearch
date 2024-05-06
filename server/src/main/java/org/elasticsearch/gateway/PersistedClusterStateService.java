@@ -72,8 +72,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.store.NoFsyncDirectory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -188,6 +190,8 @@ public class PersistedClusterStateService {
 
     private volatile TimeValue slowWriteLoggingThreshold;
 
+    private final boolean useFsync;
+
     public PersistedClusterStateService(
         NodeEnvironment nodeEnvironment,
         NamedXContentRegistry namedXContentRegistry,
@@ -212,6 +216,7 @@ public class PersistedClusterStateService {
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         this.documentPageSize = clusterSettings.get(DOCUMENT_PAGE_SIZE);
+        this.useFsync = clusterSettings.get(IndexModule.NODE_STORE_USE_FSYNC);
     }
 
     private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {
@@ -288,7 +293,7 @@ public class PersistedClusterStateService {
     protected Directory createDirectory(Path path) throws IOException {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
         // use a MMapDirectory here, which might happen with FSDirectory.open(path), so we force an NIOFSDirectory to be on the safe side.
-        return new NIOFSDirectory(path);
+        return useFsync ? new NIOFSDirectory(path) : new NoFsyncDirectory(new NIOFSDirectory(path));
     }
 
     public Path[] getDataPaths() {

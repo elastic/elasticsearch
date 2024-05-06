@@ -79,7 +79,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             if (preserveUnknownCustoms) {
                 // check that we reserialize unknown metadata correctly again
                 final Path tempdir = createTempDir();
-                Metadata.FORMAT.write(loadedMetadata, tempdir);
+                Metadata.FORMAT.write(loadedMetadata, randomBoolean(), tempdir);
                 final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
                 assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
             }

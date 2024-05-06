@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.WriteStateException;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -213,6 +214,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final double fileBasedRecoveryThreshold;
 
     private final Consumer<ReplicationGroup> onReplicationGroupUpdated;
+
+    private final boolean useFsync;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -496,7 +499,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 currentRetentionLeases = retentionLeases;
             }
             logger.trace("persisting retention leases [{}]", currentRetentionLeases);
-            RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
+            RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, useFsync, path);
             persistedRetentionLeasesPrimaryTerm = currentRetentionLeases.primaryTerm();
             persistedRetentionLeasesVersion = currentRetentionLeases.version();
         }
@@ -983,6 +986,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
+        this.useFsync = IndexModule.NODE_STORE_USE_FSYNC.get(indexSettings.getNodeSettings());
         assert IndexVersions.ZERO.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }

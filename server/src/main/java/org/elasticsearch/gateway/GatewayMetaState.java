@@ -36,6 +36,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -227,6 +228,7 @@ public class GatewayMetaState implements Closeable {
                     BuildVersion.current(),
                     clusterState.metadata().oldestIndexVersion()
                 ),
+                IndexModule.NODE_STORE_USE_FSYNC.get(settings),
                 persistedClusterStateService.getDataPaths()
             );
             success = true;
@@ -269,6 +271,7 @@ public class GatewayMetaState implements Closeable {
                     BuildVersion.current(),
                     clusterState.metadata().oldestIndexVersion()
                 ),
+                IndexModule.NODE_STORE_USE_FSYNC.get(settings),
                 persistedClusterStateService.getDataPaths()
             );
         }

@@ -35,6 +35,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -476,7 +477,8 @@ public final class StoreRecovery {
                         indexShard.shardPath().resolveTranslog(),
                         SequenceNumbers.NO_OPS_PERFORMED,
                         shardId,
-                        indexShard.getPendingPrimaryTerm()
+                        indexShard.getPendingPrimaryTerm(),
+                        IndexModule.NODE_STORE_USE_FSYNC.get(indexShard.indexSettings.getNodeSettings())
                     );
                     store.associateIndexWithNewTranslog(translogUUID);
                     writeEmptyRetentionLeasesFile(indexShard);
@@ -615,7 +617,8 @@ public final class StoreRecovery {
             indexShard.shardPath().resolveTranslog(),
             localCheckpoint,
             indexShard.shardId(),
-            indexShard.getPendingPrimaryTerm()
+            indexShard.getPendingPrimaryTerm(),
+            IndexModule.NODE_STORE_USE_FSYNC.get(indexShard.indexSettings.getNodeSettings())
         );
         store.associateIndexWithNewTranslog(translogUUID);
     }

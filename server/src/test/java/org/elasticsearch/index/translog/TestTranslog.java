@@ -103,6 +103,7 @@ public class TestTranslog {
                     FileChannel::open,
                     unnecessaryCheckpointCopyPath,
                     checkpointCopy,
+                    true,
                     StandardOpenOption.WRITE,
                     StandardOpenOption.CREATE_NEW
                 );

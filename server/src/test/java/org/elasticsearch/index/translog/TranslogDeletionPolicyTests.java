@@ -83,6 +83,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 gen,
                 tempDir.resolve(Translog.getFilename(gen)),
                 FileChannel::open,
+                randomBoolean(),
                 TranslogConfig.DEFAULT_BUFFER_SIZE,
                 1L,
                 1L,

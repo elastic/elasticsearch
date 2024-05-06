@@ -168,7 +168,7 @@ final class TranslogHeader {
     /**
      * Writes this header with the latest format into the file channel
      */
-    void write(final FileChannel channel) throws IOException {
+    void write(final FileChannel channel, final boolean useFsync) throws IOException {
         final byte[] buffer = Arrays.copyOf(TRANSLOG_HEADER, headerSizeInBytes);
         // Write uuid and leave 4 bytes for its length
         final int uuidOffset = TRANSLOG_HEADER.length + Integer.BYTES;
@@ -183,7 +183,9 @@ final class TranslogHeader {
         // Checksum header
         ByteUtils.writeIntBE((int) crc32.getValue(), buffer, offset);
         Channels.writeToChannel(buffer, channel);
-        channel.force(true);
+        if (useFsync) {
+            channel.force(true);
+        }
         assert channel.position() == headerSizeInBytes
             : "Header is not fully written; header size [" + headerSizeInBytes + "], channel position [" + channel.position() + "]";
     }

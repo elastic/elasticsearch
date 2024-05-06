@@ -197,6 +197,7 @@ public class TruncateTranslogAction {
             FileChannel::open,
             filename,
             emptyCheckpoint,
+            true, // TODO: make this conditional on IndexModule#NODE_STORE_USE_FSYNC?
             StandardOpenOption.WRITE,
             StandardOpenOption.READ,
             StandardOpenOption.CREATE_NEW
@@ -209,7 +210,7 @@ public class TruncateTranslogAction {
     private static int writeEmptyTranslog(Path filename, String translogUUID) throws IOException {
         try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
             TranslogHeader header = new TranslogHeader(translogUUID, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-            header.write(fc);
+            header.write(fc, true); // TODO: make fsync conditional on IndexModule#NODE_STORE_USE_FSYNC?
             return header.sizeInBytes();
         }
     }

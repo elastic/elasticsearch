@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 
 /**
  * Maintains the method of writing cluster states to disk for versions prior to {@link Version#V_7_6_0}, preserved to test the classes that
@@ -37,7 +38,11 @@ public class MetaStateWriterUtils {
     public static void writeManifestAndCleanup(NodeEnvironment nodeEnv, String reason, Manifest manifest) throws WriteStateException {
         logger.trace("[_meta] writing state, reason [{}]", reason);
         try {
-            long generation = Manifest.FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPaths());
+            long generation = Manifest.FORMAT.writeAndCleanup(
+                manifest,
+                IndexModule.NODE_STORE_USE_FSYNC.get(nodeEnv.settings()),
+                nodeEnv.nodeDataPaths()
+            );
             logger.trace("[_meta] state written (generation: {})", generation);
         } catch (WriteStateException ex) {
             throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
@@ -56,7 +61,11 @@ public class MetaStateWriterUtils {
         final Index index = indexMetadata.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            long generation = IndexMetadata.FORMAT.write(indexMetadata, nodeEnv.indexPaths(indexMetadata.getIndex()));
+            long generation = IndexMetadata.FORMAT.write(
+                indexMetadata,
+                IndexModule.NODE_STORE_USE_FSYNC.get(nodeEnv.settings()),
+                nodeEnv.indexPaths(indexMetadata.getIndex())
+            );
             logger.trace("[{}] state written", index);
             return generation;
         } catch (WriteStateException ex) {
@@ -73,7 +82,11 @@ public class MetaStateWriterUtils {
     static long writeGlobalState(NodeEnvironment nodeEnv, String reason, Metadata metadata) throws WriteStateException {
         logger.trace("[_global] writing state, reason [{}]", reason);
         try {
-            long generation = Metadata.FORMAT.write(metadata, nodeEnv.nodeDataPaths());
+            long generation = Metadata.FORMAT.write(
+                metadata,
+                IndexModule.NODE_STORE_USE_FSYNC.get(nodeEnv.settings()),
+                nodeEnv.nodeDataPaths()
+            );
             logger.trace("[_global] state written");
             return generation;
         } catch (WriteStateException ex) {

@@ -73,6 +73,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -139,6 +140,7 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.usually;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -629,6 +631,11 @@ public final class InternalTestCluster extends TestCluster {
             // Nodes may fail to join a cluster within the default 30s timeout so we must sometimes skip that wait to ensure there's nothing
             // in the startup process which relies on having joined a cluster.
             builder.put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s");
+        }
+
+        if (usually()) {
+            // Disable fsync in most test runs to speed up tests
+            builder.put(IndexModule.NODE_STORE_USE_FSYNC.getKey(), false);
         }
 
         return builder.build();

@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -60,16 +61,22 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-        description = "Sorts a multivalued field in lexicographical order."
+        description = "Sorts a multivalued field in lexicographical order.",
+        examples = @Example(file = "ints", tag = "mv_sort")
     )
     public MvSort(
         Source source,
         @Param(
             name = "field",
             type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-            description = "A multivalued field"
+            description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "order", type = { "keyword" }, description = "sort order", optional = true) Expression order
+        @Param(
+            name = "order",
+            type = { "keyword" },
+            description = "Sort order. The valid options are ASC and DESC, the default is ASC.",
+            optional = true
+        ) Expression order
     ) {
         super(source, order == null ? Arrays.asList(field, ASC) : Arrays.asList(field, order));
         this.field = field;

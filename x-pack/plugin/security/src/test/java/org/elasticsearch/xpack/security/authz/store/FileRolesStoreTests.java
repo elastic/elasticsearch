@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -287,11 +288,11 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles.get("role_query_invalid"), nullValue());
     }
 
-    public void testParseFileWithRemoteIndices() throws IllegalAccessException, IOException {
+    public void testParseFileWithRemoteIndicesAndCluster() throws IllegalAccessException, IOException {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR, null);
         final List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         events.clear();
-        final Path path = getDataPath("roles_with_remote_indices.yml");
+        final Path path = getDataPath("roles_with_remote_indices_and_cluster.yml");
         final Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(
             path,
             logger,
@@ -313,6 +314,14 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(remoteIndicesPrivileges.indicesPrivileges().allowRestrictedIndices(), is(false));
         assertThat(remoteIndicesPrivileges.indicesPrivileges().getQuery(), nullValue());
 
+        RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();
+        remoteClusterPermissions.validate(); // no exception should be thrown
+        assertThat(remoteClusterPermissions.groups().size(), equalTo(2));
+        assertThat(remoteClusterPermissions.groups().get(0).remoteClusterAliases(), arrayContaining("remote0"));
+        assertThat(remoteClusterPermissions.groups().get(1).remoteClusterAliases(), arrayContaining("remote1"));
+        assertThat(remoteClusterPermissions.groups().get(0).clusterPrivileges(), arrayContaining("monitor_enrich"));
+        assertThat(remoteClusterPermissions.groups().get(1).clusterPrivileges(), arrayContaining("monitor_enrich"));
+
         final RoleDescriptor roleDescriptor2 = roles.get("role_with_fls_dls");
         assertNotNull(roleDescriptor2);
         assertThat(roleDescriptor2.getRemoteIndicesPrivileges().length, equalTo(1));
@@ -325,10 +334,16 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(remoteIndicesPrivileges4.indicesPrivileges().getDeniedFields(), arrayContaining("boo"));
         assertThat(remoteIndicesPrivileges4.indicesPrivileges().getQuery().utf8ToString(), equalTo("{ \"match_all\": {} }"));
 
+        remoteClusterPermissions = roleDescriptor2.getRemoteClusterPermissions();
+        assertThat(remoteClusterPermissions.groups().size(), equalTo(0));
+        assertThat(remoteClusterPermissions, equalTo(RemoteClusterPermissions.NONE));
+
         assertThat(roles.get("invalid_role_missing_clusters"), nullValue());
         assertThat(roles.get("invalid_role_empty_names"), nullValue());
         assertThat(roles.get("invalid_role_empty_privileges"), nullValue());
-        assertThat(events, hasSize(3));
+        assertThat(roles.get("invalid_role_missing_remote_clusters"), nullValue());
+        assertThat(roles.get("invalid_role_bad_priv_remote_clusters"), nullValue());
+        assertThat(events, hasSize(5));
         assertThat(
             events.get(0),
             startsWith(
@@ -348,6 +363,20 @@ public class FileRolesStoreTests extends ESTestCase {
             startsWith(
                 "failed to parse indices privileges for role [invalid_role_empty_privileges]. "
                     + "missing required [privileges] field. skipping role..."
+            )
+        );
+        assertThat(
+            events.get(3),
+            startsWith(
+                "failed to parse remote_cluster for role [invalid_role_missing_remote_clusters]. "
+                    + "expected field [remote_cluster] value to be an array"
+            )
+        );
+        assertThat(
+            events.get(4),
+            startsWith(
+                "failed to parse remote_cluster for role [invalid_role_bad_priv_remote_clusters]. "
+                    + "[monitor_enrich] is the only value allowed for [privileges] within [remote_cluster]. skipping role..."
             )
         );
     }
@@ -719,6 +748,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
         assertThat(usageStats.get("remote_indices"), is(1L));
+        assertThat(usageStats.get("remote_cluster"), is(1L));
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }

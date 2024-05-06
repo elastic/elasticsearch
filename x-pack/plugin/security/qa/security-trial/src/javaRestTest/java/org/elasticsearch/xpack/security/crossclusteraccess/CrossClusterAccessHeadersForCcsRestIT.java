@@ -195,7 +195,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         null,
                         null,
                         null,
-                        null
+                        null // description is never sent across clusters
                     )
                 )
             );

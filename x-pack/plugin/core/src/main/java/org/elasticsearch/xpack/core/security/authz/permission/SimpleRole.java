@@ -207,6 +207,8 @@ public class SimpleRole implements Role {
         }
 
         return new RoleDescriptorsIntersection(
+            // Remote role is potentially a union of multiple different roles,
+            // hence why we have to hardcode a name, and we can never send a description.
             new RoleDescriptor(
                 REMOTE_USER_ROLE_NAME,
                 null,

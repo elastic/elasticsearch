@@ -225,6 +225,15 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
+    public void preParse(DocumentParserContext context) {
+        // see InternalEngine.innerIndex to see where the real version value is set
+        // also see ParsedDocument.updateSeqID (called by innerIndex)
+        SequenceIDFields seqID = context.seqID();
+        assert seqID != null;
+        seqID.addFields(context.doc());
+    }
+
+    @Override
     public void postParse(DocumentParserContext context) {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
@@ -234,7 +243,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // for efficiency.
         // we share the parent docs fields to ensure good compression
         SequenceIDFields seqID = context.seqID();
-        seqID.addFields(context.doc());
+        assert seqID != null;
         for (LuceneDocument doc : context.nonRootDocuments()) {
             doc.add(seqID.seqNo);
         }

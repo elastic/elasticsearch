@@ -2718,7 +2718,7 @@ public class InternalEngine extends Engine {
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());
         boolean useCompoundFile = engineConfig.getUseCompoundFile();
-        iwc.setUseCompoundFile(false);
+        iwc.setUseCompoundFile(useCompoundFile);
         if (useCompoundFile == false) {
             logger.warn(
                 "[{}] is set to false, this should only be used in tests and can cause serious problems in production environments",

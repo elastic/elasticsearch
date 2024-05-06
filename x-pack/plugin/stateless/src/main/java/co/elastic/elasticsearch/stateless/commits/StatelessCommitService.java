@@ -590,7 +590,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             // When a shard is in the process of relocating, we mark a max generation to attempt to upload. If this generation is greater
             // then we fail this upload attempt. If the relocation hand-off fails then the state will be set back to RUNNING and the next
-            // upload attempt will be allowed through. If the state is transition to RELOCATED or CLOSED then we still don't upload and the
+            // upload attempt will be allowed through. If the state is transition to CLOSED then we still don't upload and the
             // upload task will not be retried again. We rely on and accept the max retry delay of 5s, i.e., in case of hand-off abort,
             // this upload could be delayed for up to 5 additional seconds.
             if (shardCommitState.state != ShardCommitState.State.RUNNING && generation > shardCommitState.maxGenerationToUpload) {
@@ -823,7 +823,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private enum State {
             RUNNING,
             RELOCATING,
-            RELOCATED,
             CLOSED
         }
 
@@ -1346,6 +1345,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         public void markCommitDeleted(long generation) {
             var commitPrimaryTermAndGeneration = resolvePrimaryTermForGeneration(generation);
             var commitReferencesInfo = commitReferencesInfos.get(commitPrimaryTermAndGeneration);
+            if (isClosed()) {
+                return;
+            }
             assert commitReferencesInfo != null;
             final var blobReference = primaryTermAndGenToBlobReference.get(commitReferencesInfo.storedInBCC());
             // This method should only be invoked after the VBCC has been uploaded, as it holds Lucene commit references. This ensures that

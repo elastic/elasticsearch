@@ -624,6 +624,8 @@ public class ShardStateAction {
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 StartedShardEntry startedShardEntry = task.getEntry();
+                logger.warn("MPXX SSAction.execute DEBUG 1a: " + startedShardEntry.timestampRange);
+                logger.warn("MPXX SSAction.execute DEBUG 1b: " + startedShardEntry.eventIngestedRange);
                 final ShardRouting matched = initialState.getRoutingTable()
                     .getByAllocationId(startedShardEntry.shardId, startedShardEntry.allocationId);
                 if (matched == null) {
@@ -763,22 +765,34 @@ public class ShardStateAction {
             ClusterState maybeUpdatedState = initialState;
             try {
                 maybeUpdatedState = allocationService.applyStartedShards(initialState, shardRoutingsToBeApplied);
-                logger.warn("MPXX SSAction.execute DEBUG 10: maybeUpdatedState: " + maybeUpdatedState);
+                // logger.warn("MPXX SSAction.execute DEBUG 10: maybeUpdatedState: " + maybeUpdatedState);
 
                 if (updatedTimestampRanges.isEmpty() == false) {
                     logger.warn("MPXX SSAction.execute DEBUG 11: updatedTimestampRanges.isEmpty() == false");
                     final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
                     for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimeRangesEntry : updatedTimestampRanges.entrySet()) {
-                        ClusterStateTimeRanges timeRanges = updatedTimeRangesEntry.getValue();  // MP TODO: when did this get updated?
+                        logger.warn(
+                            "MPXX SSAction.execute DEBUG 12: updatedTimeRangesEntry key: {}; value: {}",
+                            updatedTimeRangesEntry.getKey(),
+                            updatedTimeRangesEntry.getValue()
+                        );
+                        ClusterStateTimeRanges timeRanges = updatedTimeRangesEntry.getValue();
                         metadataBuilder.put(
                             IndexMetadata.builder(metadataBuilder.getSafe(updatedTimeRangesEntry.getKey()))
                                 .timestampRange(timeRanges.timestampRange())
                                 .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
-                        logger.warn("MPXX SSAction.execute DEBUG 12: ClusterStateTimeRanges: " + timeRanges);
+                        logger.warn(
+                            "MPXX SSAction.execute DEBUG 13: ClusterStateTimeRanges for index {}: timeRanges: {}",
+                            updatedTimeRangesEntry.getKey(),
+                            timeRanges
+                        );
                     }
-
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
+                    logger.warn(
+                        "MPXX SSAction.execute DEBUG 14: BUILT new cluster state into maybeUpdatedState ref: indices: {}",
+                        maybeUpdatedState.metadata().indices().keySet()
+                    );
                 }
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
@@ -811,7 +825,10 @@ public class ShardStateAction {
                 boolean assertCondition = cursor.getValue().allPrimaryShardsActive() == false
                     || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete();
 
-                logger.warn("MPXX Testing ShardStateAction assert in ShardStateAction for event.ingested");
+                logger.warn(
+                    "MPXX DEBUG 100 Testing ShardStateAction assert in ShardStateAction for event.ingested for {}",
+                    cursor.getKey()
+                );
                 if (assertCondition == false) {
                     String msg = "index ["
                         + cursor.getKey()
@@ -819,10 +836,10 @@ public class ShardStateAction {
                         + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
-                    logger.warn("MPXX ASSERT FAILED: " + msg);
+                    logger.warn("MPXX DEBUG 101 ASSERT FAILED: " + msg);
                     throw new AssertionError(msg);
                 } else {
-                    logger.warn("MPXX: assert passed for " + clusterState.metadata().index(cursor.getKey()));
+                    logger.warn("MPXX: DEBUG 102 assert passed for " + clusterState.metadata().index(cursor.getKey()));
                 }
 
                 // assert cursor.getValue().allPrimaryShardsActive() == false

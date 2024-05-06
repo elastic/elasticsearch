@@ -106,6 +106,11 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteClusterPermissionGroup that = (RemoteClusterPermissionGroup) o;
+        // The remoteClusterAliasMatcher is intentionally omitted from equals and hashCode implementation.
+        // Reason for this is because it constructs a StringMatcher which internally builds a Predicate<String>.
+        // Due to the stateless nature of predicate and the fact that it is always a distinct object in memory (even when it's functionally
+        // the same) we cannot include it here. Also, it makes not difference to the correctness because if two groups have the same cluster
+        // privileges and the same remote cluster aliases then the constructed alias matcher should be the same (functionally).
         return Arrays.equals(clusterPrivileges, that.clusterPrivileges) && Arrays.equals(remoteClusterAliases, that.remoteClusterAliases);
     }
 

@@ -3,7 +3,7 @@
 
 [NOTE]
 This is only relevant for Linux and macOS and can be safely ignored if running
-Elasticsearch on Windows. On Windows that JVM uses an
+Elasticsearch on Windows. On Windows the JVM uses an
 https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx[API]
 limited only by available resources.
 

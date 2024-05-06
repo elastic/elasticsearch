@@ -81,6 +81,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        return this;
+    }
+
+    @Override
     public BytesRefBlock filter(int... positions) {
         if (positions.length * ordinals.getTotalValueCount() >= bytes.getPositionCount() * ordinals.getPositionCount()) {
             OrdinalBytesRefBlock result = null;

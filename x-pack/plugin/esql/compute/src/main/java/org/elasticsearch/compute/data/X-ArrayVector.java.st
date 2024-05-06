@@ -177,8 +177,8 @@ $if(int)$
     @Override
     public int min() {
         if (min == null) {
-            int v = values[0];
-            for (int i = 1; i < getPositionCount(); i++) {
+            int v = Integer.MAX_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
                 v = Math.min(v, values[i]);
             }
             min = v;
@@ -192,8 +192,8 @@ $if(int)$
     @Override
     public int max() {
         if (max == null) {
-            int v = values[0];
-            for (int i = 1; i < getPositionCount(); i++) {
+            int v = Integer.MIN_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
                 v = Math.max(v, values[i]);
             }
             max = v;

@@ -28,13 +28,12 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     IntVector filter(int... positions);
 
     /**
-     * The minimum value in the block. A block that contains only {@code nulls}
-     * may
+     * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
      */
     int min();
 
     /**
-     * The maximum value in the block.
+     * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
      */
     int max();
 

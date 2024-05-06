@@ -8,7 +8,7 @@
 
 [[inference-settings-description]]
 // tag::inference-settings-description-tag[]
-You do not need to configure any settings to use the {infer} APIs. Each setting has a default set.
+You do not need to configure any settings to use the {infer} APIs. Each setting has a default.
 // end::inference-settings-description-tag[]
 
 [discrete]

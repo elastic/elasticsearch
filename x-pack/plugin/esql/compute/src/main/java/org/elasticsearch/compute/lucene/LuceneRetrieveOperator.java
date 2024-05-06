@@ -20,7 +20,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -30,6 +29,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -39,9 +39,9 @@ import java.util.function.Function;
 
 public class LuceneRetrieveOperator extends LuceneOperator {
     private final int limit;
-    private final List<Pair<Rescorer, Integer>> rescorers;
+    private final List<Tuple<Rescorer, Integer>> rescorers;
 
-    protected LuceneRetrieveOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue, int limit, List<Pair<Rescorer, Integer>> rescorers) {
+    protected LuceneRetrieveOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue, int limit, List<Tuple<Rescorer, Integer>> rescorers) {
         super(blockFactory, maxPageSize, sliceQueue);
         this.limit = limit;
         this.rescorers = rescorers; // TODO should this be moved to LuceneSliceQueue?
@@ -53,12 +53,12 @@ public class LuceneRetrieveOperator extends LuceneOperator {
         private final int maxPageSize;
         private final int limit;
         private final LuceneSliceQueue sliceQueue;
-        private final List<Pair<Rescorer, Integer>> rescorers;
+        private final List<Tuple<Rescorer, Integer>> rescorers;
 
         public Factory(
             List<? extends ShardContext> contexts,
             Function<ShardContext, Query> queryFunction,
-            List<Pair<Rescorer, Integer>> rescorers,
+            List<Tuple<Rescorer, Integer>> rescorers,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
@@ -180,9 +180,9 @@ public class LuceneRetrieveOperator extends LuceneOperator {
 
     private void runRescorersAndSetScoreDocs() {
         TopDocs topDocs = perShardCollector.topFieldCollector.topDocs();
-        for(Pair<Rescorer, Integer> rescorerConfig: rescorers) {
-            Rescorer rescorer = rescorerConfig.output1;
-            int windowSize = rescorerConfig.output2;
+        for(Tuple<Rescorer, Integer> rescorerConfig: rescorers) {
+            Rescorer rescorer = rescorerConfig.v1();
+            int windowSize = rescorerConfig.v2();
             try {
                 topDocs = rescorer.rescore(perShardCollector.shardContext.searcher(), topDocs, windowSize);
             } catch (IOException e) {
@@ -223,7 +223,7 @@ public class LuceneRetrieveOperator extends LuceneOperator {
             for (int i = start; i < offset; i++) {
                 int doc = scoreDocs[i].doc;
                 int segment = ReaderUtil.subIndex(doc, leafContexts);
-                float score = (float) ((FieldDoc) scoreDocs[i]).fields[0];
+                float score = getScore(scoreDocs[i]);
                 currentSegmentBuilder.appendInt(segment);
                 currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
                 currentScoresBuilder.appendDouble(score);
@@ -239,8 +239,18 @@ public class LuceneRetrieveOperator extends LuceneOperator {
                 Releasables.closeExpectNoException(shard, segments, docs, scores);
             }
         }
+
         pagesEmitted++;
         return page;
+    }
+
+    private float getScore(ScoreDoc scoreDoc) {
+        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+        if (Float.isNaN(fieldDoc.score)) {
+            return (float) fieldDoc.fields[0];
+        } else {
+            return fieldDoc.score;
+        }
     }
 
     static final class PerShardCollector {

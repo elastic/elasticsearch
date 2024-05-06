@@ -9,12 +9,12 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryRescorer;
 import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.Lucene;
@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -164,28 +165,67 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testWithSimpleMatch() throws IOException {
+        initMapping();
+        initIndex();
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        SearchExecutionContext sec = getSearchExecutionContext(ctx.searcher());
+
         testWithQuery(
-            QueryBuilders.matchQuery("stored_text", "time"),
+            QueryBuilders.matchQuery("stored_text", "time").toQuery(sec),
             new ArrayList<>(),
-            List.of("3", "4", "1", "2")
+            List.of("3", "4", "1", "2"),
+            ctx
+        );
+    }
+
+    public void testWithMatchAndRescore() throws IOException {
+        initMapping();
+        initIndex();
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        SearchExecutionContext sec = getSearchExecutionContext(ctx.searcher());
+
+        Query query = QueryBuilders.matchQuery("stored_text", "time wheel").toQuery(sec);
+        Rescorer firstRescorer = new QueryRescorer(query) {
+            @Override
+            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                return secondPassScore;
+            }
+        };
+
+        Rescorer secondRescorer = new QueryRescorer(query) {
+            @Override
+            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                // this will flip the order of the results
+                return 10000 - secondPassScore;
+            }
+        };
+
+        testWithQuery(
+            QueryBuilders.matchQuery("stored_text", "time").toQuery(sec),
+            List.of(
+                new Tuple<>(firstRescorer, 3),
+                new Tuple<>(secondRescorer, 2)
+            ),
+            List.of("1", "3"),
+            ctx
         );
     }
 
     private void testWithQuery(
-        AbstractQueryBuilder queryBuilder,
-        List<Pair<Rescorer, Integer>> rescorers,
-        List<String> expectedOrderedIds
+        Query query,
+        List<Tuple<Rescorer, Integer>> rescorers,
+        List<String> expectedOrderedIds,
+        ShardContext shardContext
     ) throws IOException {
-        initMapping();
-        initIndex();
         int size = 4;
         int limit = 100;
-        DriverContext ctx = driverContext();
+        DriverContext driverContext = driverContext();
         LuceneRetrieveOperator.Factory factory = getFactory(
+            shardContext,
             DataPartitioning.SHARD,
             10_000,
             100,
-            queryBuilder,
+            query,
             rescorers
         );
 
@@ -197,13 +237,13 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
                 ),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
             0
-        ).get(ctx);
+        ).get(driverContext);
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(op), new TestResultPageSinkOperator(results::add), () -> {})
+            new Driver(driverContext, factory.get(driverContext), List.of(op), new TestResultPageSinkOperator(results::add), () -> {})
         );
-        OperatorTestCase.assertDriverContext(ctx);
+        OperatorTestCase.assertDriverContext(driverContext);
 
         long expectedS = 0;
         double prevScore = Double.MAX_VALUE;
@@ -351,10 +391,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         );
     }
 
-    private LuceneRetrieveOperator.Factory getFactory(DataPartitioning dataPartitioning, int size, int limit, AbstractQueryBuilder queryBuilder, List<Pair<Rescorer, Integer>> rescorers) throws IOException {
-        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-        SearchExecutionContext sec = getSearchExecutionContext(ctx.searcher());
-        Query query = queryBuilder.toQuery(sec);
+    private LuceneRetrieveOperator.Factory getFactory(ShardContext ctx, DataPartitioning dataPartitioning, int size, int limit, Query query, List<Tuple<Rescorer, Integer>> rescorers) throws IOException {
         Function<ShardContext, Query> queryFunction = c -> query;
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));

@@ -234,18 +234,22 @@ public class EsqlDataTypeConverter {
         return DataTypeConverter.commonType(left, right);
     }
 
+    // generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
     public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws InvalidArgumentException,
         ArithmeticException, ParsingException {
         return switch (qualifier) {
-            case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
-            case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
-            case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
-            case "hour", "hours" -> Duration.ofHours(safeToLong(value));
+            case "nanosecond", "nanoseconds", "ns" -> Duration.ofNanos(safeToLong(value));
+            case "microsecond", "microseconds", "us" -> Duration.ofNanos(Math.multiplyExact(1000L, safeToLong(value)));
+            case "millisecond", "milliseconds", "ms" -> Duration.ofMillis(safeToLong(value));
+            case "second", "seconds", "sec", "s" -> Duration.ofSeconds(safeToLong(value));
+            case "minute", "minutes", "min" -> Duration.ofMinutes(safeToLong(value));
+            case "hour", "hours", "h" -> Duration.ofHours(safeToLong(value));
 
-            case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
+            case "day", "days", "d" -> Period.ofDays(safeToInt(safeToLong(value)));
             case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
-            case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
-            case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
+            case "month", "months", "mo" -> Period.ofMonths(safeToInt(safeToLong(value)));
+            case "quarter", "quarters" -> Period.ofMonths(safeToInt(Math.multiplyExact(3L, safeToLong(value))));
+            case "year", "years", "yr" -> Period.ofYears(safeToInt(safeToLong(value)));
 
             default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
         };

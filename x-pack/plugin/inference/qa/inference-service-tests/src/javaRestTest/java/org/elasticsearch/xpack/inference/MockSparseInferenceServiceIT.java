@@ -21,8 +21,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
             assertEquals(inferenceEntityId, modelMap.get("model_id"));
@@ -53,8 +52,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING).get(0);
 
         var serviceSettings = (Map<String, Object>) model.get("service_settings");
         assertNull(serviceSettings.get("api_key"));
@@ -69,8 +67,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService_DoesNotReturnHiddenField_InModelResponses() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
             assertEquals(inferenceEntityId, modelMap.get("model_id"));
@@ -88,8 +85,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService_DoesReturnHiddenField_InModelResponses() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(null, true), TaskType.SPARSE_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
             assertEquals(inferenceEntityId, modelMap.get("model_id"));

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -252,7 +251,6 @@ public class RolloverIT extends ESIntegTestCase {
         Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
 
         MockLogAppender appender = new MockLogAppender();
-        appender.start();
         appender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "no related message logged on dry run",
@@ -261,13 +259,11 @@ public class RolloverIT extends ESIntegTestCase {
                 "*test_index*"
             )
         );
-        Loggers.addAppender(allocationServiceLogger, appender);
-
-        final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias").dryRun(true).get();
-
-        appender.assertAllExpectationsMatched();
-        appender.stop();
-        Loggers.removeAppender(allocationServiceLogger, appender);
+        final RolloverResponse response;
+        try (var ignored = appender.capturing(AllocationService.class)) {
+            response = indicesAdmin().prepareRolloverIndex("test_alias").dryRun(true).get();
+            appender.assertAllExpectationsMatched();
+        }
 
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-000002"));

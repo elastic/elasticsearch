@@ -14,6 +14,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -55,8 +57,19 @@ $endif$
     @Override
     $Type$Vector asVector();
 
+$if(BytesRef)$
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+$endif$
+
     @Override
     $Type$Block filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
     $Type$Block expand();

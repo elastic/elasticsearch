@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -86,6 +87,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
@@ -122,6 +124,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -145,6 +148,7 @@ import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOS
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.safeAwait;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.noRoles;
@@ -2432,6 +2436,7 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
+            awaitIndexShardCloseAsyncTasks();
             // Checks that the breakers have been reset without incurring a
             // network request, because a network request can increment one
             // of the breakers
@@ -2509,6 +2514,7 @@ public final class InternalTestCluster extends TestCluster {
         assertRequestsFinished();
         assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
+        awaitIndexShardCloseAsyncTasks();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();
             Set<ShardId> shardIds = env.lockedShards();
@@ -2573,5 +2579,17 @@ public final class InternalTestCluster extends TestCluster {
                 throw new AssertionError("Failed to verify search contexts", e);
             }
         }
+    }
+
+    public void awaitIndexShardCloseAsyncTasks() {
+        // ES-8334 TODO build this wait into the relevant APIs (especially, delete-index and close-index)
+        final var latch = new CountDownLatch(1);
+        try (var refs = new RefCountingRunnable(latch::countDown)) {
+            for (final var nodeAndClient : nodes.values()) {
+                final var ref = refs.acquire();
+                getInstanceFromNode(IndicesClusterStateService.class, nodeAndClient.node()).onClusterStateShardsClosed(ref::close);
+            }
+        }
+        safeAwait(latch);
     }
 }

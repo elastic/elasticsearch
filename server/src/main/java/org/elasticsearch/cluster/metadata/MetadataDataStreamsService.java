@@ -41,12 +41,18 @@ public class MetadataDataStreamsService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
 
-    public MetadataDataStreamsService(ClusterService clusterService, IndicesService indicesService) {
+    public MetadataDataStreamsService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
+    ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.globalRetentionResolver = globalRetentionResolver;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
@@ -199,16 +205,20 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data streams have the data stream lifecycle provided.
      * Visible for testing.
      */
-    static ClusterState updateDataLifecycle(
-        ClusterState currentState,
-        List<String> dataStreamNames,
-        @Nullable DataStreamLifecycle lifecycle
-    ) {
+    ClusterState updateDataLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
+        boolean atLeastOneDataStreamIsNotSystem = false;
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
+            atLeastOneDataStreamIsNotSystem = atLeastOneDataStreamIsNotSystem || dataStream.isSystem() == false;
+        }
+        if (lifecycle != null) {
+            if (atLeastOneDataStreamIsNotSystem) {
+                // We don't issue any warnings if all data streams are system data streams
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
+            }
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }

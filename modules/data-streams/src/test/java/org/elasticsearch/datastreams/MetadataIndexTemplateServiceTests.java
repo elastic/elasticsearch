@@ -12,6 +12,8 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -213,7 +215,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
-            indexSettingProviders
+            indexSettingProviders,
+            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
         );
     }
 

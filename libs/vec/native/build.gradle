@@ -9,13 +9,19 @@ apply plugin: 'c'
 
 var os = org.gradle.internal.os.OperatingSystem.current()
 
-// To update this library run publish_vec_binaries.sh
+// To update this library run publish_vec_binaries.sh  ( or ./gradlew vecSharedLibrary )
 // Or
 // For local development, build the docker image with:
 //   docker build --platform linux/arm64 --progress=plain . (for aarch64)
 //   docker build --platform linux/amd64 --progress=plain . (for x64)
 // Grab the image id from the console output, then, e.g.
 //   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/libvec.so
+//
+// To run tests and benchmarks on a locally built libvec,
+//  1. Temporarily comment out the download in libs/native/library/build.gradle
+//       libs "org.elasticsearch:vec:${vecVersion}@zip"
+//  2. Copy your locally built libvec binary, e.g.
+//       cp libs/vec/native/build/libs/vec/shared/libvec.dylib libs/native/libraries/build/platform/darwin-aarch64/libvec.dylib
 //
 // Look at the disassemble:
 //  objdump --disassemble-symbols=_dot8s build/libs/vec/shared/libvec.dylib

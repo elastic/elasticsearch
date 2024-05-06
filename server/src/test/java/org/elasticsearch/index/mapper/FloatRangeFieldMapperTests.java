@@ -99,9 +99,9 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
     @Override
     protected TestRange<Float> randomRangeForSyntheticSourceTest() {
         var includeFrom = randomBoolean();
-        Float from = (float) randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        Float from = (float) randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE - Math.ulp(Float.MAX_VALUE), true);
         var includeTo = randomBoolean();
-        Float to = (float) randomDoubleBetween(from, Float.MAX_VALUE, false);
+        Float to = (float) randomDoubleBetween(from + Math.ulp(from), Float.MAX_VALUE, true);
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
     }

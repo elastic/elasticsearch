@@ -175,7 +175,7 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("maxPageSize=").append(maxPageSize);
+        sb.append("maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");
         return sb.toString();

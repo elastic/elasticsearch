@@ -428,13 +428,37 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings,
         boolean symmetric
     ) {
+        return forBinaryNotCasting(
+            name,
+            lhsName,
+            rhsName,
+            expected,
+            expectedType,
+            lhsSuppliers,
+            rhsSuppliers,
+            (lhs, rhs) -> warnings,
+            symmetric
+        );
+    }
+
+    public static List<TestCaseSupplier> forBinaryNotCasting(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Object> expected,
+        DataType expectedType,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean symmetric
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         casesCrossProduct(
             expected,
             lhsSuppliers,
             rhsSuppliers,
             (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
-            (lhs, rhs) -> warnings,
+            warnings,
             suppliers,
             expectedType,
             symmetric
@@ -969,6 +993,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 "<far future date>",
                 // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
+                DataTypes.DATETIME
+            ),
+            new TypedDataSupplier(
+                "<near the end of time>",
+                // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
+                () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
                 DataTypes.DATETIME
             )
         );

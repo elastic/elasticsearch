@@ -118,7 +118,6 @@ from multiple sub-retrievers.
 [[retrievers-overview-play-in-search]]
 === Retrievers in action
 
-//Playground will be renamed
 
 The Search [Playground], builds Elasticsearch queries using the retriever abstraction.
 It automatically detects the fields and types in your index and builds a retriever tree based on your selections.

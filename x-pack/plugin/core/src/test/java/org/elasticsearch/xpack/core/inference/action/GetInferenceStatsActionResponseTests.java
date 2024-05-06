@@ -23,7 +23,7 @@ import java.util.List;
 public class GetInferenceStatsActionResponseTests extends AbstractWireSerializingTestCase<GetInferenceStatsAction.Response> {
 
     public static GetInferenceStatsAction.Response createRandom() {
-        List<GetInferenceStatsAction.NodeResponse> responses = randomList(1, 10, GetInferenceStatsActionNodeResponseTests::createRandom);
+        List<GetInferenceStatsAction.NodeResponse> responses = randomList(2, 10, GetInferenceStatsActionNodeResponseTests::createRandom);
         return new GetInferenceStatsAction.Response(ClusterName.DEFAULT, responses, List.of());
     }
 

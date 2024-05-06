@@ -104,6 +104,11 @@ class OptimizerRules {
                 // But they are not actually referring to attributes from the input plan - only the match field does.
                 return enrich.matchField().references();
             }
+            if (plan instanceof RegexExtract re) {
+                // Similarly as for Enrich: the extractedFields are Aliases for ReferenceAttributes, which are in turn created by the
+                // RegexExtract node.
+                return re.input().references();
+            }
             return super.references(plan);
         }
 
@@ -120,7 +125,7 @@ class OptimizerRules {
                 return new AttributeSet(Expressions.asAttributes(eval.fields()));
             }
             if (logicalPlan instanceof RegexExtract extract) {
-                return new AttributeSet(extract.extractedFields());
+                return new AttributeSet(Expressions.asAttributes(extract.extractedFields()));
             }
             if (logicalPlan instanceof MvExpand mvExpand) {
                 return new AttributeSet(mvExpand.expanded());

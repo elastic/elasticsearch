@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
@@ -39,7 +39,7 @@ public class Dissect extends RegexExtract {
         }
     }
 
-    public Dissect(Source source, LogicalPlan child, Expression input, Parser parser, List<Attribute> extracted) {
+    public Dissect(Source source, LogicalPlan child, Expression input, Parser parser, List<Alias> extracted) {
         super(source, child, input, extracted);
         this.parser = parser;
     }

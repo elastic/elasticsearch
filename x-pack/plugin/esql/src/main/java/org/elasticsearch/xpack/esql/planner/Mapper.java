@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
@@ -137,11 +138,17 @@ public class Mapper {
         }
 
         if (p instanceof Dissect dissect) {
-            return new DissectExec(dissect.source(), child, dissect.input(), dissect.parser(), dissect.extractedFields());
+            return new DissectExec(
+                dissect.source(),
+                child,
+                dissect.input(),
+                dissect.parser(),
+                Expressions.asAttributes(dissect.extractedFields())
+            );
         }
 
         if (p instanceof Grok grok) {
-            return new GrokExec(grok.source(), child, grok.input(), grok.parser(), grok.extractedFields());
+            return new GrokExec(grok.source(), child, grok.input(), grok.parser(), Expressions.asAttributes(grok.extractedFields()));
         }
 
         if (p instanceof Enrich enrich) {

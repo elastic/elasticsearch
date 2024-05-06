@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -20,9 +21,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 public abstract class RegexExtract extends UnaryPlan {
     protected final Expression input;
-    protected final List<Attribute> extractedFields;
+    protected final List<Alias> extractedFields;
 
-    protected RegexExtract(Source source, LogicalPlan child, Expression input, List<Attribute> extracted) {
+    protected RegexExtract(Source source, LogicalPlan child, Expression input, List<Alias> extracted) {
         super(source, child);
         this.input = input;
         this.extractedFields = extracted;
@@ -42,7 +43,7 @@ public abstract class RegexExtract extends UnaryPlan {
         return input;
     }
 
-    public List<Attribute> extractedFields() {
+    public List<Alias> extractedFields() {
         return extractedFields;
     }
 

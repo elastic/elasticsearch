@@ -31,6 +31,7 @@ public class Enrich extends UnaryPlan {
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
     private final Map<String, String> concreteIndices; // cluster -> enrich indices
+    // This could be simplified by just always using an Alias.
     private final List<NamedExpression> enrichFields;
     private List<Attribute> output;
 

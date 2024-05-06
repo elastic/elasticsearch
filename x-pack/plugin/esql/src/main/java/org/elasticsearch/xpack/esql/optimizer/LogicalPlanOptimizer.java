@@ -968,7 +968,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
         @Override
         protected LogicalPlan rule(RegexExtract re) {
-            return pushGeneratingPlanPastProjectAndOrderBy(re, re.extractedFields());
+            return pushGeneratingPlanPastProjectAndOrderBy(re, asAttributes(re.extractedFields()));
         }
     }
 

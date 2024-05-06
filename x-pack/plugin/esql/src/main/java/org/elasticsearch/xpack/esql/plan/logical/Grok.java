@@ -15,6 +15,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -34,12 +35,18 @@ public class Grok extends RegexExtract {
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
 
-        private List<Attribute> extractedFields() {
+        private List<Alias> extractedFields() {
             return grok.captureConfig()
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), EsqlDataTypes.widenSmallNumericTypes(toDataType(x.type()))))
+                .map(
+                    x -> new Alias(
+                        Source.EMPTY,
+                        x.name(),
+                        new ReferenceAttribute(Source.EMPTY, x.name(), EsqlDataTypes.widenSmallNumericTypes(toDataType(x.type())))
+                    )
+                )
                 .collect(Collectors.toList());
         }
 
@@ -86,7 +93,7 @@ public class Grok extends RegexExtract {
         this(source, child, inputExpression, parser, parser.extractedFields());
     }
 
-    public Grok(Source source, LogicalPlan child, Expression inputExpr, Parser parser, List<Attribute> extracted) {
+    public Grok(Source source, LogicalPlan child, Expression inputExpr, Parser parser, List<Alias> extracted) {
         super(source, child, inputExpr, extracted);
         this.parser = parser;
 

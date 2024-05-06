@@ -779,7 +779,8 @@ public final class PlanNamedTypes {
     }
 
     static Dissect readDissect(PlanStreamInput in) throws IOException {
-        return new Dissect(in.readSource(), in.readLogicalPlanNode(), in.readExpression(), readDissectParser(in), readAttributes(in));
+        // TODO: needs new transport version
+        return new Dissect(in.readSource(), in.readLogicalPlanNode(), in.readExpression(), readDissectParser(in), readAliases(in));
     }
 
     static void writeDissect(PlanStreamOutput out, Dissect dissect) throws IOException {
@@ -787,7 +788,8 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(dissect.child());
         out.writeExpression(dissect.input());
         writeDissectParser(out, dissect.parser());
-        writeAttributes(out, dissect.extractedFields());
+        // TODO: needs new transport version
+        writeAliases(out, dissect.extractedFields());
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
@@ -903,7 +905,8 @@ public final class PlanNamedTypes {
             in.readLogicalPlanNode(),
             in.readExpression(),
             Grok.pattern(source, in.readString()),
-            readAttributes(in)
+            // TODO: needs new transport version
+            readAliases(in)
         );
     }
 
@@ -912,7 +915,8 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(grok.child());
         out.writeExpression(grok.input());
         out.writeString(grok.parser().pattern());
-        writeAttributes(out, grok.extractedFields());
+        // TODO: needs new transport version
+        writeAliases(out, grok.extractedFields());
     }
 
     static Limit readLimit(PlanStreamInput in) throws IOException {

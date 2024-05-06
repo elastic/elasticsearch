@@ -56,6 +56,11 @@ public interface IndexEventListener {
     default void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
     /**
+     * Called after the index shard has been marked closed. It could still be waiting for the async close of the engine.
+     */
+    default void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
+
+    /**
      * Called after the index shard has been closed.
      *
      * @param shardId The shard id

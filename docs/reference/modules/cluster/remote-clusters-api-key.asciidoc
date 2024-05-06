@@ -1,8 +1,6 @@
 [[remote-clusters-api-key]]
 === Add remote clusters using API key authentication
 
-beta::[]
-
 API key authentication enables a local cluster to authenticate itself with a
 remote cluster via a <<security-api-create-cross-cluster-api-key,cross-cluster
 API key>>. The API key needs to be created by an administrator of the remote

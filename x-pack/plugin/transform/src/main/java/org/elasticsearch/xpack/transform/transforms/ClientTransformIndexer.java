@@ -475,6 +475,7 @@ class ClientTransformIndexer extends TransformIndexer {
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
+        // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
         if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
             listener.onResponse(namedSearchRequest);
             return;

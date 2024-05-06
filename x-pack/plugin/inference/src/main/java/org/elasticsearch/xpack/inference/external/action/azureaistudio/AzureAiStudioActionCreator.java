@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.azureaistudio;
 
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioEmbeddingsRequestManager;

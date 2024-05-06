@@ -21,10 +21,10 @@ import java.util.Objects;
 /**
  * Base class for Azure AI Studio models. There are some common properties across the task types
  * including:
- *   - target:
- *   - uri:
- *   - provider:
- *   - endpointType:
+ * - target:
+ * - uri:
+ * - provider:
+ * - endpointType:
  */
 public abstract class AzureAiStudioModel extends Model {
     protected String target;
@@ -53,6 +53,7 @@ public abstract class AzureAiStudioModel extends Model {
         this.target = serviceSettings.target;
         this.provider = serviceSettings.provider();
         this.endpointType = serviceSettings.endpointType();
+        this.rateLimitSettings = serviceSettings.rateLimitSettings();
         try {
             this.uri = getEndpointUri();
         } catch (URISyntaxException e) {

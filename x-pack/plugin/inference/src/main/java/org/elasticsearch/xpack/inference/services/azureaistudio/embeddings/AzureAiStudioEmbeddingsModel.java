@@ -25,8 +25,6 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 
 public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
 
-    // TODO -- add dimensions, dims set by user
-
     public static AzureAiStudioEmbeddingsModel of(AzureAiStudioEmbeddingsModel model, Map<String, Object> taskSettings) {
         if (taskSettings == null || taskSettings.isEmpty()) {
             return model;

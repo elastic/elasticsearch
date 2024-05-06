@@ -15,5 +15,6 @@ import java.util.Map;
 
 public interface AzureAiStudioActionVisitor {
     ExecutableAction create(AzureAiStudioEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings);
+
     ExecutableAction create(AzureAiStudioCompletionModel completionModel, Map<String, Object> taskSettings);
 }

@@ -61,7 +61,6 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
 
         Boolean dimensionsSetByUser = extractOptionalBoolean(
             map,
@@ -87,7 +86,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
                 }
             }
         }
-        return new AzureAiStudioEmbeddingCommonFields(baseSettings, dims, dimensionsSetByUser, maxTokens, similarity, rateLimitSettings);
+        return new AzureAiStudioEmbeddingCommonFields(baseSettings, dims, dimensionsSetByUser, maxTokens, similarity);
     }
 
     private record AzureAiStudioEmbeddingCommonFields(
@@ -95,9 +94,8 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
-        SimilarityMeasure similarity,
-        RateLimitSettings rateLimitSettings) {
-    }
+        SimilarityMeasure similarity
+    ) {}
 
     public AzureAiStudioEmbeddingsServiceSettings(
         String target,
@@ -114,7 +112,6 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         this.dimensionsSetByUser = dimensionsSetByUser;
         this.maxInputTokens = maxInputTokens;
         this.similarity = similarity;
-        this.rateLimitSettings = rateLimitSettings;
     }
 
     public AzureAiStudioEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -123,12 +120,6 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         this.dimensionsSetByUser = in.readBoolean();
         this.maxInputTokens = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
     }
 
     private AzureAiStudioEmbeddingsServiceSettings(AzureAiStudioEmbeddingCommonFields fields) {
@@ -148,7 +139,6 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     private final Boolean dimensionsSetByUser;
     private final Integer maxInputTokens;
     private final SimilarityMeasure similarity;
-    private final RateLimitSettings rateLimitSettings;
 
     @Override
     public SimilarityMeasure similarity() {
@@ -184,9 +174,6 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(similarity);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings.writeTo(out);
-        }
     }
 
     private void addXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
@@ -199,12 +186,11 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
-        rateLimitSettings.toXContent(builder, params);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        builder.startObject();
 
         super.addXContentFields(builder, params);
         addXContentFragmentOfExposedFields(builder, params);

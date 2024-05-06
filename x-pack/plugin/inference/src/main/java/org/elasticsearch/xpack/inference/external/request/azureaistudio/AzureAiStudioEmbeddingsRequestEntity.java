@@ -37,7 +37,7 @@ public class AzureAiStudioEmbeddingsRequestEntity implements ToXContentObject {
             builder.array("input", inputs);
         }
 
-        var taskUser = this.model.getTaskSettings().getUser();
+        var taskUser = this.model.getTaskSettings().user();
         if (taskUser != null) {
             builder.field(USER_FIELD, taskUser);
         }

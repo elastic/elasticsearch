@@ -34,7 +34,7 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
     protected final String target;
     protected final AzureAiStudioProvider provider;
     protected final AzureAiStudioEndpointType endpointType;
-    private final RateLimitSettings rateLimitSettings;
+    protected final RateLimitSettings rateLimitSettings;
 
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
 

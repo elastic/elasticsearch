@@ -56,7 +56,9 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
 
     private static ResponseHandler createEmbeddingsHandler() {
         return new ExternalResponseHandler(
-            "azure ai studio text embedding", new AzureAiStudioEmbeddingsResponseEntity(), ErrorResponseEntity::fromResponse
+            "azure ai studio text embedding",
+            new AzureAiStudioEmbeddingsResponseEntity(),
+            ErrorResponseEntity::fromResponse
         );
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.USER_FIELD;
@@ -64,7 +65,7 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
 
     private final String user;
 
-    public String getUser() {
+    public String user() {
         return this.user;
     }
 
@@ -91,5 +92,18 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AzureAiStudioEmbeddingsTaskSettings that = (AzureAiStudioEmbeddingsTaskSettings) o;
+        return Objects.equals(user, that.user);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(user);
     }
 }

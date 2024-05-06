@@ -18,19 +18,22 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
+import co.elastic.elasticsearch.stateless.TestStateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
@@ -47,14 +50,17 @@ import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -62,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExis
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -72,7 +79,11 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
+        final var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(TestStateless.class);
+        plugins.add(StatelessMockRepositoryPlugin.class);
+        return List.copyOf(plugins);
     }
 
     @Override
@@ -123,6 +134,55 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             final Set<String> blobFileNames = blobContainer.listBlobs(OperationPurpose.INDICES).keySet();
             assertThat(blobFileNames, equalTo(Set.of(StatelessCompoundCommit.blobNameFromGeneration(generation))));
         });
+    }
+
+    public void testFlushAfterRelocationWillThrowOnlyExpectedError() throws Exception {
+        startMasterOnlyNode();
+        final String oldIndexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final IndexShard indexShard = findIndexShard(indexName);
+        final IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var statelessCommitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
+        final CyclicBarrier afterRelocatedBarrier = new CyclicBarrier(2);
+        statelessCommitService.setStrategy(new TestStatelessCommitService.Strategy() {
+            @Override
+            public ActionListener<Void> markRelocating(
+                Supplier<ActionListener<Void>> originalSupplier,
+                ShardId shardId,
+                long minRelocatedGeneration,
+                ActionListener<Void> listener
+            ) {
+                return originalSupplier.get().delegateFailure((l, ignore) -> {
+                    l.onResponse(null); // mark relocated
+                    safeAwait(afterRelocatedBarrier);
+                    safeAwait(afterRelocatedBarrier);
+                });
+            }
+        });
+
+        logger.info("--> indexing docs and refresh");
+        indexDocsAndRefresh(indexName, 10);
+        indexDocs(indexName, 1);
+
+        final String newIndexNode = startIndexNode();
+        logger.info("--> relocating index shard into {}", newIndexNode);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newIndexNode), indexName);
+
+        safeAwait(afterRelocatedBarrier);
+        logger.info("--> old primary relocated, starting post relocation flush");
+        try {
+            for (int i = 0; i < 2; i++) {
+                final var e = expectThrows(UnavailableShardsException.class, () -> indexEngine.flush(true, true));
+                assertThat(e.getMessage(), containsString("shard relocated"));
+            }
+        } finally {
+            safeAwait(afterRelocatedBarrier);
+        }
     }
 
     public void testDefaultToNotifyOnlyForUpload() {

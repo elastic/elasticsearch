@@ -76,6 +76,18 @@ public final class ConstantNullVector extends AbstractVector implements BooleanV
     }
 
     @Override
+    public int min() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public int max() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }

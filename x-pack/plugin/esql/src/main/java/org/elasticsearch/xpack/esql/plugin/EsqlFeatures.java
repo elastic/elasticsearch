@@ -110,6 +110,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode");
 
+    /**
+     * Support for metadata fields.
+     */
+    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -126,7 +131,8 @@ public class EsqlFeatures implements FeatureSpecification {
             ST_INTERSECTS,
             ST_CONTAINS_WITHIN,
             ST_DISJOINT,
-            STRING_LITERAL_AUTO_CASTING
+            STRING_LITERAL_AUTO_CASTING,
+            METADATA_FIELDS
         );
     }
 

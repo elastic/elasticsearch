@@ -1,0 +1,7 @@
+[[semantic-search-semantic-text]]
+=== Tutorial: semantic search with `semantic_text`
+++++
+<titleabbrev>Semantic search with `semantic_text`</titleabbrev>
+++++
+
+

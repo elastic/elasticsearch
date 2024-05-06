@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -39,7 +40,6 @@ public final class Mapping implements ToXContentFragment {
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
     private final MetadataFieldMapper[] metadataMappers;
-    private final DocCountFieldMapper docCountFieldMapper;
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
@@ -47,14 +47,6 @@ public final class Mapping implements ToXContentFragment {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
-        DocCountFieldMapper docCountFieldMapper = null;
-        for (MetadataFieldMapper mappers : metadataMappers) {
-            if (mappers.syntheticFieldLoader() != SourceLoader.SyntheticFieldLoader.NOTHING) {
-                assert docCountFieldMapper == null;
-                docCountFieldMapper = (DocCountFieldMapper) mappers;
-            }
-        }
-        this.docCountFieldMapper = docCountFieldMapper;
         Map.Entry<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>[] metadataMappersMap = new Map.Entry[metadataMappers.length];
         Map.Entry<String, MetadataFieldMapper>[] metadataMappersByName = new Map.Entry[metadataMappers.length];
         for (int i = 0; i < metadataMappers.length; i++) {
@@ -134,7 +126,8 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return root.syntheticFieldLoader(docCountFieldMapper);
+        var stream = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream());
+        return root.syntheticFieldLoader(stream);
     }
 
     /**

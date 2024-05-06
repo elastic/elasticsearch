@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -713,39 +712,17 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(DocCountFieldMapper docCountFieldMapper) {
-        record Tuple(String fieldName, SourceLoader.SyntheticFieldLoader loader) {}
-        int size = this.mappers.size();
-        if (docCountFieldMapper != null) {
-            size++;
-        }
-        List<Tuple> mappers = new ArrayList<>(size);
-        for (var mapper : this.mappers.values()) {
-            var syntheticFieldLoader = mapper.syntheticFieldLoader();
-            if (syntheticFieldLoader != SourceLoader.SyntheticFieldLoader.NOTHING) {
-                mappers.add(new Tuple(mapper.name(), syntheticFieldLoader));
-            }
-        }
-        if (docCountFieldMapper != null) {
-            mappers.add(new Tuple(docCountFieldMapper.name(), docCountFieldMapper.syntheticFieldLoader()));
-        }
-        mappers.sort(Comparator.comparing(Tuple::fieldName));
-        return new SyntheticSourceFieldLoader(new AbstractList<>() {
-            @Override
-            public SourceLoader.SyntheticFieldLoader get(int index) {
-                return mappers.get(index).loader;
-            }
-
-            @Override
-            public int size() {
-                return mappers.size();
-            }
-        });
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers) {
+        var fields = mappers.sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
+            .toList();
+        return new SyntheticSourceFieldLoader(fields);
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(null);
+        return syntheticFieldLoader(mappers.values().stream());
     }
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {

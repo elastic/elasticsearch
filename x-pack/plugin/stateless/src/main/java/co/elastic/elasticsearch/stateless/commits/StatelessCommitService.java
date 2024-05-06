@@ -1157,12 +1157,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert commitPrimaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
             assert commitPrimaryTermAndGeneration.generation() == reference.getGeneration();
 
+            Set<PrimaryTermAndGeneration> referencedBCCs = new HashSet<>(
+                BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
+            );
+
+            // todo: ES-7654 proper generational file tracking.
+            for (Map.Entry<String, BlobLocation> entry : statelessCompoundCommit.commitFiles().entrySet()) {
+                if (isGenerationalFile(entry.getKey()) && reference.getAdditionalFiles().contains(entry.getKey()) == false) {
+                    CommitAndBlobLocation commitAndBlobLocation = blobLocations.get(entry.getKey());
+                    if (commitAndBlobLocation != null) {
+                        referencedBCCs.add(commitAndBlobLocation.blobReference.getPrimaryTermAndGeneration());
+                    }
+                }
+            }
             var previousCommitReferencesInfo = commitReferencesInfos.put(
                 commitPrimaryTermAndGeneration,
-                new CommitReferencesInfo(
-                    currentVirtualBcc.getPrimaryTermAndGeneration(),
-                    BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
-                )
+                new CommitReferencesInfo(currentVirtualBcc.getPrimaryTermAndGeneration(), Collections.unmodifiableSet(referencedBCCs))
             );
 
             assert previousCommitReferencesInfo == null
@@ -1292,6 +1302,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 final BlobLocation blobLocation = virtualBcc.getBlobLocation(fileName);
                 blobLocations.compute(fileName, (ignored, existing) -> {
                     if (existing == null) {
+                        logger.trace("registering [{}]->[{}}]", fileName, blobReference.primaryTermAndGeneration);
                         return new CommitAndBlobLocation(blobReference, blobLocation);
                     } else {
                         // For copied generational files, we update its blobLocation but keep the original blobReference unchanged
@@ -1299,6 +1310,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         assert isGenerationalFile(fileName)
                             && existing.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
                             : fileName + ':' + existing + ':' + blobLocation;
+                        logger.trace(
+                            "re-registering [{}]->[{}}] to ignored [{}] but location [{}]",
+                            fileName,
+                            existing.blobReference.primaryTermAndGeneration,
+                            blobReference.primaryTermAndGeneration,
+                            blobLocation
+                        );
                         return new CommitAndBlobLocation(existing.blobReference, blobLocation);
                     }
                 });
@@ -2211,7 +2229,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     });
                     if (previousSearchNodes != null && previousSearchNodes.isEmpty()) {
                         assert searchNodesRef.get() == null;
-                        logger.trace(() -> Strings.format("[%s] closing external readers", shardId));
+                        logger.trace(() -> Strings.format("[%s] closing external readers [%s]", shardId, primaryTermAndGeneration));
                         decRef();
                     }
                 }
@@ -2285,8 +2303,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             assert isGenerationalFile(file) : file;
                             assert released.primaryTermAndGeneration.generation() < existing.primaryTermAndGeneration.generation()
                                 : fileName + ':' + released + " vs " + existing;
+                            logger.trace(
+                                "not removing [{}] -> [{}] in [{}]",
+                                fileName,
+                                existing.primaryTermAndGeneration,
+                                released.primaryTermAndGeneration
+                            );
                             return commitAndBlobLocation;
                         }
+                        logger.trace("removing [{}] -> [{}]", fileName, released.primaryTermAndGeneration);
                         return null;
                     });
                 });

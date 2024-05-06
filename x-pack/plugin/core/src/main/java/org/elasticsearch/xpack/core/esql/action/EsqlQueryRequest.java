@@ -21,6 +21,9 @@ public abstract class EsqlQueryRequest extends ActionRequest {
         super(in);
     }
 
+    // Use the unparsed version String, so we don't have to serialize a version object.
+    public abstract String esqlVersion();
+
     public abstract String query();
 
     public abstract QueryBuilder filter();

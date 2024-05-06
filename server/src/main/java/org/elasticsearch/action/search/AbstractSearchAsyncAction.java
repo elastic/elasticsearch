@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -661,7 +662,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
         String scrollId,
-        String searchContextId
+        BytesReference searchContextId
     ) {
         int numSuccess = successfulOps.get();
         int numFailures = failures.length;
@@ -693,7 +694,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-            final String searchContextId;
+            final BytesReference searchContextId;
             if (buildPointInTimeFromSearchResults()) {
                 searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion);
             } else {
@@ -769,8 +770,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         listener.onFailure(e);
     }
 
-    @Override
-    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
+    /**
+     * Builds an request for the initial search phase.
+     *
+     * @param shardIt the target {@link SearchShardIterator}
+     * @param shardIndex the index of the shard that is used in the coordinator node to
+     *                   tiebreak results with identical sort values
+     */
+    protected final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);

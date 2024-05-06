@@ -1282,7 +1282,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                assertFalse(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
+                assertTrue(service.getRemoteClusterService().isSkipUnavailable("cluster1"));
 
                 if (randomBoolean()) {
                     updateSkipUnavailable(service.getRemoteClusterService(), "cluster1", false);

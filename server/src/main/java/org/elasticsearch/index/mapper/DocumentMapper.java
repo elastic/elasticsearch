@@ -125,7 +125,7 @@ public class DocumentMapper {
                 // object type is not allowed in the routing paths
                 if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
-                        "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        "All fields that match routing_path must be configured with [time_series_dimension: true] "
                             + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                             + "and without the [script] parameter. ["
                             + objectName

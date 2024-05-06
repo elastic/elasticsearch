@@ -768,6 +768,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      */
     public void relocated(
+        final String targetNodeId,
         final String targetAllocationId,
         final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
         final ActionListener<Void> listener
@@ -788,7 +789,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                          * context via a network operation. Doing this under the mutex can implicitly block the cluster state update thread
                          * on network operations.
                          */
-                        verifyRelocatingState();
+                        verifyRelocatingState(targetNodeId);
                         final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(
                             targetAllocationId
                         );
@@ -803,7 +804,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 try {
                                     // make changes to primaryMode and relocated flag only under mutex
                                     synchronized (mutex) {
-                                        verifyRelocatingState();
+                                        verifyRelocatingState(targetNodeId);
                                         replicationTracker.completeRelocationHandoff();
                                     }
                                     wrappedInnerListener.onResponse(null);
@@ -857,7 +858,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private void verifyRelocatingState() {
+    private void verifyRelocatingState(String targetNodeId) {
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
         }
@@ -869,6 +870,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (shardRouting.relocating() == false) {
             throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED, ": shard is no longer relocating " + shardRouting);
+        }
+
+        if (Objects.equals(targetNodeId, shardRouting.relocatingNodeId()) == false) {
+            throw new IllegalIndexShardStateException(
+                shardId,
+                IndexShardState.STARTED,
+                ": shard is no longer relocating to node [" + targetNodeId + "]: " + shardRouting
+            );
         }
 
         if (primaryReplicaResyncInProgress.get()) {
@@ -1332,7 +1341,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        return new FlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
+        return new FlushStats(
+            flushMetric.count(),
+            periodicFlushMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
+            getEngineOrNull() != null ? getEngineOrNull().getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
+        );
     }
 
     public DocsStats docStats() {
@@ -1729,7 +1743,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     }
 
-    public void close(String reason, boolean flushEngine) throws IOException {
+    public void close(String reason, boolean flushEngine, Executor closeExecutor, ActionListener<Void> closeListener) throws IOException {
         synchronized (engineMutex) {
             try {
                 synchronized (mutex) {
@@ -1738,16 +1752,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 checkAndCallWaitForEngineOrClosedShardListeners();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
-                try {
-                    if (engine != null && flushEngine) {
-                        engine.flushAndClose();
+                closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
+                    @Override
+                    public void run() throws Exception {
+                        try {
+                            if (engine != null && flushEngine) {
+                                engine.flushAndClose();
+                            }
+                        } finally {
+                            // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                            // Also closing refreshListeners to prevent us from accumulating any more listeners
+                            IOUtils.close(
+                                engine,
+                                globalCheckpointListeners,
+                                refreshListeners,
+                                pendingReplicationActions,
+                                indexShardOperationPermits
+                            );
+                        }
                     }
-                } finally {
-                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
-                    indexShardOperationPermits.close();
-                }
+
+                    @Override
+                    public String toString() {
+                        return "IndexShard#close[" + shardId + "]";
+                    }
+                }));
             }
         }
     }
@@ -2585,6 +2614,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public List<Segment> segments() {
         return getEngine().segments();
+    }
+
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        return getEngine().segments(includeVectorFormatsInfo);
     }
 
     public String getHistoryUUID() {

@@ -73,10 +73,8 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
     private final int[] offsets;
     // The entire normalized bytes representations delimited by NULL
     private final byte[] normalizedStrUtf8Bytes;
-    // Continually reused to copy a single char into utf8 bytes
-    private final byte[] reusableCharByteBuffer = new byte[4];
     // reusable char buffer for decoding utf8 bytes to determine char offset corrections
-    private final char[] reusableCharDecodeBuffer = new char[8];
+    private final char[] reusableCharDecodeBuffer = new char[64];
     private Reader transformedInput;
 
     public PrecompiledCharMapNormalizer(int[] offsets, String normalizedStr, Reader in) {
@@ -172,7 +170,6 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
         ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(str));
         byte[] strBytes = new byte[byteBuffer.limit()];
         byteBuffer.get(strBytes);
-        int[] strCp = str.codePoints().toArray();
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
         // We iterate the whole string, so b.first() is always `0`

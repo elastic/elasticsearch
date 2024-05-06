@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
@@ -71,8 +72,8 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -103,7 +104,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of(new GeoPoint(45.0, 45.0), new GeoPoint(0.0, 0.0))));
+                assertThat(results, containsInAnyOrder(new GeoPoint(45.0, 45.0), new GeoPoint(0.0, 0.0)));
             }
         }
     }
@@ -117,7 +118,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     public void testFetch() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("""
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("""
                 {"foo": {"lat": 45.0, "lon" : 45.0}}"""))));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -138,8 +139,8 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -167,8 +168,8 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(2));

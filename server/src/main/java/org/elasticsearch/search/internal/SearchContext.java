@@ -41,7 +41,7 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -122,8 +122,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract void addSearchExt(SearchExtBuilder searchExtBuilder);
-
     public abstract SearchExtBuilder getSearchExt(String name);
 
     public abstract SearchHighlightContext highlight();
@@ -139,11 +137,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SuggestionSearchContext suggest();
 
-    public abstract void suggest(SuggestionSearchContext suggest);
+    public abstract QueryPhaseRankShardContext queryPhaseRankShardContext();
 
-    public abstract RankShardContext rankShardContext();
-
-    public abstract void rankShardContext(RankShardContext rankShardContext);
+    public abstract void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext);
 
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
@@ -217,8 +213,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract TimeValue timeout();
 
-    public abstract void timeout(TimeValue timeout);
-
     public abstract int terminateAfter();
 
     public abstract void terminateAfter(int terminateAfter);
@@ -254,8 +248,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 
     public abstract FieldDoc searchAfter();
-
-    public abstract SearchContext collapse(CollapseContext collapse);
 
     public abstract CollapseContext collapse();
 
@@ -309,8 +301,6 @@ public abstract class SearchContext implements Releasable {
 
     @Nullable
     public abstract List<String> groupStats();
-
-    public abstract void groupStats(List<String> groupStats);
 
     public abstract boolean version();
 

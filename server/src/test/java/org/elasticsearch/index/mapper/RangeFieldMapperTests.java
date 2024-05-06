@@ -8,14 +8,25 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -23,9 +34,12 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class RangeFieldMapperTests extends MapperTestCase {
+
+    protected static final String DATE_FORMAT = "uuuu-MM-dd HH:mm:ss.SSS||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis";
 
     @Override
     protected boolean supportsSearchLookup() {
@@ -241,6 +255,154 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         // val, null -> val, max
         assertNullBounds(b -> b.startObject("field").field("gte", val).nullField("lte").endObject(), false, true);
     }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeTrue("test setup only supports numeric ranges", rangeType().isNumeric());
+
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                if (randomBoolean()) {
+                    var range = randomRangeForSyntheticSourceTest();
+                    return new SyntheticSourceExample(range.toInput(), range.toExpectedSyntheticSource(), this::mapping);
+                }
+
+                var values = randomList(1, maxValues, () -> randomRangeForSyntheticSourceTest());
+                List<Object> in = values.stream().map(TestRange::toInput).toList();
+                List<Object> outList = values.stream().sorted(Comparator.naturalOrder()).map(TestRange::toExpectedSyntheticSource).toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", rangeType().name);
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", false);
+                }
+                if (rangeType() == RangeType.DATE) {
+                    b.field("format", DATE_FORMAT);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo(
+                            String.format(
+                                Locale.ROOT,
+                                "field [field] of type [%s] doesn't support synthetic source because it doesn't have doc values",
+                                rangeType().name
+                            )
+                        ),
+                        b -> b.field("type", rangeType().name).field("doc_values", false)
+                    )
+                );
+            }
+        };
+    }
+
+    /**
+     * Stores range information as if it was provided by user.
+     * Provides an expected value of provided range in synthetic source.
+     * @param <T>
+     */
+    protected class TestRange<T extends Comparable<T>> implements Comparable<TestRange<T>> {
+        private final RangeType type;
+        private final T from;
+        private final T to;
+        private final boolean includeFrom;
+        private final boolean includeTo;
+
+        public TestRange(RangeType type, T from, T to, boolean includeFrom, boolean includeTo) {
+            this.type = type;
+            this.from = from;
+            this.to = to;
+            this.includeFrom = includeFrom;
+            this.includeTo = includeTo;
+        }
+
+        Object toInput() {
+            var fromKey = includeFrom ? "gte" : "gt";
+            var toKey = includeTo ? "lte" : "lt";
+
+            return (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
+        }
+
+        Object toExpectedSyntheticSource() {
+            // When ranges are stored, they are always normalized to include both ends.
+            // Also, "to" field always comes first.
+            Map<String, Object> output = new LinkedHashMap<>();
+
+            var fromWithDefaults = from != null ? from : rangeType().minValue();
+            if (includeFrom) {
+                output.put("gte", fromWithDefaults);
+            } else {
+                output.put("gte", type.nextUp(fromWithDefaults));
+            }
+
+            var toWithDefaults = to != null ? to : rangeType().maxValue();
+            if (includeTo) {
+                output.put("lte", toWithDefaults);
+            } else {
+                output.put("lte", type.nextDown(toWithDefaults));
+            }
+
+            return output;
+        }
+
+        @Override
+        public int compareTo(TestRange<T> o) {
+            return Comparator.comparing((TestRange<T> r) -> r.from, Comparator.nullsFirst(Comparator.naturalOrder()))
+                // `> a` is converted into `>= a + 1` and so included range end will be smaller in resulting source
+                .thenComparing(r -> r.includeFrom, Comparator.reverseOrder())
+                .thenComparing(r -> r.to, Comparator.nullsLast(Comparator.naturalOrder()))
+                // `< a` is converted into `<= a - 1` and so included range end will be larger in resulting source
+                .thenComparing(r -> r.includeTo)
+                .compare(this, o);
+        }
+    }
+
+    protected TestRange<?> randomRangeForSyntheticSourceTest() {
+        throw new AssumptionViolatedException("Should only be called for specific range types");
+    }
+
+    protected Source getSourceFor(CheckedConsumer<XContentBuilder, IOException> mapping, List<?> inputValues) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(mapping));
+
+        CheckedConsumer<XContentBuilder, IOException> input = b -> {
+            b.field("field");
+            if (inputValues.size() == 1) {
+                b.value(inputValues.get(0));
+            } else {
+                b.startArray();
+                for (var range : inputValues) {
+                    b.value(range);
+                }
+                b.endArray();
+            }
+        };
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.parse(source(input)).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping());
+                Source syntheticSource = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
+
+                return syntheticSource;
+            }
+        }
+    }
+
+    protected abstract RangeType rangeType();
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {

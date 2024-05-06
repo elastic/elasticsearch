@@ -98,8 +98,9 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
-    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true, true);
+    // Use the REST request parser to parse a job passed to the API, to disallow setting internal fields.
+    public static final ObjectParser<Builder, Void> REST_REQUEST_PARSER = createParser(false, false);
 
     public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
 
@@ -114,26 +115,12 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
     public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 10;
     public static final long DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS = 1;
 
-    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+    private static ObjectParser<Builder, Void> createParser(boolean allowInternalFields, boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>("job_details", ignoreUnknownFields, Builder::new);
 
         parser.declareString(Builder::setId, ID);
-        parser.declareString(Builder::setJobType, JOB_TYPE);
-        parser.declareString(Builder::setJobVersion, JOB_VERSION);
         parser.declareStringArray(Builder::setGroups, GROUPS);
         parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
-        parser.declareField(
-            Builder::setCreateTime,
-            p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()),
-            CREATE_TIME,
-            ValueType.VALUE
-        );
-        parser.declareField(
-            Builder::setFinishedTime,
-            p -> TimeUtils.parseTimeField(p, FINISHED_TIME.getPreferredName()),
-            FINISHED_TIME,
-            ValueType.VALUE
-        );
         parser.declareObject(
             Builder::setAnalysisConfig,
             ignoreUnknownFields ? AnalysisConfig.LENIENT_PARSER : AnalysisConfig.STRICT_PARSER,
@@ -165,17 +152,35 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
         parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         parser.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
-        parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
-        parser.declareStringOrNull(Builder::setModelSnapshotMinVersion, MODEL_SNAPSHOT_MIN_VERSION);
         parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
-        parser.declareBoolean(Builder::setDeleting, DELETING);
         parser.declareBoolean(Builder::setAllowLazyOpen, ALLOW_LAZY_OPEN);
-        parser.declareObject(Builder::setBlocked, ignoreUnknownFields ? Blocked.LENIENT_PARSER : Blocked.STRICT_PARSER, BLOCKED);
         parser.declareObject(
             Builder::setDatafeed,
             ignoreUnknownFields ? DatafeedConfig.LENIENT_PARSER : DatafeedConfig.STRICT_PARSER,
             DATAFEED_CONFIG
         );
+
+        if (allowInternalFields) {
+            parser.declareString(Builder::setJobType, JOB_TYPE);
+            parser.declareString(Builder::setJobVersion, JOB_VERSION);
+            parser.declareField(
+                Builder::setCreateTime,
+                p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()),
+                CREATE_TIME,
+                ValueType.VALUE
+            );
+            parser.declareField(
+                Builder::setFinishedTime,
+                p -> TimeUtils.parseTimeField(p, FINISHED_TIME.getPreferredName()),
+                FINISHED_TIME,
+                ValueType.VALUE
+            );
+            parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
+            parser.declareStringOrNull(Builder::setModelSnapshotMinVersion, MODEL_SNAPSHOT_MIN_VERSION);
+            parser.declareBoolean(Builder::setDeleting, DELETING);
+            parser.declareObject(Builder::setBlocked, ignoreUnknownFields ? Blocked.LENIENT_PARSER : Blocked.STRICT_PARSER, BLOCKED);
+        }
+
         return parser;
     }
 
@@ -1018,26 +1023,6 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
                 this.datafeedConfig.setIndicesOptions(indicesOptions);
             }
             return this;
-        }
-
-        /**
-         * Return the list of fields that have been set and are invalid to
-         * be set when the job is created e.g. model snapshot Id should not
-         * be set at job creation.
-         * @return List of fields set fields that should not be.
-         */
-        public List<String> invalidCreateTimeSettings() {
-            List<String> invalidCreateValues = new ArrayList<>();
-            if (modelSnapshotId != null) {
-                invalidCreateValues.add(MODEL_SNAPSHOT_ID.getPreferredName());
-            }
-            if (finishedTime != null) {
-                invalidCreateValues.add(FINISHED_TIME.getPreferredName());
-            }
-            if (createTime != null) {
-                invalidCreateValues.add(CREATE_TIME.getPreferredName());
-            }
-            return invalidCreateValues;
         }
 
         @Override

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,10 +36,13 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
 
     public static final String TYPE = "data-stream-global-retention";
 
+    public static final NodeFeature GLOBAL_RETENTION = new NodeFeature("data_stream.lifecycle.global_retention");
+
     public static final ParseField DEFAULT_RETENTION_FIELD = new ParseField("default_retention");
     public static final ParseField MAX_RETENTION_FIELD = new ParseField("max_retention");
 
     public static final DataStreamGlobalRetention EMPTY = new DataStreamGlobalRetention(null, null);
+    public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
 
     @Nullable
     private final TimeValue defaultRetention;
@@ -60,8 +64,15 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
                     + "]."
             );
         }
+        if (validateRetentionValue(defaultRetention) == false || validateRetentionValue(maxRetention) == false) {
+            throw new IllegalArgumentException("Global retention values should be greater than " + MIN_RETENTION_VALUE.getStringRep());
+        }
         this.defaultRetention = defaultRetention;
         this.maxRetention = maxRetention;
+    }
+
+    private boolean validateRetentionValue(@Nullable TimeValue retention) {
+        return retention == null || retention.getMillis() >= MIN_RETENTION_VALUE.getMillis();
     }
 
     public static DataStreamGlobalRetention read(StreamInput in) throws IOException {
@@ -107,8 +118,12 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
     }
 
     /**
-     * Returns the metadata found in the cluster state or null.
+     * Returns the metadata found in the cluster state or null. When trying to retrieve the effective global retention,
+     * prefer to use the {@link DataStreamGlobalRetentionResolver#resolve(ClusterState)} because it takes into account
+     * the factory retention settings as well. Only use this, if you only want to know the global retention settings
+     * stored in the cluster metadata.
      */
+    @Nullable
     public static DataStreamGlobalRetention getFromClusterState(ClusterState clusterState) {
         return clusterState.custom(DataStreamGlobalRetention.TYPE);
     }

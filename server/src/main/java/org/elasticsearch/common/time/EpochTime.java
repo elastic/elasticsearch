@@ -252,7 +252,7 @@ class EpochTime {
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter(
         "epoch_second",
         new JavaTimeDateTimePrinter(SECONDS_FORMATTER1),
-        (builder, parser) -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
+        JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L)),
         new JavaTimeDateTimeParser(SECONDS_FORMATTER1),
         new JavaTimeDateTimeParser(SECONDS_FORMATTER2)
     );
@@ -260,7 +260,7 @@ class EpochTime {
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
         "epoch_millis",
         new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER1),
-        (builder, parser) -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
+        JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L)),
         new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER1),
         new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER2)
     );

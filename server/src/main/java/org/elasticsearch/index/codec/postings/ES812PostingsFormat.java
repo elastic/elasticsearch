@@ -36,6 +36,7 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 

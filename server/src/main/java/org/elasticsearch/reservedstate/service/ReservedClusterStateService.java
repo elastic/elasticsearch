@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -144,6 +145,26 @@ public class ReservedClusterStateService {
         }
 
         process(namespace, stateChunk, errorListener);
+    }
+
+    public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
+        var missingVersion = new ReservedStateVersion(-1L, Version.CURRENT);
+        var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
+        updateTaskQueue.submitTask(
+            "empty initial cluster state [" + namespace + "]",
+            new ReservedStateUpdateTask(
+                namespace,
+                emptyState,
+                List.of(),
+                Map.of(),
+                List.of(),
+                // error state should not be possible since there is no metadata being parsed or processed
+                errorState -> { throw new AssertionError(); },
+                listener
+            ),
+            null
+        );
+
     }
 
     /**

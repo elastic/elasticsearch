@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -276,14 +278,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return toXContent(builder, params, null);
+                return toXContent(builder, params, null, null);
             }
 
             /**
-             * Converts the response to XContent and passes the RolloverConditions, when provided, to the data stream.
+             * Converts the response to XContent and passes the RolloverConditions and the global retention, when provided,
+             * to the data stream.
              */
-            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-                throws IOException {
+            public XContentBuilder toXContent(
+                XContentBuilder builder,
+                Params params,
+                @Nullable RolloverConfiguration rolloverConfiguration,
+                @Nullable DataStreamGlobalRetention globalRetention
+            ) throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
                 builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName())
@@ -312,7 +319,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                 }
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
-                if (DataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     builder.field(DataStream.FAILURE_INDICES_FIELD.getPreferredName());
                     builder.startArray();
                     for (Index failureStore : dataStream.getFailureIndices()) {
@@ -339,7 +346,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration);
+                    dataStream.getLifecycle()
+                        .toXContent(builder, params, rolloverConfiguration, dataStream.isSystem() ? null : globalRetention);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -351,8 +359,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
-                if (DataStream.isFailureStoreEnabled()) {
-                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStoreEnabled());
                 }
                 if (dataStream.getAutoShardingEvent() != null) {
                     DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();
@@ -483,20 +491,30 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private final List<DataStreamInfo> dataStreams;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
+        @Nullable
+        private final DataStreamGlobalRetention globalRetention;
 
         public Response(List<DataStreamInfo> dataStreams) {
-            this(dataStreams, null);
+            this(dataStreams, null, null);
         }
 
-        public Response(List<DataStreamInfo> dataStreams, @Nullable RolloverConfiguration rolloverConfiguration) {
+        public Response(
+            List<DataStreamInfo> dataStreams,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention
+        ) {
             this.dataStreams = dataStreams;
             this.rolloverConfiguration = rolloverConfiguration;
+            this.globalRetention = globalRetention;
         }
 
         public Response(StreamInput in) throws IOException {
             this(
                 in.readCollectionAsList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
+                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                    ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
+                    : null
             );
         }
 
@@ -509,11 +527,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return rolloverConfiguration;
         }
 
+        @Nullable
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                out.writeOptionalWriteable(globalRetention);
             }
         }
 
@@ -522,7 +548,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             builder.startObject();
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
-                dataStream.toXContent(builder, params, rolloverConfiguration);
+                dataStream.toXContent(
+                    builder,
+                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    rolloverConfiguration,
+                    globalRetention
+                );
             }
             builder.endArray();
             builder.endObject();
@@ -534,12 +565,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return dataStreams.equals(response.dataStreams) && Objects.equals(rolloverConfiguration, response.rolloverConfiguration);
+            return dataStreams.equals(response.dataStreams)
+                && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
+                && Objects.equals(globalRetention, response.globalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreams, rolloverConfiguration);
+            return Objects.hash(dataStreams, rolloverConfiguration, globalRetention);
         }
     }
 

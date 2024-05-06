@@ -11,9 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -27,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
-public abstract class TransportGrantAction<Request extends GrantRequest, Response extends ActionResponse> extends HandledTransportAction<
+public abstract class TransportGrantAction<Request extends GrantRequest, Response extends ActionResponse> extends TransportAction<
     Request,
     Response> {
 
@@ -39,12 +37,11 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
         AuthenticationService authenticationService,
         AuthorizationService authorizationService,
         ThreadContext threadContext
     ) {
-        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, actionFilters, transportService.getTaskManager());
         this.authenticationService = authenticationService;
         this.authorizationService = authorizationService;
         this.threadContext = threadContext;

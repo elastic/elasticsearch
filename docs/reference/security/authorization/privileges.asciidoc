@@ -21,7 +21,7 @@ Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
 `cross_cluster_replication`::
-beta:[] Privileges to connect to <<remote-clusters-api-key,remote clusters configured with the API key based model>>
+Privileges to connect to <<remote-clusters-api-key,remote clusters configured with the API key based model>>
 for cross-cluster replication.
 +
 --
@@ -32,7 +32,7 @@ to manage cross-cluster API keys.
 --
 
 `cross_cluster_search`::
-beta:[] Privileges to connect to <<remote-clusters-api-key,remote clusters configured with the API key based model>>
+Privileges to connect to <<remote-clusters-api-key,remote clusters configured with the API key based model>>
 for cross-cluster search.
 +
 --
@@ -171,6 +171,9 @@ deprecated[7.5] Use `manage_transform` instead.
 `manage_enrich`::
 All operations related to managing and executing enrich policies.
 
+`manage_data_stream_global_retention`::
+All operations related to managing the data stream global retention settings.
+
 `manage_watcher`::
 All watcher operations, such as putting watches, executing, activate or acknowledging.
 +
@@ -205,6 +208,9 @@ All read-only operations related to the <<find-structure,find structure API>>.
 
 `monitor_transform`::
 All read-only operations related to {transforms}.
+
+`monitor_data_stream_global_retention`::
+Allows the retrieval of the data stream global retention settings.
 
 `monitor_watcher`::
 All read-only watcher operations, such as getting a watch and watcher stats.
@@ -304,13 +310,13 @@ requires the `manage` privilege as well, on both the index and the aliases
 names.
 
 `cross_cluster_replication`::
-beta:[] Privileges to perform cross-cluster replication for indices located on
+Privileges to perform cross-cluster replication for indices located on
 <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
 This privilege should only be used for
 the `privileges` field of <<roles-remote-indices-priv,remote indices privileges>>.
 
 `cross_cluster_replication_internal`::
-beta:[] Privileges to perform supporting actions for cross-cluster replication from
+Privileges to perform supporting actions for cross-cluster replication from
 <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
 +
 --
@@ -354,11 +360,9 @@ All {Ilm} operations relating to managing the execution of policies of an index
 or data stream. This includes operations such as retrying policies and removing
 a policy from an index or data stream.
 
-ifeval::["{release-state}"!="released"]
 `manage_data_stream_lifecycle`::
-All data stream lifecycle operations relating to reading and managing the built-in lifecycle of a data stream.
+All <<data-stream-lifecycle, Data stream lifecycle>> operations relating to reading and managing the built-in lifecycle of a data stream.
 This includes operations such as adding and removing a lifecycle from a data stream.
-endif::[]
 
 `manage_leader_index`::
 All actions that are required to manage the lifecycle of a leader index, which

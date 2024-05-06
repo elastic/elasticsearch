@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,8 +50,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
     // are accessed only by the user initialized the session.
     public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
+    public static final String EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/exchange";
 
     private static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
+    private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
@@ -84,6 +87,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
+
+        // This allows the system user access this action when executed over CCS and the API key based security model is in use
+        transportService.registerRequestHandler(
+            EXCHANGE_ACTION_NAME_FOR_CCS,
+            this.executor,
+            ExchangeRequest::new,
+            new ExchangeTransportAction()
+        );
+        transportService.registerRequestHandler(
+            OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
+            this.executor,
+            OpenExchangeRequest::new,
+            new OpenExchangeRequestHandler()
+        );
     }
 
     /**
@@ -112,8 +129,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     /**
      * Removes the exchange sink handler associated with the given exchange id.
+     * W will abort the sink handler if the given failure is not null.
      */
-    public void finishSinkHandler(String exchangeId, Exception failure) {
+    public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
         if (sinkHandler != null) {
             if (failure != null) {

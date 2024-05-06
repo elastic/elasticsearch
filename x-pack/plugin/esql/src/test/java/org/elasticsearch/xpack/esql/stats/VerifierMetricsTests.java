@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.esql.stats.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.GROK;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.META;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.MV_EXPAND;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.RENAME;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.ROW;
@@ -54,6 +55,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testEvalQuery() {
@@ -73,6 +75,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testGrokQuery() {
@@ -92,6 +95,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testLimitQuery() {
@@ -111,6 +115,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testSortQuery() {
@@ -130,6 +135,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testStatsQuery() {
@@ -149,6 +155,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testWhereQuery() {
@@ -168,6 +175,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testTwoWhereQuery() {
@@ -187,6 +195,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testTwoQueriesExecuted() {
@@ -226,6 +235,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testEnrich() {
@@ -251,6 +261,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testMvExpand() {
@@ -279,11 +290,31 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
-    public void testShowFunctionsOrInfo() {
-        String showCommand = randomFrom("show functions", "show info");
-        Counters c = esql(showCommand + " |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c");
+    public void testMetaFunctions() {
+        Counters c = esql("meta functions |  stats  a = count(*) |  mv_expand a");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(1L, stats(c));
+        assertEquals(0, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(1L, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(0, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(1L, meta(c));
+    }
+
+    public void testShowInfo() {
+        Counters c = esql("show info |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -299,6 +330,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testRow() {
@@ -318,6 +350,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testDropAndRename() {
@@ -337,6 +370,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, drop(c));
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
+        assertEquals(0, meta(c));
     }
 
     public void testKeep() {
@@ -361,6 +395,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, meta(c));
     }
 
     private long dissect(Counters c) {
@@ -421,6 +456,10 @@ public class VerifierMetricsTests extends ESTestCase {
 
     private long rename(Counters c) {
         return c.get(FPREFIX + RENAME);
+    }
+
+    private long meta(Counters c) {
+        return c.get(FPREFIX + META);
     }
 
     private Counters esql(String esql) {

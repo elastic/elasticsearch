@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -129,14 +128,13 @@ abstract class QueryList {
                     BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
                     if (inputDataType == IP) {
                         yield offset -> {
-                            bytesRefBlock.getBytesRef(offset, scratch);
-                            if (ipBytes.length != scratch.length) {
+                            final var bytes = bytesRefBlock.getBytesRef(offset, scratch);
+                            if (ipBytes.length != bytes.length) {
                                 // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
-                                throw new IllegalStateException("Cannot decode IP field from bytes of length " + scratch.length);
+                                throw new IllegalStateException("Cannot decode IP field from bytes of length " + bytes.length);
                             }
-                            System.arraycopy(scratch.bytes, scratch.offset, ipBytes, 0, scratch.length);
-                            InetAddress ip = InetAddressPoint.decode(ipBytes);
-                            return ip;
+                            System.arraycopy(bytes.bytes, bytes.offset, ipBytes, 0, bytes.length);
+                            return InetAddressPoint.decode(ipBytes);
                         };
                     }
                     yield offset -> bytesRefBlock.getBytesRef(offset, new BytesRef());

@@ -35,6 +35,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Restores the REST endpoint for freezing indices so that the JDBC tests can still freeze indices
@@ -75,8 +76,8 @@ public class FreezeIndexPlugin extends Plugin implements ActionPlugin {
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             boolean freeze = request.path().endsWith("/_freeze");
             FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-            freezeRequest.timeout(request.paramAsTime("timeout", freezeRequest.timeout()));
-            freezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeRequest.masterNodeTimeout()));
+            freezeRequest.ackTimeout(request.paramAsTime("timeout", freezeRequest.ackTimeout()));
+            freezeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
             freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));
             String waitForActiveShards = request.param("wait_for_active_shards");
             if (waitForActiveShards != null) {

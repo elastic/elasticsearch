@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -90,9 +91,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
+import org.elasticsearch.xpack.ql.plugin.QlPlugin;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
@@ -154,7 +157,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             SnapshotLifecycle.class,
             // The feature reset API touches transform custom cluster state so we need this plugin to understand it
             Transform.class,
-            DataStreamsPlugin.class
+            DataStreamsPlugin.class,
+            // ESQL and its dependency needed for node features
+            QlPlugin.class,
+            EsqlPlugin.class
         );
     }
 
@@ -347,6 +353,12 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             );
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
+            entries.add(
+                new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
+            );
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new));
             entries.add(

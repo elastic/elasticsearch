@@ -9,12 +9,13 @@
 package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
@@ -25,7 +26,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
@@ -102,11 +106,8 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimerThreadWarningLogging() throws Exception {
-        final Logger threadPoolLogger = LogManager.getLogger(ThreadPool.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(threadPoolLogger, appender);
+        try (var ignored = appender.capturing(ThreadPool.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected warning for absolute clock",
@@ -131,19 +132,12 @@ public class ThreadPoolTests extends ESTestCase {
 
             thread.interrupt();
             thread.join();
-        } finally {
-            Loggers.removeAppender(threadPoolLogger, appender);
-            appender.stop();
         }
     }
 
     public void testTimeChangeChecker() throws Exception {
-        final Logger threadPoolLogger = LogManager.getLogger(ThreadPool.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(threadPoolLogger, appender);
-
+        try (var ignored = appender.capturing(ThreadPool.class)) {
             long absoluteMillis = randomLong(); // overflow should still be handled correctly
             long relativeNanos = randomLong(); // overflow should still be handled correctly
 
@@ -205,9 +199,6 @@ public class ThreadPoolTests extends ESTestCase {
             }
             appender.assertAllExpectationsMatched();
 
-        } finally {
-            Loggers.removeAppender(threadPoolLogger, appender);
-            appender.stop();
         }
     }
 
@@ -281,11 +272,8 @@ public class ThreadPoolTests extends ESTestCase {
             "test",
             Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build()
         );
-        final Logger logger = LogManager.getLogger(ThreadPool.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(logger, appender);
+        try (var ignored = appender.capturing(ThreadPool.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected warning for slow task",
@@ -313,8 +301,6 @@ public class ThreadPoolTests extends ESTestCase {
             threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             assertTrue(terminate(threadPool));
         }
     }
@@ -405,4 +391,148 @@ public class ThreadPoolTests extends ESTestCase {
             assertTrue(terminate(threadPool));
         }
     }
+
+    public void testScheduledOneShotRejection() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.schedule(
+                ActionRunnable.run(future, () -> fail("should not execute")),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS));
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledOneShotForceExecution() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.schedule(
+                forceExecution(ActionRunnable.run(future, () -> {})),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            Thread.yield();
+            assertFalse(future.isDone());
+
+            latch.countDown();
+            FutureUtils.get(future, 10, TimeUnit.SECONDS); // shouldn't throw
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledFixedDelayRejection() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.scheduleWithFixedDelay(
+                ActionRunnable.wrap(future, ignored -> fail("should not execute")),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS));
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledFixedDelayForceExecution() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+
+            threadPool.scheduleWithFixedDelay(
+                forceExecution(ActionRunnable.run(future, Thread::yield)),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            assertFalse(future.isDone());
+
+            latch.countDown();
+            FutureUtils.get(future, 10, TimeUnit.SECONDS); // shouldn't throw
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    private static AbstractRunnable forceExecution(AbstractRunnable delegate) {
+        return new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                delegate.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() {
+                delegate.run();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                delegate.onRejection(e);
+            }
+
+            @Override
+            public void onAfter() {
+                delegate.onAfter();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        };
+    }
+
+    private static void blockExecution(ExecutorService executor, CountDownLatch latch) {
+        while (true) {
+            try {
+                executor.execute(() -> safeAwait(latch));
+            } catch (EsRejectedExecutionException e) {
+                break;
+            }
+        }
+    }
+
 }

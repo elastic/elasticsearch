@@ -96,6 +96,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -381,7 +382,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
@@ -399,6 +400,84 @@ public class SearchExecutionContextTests extends ESTestCase {
         Source source = searchLookup.getSource(leafReaderContext, 0);
         assertEquals(1, source.source().size());
         assertEquals("meow", source.source().get("cat"));
+    }
+
+    public void testAllowedFields() {
+        Map<String, Object> runtimeMappings = Map.ofEntries(
+            Map.entry("runtimecat", Map.of("type", "keyword")),
+            Map.entry("runtimedog", Map.of("type", "long"))
+        );
+        SearchExecutionContext context = createSearchExecutionContext(
+            "uuid",
+            null,
+            SearchExecutionContextTests.createMappingLookup(
+                List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                List.of(new TestRuntimeField("runtime", "long"))
+            ),
+            runtimeMappings
+        );
+
+        assertNotNull(context.getFieldType("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertNotNull(context.getFieldType("runtimecat"));
+        assertNotNull(context.getFieldType("runtimedog"));
+        assertNotNull(context.getFieldType("runtime"));
+        assertEquals(3, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtimedog", "runtime"));
+
+        context.setAllowedFields(s -> true);
+        assertNotNull(context.getFieldType("pig"));
+        assertTrue(context.isFieldMapped("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertTrue(context.isFieldMapped("cat"));
+        assertNotNull(context.getFieldType("runtimecat"));
+        assertTrue(context.isFieldMapped("runtimecat"));
+        assertNotNull(context.getFieldType("runtimedog"));
+        assertTrue(context.isFieldMapped("runtimedog"));
+        assertNotNull(context.getFieldType("runtime"));
+        assertTrue(context.isFieldMapped("runtime"));
+        assertEquals(3, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtimedog", "runtime"));
+
+        context.setAllowedFields(s -> s.equals("cat"));
+        assertNull(context.getFieldType("pig"));
+        assertFalse(context.isFieldMapped("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertTrue(context.isFieldMapped("cat"));
+        assertNull(context.getFieldType("runtimecat"));
+        assertFalse(context.isFieldMapped("runtimecat"));
+        assertNull(context.getFieldType("runtimedog"));
+        assertFalse(context.isFieldMapped("runtimedog"));
+        assertNull(context.getFieldType("runtime"));
+        assertFalse(context.isFieldMapped("runtime"));
+        assertEquals(0, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(1, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("cat"));
+
+        context.setAllowedFields(s -> s.contains("dog") == false);
+        assertNotNull(context.getFieldType("pig"));
+        assertTrue(context.isFieldMapped("pig"));
+        assertNotNull(context.getFieldType("cat"));
+        assertTrue(context.isFieldMapped("cat"));
+        assertNotNull(context.getFieldType("runtimecat"));
+        assertTrue(context.isFieldMapped("runtimecat"));
+        assertNull(context.getFieldType("runtimedog"));
+        assertFalse(context.isFieldMapped("runtimedog"));
+        assertNotNull(context.getFieldType("runtime"));
+        assertTrue(context.isFieldMapped("runtime"));
+        assertEquals(2, context.getMatchingFieldNames("runtime*").size());
+        assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtime"));
+    }
+
+    private static List<String> getFieldNames(Iterable<Map.Entry<String, MappedFieldType>> fields) {
+        List<String> fieldNames = new ArrayList<>();
+        for (Map.Entry<String, MappedFieldType> field : fields) {
+            fieldNames.add(field.getKey());
+        }
+        return fieldNames;
     }
 
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {

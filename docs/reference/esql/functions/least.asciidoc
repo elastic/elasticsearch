@@ -24,8 +24,6 @@ NOTE: When run on `keyword` or `text` fields, this returns the first string
       in alphabetical order. When run on `boolean` columns this will return
       `false` if any values are `false`.
 
-*Supported types*
-
 include::types/least.asciidoc[]
 
 *Example*

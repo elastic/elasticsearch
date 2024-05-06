@@ -310,3 +310,109 @@ v:v        | version:v |version_text:s   | id:i  |  m:i  |  g:v   | i:v     |  c
 null       | null      | null            | 13    | 0     | 1.3.0  | 0.1     | none
 null       | null      | null            | 11    | 0     | 1.3.0  | 0.1     | none
 ;
+
+values
+required_feature: esql.agg_values
+
+  FROM apps
+| STATS version=MV_SORT(VALUES(version))
+;
+
+   version:version
+[1, 1.2.3.4, 1.11.0, 2.1, 2.3.4, 2.12.0, 5.2.9-SNAPSHOT, 5.2.9, bad]
+;
+
+valuesGrouped
+required_feature: esql.agg_values
+
+  FROM apps
+| EVAL name=SUBSTRING(name, 0, 1)
+| STATS version=MV_SORT(VALUES(version)) BY name
+| SORT name
+;
+
+version:version | name:keyword
+   [1, 1.2.3.4] | a
+            2.1 | b
+          2.3.4 | c
+         2.12.0 | d
+         1.11.0 | e
+          5.2.9 | f
+ 5.2.9-SNAPSHOT | g
+        1.2.3.4 | h
+            bad | i
+          5.2.9 | j
+           null | k
+           null | l
+          5.2.9 | m
+;
+
+valuesGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM apps
+| STATS version=MV_SORT(VALUES(version)) BY name
+| SORT name
+;
+
+version:version | name:keyword
+   [1, 1.2.3.4] | aaaaa
+            2.1 | bbbbb
+          2.3.4 | ccccc
+         2.12.0 | ddddd
+         1.11.0 | eeeee
+          5.2.9 | fffff
+ 5.2.9-SNAPSHOT | ggggg
+        1.2.3.4 | hhhhh
+            bad | iiiii
+          5.2.9 | jjjjj
+           null | kkkkk
+           null | lllll
+          5.2.9 | mmmmm
+;
+
+implictCastingEqual
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version == "1.2.3.4" | sort name | keep name, version;
+
+name:keyword | version:version
+aaaaa        | 1.2.3.4
+hhhhh        | 1.2.3.4
+;
+
+implictCastingNotEqual
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version != "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+aaaaa        | 1
+bbbbb        | 2.1
+;
+
+implictCastingGreaterThan
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version > "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+bbbbb        | 2.1
+ccccc        | 2.3.4
+;
+
+implictCastingLessThanOrEqual
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version <= "1.2.3.4" | sort name, version | keep name, version | limit 2;
+
+name:keyword | version:version
+aaaaa        | 1
+aaaaa        | 1.2.3.4
+;
+
+implictCastingIn
+required_feature: esql.string_literal_auto_casting_extended
+from apps | where version in ( "1.2.3.4", "bad" ) | sort name | keep name, version;
+
+name:keyword | version:version
+aaaaa        | 1.2.3.4
+hhhhh        | 1.2.3.4
+iiiii        | bad
+;

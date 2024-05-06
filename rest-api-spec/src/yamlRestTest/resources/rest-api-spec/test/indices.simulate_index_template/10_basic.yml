@@ -1,9 +1,9 @@
 ---
 "Simulate index template without new template in the body":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
@@ -30,10 +30,10 @@
 
 ---
 "Simulate index template specifying a new template":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
@@ -85,10 +85,10 @@
 
 ---
 "Simulate index template with index not matching any template":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -115,10 +115,10 @@
 
 ---
 "Simulate index matches overlapping legacy and composable templates":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: ["allowed_warnings", "default_shards"]
+      test_runner_features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.put_template:
@@ -178,10 +178,10 @@
 
 ---
 "Simulate an index for and index or alias that already exists":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "simulating index template API for an existing index has not yet been backported"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
@@ -226,10 +226,10 @@
 
 ---
 "Simulate index template with lifecycle and include defaults":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "Lifecycle is only available in 8.11+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:

@@ -8,48 +8,14 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateCrossClusterApiKeyRequestTests extends ESTestCase {
-
-    public void testSerialization() throws IOException {
-        final var metadata = ApiKeyTests.randomMetadata();
-        final TimeValue expiration = ApiKeyTests.randomFutureExpirationTime();
-        final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
-        if (randomBoolean()) {
-            roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField());
-        } else {
-            roleDescriptorBuilder = null;
-        }
-
-        final var request = new UpdateCrossClusterApiKeyRequest(randomAlphaOfLength(10), roleDescriptorBuilder, metadata, expiration);
-        assertThat(request.getType(), is(ApiKey.Type.CROSS_CLUSTER));
-        assertThat(request.validate(), nullValue());
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                final var serialized = new UpdateCrossClusterApiKeyRequest(in);
-                assertEquals(request.getId(), serialized.getId());
-                assertEquals(request.getRoleDescriptors(), serialized.getRoleDescriptors());
-                assertEquals(metadata, serialized.getMetadata());
-                assertEquals(expiration, serialized.getExpiration());
-                assertEquals(request.getType(), serialized.getType());
-            }
-        }
-    }
 
     public void testNotEmptyUpdateValidation() {
         final var request = new UpdateCrossClusterApiKeyRequest(randomAlphaOfLength(10), null, null, null);

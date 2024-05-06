@@ -11,20 +11,26 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -35,6 +41,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     private boolean async;
 
+    private String esqlVersion;
     private String query;
     private boolean columnar;
     private boolean profile;
@@ -45,6 +52,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
+    private boolean onSnapshotBuild = Build.current().isSnapshot();
+
+    /**
+     * "Tables" provided in the request for use with things like {@code LOOKUP}.
+     */
+    private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
     static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
@@ -65,16 +78,59 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(query) == false) {
-            validationException = addValidationError("[query] is required", validationException);
+        if (Strings.hasText(esqlVersion) == false) {
+            validationException = addValidationError(invalidVersion("is required"), validationException);
+        } else {
+            EsqlVersion version = EsqlVersion.parse(esqlVersion);
+            if (version == null) {
+                validationException = addValidationError(invalidVersion("has invalid value [" + esqlVersion + "]"), validationException);
+            } else if (version == EsqlVersion.SNAPSHOT && onSnapshotBuild == false) {
+                validationException = addValidationError(
+                    invalidVersion("with value [" + esqlVersion + "] only allowed in snapshot builds"),
+                    validationException
+                );
+            }
         }
-        if (Build.current().isSnapshot() == false && pragmas.isEmpty() == false) {
-            validationException = addValidationError("[pragma] only allowed in snapshot builds", validationException);
+        if (Strings.hasText(query) == false) {
+            validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
+        }
+        if (onSnapshotBuild == false) {
+            if (pragmas.isEmpty() == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
+            if (tables.isEmpty() == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.TABLES_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
         }
         return validationException;
     }
 
+    private static String invalidVersion(String reason) {
+        return "["
+            + RequestXContent.ESQL_VERSION_FIELD
+            + "] "
+            + reason
+            + ", latest available version is ["
+            + EsqlVersion.latestReleased().versionStringWithoutEmoji()
+            + "]";
+    }
+
     public EsqlQueryRequest() {}
+
+    public void esqlVersion(String esqlVersion) {
+        this.esqlVersion = esqlVersion;
+    }
+
+    @Override
+    public String esqlVersion() {
+        return esqlVersion;
+    }
 
     public void query(String query) {
         this.query = query;
@@ -169,9 +225,44 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.keepOnCompletion = keepOnCompletion;
     }
 
+    /**
+     * Add a "table" to the request for use with things like {@code LOOKUP}.
+     */
+    public void addTable(String name, Map<String, Column> columns) {
+        for (Column c : columns.values()) {
+            if (false == c.values().blockFactory().breaker() instanceof NoopCircuitBreaker) {
+                throw new AssertionError("block tracking not supported on tables parameter");
+            }
+        }
+        Iterator<Column> itr = columns.values().iterator();
+        if (itr.hasNext()) {
+            int firstSize = itr.next().values().getPositionCount();
+            while (itr.hasNext()) {
+                int size = itr.next().values().getPositionCount();
+                if (size != firstSize) {
+                    throw new IllegalArgumentException("mismatched column lengths: was [" + size + "] but expected [" + firstSize + "]");
+                }
+            }
+        }
+        var prev = tables.put(name, columns);
+        if (prev != null) {
+            Releasables.close(prev.values());
+            throw new IllegalArgumentException("duplicate table for [" + name + "]");
+        }
+    }
+
+    public Map<String, Map<String, Column>> tables() {
+        return tables;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // Pass the query as the description
         return new CancellableTask(id, type, action, query, parentTaskId, headers);
+    }
+
+    // Setter for tests
+    void onSnapshotBuild(boolean onSnapshotBuild) {
+        this.onSnapshotBuild = onSnapshotBuild;
     }
 }

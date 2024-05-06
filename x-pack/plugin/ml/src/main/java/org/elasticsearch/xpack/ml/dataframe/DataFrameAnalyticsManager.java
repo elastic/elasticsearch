@@ -169,29 +169,21 @@ public class DataFrameAnalyticsManager {
 
         }, task::setFailed);
 
-        // Retrieve configuration
-        ActionListener<Boolean> statsIndexListener = configListener.delegateFailureAndWrap(
-            (l, aBoolean) -> configProvider.get(task.getParams().getId(), l)
-        );
-
-        // Make sure the stats index and alias exist
-        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
-            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(
-                new ParentTaskAssigningClient(client, task.getParentTaskId()),
-                clusterState,
-                masterNodeTimeout,
-                statsIndexListener
-            ),
-            configListener::onFailure
-        );
-
         // Make sure the state index and alias exist
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessaryAndWaitForYellow(
             new ParentTaskAssigningClient(client, task.getParentTaskId()),
             clusterState,
             expressionResolver,
             masterNodeTimeout,
-            stateAliasListener
+            configListener.delegateFailureAndWrap(
+                (delegate, aBoolean) -> createStatsIndexAndUpdateMappingsIfNecessary(
+                    new ParentTaskAssigningClient(client, task.getParentTaskId()),
+                    clusterState,
+                    masterNodeTimeout,
+                    // Retrieve configuration
+                    delegate.delegateFailureAndWrap((l, ignored) -> configProvider.get(task.getParams().getId(), l))
+                )
+            )
         );
     }
 

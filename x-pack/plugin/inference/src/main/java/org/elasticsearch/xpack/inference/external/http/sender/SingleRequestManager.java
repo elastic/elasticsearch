@@ -30,6 +30,7 @@ public class SingleRequestManager {
 
         inferenceRequest.getRequestCreator()
             .create(
+                inferenceRequest.getQuery(),
                 inferenceRequest.getInput(),
                 requestSender,
                 inferenceRequest.getRequestCompletedFunction(),

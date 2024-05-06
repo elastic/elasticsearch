@@ -23,7 +23,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 $endif$
 
 /**
@@ -44,6 +45,18 @@ $if(BytesRef)$
 
 $else$
     private final $type$[] values;
+$endif$
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
 $endif$
 
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
@@ -108,6 +121,13 @@ $endif$
 
 $if(BytesRef)$
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+$endif$
+
+$if(BytesRef)$
+    @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
         return values.get(position, dest);
     }
@@ -150,6 +170,38 @@ $endif$
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = Integer.MAX_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.min(v, values[i]);
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = Integer.MIN_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.max(v, values[i]);
+            }
+            max = v;
+        }
+        return max;
+    }
+$endif$
+
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
@@ -173,7 +225,11 @@ $endif$
 $if(BytesRef)$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
 $else$
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        String valuesString = IntStream.range(0, getPositionCount())
+            .limit(10)
+            .mapToObj(n -> String.valueOf(values[n]))
+            .collect(Collectors.joining(", ", "[", getPositionCount() > 10 ? ", ...]" : "]"));
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
 $endif$
     }
 

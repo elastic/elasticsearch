@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamFeatures;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -70,6 +71,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -87,7 +89,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        featureService = new FeatureService(List.of(new StackTemplatesFeatures()));
+        featureService = new FeatureService(List.of(new StackTemplatesFeatures(), new DataStreamFeatures()));
         registry = new StackTemplateRegistry(
             Settings.EMPTY,
             clusterService,
@@ -504,7 +506,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
     public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
         DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
-        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_8_0);
+        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_10_0);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .localNodeId("updatedNode")
             .masterNodeId("updatedNode")
@@ -513,7 +515,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .build();
 
         client.setVerifier((a, r, l) -> {
-            fail("if some cluster mode are not updated to at least v.8.9.0 nothing should happen");
+            fail("if some cluster mode are not updated to at least v.8.11.0 nothing should happen");
             return null;
         });
 
@@ -536,6 +538,11 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
             .map(PipelineConfiguration::getConfigAsMap)
             .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
+    }
+
+    public void testDataStreamLifecycleNodeFeatureId() {
+        // let's make sure these ids remain in-sync
+        assertThat(StackTemplateRegistry.DATA_STREAM_LIFECYCLE.id(), is(DataStreamFeatures.DATA_STREAM_LIFECYCLE.id()));
     }
 
     // -------------

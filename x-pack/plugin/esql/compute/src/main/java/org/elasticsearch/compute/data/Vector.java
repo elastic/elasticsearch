@@ -28,9 +28,6 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      */
     int getPositionCount();
 
-    // TODO: improve implementation not to waste as much space
-    Vector getRow(int position);
-
     /**
      * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
      * @param positions the positions to retain
@@ -66,6 +63,13 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      */
     interface Builder extends Releasable {
         /**
+         * An estimate of the number of bytes the {@link Vector} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
+         */
+        long estimatedBytes();
+
+        /**
          * Builds the block. This method can be called multiple times.
          */
         Vector build();
@@ -83,4 +87,5 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     byte SERIALIZE_VECTOR_CONSTANT = 1;
     byte SERIALIZE_VECTOR_ARRAY = 2;
     byte SERIALIZE_VECTOR_BIG_ARRAY = 3;
+    byte SERIALIZE_VECTOR_ORDINAL = 4;
 }

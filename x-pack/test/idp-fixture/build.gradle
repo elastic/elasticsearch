@@ -1,35 +1,22 @@
-import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.internal.docker.DockerBuildTask
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.deploy-test-fixtures'
+
+dockerFixtures {
+  idp {
+    dockerContext = file("src/main/resources/idp")
+    version = "1.1"
+    baseImages = ["openjdk:11.0.16-jre"]
+  }
+  openldap {
+    dockerContext = file("src/main/resources/openldap")
+    version = "1.0"
+    baseImages = ["osixia/openldap:1.4.0"]
+  }
+}
 
 dependencies {
   testImplementation project(':test:framework')
-
   api project(':test:fixtures:testcontainer-utils')
   api "junit:junit:${versions.junit}"
-}
-
-tasks.withType(DockerBuildTask).configureEach {
-  noCache = BuildParams.isCi()
-  push = true //BuildParams.isCi()
-  getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
-}
-
-tasks.register("deployIdpFixtureDockerImages", DockerBuildTask) {
-    dockerContext.fileValue(file("src/main/resources/idp"))
-    baseImages = ["openjdk:11.0.16-jre"]
-    tags = ["docker.elastic.co/elasticsearch-dev/idp-fixture:1.1"]
-}
-
-tasks.register("deployOpenLdapFixtureDockerImages", DockerBuildTask) {
-  dockerContext.fileValue(file("src/main/resources/openldap"))
-  baseImages = ["osixia/openldap:1.4.0"]
-  tags = ["docker.elastic.co/elasticsearch-dev/openldap-fixture:1.0"]
-}
-
-tasks.register("deployFixtureDockerImages") {
-  dependsOn tasks.withType(DockerBuildTask)
 }

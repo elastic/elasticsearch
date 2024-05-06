@@ -12,7 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Vector implementation that stores an array of int values.
@@ -25,6 +26,16 @@ final class IntArrayVector extends AbstractVector implements IntVector {
         + RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class);
 
     private final int[] values;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
 
     IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
@@ -91,6 +102,36 @@ final class IntArrayVector extends AbstractVector implements IntVector {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = Integer.MAX_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.min(v, values[i]);
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = Integer.MIN_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.max(v, values[i]);
+            }
+            max = v;
+        }
+        return max;
+    }
+
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
@@ -111,7 +152,11 @@ final class IntArrayVector extends AbstractVector implements IntVector {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        String valuesString = IntStream.range(0, getPositionCount())
+            .limit(10)
+            .mapToObj(n -> String.valueOf(values[n]))
+            .collect(Collectors.joining(", ", "[", getPositionCount() > 10 ? ", ...]" : "]"));
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
 }

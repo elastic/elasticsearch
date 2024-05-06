@@ -112,7 +112,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have transport version ["
-                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION
+                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                     + "] or higher to support specifying role description"
                             )
                         );
@@ -126,7 +126,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have transport version ["
-                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION
+                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                     + "] or higher to support specifying role description"
                             )
                         );

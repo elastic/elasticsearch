@@ -26,7 +26,7 @@ public class Truncator {
      * Defines the percentage to reduce the input text for an inference request.
      */
     static final Setting<Double> REDUCTION_PERCENTAGE_SETTING = Setting.doubleSetting(
-        "xpack.inference.truncator.reducation_percentage",
+        "xpack.inference.truncator.reduction_percentage",
         0.5,
         0.01,
         0.99,

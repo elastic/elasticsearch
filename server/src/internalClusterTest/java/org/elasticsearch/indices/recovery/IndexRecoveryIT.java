@@ -1042,10 +1042,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/105122",
-        value = "org.elasticsearch.indices.recovery:TRACE," +
-            "org.elasticsearch.index.shard:TRACE," +
-            "org.elasticsearch.index.engine:TRACE," +
-            "org.apache.lucene:TRACE"
+        value = "org.elasticsearch.indices.recovery:TRACE,"
+            + "org.elasticsearch.index.shard:TRACE,"
+            + "org.elasticsearch.index.engine:TRACE,"
+            + "org.apache.lucene:TRACE"
     )
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);

@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.apache.http.pool.PoolStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;

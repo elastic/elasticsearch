@@ -103,6 +103,19 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
             out.writeCollection(nodes);
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response that = (Response) o;
+            return Objects.equals(getNodes(), that.getNodes()) && Objects.equals(failures(), that.failures());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getNodes(), failures());
+        }
     }
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentFragment {
@@ -123,6 +136,7 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             connectionPoolStats.writeTo(out);
         }
 

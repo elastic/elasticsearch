@@ -66,6 +66,10 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
         // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
         int numberOfRollupIndices = 0;
         for (var imd : state.metadata()) {
+            if (imd.mapping() == null) {
+                continue;
+            }
+
             try (var parser = XContentHelper.createParser(PARSER_CONFIGURATION, imd.mapping().source().compressedReference())) {
                 if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
                     if ("_doc".equals(parser.nextFieldName())) {

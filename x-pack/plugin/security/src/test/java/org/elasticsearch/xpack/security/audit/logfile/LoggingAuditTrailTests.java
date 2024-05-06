@@ -3247,7 +3247,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         }
                       ]
                     }""",
-                "[{\"cluster\":[\"cross_cluster_search\"],"
+                "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\"],"
                     + "\"indices\":[{\"names\":[\"logs*\"],"
                     + "\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"]}],"
                     + "\"applications\":[],\"run_as\":[]}]"
@@ -3300,7 +3300,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                           }
                         ]
                       }""",
-                "[{\"cluster\":[\"cross_cluster_search\",\"cross_cluster_replication\"],"
+                "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\",\"cross_cluster_replication\"],"
                     + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"],"
                     + "\"field_security\":{\"grant\":[\"*\"],\"except\":[\"private\"]},\"query\":\"{\\\"term\\\":{\\\"tag\\\":42}}\"},"
                     + "{\"names\":[\"archive\"],\"privileges\":[\"cross_cluster_replication\",\"cross_cluster_replication_internal\"],"

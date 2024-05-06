@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.apache.http.pool.PoolStats;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -57,6 +58,11 @@ public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.
         public int hashCode() {
             // The class doesn't have any members at the moment so return the same hash code
             return Objects.hash(NAME);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
         }
     }
 

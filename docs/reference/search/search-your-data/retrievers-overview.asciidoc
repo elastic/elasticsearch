@@ -92,10 +92,91 @@ interdependent configurations.
 
 [discrete]
 [[retrievers-overview-example]]
-=== Example: Before and after
+=== Example
 
-The following example demonstrates how using retrievers can
-simplify building and testing complex search pipelines.
+The following example demonstrates how using retrievers 
+simplify the composability of queries for RRF ranking.
+
+[source,js]
+----
+GET example-index/_search
+{
+  "retriever": {
+    "rrf": {
+      "retrievers": [
+        {
+          "standard": {
+            "query": {
+              "text_expansion": {
+                "vector.tokens": {
+                  "model_id": ".elser_model_2",
+                  "model_text": "What blue shoes are on sale?"
+                }
+              }
+            }
+          }
+        },
+        {
+          "standard": {
+            "query": {
+              "multi_match": {
+                "query": "blue shoes sale",
+                "fields": [
+                  "text"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+----
+//NOTCONSOLE
+
+This example demonstrates how you can combine different
+retrieval strategies into a single `retriever` pipeline.
+
+Compare to `RRF` with `sub_searches` approach:
+
+.*Expand* for example
+[%collapsible]
+==============
+
+[source,js]
+----
+GET example-index/_search
+{
+    "sub_searches": [
+        {
+            "query": {
+                "term": {
+                    "text": "blue shoes sale"
+                }
+            }
+        },
+        {
+            "query": {
+                "text_expansion":{
+                    "ml.tokens":{
+                        "model_id":"my_elser_model",
+                        "model_text":"What blue shoes are on sale?"
+                     }
+                }
+            }
+        }
+    ],
+    "rank": {
+        "rrf": {
+            "window_size": 50,
+            "rank_constant": 20
+        }
+    }
+}
+----
+//NOTCONSOLE
+==============
 
 // TODO: Add concrete example(s) sourced from the hive mind
 
@@ -118,13 +199,13 @@ from multiple sub-retrievers.
 [[retrievers-overview-play-in-search]]
 === Retrievers in action
 
-
-The Search [Playground], builds Elasticsearch queries using the retriever abstraction.
+The Search Playground, builds Elasticsearch queries using the retriever abstraction.
 It automatically detects the fields and types in your index and builds a retriever tree based on your selections.
 
-You can use the [Playground] to experiment with different retriever configurations and see how they affect search results.
+You can use the Playground to experiment with different retriever configurations and see how they affect search results.
 
 Refer to the {kibana-ref}/playground.html[[Playground] documentation] for more information.
+// Content coming in https://github.com/elastic/kibana/pull/182692
 
 
 

@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
@@ -23,9 +24,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -38,7 +42,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
-    public static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = SecurityMainIndexMappingVersion.ADD_DESCRIPTION_FIELD;
+    public static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = SecurityMainIndexMappingVersion.latest().id;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
@@ -119,35 +123,22 @@ public class SecuritySystemIndices {
     }
 
     private SystemIndexDescriptor getSecurityMainIndexDescriptor() {
-        return SystemIndexDescriptor.builder()
-            // This can't just be `.security-*` because that would overlap with the tokens index pattern
-            .setIndexPattern(".security-[0-9]+*")
-            .setPrimaryIndex(MAIN_INDEX_CONCRETE_NAME)
-            .setDescription("Contains Security configuration")
-            .setMappings(getMainIndexMappings(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT))
-            .setSettings(getMainIndexSettings())
-            .setAliasName(SECURITY_MAIN_ALIAS)
-            .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
-            .setOrigin(SECURITY_ORIGIN)
-            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-            .setPriorSystemIndexDescriptors(
-                List.of(
-                    SystemIndexDescriptor.builder()
-                        // This can't just be `.security-*` because that would overlap with the tokens index pattern
-                        .setIndexPattern(".security-[0-9]+*")
-                        .setPrimaryIndex(MAIN_INDEX_CONCRETE_NAME)
-                        .setDescription("Contains Security configuration")
-                        .setMappings(getMainIndexMappings(SecurityMainIndexMappingVersion.INITIAL))
-                        .setSettings(getMainIndexSettings())
-                        .setAliasName(SECURITY_MAIN_ALIAS)
-                        .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-                        .setVersionMetaKey(SECURITY_VERSION_STRING)
-                        .setOrigin(SECURITY_ORIGIN)
-                        .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-                        .build()
-                )
-            )
+        final Function<SecurityMainIndexMappingVersion, SystemIndexDescriptor.Builder> securityIndexDescriptorBuilder =
+            mappingVersion -> SystemIndexDescriptor.builder()
+                // This can't just be `.security-*` because that would overlap with the tokens index pattern
+                .setIndexPattern(".security-[0-9]+*")
+                .setPrimaryIndex(MAIN_INDEX_CONCRETE_NAME)
+                .setDescription("Contains Security configuration")
+                .setMappings(getMainIndexMappings(mappingVersion))
+                .setSettings(getMainIndexSettings())
+                .setAliasName(SECURITY_MAIN_ALIAS)
+                .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+                .setVersionMetaKey(SECURITY_VERSION_STRING)
+                .setOrigin(SECURITY_ORIGIN)
+                .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS);
+
+        return securityIndexDescriptorBuilder.apply(SecurityMainIndexMappingVersion.latest())
+            .setPriorSystemIndexDescriptors(List.of(securityIndexDescriptorBuilder.apply(SecurityMainIndexMappingVersion.INITIAL).build()))
             .build();
     }
 
@@ -166,14 +157,14 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private XContentBuilder getMainIndexMappings(int version) {
+    private XContentBuilder getMainIndexMappings(SecurityMainIndexMappingVersion mappingVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION); // Only needed for BWC with pre-8.15.0 nodes
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, version);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, mappingVersion.id);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -402,7 +393,7 @@ public class SecuritySystemIndices {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    if (version >= SecurityMainIndexMappingVersion.ADD_DESCRIPTION_FIELD) {
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_DESCRIPTION_FIELD)) {
                         builder.startObject("description");
                         builder.field("type", "text");
                         builder.endObject();
@@ -1017,20 +1008,44 @@ public class SecuritySystemIndices {
     }
 
     /**
-     * Every change to the mapping of .security index must be versioned.
-     * For readability, this class holds named constants of all mapping versions.
+     * Every change to the mapping of .security index must be versioned. When adding a new mapping version:
+     * <ul>
+     *     <li>pick the next largest version ID - this will automatically become the new {@link #latest()} version</li>
+     *     <li>add your mapping change in {@link #getMainIndexMappings(SecurityMainIndexMappingVersion)} conditionally to a new version</li>
+     *     <li>make sure to set old latest version to "prior system index descriptors" in {@link #getSecurityMainIndexDescriptor()}</li>
+     * </ul>
      */
-    public static class SecurityMainIndexMappingVersion {
+    public enum SecurityMainIndexMappingVersion implements VersionId<SecurityMainIndexMappingVersion> {
 
         /**
          * Initial .security index mapping version.
          */
-        public static final int INITIAL = 1;
+        INITIAL(1),
 
         /**
          * The mapping was changed to add a new text description field.
          */
-        public static final int ADD_DESCRIPTION_FIELD = 2;
+        ADD_DESCRIPTION_FIELD(2),
+
+        ;
+
+        private static final SecurityMainIndexMappingVersion LATEST = Arrays.stream(values()).max(Comparator.comparingInt(v -> v.id)).get();
+
+        private final int id;
+
+        SecurityMainIndexMappingVersion(int id) {
+            assert id > 0;
+            this.id = id;
+        }
+
+        @Override
+        public int id() {
+            return id;
+        }
+
+        public static SecurityMainIndexMappingVersion latest() {
+            return LATEST;
+        }
     }
 
 }

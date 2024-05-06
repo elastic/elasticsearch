@@ -435,7 +435,7 @@ fe80::cae2:65ff:fece:feb9 | gamma
 
 implictCastingEqual
 required_feature: esql.string_literal_auto_casting_extended
-from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0;
+from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0 | sort host;
 
 host:keyword | ip0:ip
 alpha        | 127.0.0.1

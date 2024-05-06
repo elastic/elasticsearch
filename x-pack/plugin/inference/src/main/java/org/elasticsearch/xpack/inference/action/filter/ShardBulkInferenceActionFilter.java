@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -66,7 +64,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSeman
  * TODO: batchSize should be configurable via a cluster setting
  */
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
-    private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
     protected static final int DEFAULT_BATCH_SIZE = 512;
 
     private final InferenceServiceRegistry inferenceServiceRegistry;

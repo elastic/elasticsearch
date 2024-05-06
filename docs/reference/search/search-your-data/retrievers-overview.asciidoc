@@ -204,7 +204,7 @@ It automatically detects the fields and types in your index and builds a retriev
 
 You can use the Playground to experiment with different retriever configurations and see how they affect search results.
 
-Refer to the {kibana-ref}/playground.html[[Playground] documentation] for more information.
+Refer to the {kibana-ref}/playground.html[Playground documentation] for more information.
 // Content coming in https://github.com/elastic/kibana/pull/182692
 
 

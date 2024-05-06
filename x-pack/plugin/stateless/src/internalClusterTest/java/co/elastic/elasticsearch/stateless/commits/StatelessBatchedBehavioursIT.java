@@ -25,6 +25,8 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +36,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.shard.IndexShard;
@@ -48,9 +51,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
@@ -75,6 +80,49 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         return super.nodeSettings()
             // Need to set the ObjectStoreType to MOCK for the StatelessMockRepository plugin.
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK.toString().toLowerCase(Locale.ROOT));
+    }
+
+    public void testGenerationalFileBlobReferenceIsRetainedCorrectly() throws Exception {
+        final String indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
+                .build()
+        );
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final List<String> docIds = IntStream.range(0, 8).mapToObj(i -> "doc-" + i).toList();
+
+        for (String docId : docIds) {
+            client().prepareIndex(indexName)
+                .setId(docId)
+                .setSource("field", randomUnicodeOfLength(50))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get(TimeValue.timeValueSeconds(10));
+        }
+
+        for (String docId : docIds) {
+            client().prepareDelete(indexName, docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get(TimeValue.timeValueSeconds(10));
+        }
+
+        // Make sure the delayed release actually happen for deleting the old commit files
+        forceMerge();
+        // speed up commit deletion since it uses delayed cluster consistency check from translog
+        indexDoc(indexName, "doc-extra", "field", randomUnicodeOfLength(50));
+
+        final ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        final IndexShard indexShard = findIndexShard(indexName);
+        final Engine indexEngine = indexShard.getEngineOrNull();
+        final long generation = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+        final BlobContainer blobContainer = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+        assertBusy(() -> {
+            final Set<String> blobFileNames = blobContainer.listBlobs(OperationPurpose.INDICES).keySet();
+            assertThat(blobFileNames, equalTo(Set.of(StatelessCompoundCommit.blobNameFromGeneration(generation))));
+        });
     }
 
     public void testDefaultToNotifyOnlyForUpload() {

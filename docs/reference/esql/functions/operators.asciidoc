@@ -12,7 +12,6 @@ Boolean operators for comparing against one or multiple expressions.
 * <<esql-unary-operators>>
 * <<esql-logical-operators>>
 * <<esql-predicates>>
-* <<esql-cidr_match>>
 * <<esql-in-operator>>
 * <<esql-like-operator>>
 * <<esql-rlike-operator>>
@@ -22,7 +21,6 @@ include::binary.asciidoc[]
 include::unary.asciidoc[]
 include::logical.asciidoc[]
 include::predicates.asciidoc[]
-include::cidr_match.asciidoc[]
 include::in.asciidoc[]
 include::like.asciidoc[]
 include::rlike.asciidoc[]

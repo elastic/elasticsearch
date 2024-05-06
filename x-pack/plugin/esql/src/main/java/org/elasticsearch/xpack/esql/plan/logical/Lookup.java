@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -17,6 +22,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,14 +37,40 @@ public class Lookup extends UnaryPlan {
     private final List<NamedExpression> matchFields;
     // initialized during the analysis phase for output and validation
     // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
-    private final LocalRelation localRelation;
+    private final LocalRelation.FromConfig localRelation;
     private List<Attribute> lazyOutput;
 
-    public Lookup(Source source, LogicalPlan child, Expression tableName, List<NamedExpression> matchFields, LocalRelation localRelation) {
+    public Lookup(
+        Source source,
+        LogicalPlan child,
+        Expression tableName,
+        List<NamedExpression> matchFields,
+        @Nullable LocalRelation.FromConfig localRelation
+    ) {
         super(source, child);
         this.tableName = tableName;
         this.matchFields = matchFields;
         this.localRelation = localRelation;
+    }
+
+    public Lookup(PlanStreamInput in) throws IOException {
+        super(in.readSource(), in.readLogicalPlanNode());
+        this.tableName = in.readExpression();
+        this.matchFields = in.readCollectionAsList(i -> ((PlanStreamInput) i).readNamedExpression());
+        this.localRelation = in.readBoolean() ? LocalRelation.FromConfig.readFrom(in) : null;
+    }
+
+    public void writeTo(PlanStreamOutput out) throws IOException {
+        out.writeSource(source());
+        out.writeLogicalPlanNode(child());
+        out.writeExpression(tableName);
+        out.writeCollection(matchFields, (o, v) -> ((PlanStreamOutput) o).writeNamedExpression(v));
+        if (localRelation == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            localRelation.writeTo(out);
+        }
     }
 
     public Expression tableName() {
@@ -49,7 +81,7 @@ public class Lookup extends UnaryPlan {
         return matchFields;
     }
 
-    public LocalRelation localRelation() {
+    public LocalRelation.FromConfig localRelation() {
         return localRelation;
     }
 

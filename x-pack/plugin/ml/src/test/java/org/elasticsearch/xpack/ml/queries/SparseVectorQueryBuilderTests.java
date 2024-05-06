@@ -115,14 +115,6 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     }
 
     @Override
-    public void testMustRewrite() {
-        SearchExecutionContext context = createSearchExecutionContext();
-        TextExpansionQueryBuilder builder = new TextExpansionQueryBuilder("foo", "bar", "baz");
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.toQuery(context));
-        assertEquals("text_expansion should have been rewritten to another query type", e.getMessage());
-    }
-
-    @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
         return method.equals(Client.class.getMethod("execute", ActionType.class, ActionRequest.class, ActionListener.class))
             && (args[0] instanceof CoordinatedInferenceAction);

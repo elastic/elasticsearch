@@ -13,7 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,6 +27,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class VectorScorerFactoryTests extends AbstractVectorTestCase {
+
+    // bounds of the range of values that can be seen by int7 scalar quantized vectors
+    static final byte MIN_INT7_VALUE = 0;
+    static final byte MAX_INT7_VALUE = 127;
 
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {
@@ -66,22 +69,22 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                     // dot product
                     float expected = luceneScore(DOT_PRODUCT, vec1, vec2, 1, 1, 1);
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, in).get();
+                    var scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, in).get();
                     assertThat(scorer.score(0, 1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                     // max inner product
                     expected = luceneScore(MAXIMUM_INNER_PRODUCT, vec1, vec2, 1, 1, 1);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, MAXIMUM_INNER_PRODUCT, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, 2, 1, MAXIMUM_INNER_PRODUCT, in).get();
                     assertThat(scorer.score(0, 1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                     // cosine
                     expected = luceneScore(COSINE, vec1, vec2, 1, 1, 1);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, COSINE, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, 2, 1, COSINE, in).get();
                     assertThat(scorer.score(0, 1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                     // euclidean
                     expected = luceneScore(EUCLIDEAN, vec1, vec2, 1, 1, 1);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, EUCLIDEAN, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, 2, 1, EUCLIDEAN, in).get();
                     assertThat(scorer.score(0, 1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                 }
@@ -91,24 +94,24 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandom() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, ESTestCase::randomByteArrayOfLength);
+        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandom(maxChunkSize, ESTestCase::randomByteArrayOfLength);
+        testRandom(maxChunkSize, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
     public void testRandomMax() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MAX_FUNC);
+        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MAX_INT7_FUNC);
     }
 
     public void testRandomMin() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_FUNC);
+        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_INT7_FUNC);
     }
 
     void testRandom(long maxChunkSize, Function<Integer, byte[]> byteArraySupplier) throws IOException {
@@ -139,22 +142,22 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                     // dot product
                     float expected = luceneScore(DOT_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
+                    var scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // max inner product
                     expected = luceneScore(MAXIMUM_INNER_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // cosine
                     expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // euclidean
                     expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                 }
@@ -164,7 +167,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandomSlice() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSliceImpl(30, 64, 1, ESTestCase::randomByteArrayOfLength);
+        testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, Function<Integer, byte[]> byteArraySupplier)
@@ -200,22 +203,22 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                     // dot product
                     float expected = luceneScore(DOT_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
+                    var scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // max inner product
                     expected = luceneScore(MAXIMUM_INNER_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // cosine
                     expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // euclidean
                     expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
+                    scorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                 }
@@ -223,15 +226,21 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    static Function<Integer, byte[]> BYTE_ARRAY_MAX_FUNC = size -> {
+    static Function<Integer, byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
-        Arrays.fill(ba, Byte.MAX_VALUE);
+        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
         return ba;
     };
 
-    static Function<Integer, byte[]> BYTE_ARRAY_MIN_FUNC = size -> {
+    static Function<Integer, byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
-        Arrays.fill(ba, Byte.MIN_VALUE);
+        Arrays.fill(ba, MAX_INT7_VALUE);
+        return ba;
+    };
+
+    static Function<Integer, byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
+        byte[] ba = new byte[size];
+        Arrays.fill(ba, MIN_INT7_VALUE);
         return ba;
     };
 

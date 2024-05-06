@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -34,12 +35,21 @@ public class StartsWith extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Returns a boolean that indicates whether a keyword string starts with another string"
+        description = "Returns a boolean that indicates whether a keyword string starts with another string.",
+        examples = @Example(file = "docs", tag = "startsWith")
     )
     public StartsWith(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "prefix", type = { "keyword", "text" }) Expression prefix
+        @Param(
+            name = "str",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression str,
+        @Param(
+            name = "prefix",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression prefix
     ) {
         super(source, Arrays.asList(str, prefix));
         this.str = str;

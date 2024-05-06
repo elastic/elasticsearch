@@ -192,6 +192,23 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     }
 
     /**
+     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}; this query should always be rewritten
+     */
+    @Override
+    public void testMustRewrite() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            Document document = new Document();
+            document.add(new FloatDocValuesField(SPARSE_VECTOR_FIELD, 1.0f));
+            iw.addDocument(document);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+                queryBuilder.toQuery(context);
+            }
+        }
+    }
+
+    /**
     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}; this query should always be rewritten
     */
     @Override

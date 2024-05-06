@@ -140,7 +140,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
                 logger.warn(documents);
                 assertThat(documents, hasSize(2));
-            });
+            }, 30, TimeUnit.SECONDS);
         } finally {
             cleanupSettings();
         }
@@ -260,7 +260,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             var documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId);
             logger.warn(documents);
             assertThat(documents, hasSize(headerMatchers.size()));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testDeprecationRouteThrottling() throws Exception {

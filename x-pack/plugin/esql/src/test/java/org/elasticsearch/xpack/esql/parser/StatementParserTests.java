@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -46,9 +48,9 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -867,18 +869,19 @@ public class StatementParserTests extends ESTestCase {
 
     public void testInputParams() {
         LogicalPlan stm = statement(
-            "row x = ?, y = ?, a = ?, b = ?, c = ?",
+            "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?",
             List.of(
                 new TypedParamValue("integer", 1),
                 new TypedParamValue("keyword", "2"),
                 new TypedParamValue("date_period", "2 days"),
                 new TypedParamValue("time_duration", "4 hours"),
-                new TypedParamValue("version", "1.2.3")
+                new TypedParamValue("version", "1.2.3"),
+                new TypedParamValue("ip", "127.0.0.1")
             )
         );
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
-        assertThat(row.fields().size(), is(5));
+        assertThat(row.fields().size(), is(6));
 
         NamedExpression field = row.fields().get(0);
         assertThat(field.name(), is("x"));
@@ -908,8 +911,15 @@ public class StatementParserTests extends ESTestCase {
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold().getClass(), is(Version.class));
-        assertThat(alias.child().fold().toString(), is("1.2.3"));
+        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold().toString(), is(new Version("1.2.3").toBytesRef().toString()));
+
+        field = row.fields().get(5);
+        assertThat(field.name(), is("d"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold().toString(), is(StringUtils.parseIP("127.0.0.1").toString()));
     }
 
     public void testWrongIntervalParams() {

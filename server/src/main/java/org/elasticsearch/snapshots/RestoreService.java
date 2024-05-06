@@ -1690,6 +1690,7 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
+        logger.warn("MPXX RestoreService.restoreToCreateNewIndex for {} is setting " + "event.ingested to NO_SHARDS", renamedIndexName);
         return IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .index(renamedIndexName)
@@ -1701,6 +1702,10 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     private static IndexMetadata.Builder restoreOverClosedIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
+        logger.warn(
+            "MPXX RestoreService.restoreOverClosedIndex for {} is setting " + "event.ingested to NO_SHARDS",
+            currentIndexMetadata.getIndex().getName()
+        );
         final IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))

@@ -705,7 +705,11 @@ public class ShardStateAction {
                                 ? null
                                 : clusterStateTimeRanges.eventIngestedRange();
 
-                            logger.warn("MPXX SSAction.execute DEBUG 3: clusterStateTimeRanges: " + clusterStateTimeRanges);
+                            logger.warn(
+                                "MPXX SSAction.execute DEBUG 3: clusterStateTimeRanges for index: {}, {}",
+                                index.getName(),
+                                clusterStateTimeRanges
+                            );
 
                             final IndexMetadata indexMetadata = initialState.metadata().index(index);
                             if (currentTimestampMillisRange == null) {

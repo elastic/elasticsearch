@@ -72,7 +72,7 @@ public class SecurityIndexFieldMigrationIT extends AbstractUpgradeTestCase {
             String.format(
                 Locale.ROOT,
                 """
-                    {"query":{"bool":{"must":[{"term":{"_id":"%s-%s"}},{"term":{"metadata_flattened.%s":"%s"}}]}}""",
+                    {"query":{"bool":{"must":[{"term":{"_id":"%s-%s"}},{"term":{"metadata_flattened.%s":"%s"}}]}}}""",
                 type,
                 value,
                 metaKey,

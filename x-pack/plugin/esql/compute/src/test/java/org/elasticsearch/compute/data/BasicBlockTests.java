@@ -200,6 +200,8 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.asVector().min(), equalTo(0));
+            assertThat(block.asVector().max(), equalTo(positionCount - 1));
 
             try (IntBlock.Builder blockBuilder = blockFactory.newIntBlockBuilder(1)) {
                 IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -228,6 +230,36 @@ public class BasicBlockTests extends ESTestCase {
                 IntStream.range(0, positionCount).forEach(vectorBuilder::appendInt);
                 IntVector vector = vectorBuilder.build();
                 assertSingleValueDenseBlock(vector.asBlock());
+                assertThat(vector.min(), equalTo(0));
+                assertThat(vector.max(), equalTo(positionCount - 1));
+                releaseAndAssertBreaker(vector.asBlock());
+            }
+        }
+    }
+
+    public void testIntBlockEmpty() {
+        for (int i = 0; i < 1000; i++) {
+            assertThat(breaker.getUsed(), is(0L));
+            IntBlock block;
+            if (randomBoolean()) {
+                try (IntBlock.Builder blockBuilder = blockFactory.newIntBlockBuilder(0)) {
+                    block = blockBuilder.build();
+                }
+            } else {
+                block = blockFactory.newIntArrayVector(new int[] {}, 0).asBlock();
+            }
+
+            assertThat(block.getPositionCount(), equalTo(0));
+            assertLookup(block, positions(blockFactory, 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, block);
+            assertThat(block.asVector().min(), equalTo(Integer.MAX_VALUE));
+            assertThat(block.asVector().max(), equalTo(Integer.MIN_VALUE));
+            releaseAndAssertBreaker(block);
+
+            try (IntVector.Builder vectorBuilder = blockFactory.newIntVectorBuilder(0)) {
+                IntVector vector = vectorBuilder.build();
+                assertThat(vector.min(), equalTo(Integer.MAX_VALUE));
+                assertThat(vector.max(), equalTo(Integer.MIN_VALUE));
                 releaseAndAssertBreaker(vector.asBlock());
             }
         }
@@ -254,6 +286,8 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.asVector().min(), equalTo(value));
+            assertThat(block.asVector().max(), equalTo(value));
             releaseAndAssertBreaker(block);
         }
     }

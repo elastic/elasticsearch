@@ -49,19 +49,6 @@ setup:
               non_inference_field:
                 type: text
 
-  - do:
-      indices.create:
-        index: origin-index
-        body:
-          mappings:
-            properties:
-              original_field:
-                type: text
-              another_original_field:
-                type: text
-              non_inference_field:
-                type: text
-
 ---
 "Calculates text expansion and embedding results for new documents":
     - do:
@@ -671,3 +658,93 @@ setup:
   - exists: _source.dense_field.inference.chunks.0.embeddings
   - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
   - match: { _source.non_inference_field: "updated non inference test" }
+
+
+---
+"Update by query picks up new semantic_text fields":
+
+  - do:
+      indices.create:
+        index: mapping-update-index
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: mapping-update-index
+        id: doc_1
+        refresh: true
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      indices.put_mapping:
+        index: mapping-update-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+            non_inference_field:
+              type: text
+
+  - do:
+      update_by_query:
+        wait_for_completion: true
+        index: mapping-update-index
+
+  - match: { updated: 1 }
+
+  - do:
+      get:
+        index: mapping-update-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "inference test" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
+  - match: { _source.dense_field.text: "another inference test" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+---
+"Update by query works for scripts":
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        refresh: true
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      update_by_query:
+        wait_for_completion: true
+        index: test-index
+        body: { "script": "ctx._source.sparse_field = 'updated inference test'; ctx._source.dense_field = 'another updated inference test'" }
+
+  - match: { updated: 1 }
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "updated inference test" }
+  - match:  { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match:  { _source.dense_field.text: "another updated inference test" }
+  - match:  { _source.dense_field.inference.chunks.0.text: "another updated inference test" }

@@ -27,12 +27,13 @@ public final class TranslogConfig {
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
     public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
     public static final OperationListener NOOP_OPERATION_LISTENER = (d, s, l) -> {};
-    private final BigArrays bigArrays;
-    private final DiskIoBufferPool diskIoBufferPool;
-    private final IndexSettings indexSettings;
+
     private final ShardId shardId;
     private final Path translogPath;
+    private final IndexSettings indexSettings;
+    private final BigArrays bigArrays;
     private final ByteSizeValue bufferSize;
+    private final DiskIoBufferPool diskIoBufferPool;
     private final OperationListener operationListener;
     private final boolean fsync;
 
@@ -57,12 +58,12 @@ public final class TranslogConfig {
     }
 
     public TranslogConfig(
-        BigArrays bigArrays,
-        DiskIoBufferPool diskIoBufferPool,
-        IndexSettings indexSettings,
         ShardId shardId,
         Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
         ByteSizeValue bufferSize,
+        DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener
     ) {
         this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, operationListener, true);

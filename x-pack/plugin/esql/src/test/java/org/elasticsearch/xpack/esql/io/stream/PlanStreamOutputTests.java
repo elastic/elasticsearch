@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class PlanStreamOutputTests extends ESTestCase {
 
-    public void testTransportVersion() {
+    public void testTransportVersion() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion(random());
         out.setTransportVersion(v1);

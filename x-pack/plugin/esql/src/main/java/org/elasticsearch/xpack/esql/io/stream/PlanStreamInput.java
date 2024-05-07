@@ -17,10 +17,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
@@ -193,11 +195,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         return configuration;
     }
 
-    @Override
-    public int readArraySize() throws IOException {
-        return super.readArraySize();
-    }
-
     /**
      * Read a {@link Block} as part of the plan.
      * <p>
@@ -241,6 +238,34 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         assert block instanceof DoubleBigArrayBlock == false : "BigArrays not supported because we don't close";
         assert block instanceof BooleanBigArrayBlock == false : "BigArrays not supported because we don't close";
         return block;
+    }
+
+    /**
+     * Read an array of {@link Block}s as part of the plan.
+     * <p>
+     *     These {@link Block}s are not tacked by {@link BlockFactory} and closing them
+     *     does nothing so they should be small. We do make sure not to send duplicates,
+     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     possible, otherwise sending a {@linkplain Block} inline.
+     * </p>
+     */
+    public Block[] readCachedBlockArray() throws IOException {
+        int len = readArraySize();
+        if (len == 0) {
+            return BlockUtils.NO_BLOCKS;
+        }
+        Block[] blocks = new Block[len];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                blocks[i] = readCachedBlock();
+            }
+            return blocks;
+        } finally {
+            if (blocks[blocks.length - 1] == null) {
+                // Wasn't successful reading all blocks
+                Releasables.closeExpectNoException(blocks);
+            }
+        }
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {

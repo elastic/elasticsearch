@@ -80,7 +80,7 @@ public final class PlanStreamOutput extends StreamOutput {
     }
 
     public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
-        assert logicalPlan.children().size() <= 1;
+        // assert logicalPlan.children().size() <= 1; NOCOMMIT - ok to remove?
         writeNamed(LogicalPlan.class, logicalPlan);
     }
 

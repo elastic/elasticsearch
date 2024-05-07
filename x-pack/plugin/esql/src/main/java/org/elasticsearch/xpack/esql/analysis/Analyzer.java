@@ -361,7 +361,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 String name = entry.getKey();
                 Column column = entry.getValue();
                 // create a fake ES field - alternative is to use a ReferenceAttribute
-                EsField field = new EsField(name, column.type(), null, false, false);
+                EsField field = new EsField(name, column.type(), Map.of(), false, false);
                 attributes.add(new FieldAttribute(source, null, name, field));
                 // prepare the block for the supplier
                 blocks[i++] = column.values();

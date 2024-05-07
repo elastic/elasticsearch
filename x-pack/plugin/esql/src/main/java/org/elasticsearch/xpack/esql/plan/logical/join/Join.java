@@ -91,7 +91,7 @@ public class Join extends BinaryPlan {
      * We do this for fields that we know don't come from the index.
      * NOCOMMIT we should signal this more clearly
      */
-    private static List<Attribute> makeReference(List<Attribute> output) {
+    public static List<Attribute> makeReference(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
@@ -99,7 +99,7 @@ public class Join extends BinaryPlan {
         return out;
     }
 
-    private static List<Attribute> makeNullable(List<Attribute> output) {
+    public static List<Attribute> makeNullable(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             out.add(a.withNullability(Nullability.TRUE));

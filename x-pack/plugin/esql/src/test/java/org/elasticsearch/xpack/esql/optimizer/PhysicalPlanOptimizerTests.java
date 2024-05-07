@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -4199,6 +4200,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .item(startsWith("name{r}"))
         );
 
+        // NOCOMMIT finish
         var middleProject = as(join.child(), ProjectExec.class);
         assertThat(middleProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
         /*
@@ -4210,6 +4212,30 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(outerTopn.child(), ExchangeExec.class);
         var innerProject = as(exchange.child(), ProjectExec.class);
         assertThat(innerProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
+    }
+
+    /**
+     * Expects optimized data node plan of
+     * <pre>{@code
+     * }</pre>
+     */
+    public void testLookupThenTopN() {
+        var plan = physicalPlan("""
+                  FROM employees
+                | RENAME languages AS int
+                | LOOKUP int_number_names ON int
+                | RENAME name AS languages
+                | KEEP languages, emp_no
+                | SORT languages ASC, emp_no ASC
+            """);
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        TopNExec outerTopN = as(project.child(), TopNExec.class);
+        ExchangeExec exchange = as(outerTopN.child(), ExchangeExec.class);
+        FragmentExec frag = as(exchange.child(), FragmentExec.class);
+        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        System.err.println("ADSFADFAD " + opt);
+        fail("ADFA");
     }
 
     @SuppressWarnings("SameParameterValue")

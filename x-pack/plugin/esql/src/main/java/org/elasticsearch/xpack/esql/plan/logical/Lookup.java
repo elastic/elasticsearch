@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -37,7 +36,7 @@ public class Lookup extends UnaryPlan {
     private final List<NamedExpression> matchFields;
     // initialized during the analysis phase for output and validation
     // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
-    private final LocalRelation.FromConfig localRelation;
+    private final LocalRelation localRelation;
     private List<Attribute> lazyOutput;
 
     public Lookup(
@@ -45,7 +44,7 @@ public class Lookup extends UnaryPlan {
         LogicalPlan child,
         Expression tableName,
         List<NamedExpression> matchFields,
-        @Nullable LocalRelation.FromConfig localRelation
+        @Nullable LocalRelation localRelation
     ) {
         super(source, child);
         this.tableName = tableName;
@@ -57,7 +56,7 @@ public class Lookup extends UnaryPlan {
         super(in.readSource(), in.readLogicalPlanNode());
         this.tableName = in.readExpression();
         this.matchFields = in.readCollectionAsList(i -> ((PlanStreamInput) i).readNamedExpression());
-        this.localRelation = in.readBoolean() ? LocalRelation.FromConfig.readFrom(in) : null;
+        this.localRelation = in.readBoolean() ? new LocalRelation(in) : null;
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
@@ -81,7 +80,7 @@ public class Lookup extends UnaryPlan {
         return matchFields;
     }
 
-    public LocalRelation.FromConfig localRelation() {
+    public LocalRelation localRelation() {
         return localRelation;
     }
 
@@ -103,7 +102,9 @@ public class Lookup extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            List<? extends NamedExpression> rightSide = localRelation != null ? localRelation.output() : matchFields;
+            List<? extends NamedExpression> rightSide = localRelation != null
+                ? Join.makeNullable(Join.makeReference(localRelation.output()))
+                : matchFields;
             // NOCOMMIT This puts the right hand side stuff before the left hand side stuff - probably should be the other way around
             lazyOutput = mergeOutputAttributes(child().output(), rightSide);
         }

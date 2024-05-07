@@ -2319,6 +2319,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 eventIngestedRange,
                 timestampRange
             );
+            if (eventIngestedRange == IndexLongFieldRange.NO_SHARDS && timestampRange == IndexLongFieldRange.UNKNOWN) {
+                try {
+                    throw new RuntimeException("MPXX - IndexMetadata build with evIng=NO_SHARDS called from:");
+                } catch (RuntimeException e) {
+                    logger.warn(e.getMessage() + " stack trace ", e);
+                }
+            }
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

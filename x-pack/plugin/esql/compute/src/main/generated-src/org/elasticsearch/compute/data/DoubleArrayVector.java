@@ -23,7 +23,9 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
-        + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
+        + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class)
+        // TODO: remove this if/when we account for memory used by Pages
+        + RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
 
     private final double[] values;
 

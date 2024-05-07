@@ -123,9 +123,6 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
                 o.writeBoolean(false);
             }
         }, items);
-        if (inferenceFieldMap == null) {
-            throw new IllegalStateException("Tried to serialize with an inferenceFieldMap that has already been consumed");
-        }
         out.writeMap(inferenceFieldMap, (o, item) -> item.writeTo(o));
     }
 

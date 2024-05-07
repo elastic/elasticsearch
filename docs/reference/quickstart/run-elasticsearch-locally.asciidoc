@@ -1,7 +1,7 @@
 [[run-elasticsearch-locally]]
 == Run {es} locally in Docker (without security)
 ++++
-<titleabbrev>Quickstart locally in Docker</titleabbrev>
+<titleabbrev>Local dev setup (Docker)</titleabbrev>
 ++++
 
 [WARNING]

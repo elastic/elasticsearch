@@ -411,7 +411,10 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
-        String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
+        String[] attributeNames = dissect.extractedFields()
+            .stream()
+            .map(alias -> ((Attribute) alias.child()).name())
+            .toArray(String[]::new);
 
         Layout layout = layoutBuilder.build();
         source = source.with(
@@ -428,13 +431,13 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planGrok(GrokExec grok, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(grok.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        List<Attribute> extractedFields = grok.extractedFields();
+        List<Alias> extractedFields = grok.extractedFields();
         layoutBuilder.append(extractedFields);
         Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
         Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
         for (int i = 0; i < extractedFields.size(); i++) {
-            Attribute extractedField = extractedFields.get(i);
+            Attribute extractedField = (Attribute) extractedFields.get(i).child();
             ElementType type = PlannerUtils.toElementType(extractedField.dataType());
             fieldToPos.put(extractedField.name(), i);
             fieldToType.put(extractedField.name(), type);

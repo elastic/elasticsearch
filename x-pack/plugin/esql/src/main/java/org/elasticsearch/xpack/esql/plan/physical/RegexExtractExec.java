@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,9 +20,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public abstract class RegexExtractExec extends UnaryExec implements EstimatesRowSize {
 
     protected final Expression inputExpression;
-    protected final List<Attribute> extractedFields;
+    protected final List<Alias> extractedFields;
 
-    protected RegexExtractExec(Source source, PhysicalPlan child, Expression inputExpression, List<Attribute> extractedFields) {
+    protected RegexExtractExec(Source source, PhysicalPlan child, Expression inputExpression, List<Alias> extractedFields) {
         super(source, child);
         this.inputExpression = inputExpression;
         this.extractedFields = extractedFields;
@@ -36,7 +37,7 @@ public abstract class RegexExtractExec extends UnaryExec implements EstimatesRow
         return inputExpression;
     }
 
-    public List<Attribute> extractedFields() {
+    public List<Alias> extractedFields() {
         return extractedFields;
     }
 

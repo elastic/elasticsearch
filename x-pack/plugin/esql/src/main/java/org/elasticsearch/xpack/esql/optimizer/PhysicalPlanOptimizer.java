@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -112,14 +113,16 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                         }
                     });
                     if (p instanceof RegexExtractExec ree) {
-                        attributes.removeAll(ree.extractedFields());
+                        for (Alias extractedField : ree.extractedFields()) {
+                            attributes.remove((Attribute) extractedField.child());
+                        }
                     }
                     if (p instanceof MvExpandExec mvee) {
                         attributes.remove(mvee.expanded());
                     }
                     if (p instanceof EnrichExec ee) {
                         for (NamedExpression enrichField : ee.enrichFields()) {
-                            // TODO: why is this different then the remove above?
+                            // TODO: This weirdness could be avoided if Enrich just used Aliases all the time.
                             attributes.remove(enrichField instanceof Alias a ? a.child() : enrichField);
                         }
                     }

@@ -474,7 +474,8 @@ public final class PlanNamedTypes {
     }
 
     static DissectExec readDissectExec(PlanStreamInput in) throws IOException {
-        return new DissectExec(in.readSource(), in.readPhysicalPlanNode(), in.readExpression(), readDissectParser(in), readAttributes(in));
+        // TODO: needs new transport version
+        return new DissectExec(in.readSource(), in.readPhysicalPlanNode(), in.readExpression(), readDissectParser(in), readAliases(in));
     }
 
     static void writeDissectExec(PlanStreamOutput out, DissectExec dissectExec) throws IOException {
@@ -482,7 +483,8 @@ public final class PlanNamedTypes {
         out.writePhysicalPlanNode(dissectExec.child());
         out.writeExpression(dissectExec.inputExpression());
         writeDissectParser(out, dissectExec.parser());
-        writeAttributes(out, dissectExec.extractedFields());
+        // TODO: needs new transport version
+        writeAliases(out, dissectExec.extractedFields());
     }
 
     static EsQueryExec readEsQueryExec(PlanStreamInput in) throws IOException {
@@ -665,7 +667,8 @@ public final class PlanNamedTypes {
             in.readPhysicalPlanNode(),
             in.readExpression(),
             Grok.pattern(source, in.readString()),
-            readAttributes(in)
+            // TODO: needs new transport version
+            readAliases(in)
         );
     }
 
@@ -674,7 +677,8 @@ public final class PlanNamedTypes {
         out.writePhysicalPlanNode(grokExec.child());
         out.writeExpression(grokExec.inputExpression());
         out.writeString(grokExec.pattern().pattern());
-        writeAttributes(out, grokExec.extractedFields());
+        // TODO: needs new transport version
+        writeAliases(out, grokExec.extractedFields());
     }
 
     static LimitExec readLimitExec(PlanStreamInput in) throws IOException {

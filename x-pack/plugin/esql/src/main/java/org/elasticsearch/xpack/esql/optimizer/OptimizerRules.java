@@ -161,7 +161,7 @@ class OptimizerRules {
                 return new AttributeSet(Expressions.asAttributes(eval.fields()));
             }
             if (physicalPlan instanceof RegexExtractExec extract) {
-                return new AttributeSet(extract.extractedFields());
+                return new AttributeSet(Expressions.asAttributes(extract.extractedFields()));
             }
             if (physicalPlan instanceof MvExpandExec mvExpand) {
                 return new AttributeSet(mvExpand.expanded());

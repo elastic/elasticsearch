@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,13 +20,7 @@ public class GrokExec extends RegexExtractExec {
 
     private final Grok.Parser parser;
 
-    public GrokExec(
-        Source source,
-        PhysicalPlan child,
-        Expression inputExpression,
-        Grok.Parser parser,
-        List<Attribute> extractedAttributes
-    ) {
+    public GrokExec(Source source, PhysicalPlan child, Expression inputExpression, Grok.Parser parser, List<Alias> extractedAttributes) {
         super(source, child, inputExpression, extractedAttributes);
         this.parser = parser;
     }

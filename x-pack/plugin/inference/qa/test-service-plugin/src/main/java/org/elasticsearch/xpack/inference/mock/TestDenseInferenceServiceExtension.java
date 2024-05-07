@@ -124,7 +124,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (int i = 0; i < input.size(); i++) {
                 List<Float> values = new ArrayList<>();
                 for (int j = 0; j < dimensions; j++) {
-                    values.add((float) j);
+                    values.add((float) stringWeight(input.get(i), j));
                 }
                 embeddings.add(new TextEmbeddingResults.Embedding(values));
             }
@@ -136,7 +136,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (int i = 0; i < input.size(); i++) {
                 double[] values = new double[dimensions];
                 for (int j = 0; j < 5; j++) {
-                    values[j] = j;
+                    values[j] = stringWeight(input.get(i), j);
                 }
                 results.add(
                     new org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults(

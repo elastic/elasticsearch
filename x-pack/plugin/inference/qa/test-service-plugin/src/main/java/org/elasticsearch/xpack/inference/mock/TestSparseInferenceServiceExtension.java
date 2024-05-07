@@ -121,7 +121,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + j, j + 1.0F));
+                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
                 }
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
@@ -133,7 +133,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, j + 1.0F));
+                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
                 }
                 results.add(
                     new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens)))
@@ -145,7 +145,6 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
         }
-
     }
 
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {

@@ -27,6 +27,14 @@ import java.util.Map;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
 
+    protected static int stringWeight(String input, int position) {
+        int hashCode = input.hashCode();
+        if (hashCode < 0) {
+            hashCode = -hashCode;
+        }
+        return hashCode + position;
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
@@ -197,5 +205,9 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
+    }
+
+    protected static float stringAsFloat(String value) {
+        return value.hashCode();
     }
 }

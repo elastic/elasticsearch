@@ -2630,7 +2630,9 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testMaybeRemoveRemoteClusterPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(randomList(2, 5, () -> RoleDescriptorTestHelper.randomRoleDescriptor()));
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(2, 5, () -> RoleDescriptorTestHelper.builder().allowRemoteClusters(true).build())
+        );
 
         // Selecting random unsupported version.
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(

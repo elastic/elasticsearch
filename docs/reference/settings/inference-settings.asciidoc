@@ -1,7 +1,7 @@
 
 [role="xpack"]
 [[inference-settings]]
-=== Inference API settings in Elasticsearch
+=== Inference API settings in {es}
 ++++
 <titleabbrev>Inference settings</titleabbrev>
 ++++

@@ -28,6 +28,16 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     IntVector filter(int... positions);
 
     /**
+     * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
+     */
+    int min();
+
+    /**
+     * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
+     */
+    int max();
+
+    /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a IntVector, and both vectors are {@link #equals(IntVector, IntVector) equal}.
      */

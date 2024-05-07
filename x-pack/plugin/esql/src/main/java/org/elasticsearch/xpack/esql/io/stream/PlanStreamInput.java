@@ -207,7 +207,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
-    public Block readBlock() throws IOException {
+    public Block readCachedBlock() throws IOException {
         byte key = readByte();
         Block block = switch (key) {
             case PlanStreamOutput.NEW_BLOCK_KEY -> {

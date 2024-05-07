@@ -41,7 +41,14 @@ import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSourceNoText;
  */
 public final class PlanStreamOutput extends StreamOutput {
 
+    /**
+     * Cache of written blocks. We use an {@link IdentityHashMap} for this
+     * because calculating the {@link Object#hashCode} of a {@link Block}
+     * is slow. And so is {@link Object#equals}. So, instead we just use
+     * object identity.
+     */
     private final Map<Block, BytesReference> cachedBlocks = new IdentityHashMap<>();
+
     private final StreamOutput delegate;
     private final PlanNameRegistry registry;
 
@@ -49,7 +56,8 @@ public final class PlanStreamOutput extends StreamOutput {
 
     private int nextCachedBlock = 0;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration) {
+    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration)
+        throws IOException {
         this(delegate, registry, configuration, PlanNamedTypes::name);
     }
 
@@ -58,7 +66,7 @@ public final class PlanStreamOutput extends StreamOutput {
         PlanNameRegistry registry,
         @Nullable EsqlConfiguration configuration,
         Function<Class<?>, String> nameSupplier
-    ) {
+    ) throws IOException {
         this.delegate = delegate;
         this.registry = registry;
         this.nameSupplier = nameSupplier;
@@ -168,7 +176,7 @@ public final class PlanStreamOutput extends StreamOutput {
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
-    public void writeBlock(Block block) throws IOException {
+    public void writeCachedBlock(Block block) throws IOException {
         assert block instanceof LongBigArrayBlock == false : "BigArrays not supported because we don't close";
         assert block instanceof IntBigArrayBlock == false : "BigArrays not supported because we don't close";
         assert block instanceof DoubleBigArrayBlock == false : "BigArrays not supported because we don't close";
@@ -185,30 +193,59 @@ public final class PlanStreamOutput extends StreamOutput {
         nextCachedBlock++;
     }
 
+    /**
+     * The byte representing a {@link Block} sent for the first time. The byte
+     * will be followed by a {@link StreamOutput#writeVInt} encoded identifier
+     * and then the contents of the {@linkplain Block} will immediately follow
+     * this byte.
+     */
     static final byte NEW_BLOCK_KEY = 0;
 
+    /**
+     * The byte representing a {@link Block} that has previously been sent.
+     * This byte will be followed up a {@link StreamOutput#writeVInt} encoded
+     * identifier pointing to the block to read.
+     */
     static final byte FROM_PREVIOUS_KEY = 1;
 
-    static BytesReference fromPreviousKey(int id) {
+    /**
+     * The byte representing a {@link Block} that was part of the
+     * {@link EsqlConfiguration#tables()} map. It is followed a string for
+     * the table name and then a string for the column name.
+     */
+    static final byte FROM_CONFIG_KEY = 2;
+
+    /**
+     * Build the key for reading a {@link Block} from the cache of previously
+     * received {@linkplain Block}s.
+     */
+    static BytesReference fromPreviousKey(int id) throws IOException {
         try (BytesStreamOutput key = new BytesStreamOutput()) {
             key.writeByte(FROM_PREVIOUS_KEY);
             key.writeVInt(id);
             return key.bytes();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    static final byte FROM_CONFIG_KEY = 2;
-
-    static BytesReference fromConfigKey(String table, String column) {
+    /**
+     * Build the key for reading a {@link Block} from the {@link EsqlConfiguration}.
+     * This is important because some operations like {@code LOOKUP} frequently read
+     * {@linkplain Block}s directly from the configuration.
+     * <p>
+     *     It'd be possible to implement this by adding all of the Blocks as "previous"
+     *     keys in the constructor and never use this construct at all, but that'd
+     *     require there be a consistent ordering of Blocks there. We could make one,
+     *     but I'm afraid that'd be brittle as we evolve the code. It'd make wire
+     *     compatibility difficult. This signal is much simpler to deal with even though
+     *     it is more bytes over the wire.
+     * </p>
+     */
+    static BytesReference fromConfigKey(String table, String column) throws IOException {
         try (BytesStreamOutput key = new BytesStreamOutput()) {
             key.writeByte(FROM_CONFIG_KEY);
             key.writeString(table);
             key.writeString(column);
             return key.bytes();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 }

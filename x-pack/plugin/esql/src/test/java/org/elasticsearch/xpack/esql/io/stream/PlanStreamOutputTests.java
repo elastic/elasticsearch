@@ -58,12 +58,12 @@ public class PlanStreamOutputTests extends ESTestCase {
                 BytesStreamOutput out = new BytesStreamOutput();
                 PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
             ) {
-                planStream.writeBlock(c.values());
+                planStream.writeCachedBlock(c.values());
                 assertThat(out.bytes().length(), equalTo(3 + tableName.length() + columnName.length()));
                 try (
                     PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)
                 ) {
-                    assertThat(in.readBlock(), sameInstance(c.values()));
+                    assertThat(in.readCachedBlock(), sameInstance(c.values()));
                 }
             }
         }
@@ -76,13 +76,13 @@ public class PlanStreamOutputTests extends ESTestCase {
                 BytesStreamOutput out = new BytesStreamOutput();
                 PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
             ) {
-                planStream.writeBlock(b);
+                planStream.writeCachedBlock(b);
                 assertThat(out.bytes().length(), greaterThan(4 * LEN));
                 assertThat(out.bytes().length(), lessThan(8 * LEN));
                 try (
                     PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)
                 ) {
-                    Block read = in.readBlock();
+                    Block read = in.readCachedBlock();
                     assertThat(read, not(sameInstance(b)));
                     assertThat(read, equalTo(b));
                 }
@@ -97,17 +97,17 @@ public class PlanStreamOutputTests extends ESTestCase {
                 BytesStreamOutput out = new BytesStreamOutput();
                 PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
             ) {
-                planStream.writeBlock(b);
-                planStream.writeBlock(b);
+                planStream.writeCachedBlock(b);
+                planStream.writeCachedBlock(b);
                 assertThat(out.bytes().length(), greaterThan(4 * LEN));
                 assertThat(out.bytes().length(), lessThan(8 * LEN));
                 try (
                     PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)
                 ) {
-                    Block read = in.readBlock();
+                    Block read = in.readCachedBlock();
                     assertThat(read, not(sameInstance(b)));
                     assertThat(read, equalTo(b));
-                    assertThat(in.readBlock(), sameInstance(read));
+                    assertThat(in.readCachedBlock(), sameInstance(read));
                 }
             }
         }

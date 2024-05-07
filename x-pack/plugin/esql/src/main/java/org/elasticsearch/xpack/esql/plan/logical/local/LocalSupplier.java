@@ -51,7 +51,7 @@ public interface LocalSupplier extends Supplier<Block[]>, Writeable {
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeArray((o, v) -> ((PlanStreamOutput) o).writeBlock(v), blocks);
+                out.writeArray((o, v) -> ((PlanStreamOutput) o).writeCachedBlock(v), blocks);
             }
         };
     }
@@ -63,7 +63,7 @@ public interface LocalSupplier extends Supplier<Block[]>, Writeable {
         }
         Block[] blocks = new Block[count];
         for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = in.readBlock();
+            blocks[i] = in.readCachedBlock();
         }
         return of(blocks);
     }

@@ -17,7 +17,19 @@ import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
 import java.util.Map;
 
 /**
- * TODO - fill in comment
+ * A pattern is emerging in how external providers provide error responses.
+ *
+ * At a minimum, these return:
+ * {
+ *     "error: {
+ *         "message": "(error message)"
+ *     }
+ * }
+ *
+ * Others may return additional information such as error codes specific to the service.
+ *
+ * This currently covers error handling for Azure AI Studio, however this pattern
+ * can be used to simplify and refactor handling for Azure OpenAI and OpenAI responses.
  */
 public class ErrorResponseEntity implements ErrorMessage {
     protected String errorMessage;

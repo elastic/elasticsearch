@@ -58,7 +58,7 @@ public class ExternalResponseHandler extends BaseResponseHandler {
         checkForEmptyBody(throttlerManager, logger, request, result);
     }
 
-    private void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    public void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode >= 200 && statusCode < 300) {
             return;
@@ -108,7 +108,7 @@ public class ExternalResponseHandler extends BaseResponseHandler {
         throw new RetryException(false, buildError(REDIRECTION, request, result));
     }
 
-    protected boolean isContentTooLarge(HttpResult result) {
+    public static boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
 
         if (statusCode == 413) {
@@ -123,7 +123,7 @@ public class ExternalResponseHandler extends BaseResponseHandler {
         return false;
     }
 
-    protected String buildRateLimitErrorMessage(HttpResult result) {
+    public static String buildRateLimitErrorMessage(HttpResult result) {
         var response = result.response();
         var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
         var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);

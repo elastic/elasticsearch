@@ -160,17 +160,15 @@ Datetime intervals and timespans can be expressed using timespan literals.
 Timespan literals are a combination of a number and a qualifier. These
 qualifiers are supported:
 
-* `nanosecond`/`nanoseconds`/`ns`
-* `microsecond`/`microseconds`/`us`
 * `millisecond`/`milliseconds`/`ms`
 * `second`/`seconds`/`s`
 * `minute`/`minutes`/`min`
 * `hour`/`hours`/`h`
 * `day`/`days`/`d`
-* `week`/`weeks`
+* `week`/`weeks`/`w`
 * `month`/`months`/`mo`
-* `quarter`/`quarters`
-* `year`/`years`/`yr`
+* `quarter`/`quarters`/`q`
+* `year`/`years`/`yr`/`y`
 
 Timespan literals are not whitespace sensitive. These expressions are all valid:
 

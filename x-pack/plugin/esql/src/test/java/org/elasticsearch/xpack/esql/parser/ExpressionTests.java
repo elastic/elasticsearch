@@ -373,16 +373,6 @@ public class ExpressionTests extends ESTestCase {
     public void testDurationLiterals() {
         int value = randomInt(Integer.MAX_VALUE);
 
-        assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 nanosecond"));
-        assertEquals(l(Duration.ofNanos(value), TIME_DURATION), whereExpression(value + "nanosecond"));
-        assertEquals(l(Duration.ofNanos(value), TIME_DURATION), whereExpression(value + " nanoseconds"));
-        assertEquals(l(Duration.ofNanos(value), TIME_DURATION), whereExpression(value + "ns"));
-
-        assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 microsecond"));
-        assertEquals(l(Duration.ofNanos(Math.multiplyExact(value, 1000L)), TIME_DURATION), whereExpression(value + "microsecond"));
-        assertEquals(l(Duration.ofNanos(Math.multiplyExact(value, 1000L)), TIME_DURATION), whereExpression(value + " microseconds"));
-        assertEquals(l(Duration.ofNanos(Math.multiplyExact(value, 1000L)), TIME_DURATION), whereExpression(value + " us"));
-
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 millisecond"));
         assertEquals(l(Duration.ofMillis(value), TIME_DURATION), whereExpression(value + "millisecond"));
         assertEquals(l(Duration.ofMillis(value), TIME_DURATION), whereExpression(value + " milliseconds"));
@@ -418,6 +408,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0week"));
         assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + "week"));
         assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " weeks"));
+        assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " w"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 month"));
         assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + "month"));
@@ -427,11 +418,13 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 quarter"));
         assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " quarter"));
         assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " quarters"));
+        assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " q"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + "year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " years"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " yr"));
+        assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " y"));
 
         assertEquals(l(Period.ofYears(-value), DATE_PERIOD), whereExpression("-" + value + " years"));
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action.filter;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -234,8 +235,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             executeShardBulkInferenceAsync(inferenceId, provider, requests, onFinish);
                         } else {
                             try (onFinish) {
-                                for (int i = 0; i < requests.size(); i++) {
-                                    var request = requests.get(i);
+                                for (FieldInferenceRequest request : requests) {
                                     inferenceResults.get(request.index).failures.add(
                                         new ResourceNotFoundException(
                                             "Inference service [{}] not found for field [{}]",
@@ -251,11 +251,23 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     @Override
                     public void onFailure(Exception exc) {
                         try (onFinish) {
-                            for (int i = 0; i < requests.size(); i++) {
-                                var request = requests.get(i);
-                                inferenceResults.get(request.index).failures.add(
-                                    new ResourceNotFoundException("Inference id [{}] not found for field [{}]", inferenceId, request.field)
-                                );
+                            for (FieldInferenceRequest request : requests) {
+                                Exception failure;
+                                if (ExceptionsHelper.unwrap(exc, ResourceNotFoundException.class) instanceof ResourceNotFoundException) {
+                                    failure = new ResourceNotFoundException(
+                                        "Inference id [{}] not found for field [{}]",
+                                        inferenceId,
+                                        request.field
+                                    );
+                                } else {
+                                    failure = new ElasticsearchException(
+                                        "Error loading inference for inference id [{}] on field [{}]",
+                                        exc,
+                                        inferenceId,
+                                        request.field
+                                    );
+                                }
+                                inferenceResults.get(request.index).failures.add(failure);
                             }
                         }
                     }

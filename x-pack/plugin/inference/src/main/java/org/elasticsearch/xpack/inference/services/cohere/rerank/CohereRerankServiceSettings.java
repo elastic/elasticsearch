@@ -13,16 +13,16 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class CohereRerankServiceSettings implements ServiceSettings {
+public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_rerank_service_settings";
 
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext parseContext) {
@@ -55,15 +55,17 @@ public class CohereRerankServiceSettings implements ServiceSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        commonSettings.toXContentFragment(builder);
+        commonSettings.toXContentFragment(builder, params);
 
         builder.endObject();
         return builder;
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        commonSettings.toXContentFragmentOfExposedFields(builder, params);
+
+        return builder;
     }
 
     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -60,7 +61,13 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "keyword", description = "Converts a field into a string.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Converts an input value into a string.",
+        examples = {
+            @Example(file = "string", tag = "to_string"),
+            @Example(description = "It also works fine on multivalued fields:", file = "string", tag = "to_string_multivalue") }
+    )
     public ToString(
         Source source,
         @Param(
@@ -79,7 +86,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v
     ) {
         super(source, v);

@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -291,4 +292,8 @@ tasks.named('stringTemplates').configure {
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
   }
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  signaturesFiles += files('src/main/resources/forbidden/ql-signatures.txt')
 }

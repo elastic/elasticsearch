@@ -313,6 +313,7 @@ public class AuthenticationTestHelper {
                         null,
                         null,
                         null,
+                        null,
                         null
                     )
                 )

@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -43,6 +44,7 @@ public class PutRoleRequest extends ActionRequest {
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
+    private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
     private boolean restrictRequest = false;
 
     public PutRoleRequest() {}
@@ -83,6 +85,10 @@ public class PutRoleRequest extends ActionRequest {
 
     public boolean restrictRequest() {
         return restrictRequest;
+    }
+
+    public void putRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {
+        this.remoteClusterPermissions = remoteClusterPermissions;
     }
 
     public void addRemoteIndex(
@@ -206,6 +212,7 @@ public class PutRoleRequest extends ActionRequest {
             metadata,
             Collections.emptyMap(),
             remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
+            remoteClusterPermissions,
             null
         );
     }

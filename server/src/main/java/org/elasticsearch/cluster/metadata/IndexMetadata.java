@@ -1879,7 +1879,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
-        private IndexLongFieldRange eventIngestedRange = IndexLongFieldRange.NO_SHARDS;
+        private IndexLongFieldRange eventIngestedRange = IndexLongFieldRange.UNKNOWN; // since it may not be in cluster state of older SS
         private LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;

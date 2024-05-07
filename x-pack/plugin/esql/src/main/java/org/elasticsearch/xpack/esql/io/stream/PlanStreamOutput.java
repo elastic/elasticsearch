@@ -170,7 +170,7 @@ public final class PlanStreamOutput extends StreamOutput {
     /**
      * Write a {@link Block} as part of the plan.
      * <p>
-     *     These {@link Block}s are not tacked by {@link BlockFactory} and closing them
+     *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
      *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.

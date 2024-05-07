@@ -49,7 +49,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 6: Added 'host.arch' keyword mapping to profiling-hosts
     // version 7: Added 'host.type', 'cloud.provider', 'cloud.region' keyword mappings to profiling-hosts
     // version 8: Changed from disabled _source to synthetic _source for profiling-events-* and profiling-metrics
-    public static final int INDEX_TEMPLATE_VERSION = 8;
+    // version 9: Changed sort order for profiling-events-*
+    public static final int INDEX_TEMPLATE_VERSION = 9;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 3;

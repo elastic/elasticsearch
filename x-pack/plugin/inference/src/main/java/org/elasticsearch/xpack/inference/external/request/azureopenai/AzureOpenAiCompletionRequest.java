@@ -58,13 +58,13 @@ public class AzureOpenAiCompletionRequest implements AzureOpenAiRequest {
 
     @Override
     public Request truncate() {
-        // No truncation for Azure OpenAI completions
+        // No truncation for Azure OpenAI completion
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // No truncation for OpenAI chat completions
+        // No truncation for Azure OpenAI completion
         return null;
     }
 }

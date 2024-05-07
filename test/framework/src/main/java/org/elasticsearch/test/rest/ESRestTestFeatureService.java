@@ -61,7 +61,7 @@ class ESRestTestFeatureService implements TestFeatureService {
         FeatureData featureData = FeatureData.createFromSpecifications(specs);
         assert featureData.getNodeFeatures().isEmpty()
             : Strings.format(
-                "Only historical features can be injected via ESRestTestCase#createAdditionalFeatureSpecifications(), rejecting %s",
+                "Only historical features can be injected via ESRestTestCase#additionalTestOnlyHistoricalFeatures(), rejecting %s",
                 featureData.getNodeFeatures().keySet()
             );
         this.knownHistoricalFeatureNames = featureData.getHistoricalFeatures().lastEntry().getValue();
@@ -93,7 +93,7 @@ class ESRestTestFeatureService implements TestFeatureService {
                     Strings.format(
                         "Synthetic version features are only available before [%s] for migration purposes! "
                             + "Please add a cluster feature to an appropriate FeatureSpecification; test-only historical-features  "
-                            + "can be supplied via ESRestTestCase#createAdditionalFeatureSpecifications()",
+                            + "can be supplied via ESRestTestCase#additionalTestOnlyHistoricalFeatures()",
                         Version.V_8_14_0
                     )
                 );

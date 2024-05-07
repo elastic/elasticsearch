@@ -304,6 +304,23 @@ public class SecuritySystemIndices {
                     }
                     builder.endObject();
 
+                    builder.startObject("remote_cluster");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("clusters");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("privileges");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
                     builder.startObject("applications");
                     {
                         builder.field("type", "object");

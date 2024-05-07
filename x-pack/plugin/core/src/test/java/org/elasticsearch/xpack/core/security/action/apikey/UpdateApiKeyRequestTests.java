@@ -62,6 +62,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                     Map.of("_key", "value"),
                     null,
                     null,
+                    null,
                     new RoleDescriptor.Restriction(workflows.toArray(String[]::new))
                 )
             ),

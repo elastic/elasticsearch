@@ -787,7 +787,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    dataStream.getLifecycle().getEffectiveDataRetention(globalRetentionResolver.resolve(state))
+                    dataStream.getLifecycle()
+                        .getEffectiveDataRetention(dataStream.isSystem() ? null : globalRetentionResolver.resolve(state))
                 );
                 transportActionsDeduplicator.executeOnce(
                     rolloverRequest,
@@ -840,7 +841,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> indicesToBeRemoved = new HashSet<>();
         // We know that there is lifecycle and retention because there are indices to be deleted
         assert dataStream.getLifecycle() != null;
-        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention);
+        TimeValue effectiveDataRetention = dataStream.getLifecycle()
+            .getEffectiveDataRetention(dataStream.isSystem() ? null : globalRetention);
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
                 IndexMetadata backingIndex = metadata.index(index);

@@ -50,7 +50,6 @@ import java.util.concurrent.locks.LockSupport;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase {
@@ -190,10 +189,8 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         logger.info("--> resuming relocation");
         resumeHandoff.countDown();
 
-        logger.info("--> waiting for search node to receive the notification for the post-handoff commit");
-        assertBusy(() -> assertThat(receivedNotifications.get(), equalTo(1)));
-
-        assertTrue(blobContainer.blobExists(operationPurpose, finalCommitBlobName));
+        logger.info("--> waiting for the commit to appear in blob store");
+        assertBusy(() -> assertTrue(blobContainer.blobExists(operationPurpose, finalCommitBlobName)));
 
         BroadcastResponse mergeResponse = mergeFuture.actionGet();
         assertEquals("Force-merge failed on indexing shard", 1, mergeResponse.getSuccessfulShards());

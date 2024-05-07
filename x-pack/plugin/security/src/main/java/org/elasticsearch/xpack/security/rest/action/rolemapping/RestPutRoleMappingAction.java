@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -19,7 +17,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 
@@ -60,18 +57,12 @@ public class RestPutRoleMappingAction extends NativeRoleMappingBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String name = request.param("name");
-        String refresh = request.param("refresh");
-        PutRoleMappingRequestBuilder requestBuilder;
-        try (
-            XContentParser parser = XContentHelper.createParserNotCompressed(
-                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
-                request.requiredContent(),
-                request.getXContentType()
-            )
-        ) {
-            requestBuilder = new PutRoleMappingRequestBuilder(client).source(name, parser).setRefreshPolicy(refresh);
-        }
+        final String name = request.param("name");
+        PutRoleMappingRequestBuilder requestBuilder = new PutRoleMappingRequestBuilder(client).source(
+            name,
+            request.requiredContent(),
+            request.getXContentType()
+        ).setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {

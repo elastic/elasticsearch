@@ -22,11 +22,11 @@ setup:
   - do:
       catch: bad_request
       cluster.info:
-        target: [ _all, ingest ]
+        target: [ ingest, _all ]
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "request [/_info/_all,ingest] contains _all and individual target [_all,ingest]" }
+  - match: { error.reason: "request [/_info/ingest,_all] contains _all and individual target [ingest,_all]" }
 
 ---
 "Cluster Info fails with an invalid target":

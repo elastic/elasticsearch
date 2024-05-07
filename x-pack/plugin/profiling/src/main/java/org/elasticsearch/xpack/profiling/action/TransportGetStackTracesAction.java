@@ -308,11 +308,13 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     }
                     event.count += count;
                     if (request.getAggregationField() != null) {
+                        if (event.subGroups == null) {
+                            event.subGroups = SubGroup.root(request.getAggregationField());
+                        }
                         Terms eventSubGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
                         for (Terms.Bucket b : eventSubGroup.getBuckets()) {
                             String subGroupName = b.getKeyAsString();
-                            long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
-                            event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
+                            event.subGroups.addCount(subGroupName, b.getDocCount());
                         }
                     }
                 }
@@ -413,11 +415,13 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         }
                         event.count += finalCount;
                         if (request.getAggregationField() != null) {
-                            Terms subGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
-                            for (Terms.Bucket b : subGroup.getBuckets()) {
+                            if (event.subGroups == null) {
+                                event.subGroups = SubGroup.root(request.getAggregationField());
+                            }
+                            Terms eventSubGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
+                            for (Terms.Bucket b : eventSubGroup.getBuckets()) {
                                 String subGroupName = b.getKeyAsString();
-                                long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
-                                event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
+                                event.subGroups.addCount(subGroupName, b.getDocCount());
                             }
                         }
                     }

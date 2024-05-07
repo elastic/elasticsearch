@@ -91,7 +91,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.typeIds.length);
         assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
         assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
-        assertEquals(Long.valueOf(2L), stackTrace.subGroups.get("basket"));
+        assertEquals(Long.valueOf(2L), stackTrace.subGroups.getCount("basket"));
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("8NlMClggx8jaziUTJXlmWAAAAAAAAIYI");
@@ -161,7 +161,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(39, stackTrace.typeIds.length);
         assertTrue(stackTrace.annualCO2Tons > 0.0d);
         assertTrue(stackTrace.annualCostsUSD > 0.0d);
-        assertEquals(Long.valueOf(3L), stackTrace.subGroups.get("encodeSha1"));
+        assertEquals(Long.valueOf(3L), stackTrace.subGroups.getCount("encodeSha1"));
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("fhsEKXDuxJ-jIJrZpdRuSAAAAAAAAFtj");

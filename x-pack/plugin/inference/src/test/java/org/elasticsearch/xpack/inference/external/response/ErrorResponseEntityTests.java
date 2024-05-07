@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.response;
 
 import org.apache.http.HttpResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
@@ -18,7 +19,7 @@ public class ErrorResponseEntityTests extends ESTestCase {
 
     private static HttpResult getMockResult(String jsonString) {
         var response = mock(HttpResponse.class);
-        return new HttpResult(response, jsonString.getBytes());
+        return new HttpResult(response, Strings.toUTF8Bytes(jsonString));
     }
 
     public void testErrorResponse_ExtractsError() {

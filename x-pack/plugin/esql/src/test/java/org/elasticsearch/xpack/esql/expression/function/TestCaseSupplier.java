@@ -438,7 +438,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             lhsSuppliers,
             rhsSuppliers,
             equalTo(name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]"),
-            warnings,
+            (lhs, rhs) -> warnings,
             symmetric
         );
     }
@@ -449,7 +449,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
         Matcher<String> evaluatorToString,
-        List<String> warnings,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean symmetric
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -458,7 +458,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             lhsSuppliers,
             rhsSuppliers,
             (lhsType, rhsType) -> evaluatorToString,
-            (lhs, rhs) -> warnings,
+            warnings,
             suppliers,
             expectedType,
             symmetric
@@ -993,6 +993,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 "<far future date>",
                 // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
+                DataTypes.DATETIME
+            ),
+            new TypedDataSupplier(
+                "<near the end of time>",
+                // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
+                () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE),
                 DataTypes.DATETIME
             )
         );

@@ -59,6 +59,11 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+
+    @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
         return values.get(position, dest);
     }

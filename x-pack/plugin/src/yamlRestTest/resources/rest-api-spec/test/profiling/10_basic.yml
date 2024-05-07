@@ -220,8 +220,8 @@ teardown:
 
 ---
 "Test topN functions from profiling-events":
-  - skip:
-      version: "- 8.13.99"
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: "the topN functions API was added in 8.14.0"
 
   - do:
@@ -251,8 +251,8 @@ teardown:
 
 ---
 "Test topN functions from test-events":
-  - skip:
-      version: "- 8.13.99"
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: "the topN functions API was added in 8.14.0"
 
   - do:

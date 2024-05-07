@@ -444,10 +444,19 @@ public abstract class Engine implements Closeable {
      *
      * Note: engine level failures (i.e. persistent engine failures) are thrown
      */
-    public IndexResult index(Index index) throws IOException {
+    public final IndexResult index(Index index) throws IOException {
         return index(index, false);
     }
 
+    /**
+     * Perform document index operation on the engine
+     * @param index operation to perform
+     * @param isSimulated If true, data will not be indexed or written to the translog. Instead, a simulated IndexResult will be created
+     * @return {@link IndexResult} containing updated translog location, version and
+     * document specific failures
+     *
+     * Note: engine level failures (i.e. persistent engine failures) are thrown
+     */
     public abstract IndexResult index(Index index, boolean isSimulated) throws IOException;
 
     /**

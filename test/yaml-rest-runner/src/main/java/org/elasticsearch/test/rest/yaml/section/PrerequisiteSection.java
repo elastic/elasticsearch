@@ -302,7 +302,8 @@ public class PrerequisiteSection {
         if ("true".equals(System.getProperty("tests.restCompat"))) return parseString(parser, builder::skipIfVersion);
         throw new IllegalArgumentException(
             "Skipping by version is no longer supported, please skip based on cluster features. Please check the docs: \n"
-                + "https://github.com/elastic/elasticsearch/tree/main/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test#skipping-tests"
+                + "https://github.com/elastic/elasticsearch/tree/main"
+                + "/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test#skipping-tests"
         );
     }
 

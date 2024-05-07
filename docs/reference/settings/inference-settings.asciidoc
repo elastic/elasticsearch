@@ -57,7 +57,7 @@ idle and can be closed and removed from the shared connection pool. Defaults to 
 
 `xpack.inference.http.request_executor.queue_capacity`::
 (<<cluster-update-settings,Dynamic>>) Specifies the size of the internal queue for requests waiting to be sent. If
-the queue is full and a request is sent to the inference API, it will be rejected. Defaults to `2000`.
+the queue is full and a request is sent to the {infer} API, it will be rejected. Defaults to `2000`.
 
 [[xpack-inference-http-retry-settings]]
 ==== Inference API HTTP Retry settings

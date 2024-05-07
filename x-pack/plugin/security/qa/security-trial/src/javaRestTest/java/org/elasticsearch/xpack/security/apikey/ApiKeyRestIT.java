@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -79,7 +82,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String END_USER = "end_user";
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
     private static final String MANAGE_OWN_API_KEY_USER = "manage_own_api_key_user";
-    private static final String REMOTE_INDICES_USER = "remote_indices_user";
+    private static final String REMOTE_PERMISSIONS_USER = "remote_permissions_user";
     private static final String MANAGE_API_KEY_USER = "manage_api_key_user";
     private static final String MANAGE_SECURITY_USER = "manage_security_user";
 
@@ -653,7 +656,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testRemoteIndicesSupportForApiKeys() throws IOException {
-        createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
+        createUser(REMOTE_PERMISSIONS_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
         createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
         final String remoteIndicesSection = """
             "remote_indices": [
@@ -674,20 +677,26 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(response);
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
-        grantApiKeyRequest.setJsonEntity(Strings.format("""
-            {
-               "grant_type":"password",
-               "username":"%s",
-               "password":"end-user-password",
-               "api_key":{
-                  "name":"k1",
-                  "role_descriptors":{
-                     "r1":{
-                        %s
-                     }
-                  }
-               }
-            }""", includeRemoteIndices ? MANAGE_OWN_API_KEY_USER : REMOTE_INDICES_USER, includeRemoteIndices ? remoteIndicesSection : ""));
+        grantApiKeyRequest.setJsonEntity(
+            Strings.format(
+                """
+                    {
+                       "grant_type":"password",
+                       "username":"%s",
+                       "password":"end-user-password",
+                       "api_key":{
+                          "name":"k1",
+                          "role_descriptors":{
+                             "r1":{
+                                %s
+                             }
+                          }
+                       }
+                    }""",
+                includeRemoteIndices ? MANAGE_OWN_API_KEY_USER : REMOTE_PERMISSIONS_USER,
+                includeRemoteIndices ? remoteIndicesSection : ""
+            )
+        );
         response = sendRequestWithRemoteIndices(grantApiKeyRequest, false == includeRemoteIndices);
 
         final String updatedRemoteIndicesSection = """
@@ -735,9 +744,148 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertThat(ObjectPath.createFromResponse(response).evaluate("noops"), contains(apiKeyId));
         }
 
-        deleteUser(REMOTE_INDICES_USER);
+        deleteUser(REMOTE_PERMISSIONS_USER);
         deleteRole("remote_indices_role");
 
+    }
+
+    public void testRemoteClusterSupportForApiKeys() throws IOException {
+        createUser(REMOTE_PERMISSIONS_USER, END_USER_PASSWORD, List.of("remote_cluster_role"));
+        createRole("remote_cluster_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
+        final String remoteClusterSectionTemplate = """
+            "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": [%s]
+                }
+            ]""";
+        String remoteClusterSection = Strings.format(remoteClusterSectionTemplate, "\"remote-a\", \"*\"");
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        final boolean includeRemoteCluster = randomBoolean();
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+            {"name": "k1", "role_descriptors": {"r1": {%s}}}""", includeRemoteCluster ? remoteClusterSection : ""));
+
+        // create API key as the admin user which does not have any remote_cluster limited_by permissions
+        Response response = sendRequestAsAdminUser(createApiKeyRequest);
+        String apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        assertOK(response);
+        assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, false, null, null);
+
+        // update that API key (as the admin user)
+        Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        remoteClusterSection = Strings.format(remoteClusterSectionTemplate, "\"foo\", \"bar\"");
+        updateApiKeyRequest.setJsonEntity(Strings.format("""
+            {"role_descriptors": {"r1": {%s}}}""", includeRemoteCluster ? remoteClusterSection : ""));
+        response = sendRequestAsAdminUser(updateApiKeyRequest);
+        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(includeRemoteCluster));
+        assertOK(response);
+        assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, false, null, new String[] { "foo", "bar" });
+
+        // create API key as the remote user which does remote_cluster limited_by permissions
+        response = sendRequestAsRemoteUser(createApiKeyRequest);
+        apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        assertOK(response);
+        assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, true, null, null);
+
+        // update that API key (as the remote user)
+        updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        remoteClusterSection = Strings.format(remoteClusterSectionTemplate, "\"foo\", \"bar\"");
+        updateApiKeyRequest.setJsonEntity(Strings.format("""
+            {"role_descriptors": {"r1": {%s}}}""", includeRemoteCluster ? remoteClusterSection : ""));
+        response = sendRequestAsRemoteUser(updateApiKeyRequest);
+        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(includeRemoteCluster));
+        assertOK(response);
+        assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, true, null, new String[] { "foo", "bar" });
+
+        // reset the clusters to the original value and setup grant API key requests
+        remoteClusterSection = Strings.format(remoteClusterSectionTemplate, "\"remote-a\", \"*\"");
+        final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+        String getApiKeyRequestTemplate = """
+            {
+               "grant_type":"password",
+               "username":"%s",
+               "password":"end-user-password",
+               "api_key":{
+                  "name":"k1",
+                  "role_descriptors":{
+                     "r1":{
+                        %s
+                     }
+                  }
+               }
+            }""";
+
+        // grant API key as the remote user which does remote_cluster limited_by permissions
+        grantApiKeyRequest.setJsonEntity(
+            Strings.format(getApiKeyRequestTemplate, REMOTE_PERMISSIONS_USER, includeRemoteCluster ? remoteClusterSection : "")
+        );
+        response = sendRequestAsRemoteUser(grantApiKeyRequest);
+        apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        assertOK(response);
+        assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, true, null, null);
+
+        // grant API key as a different user which does not have remote_cluster limited_by permissions
+        grantApiKeyRequest.setJsonEntity(
+            Strings.format(getApiKeyRequestTemplate, MANAGE_OWN_API_KEY_USER, includeRemoteCluster ? remoteClusterSection : "")
+        );
+        response = sendRequestAsRemoteUser(grantApiKeyRequest);
+        apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        assertOK(response);
+        assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, false, "manage_own_api_key_role", null);
+
+        // clean up
+        deleteUser(REMOTE_PERMISSIONS_USER);
+        deleteRole("remote_cluster_role");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertAPIKeyWithRemoteClusterPermissions(
+        String apiKeyId,
+        boolean hasRemoteClusterInBaseRole,
+        boolean hasRemoteClusterInLimitedByRole,
+        @Nullable String limitedByRoleName,
+        @Nullable String[] baseRoleClusters
+    ) throws IOException {
+        Request getAPIKeyRequest = new Request("GET", String.format("_security/api_key?id=%s&with_limited_by=true", apiKeyId));
+        Response response = sendRequestAsAdminUser(getAPIKeyRequest);
+        Map<String, Map<String, ?>> root = ObjectPath.createFromResponse(response).evaluate("api_keys.0");
+        if (hasRemoteClusterInBaseRole) {
+            // explicit permissions
+            baseRoleClusters = baseRoleClusters == null ? new String[] { "remote-a", "*" } : baseRoleClusters;
+            Map<String, Map<String, ?>> roleDescriptors = (Map<String, Map<String, ?>>) root.get("role_descriptors");
+            List<Map<String, List<String>>> remoteCluster = (List<Map<String, List<String>>>) roleDescriptors.get("r1")
+                .get("remote_cluster");
+            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_enrich"));
+            assertThat(remoteCluster.get(0).get("clusters"), containsInAnyOrder(baseRoleClusters));
+        } else {
+            // no explicit permissions
+            Map<String, Map<String, ?>> roleDescriptors = (Map<String, Map<String, ?>>) root.get("role_descriptors");
+            Map<String, List<String>> baseRole = (Map<String, List<String>>) roleDescriptors.get("r1");
+            assertNotNull(baseRole);
+            assertNull(baseRole.get("remote_cluster"));
+        }
+        if (hasRemoteClusterInLimitedByRole) {
+            // has limited by permissions
+            limitedByRoleName = limitedByRoleName == null ? "remote_cluster_role" : limitedByRoleName;
+            List<Map<String, List<String>>> limitedBy = (List<Map<String, List<String>>>) root.get("limited_by");
+            Map<String, Collection<?>> limitedByRole = (Map<String, Collection<?>>) limitedBy.get(0).get(limitedByRoleName);
+            assertNotNull(limitedByRole);
+
+            List<Map<String, List<String>>> remoteCluster = (List<Map<String, List<String>>>) limitedByRole.get("remote_cluster");
+            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_enrich"));
+            assertThat(remoteCluster.get(0).get("clusters"), containsInAnyOrder("remote"));
+        } else {
+            // no limited by permissions
+            limitedByRoleName = limitedByRoleName == null ? "_es_test_root" : limitedByRoleName;
+            List<Map<String, List<String>>> limitedBy = (List<Map<String, List<String>>>) root.get("limited_by");
+            Map<String, Collection<?>> limitedByRole = (Map<String, Collection<?>>) limitedBy.get(0).get(limitedByRoleName);
+            assertNotNull(limitedByRole);
+            assertNull(limitedByRole.get("remote_cluster"));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -932,7 +1080,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     XContentTestUtils.convertToMap(
                         new RoleDescriptor(
                             "cross_cluster",
-                            new String[] { "cross_cluster_search", "cross_cluster_replication" },
+                            new String[] { "cross_cluster_search", "monitor_enrich", "cross_cluster_replication" },
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("metrics")
@@ -1284,7 +1432,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(updateResponse1.evaluate("updated"), is(true));
         final RoleDescriptor updatedRoleDescriptor1 = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search", "cross_cluster_replication" },
+            new String[] { "cross_cluster_search", "monitor_enrich", "cross_cluster_replication" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("data")
@@ -1357,7 +1505,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath fetchResponse3 = fetchCrossClusterApiKeyById(apiKeyId);
         final RoleDescriptor updatedRoleDescriptors2 = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("blogs")
@@ -1923,14 +2071,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private Response sendRequestWithRemoteIndices(final Request request, final boolean executeAsRemoteIndicesUser) throws IOException {
         if (executeAsRemoteIndicesUser) {
-            request.setOptions(
-                RequestOptions.DEFAULT.toBuilder()
-                    .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_INDICES_USER, END_USER_PASSWORD))
-            );
-            return client().performRequest(request);
+            return sendRequestAsRemoteUser(request);
         } else {
-            return adminClient().performRequest(request);
+            return sendRequestAsAdminUser(request);
         }
+    }
+
+    private Response sendRequestAsRemoteUser(final Request request) throws IOException {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_PERMISSIONS_USER, END_USER_PASSWORD))
+        );
+        return client().performRequest(request);
+    }
+
+    private Response sendRequestAsAdminUser(final Request request) throws IOException {
+        return adminClient().performRequest(request);
     }
 
     private void doTestAuthenticationWithApiKey(final String apiKeyName, final String apiKeyId, final String apiKeyEncoded)
@@ -2147,10 +2303,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private record EncodedApiKey(String id, String encoded, String name) {}
 
-    private void createRole(String name, Collection<String> clusterPrivileges, String... remoteIndicesClusterAliases) throws IOException {
+    private void createRole(String name, Collection<String> localClusterPrivileges, String... remoteIndicesClusterAliases)
+        throws IOException {
         final RoleDescriptor role = new RoleDescriptor(
             name,
-            clusterPrivileges.toArray(String[]::new),
+            localClusterPrivileges.toArray(String[]::new),
             new RoleDescriptor.IndicesPrivileges[0],
             new RoleDescriptor.ApplicationResourcePrivileges[0],
             null,
@@ -2159,6 +2316,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder(remoteIndicesClusterAliases).indices("*").privileges("read").build() },
+            new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                    remoteIndicesClusterAliases
+                )
+            ),
             null,
             null
         );

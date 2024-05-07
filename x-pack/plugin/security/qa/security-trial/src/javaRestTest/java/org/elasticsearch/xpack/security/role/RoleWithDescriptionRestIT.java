@@ -53,6 +53,7 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
                     null,
                     null,
                     null,
+                    null,
                     initialRoleDescription
                 )
             );
@@ -76,6 +77,7 @@ public class RoleWithDescriptionRestIT extends SecurityOnTrialLicenseRestTestCas
                     new String[] { "all" },
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices("index-*").privileges("all").build() },
+                    null,
                     null,
                     null,
                     null,

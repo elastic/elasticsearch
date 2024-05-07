@@ -99,6 +99,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
             null,
             null,
             null,
+            null,
             description
         );
         getSecurityClient().putRole(role);

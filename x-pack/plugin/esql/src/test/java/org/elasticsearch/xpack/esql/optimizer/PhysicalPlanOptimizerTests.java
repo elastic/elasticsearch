@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -90,8 +93,6 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -122,6 +123,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
+import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
@@ -4021,6 +4024,118 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             error.getMessage(),
             containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
         );
+    }
+
+    public void testMaxExpressionDepth_cast() {
+        StringBuilder queryBuilder = new StringBuilder(randomBoolean() ? "row a = 1" : "row a = 1 | eval b = a");
+        queryBuilder.append("::long::int".repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        var query = queryBuilder.toString();
+
+        physicalPlan(query);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "::long"));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_math() {
+        StringBuilder queryBuilder = new StringBuilder(randomBoolean() ? "row a = 1" : "row a = 1 | eval b = a");
+        String expression = " " + randomFrom("+", "-", "*", "/") + " 1";
+        queryBuilder.append(expression.repeat(MAX_EXPRESSION_DEPTH - 2));
+        var query = queryBuilder.toString();
+
+        physicalPlan(query);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_boolean() {
+        StringBuilder queryBuilder = new StringBuilder(randomBoolean() ? "row a = true " : "row a = true | eval b = a");
+        String expression = " " + randomFrom("and", "or") + " true";
+        queryBuilder.append(expression.repeat(MAX_EXPRESSION_DEPTH - 2));
+        var query = queryBuilder.toString();
+
+        physicalPlan(query);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_parentheses() {
+        String query = "row a = true | eval b = ";
+        StringBuilder expression = new StringBuilder("(".repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        expression.append("a");
+        expression.append(")".repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+
+        physicalPlan(query + expression);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "(" + expression + ")"));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_mixed() {
+        String prefix = "abs(";
+        String suffix = " + 12)";
+
+        String from = "row a = 1 | eval b = ";
+
+        StringBuilder queryBuilder = new StringBuilder();
+        queryBuilder.append(prefix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        queryBuilder.append("a");
+        queryBuilder.append(suffix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        var expression = queryBuilder.toString();
+
+        physicalPlan(from + expression);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(from + prefix + expression + suffix));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxQueryDepth() {
+        StringBuilder from = new StringBuilder("row a = 1 ");
+        for (int i = 0; i < MAX_QUERY_DEPTH; i++) {
+            from.append(randomBoolean() ? "| where a > 0 " : " | eval b" + i + " = a + " + i);
+        }
+        physicalPlan(from.toString());
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(from + (randomBoolean() ? "| sort a" : " | eval c = 10")));
+        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+    }
+
+    public void testMaxQueryDepthPlusExpressionDepth() {
+        StringBuilder mainQuery = new StringBuilder("row a = 1 ");
+        for (int i = 0; i < MAX_QUERY_DEPTH; i++) {
+            mainQuery.append(" | eval b" + i + " = a + " + i);
+        }
+
+        physicalPlan(mainQuery.toString());
+
+        var cast = "::long::int".repeat(MAX_EXPRESSION_DEPTH / 2 - 2) + "::long";
+
+        physicalPlan(mainQuery + cast);
+
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::int"));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+
+        e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + " | eval x = 10"));
+        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     @SuppressWarnings("SameParameterValue")

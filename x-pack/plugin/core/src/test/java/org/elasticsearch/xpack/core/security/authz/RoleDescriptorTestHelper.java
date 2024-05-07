@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +30,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.test.ESTestCase.randomNonEmptySubsetOf;
 import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
@@ -47,6 +51,7 @@ public final class RoleDescriptorTestHelper {
             .allowRemoteIndices(randomBoolean())
             .allowRestriction(randomBoolean())
             .allowDescription(randomBoolean())
+            .allowRemoteClusters(randomBoolean())
             .build();
     }
 
@@ -222,6 +227,20 @@ public final class RoleDescriptorTestHelper {
         );
     }
 
+    public static RemoteClusterPermissions randomRemoteClusterPermissions(int maxGroups) {
+        final RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+        final String[] supportedPermissions = RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]);
+        for (int i = 0; i < maxGroups; i++) {
+            remoteClusterPermissions.addGroup(
+                new RemoteClusterPermissionGroup(
+                    randomNonEmptySubsetOf(Arrays.asList(supportedPermissions)).toArray(new String[0]),
+                    generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
+                )
+            );
+        }
+        return remoteClusterPermissions;
+    }
+
     public static class Builder {
 
         private boolean allowReservedMetadata = false;
@@ -229,6 +248,7 @@ public final class RoleDescriptorTestHelper {
         private boolean alwaysIncludeRemoteIndices = false;
         private boolean allowRestriction = false;
         private boolean allowDescription = false;
+        private boolean allowRemoteClusters = false;
 
         public Builder() {}
 
@@ -257,12 +277,22 @@ public final class RoleDescriptorTestHelper {
             return this;
         }
 
+        public Builder allowRemoteClusters(boolean allowRemoteClusters) {
+            this.allowRemoteClusters = allowRemoteClusters;
+            return this;
+        }
+
         public RoleDescriptor build() {
             final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
             if (alwaysIncludeRemoteIndices || (allowRemoteIndices && randomBoolean())) {
                 remoteIndexPrivileges = randomRemoteIndicesPrivileges(0, 3);
             } else {
                 remoteIndexPrivileges = null;
+            }
+
+            RemoteClusterPermissions remoteClusters = RemoteClusterPermissions.NONE;
+            if (allowRemoteClusters && randomBoolean()) {
+                remoteClusters = randomRemoteClusterPermissions(randomIntBetween(1, 5));
             }
 
             return new RoleDescriptor(
@@ -275,6 +305,7 @@ public final class RoleDescriptorTestHelper {
                 randomRoleDescriptorMetadata(allowReservedMetadata),
                 Map.of(),
                 remoteIndexPrivileges,
+                remoteClusters,
                 allowRestriction ? RoleRestrictionTests.randomWorkflowsRestriction(1, 3) : null,
                 allowDescription ? randomAlphaOfLengthBetween(0, 20) : null
             );

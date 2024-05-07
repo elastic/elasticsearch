@@ -26,6 +26,7 @@ import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 
@@ -44,6 +45,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
 import static org.hamcrest.Matchers.anyOf;
@@ -337,9 +339,9 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
     }
 
-    private static String randomRoleDescriptors(boolean includeRemoteIndices) {
+    private static String randomRoleDescriptors(boolean includeRemoteDescriptors) {
         try {
-            return XContentTestUtils.convertToXContent(Map.of("my_role", randomRoleDescriptor(includeRemoteIndices)), XContentType.JSON)
+            return XContentTestUtils.convertToXContent(Map.of("my_role", randomRoleDescriptor(includeRemoteDescriptors)), XContentType.JSON)
                 .utf8ToString();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -413,7 +415,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return clientsByCapability;
     }
 
-    private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteIndices) {
+    private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {
         final Set<String> excludedPrivileges = Set.of(
             "cross_cluster_replication",
             "cross_cluster_replication_internal",
@@ -428,7 +430,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             randomRoleDescriptorMetadata(false),
             Map.of(),
-            includeRemoteIndices ? randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
+            includeRemoteDescriptors ? randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
+            includeRemoteDescriptors ? randomRemoteClusterPermissions(randomIntBetween(1, 3)) : RemoteClusterPermissions.NONE,
             null,
             null
         );

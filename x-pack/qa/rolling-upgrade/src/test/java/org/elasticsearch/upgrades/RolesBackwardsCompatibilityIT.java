@@ -261,6 +261,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             Map.of(),
             null,
             null,
+            null,
             includeDescription ? randomAlphaOfLength(20) : null
         );
     }

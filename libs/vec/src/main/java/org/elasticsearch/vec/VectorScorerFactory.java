@@ -20,8 +20,8 @@ public interface VectorScorerFactory {
     }
 
     /**
-     * Returns an optional containing a scalar quantized vector scorer for the
-     * given parameters, or an empty optional if a scorer is not supported.
+     * Returns an optional containing an int7 scalar quantized vector scorer for
+     * the given parameters, or an empty optional if a scorer is not supported.
      *
      * @param dims the vector dimensions
      * @param maxOrd the ordinal of the largest vector accessible
@@ -32,7 +32,7 @@ public interface VectorScorerFactory {
      *    the length must be (maxOrd + Float#BYTES) * dims
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<VectorScorer> getScalarQuantizedVectorScorer(
+    Optional<VectorScorer> getInt7ScalarQuantizedVectorScorer(
         int dims,
         int maxOrd,
         float scoreCorrectionConstant,

@@ -246,9 +246,11 @@ public class ElserInternalService implements InferenceService {
 
     @Override
     public void stop(String inferenceEntityId, ActionListener<Boolean> listener) {
+        var request = new StopTrainedModelDeploymentAction.Request(inferenceEntityId);
+        request.setForce(true);
         client.execute(
             StopTrainedModelDeploymentAction.INSTANCE,
-            new StopTrainedModelDeploymentAction.Request(inferenceEntityId),
+            request,
             listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }

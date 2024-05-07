@@ -59,7 +59,7 @@ public class ValuesSourceRegistry {
         private final Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
 
         public Builder() {
-            this(null);
+            this(MeterRegistry.NOOP);
         }
 
         public Builder(MeterRegistry meterRegistry) {

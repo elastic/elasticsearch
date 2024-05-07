@@ -31,11 +31,12 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
         private final MeterRegistry meterRegistry;
 
         public Builder() {
-            this(null);
+            this(MeterRegistry.NOOP);
         }
 
         public Builder(MeterRegistry meterRegistry) {
             aggs = new HashMap<>();
+            assert meterRegistry != null;
             this.meterRegistry = meterRegistry;
         }
 

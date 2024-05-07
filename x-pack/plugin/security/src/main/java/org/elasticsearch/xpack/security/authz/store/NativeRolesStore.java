@@ -276,7 +276,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
                         )
                     );
-                } else if (role.getDescription() != null
+                } else if (role.hasDescription()
                     && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
                         listener.onFailure(
                             new IllegalStateException(

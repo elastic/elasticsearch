@@ -103,7 +103,7 @@ public class RoleDescriptorRequestValidator {
                 }
             }
         }
-        if (roleDescriptor.getDescription() != null) {
+        if (roleDescriptor.hasDescription()) {
             Validation.Error error = Validation.Roles.validateRoleDescription(roleDescriptor.getDescription());
             if (error != null) {
                 validationException = addValidationError(error.toString(), validationException);

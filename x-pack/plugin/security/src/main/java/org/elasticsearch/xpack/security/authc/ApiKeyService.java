@@ -373,7 +373,7 @@ public class ApiKeyService {
 
     private Set<RoleDescriptor> removeUserRoleDescriptorDescriptions(Set<RoleDescriptor> userRoleDescriptors) {
         return userRoleDescriptors.stream().map(roleDescriptor -> {
-            if (roleDescriptor.getDescription() != null) {
+            if (roleDescriptor.hasDescription()) {
                 return new RoleDescriptor(
                     roleDescriptor.getName(),
                     roleDescriptor.getClusterPrivileges(),

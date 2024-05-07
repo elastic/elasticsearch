@@ -835,7 +835,7 @@ public class RoleDescriptorTests extends ESTestCase {
         );
         streamInput.setTransportVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-        if (descriptor.getDescription() != null) {
+        if (descriptor.hasDescription()) {
             assertThat(
                 serialized,
                 equalTo(

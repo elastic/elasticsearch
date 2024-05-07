@@ -193,7 +193,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             ? remoteClusterPermissions
             : RemoteClusterPermissions.NONE;
         this.restriction = restriction != null ? restriction : Restriction.NONE;
-        this.description = description;
+        this.description = description != null ? description : "";
     }
 
     public RoleDescriptor(StreamInput in) throws IOException {
@@ -228,7 +228,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
             this.description = in.readOptionalString();
         } else {
-            this.description = null;
+            this.description = "";
         }
     }
 
@@ -286,6 +286,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public boolean hasRunAs() {
         return runAs.length != 0;
+    }
+
+    public boolean hasDescription() {
+        return description.length() != 0;
     }
 
     public boolean hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster() {
@@ -450,7 +454,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (hasRestriction()) {
             builder.field(Fields.RESTRICTION.getPreferredName(), restriction);
         }
-        if (description != null) {
+        if (hasDescription()) {
             builder.field(Fields.DESCRIPTION.getPreferredName(), description);
         }
         return builder.endObject();
@@ -490,9 +494,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     public record Parser(boolean allow2xFormat, boolean allowRestriction, boolean allowDescription) {
 
         public static final class Builder {
+
             private boolean allow2xFormat = false;
             private boolean allowRestriction = false;
-
             private boolean allowDescription = false;
 
             private Builder() {}

@@ -1133,6 +1133,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
         }
+        classGeneratingSignatures = testClass;
         signatures = new HashMap<>();
         Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
         assertThat(paramsFactories, hasSize(1));
@@ -1169,6 +1170,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         if (unaryOperator(name) != null) {
             renderTypes(List.of("v"));
+            return;
+        }
+        if (name.equalsIgnoreCase("rlike")) {
+            renderTypes(List.of("str", "pattern", "caseInsensitive"));
+            return;
+        }
+        if (name.equalsIgnoreCase("like")) {
+            renderTypes(List.of("str", "pattern"));
             return;
         }
         FunctionDefinition definition = definition(name);
@@ -1214,13 +1223,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
-            if (sig.getKey().size() != argNames.size()) {
+            if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
             StringBuilder b = new StringBuilder();
             for (DataType arg : sig.getKey()) {
                 b.append(arg.typeName()).append(" | ");
             }
+            b.append("| ".repeat(argNames.size() - sig.getKey().size()));
             b.append(sig.getValue().typeName());
             table.add(b.toString());
         }
@@ -1389,8 +1399,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     // For variadic functions we test much longer signatures, let's just stop at the last one
                     continue;
                 }
-                // TODO make constants for auto_bucket so the signatures get recognized
-                if (name.equals("auto_bucket") == false && sig.getKey().size() < minArgCount) {
+                if (sig.getKey().size() < minArgCount) {
                     throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
                 }
                 builder.startObject();

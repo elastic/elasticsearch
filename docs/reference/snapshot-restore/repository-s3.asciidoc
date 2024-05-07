@@ -80,10 +80,10 @@ bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this repository type are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. 
-You can define these settings before the node is started, 
-or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> 
-after the settings are defined to apply them to a running node. 
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+You can define these settings before the node is started,
+or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>>
+after the settings are defined to apply them to a running node.
 
 After you reload the settings, the internal `s3` clients, used to transfer the snapshot
 contents, will utilize the latest settings from the keystore. Any existing `s3`
@@ -308,6 +308,14 @@ include::repository-shared-settings.asciidoc[]
     be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia` and
     `intelligent_tiering`. Defaults to `standard`. See
     <<repository-s3-storage-classes>> for more information.
+
+`delete_objects_max_size`::
+
+    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
+    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
+    supported by the
+    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
+    DeleteObjects API].
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future

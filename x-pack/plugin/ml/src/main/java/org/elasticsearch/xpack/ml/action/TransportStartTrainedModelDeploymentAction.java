@@ -286,7 +286,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         }, listener::onFailure);
 
         ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
-            if (getInferenceModelResponse.getModels().isEmpty() == false) {
+            if (getInferenceModelResponse.getEndpoints().isEmpty() == false) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
                 );

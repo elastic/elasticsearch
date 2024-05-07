@@ -176,11 +176,12 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
         final Logger logger = LogManager.getLogger(FileOperatorUsersStore.class);
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.TRACE);
 
-        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+        try (
+            var ignored = appender.capturing(FileOperatorUsersStore.class);
+            ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)
+        ) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "1st file parsing",
@@ -273,8 +274,6 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             Files.copy(sampleFile, inUseFile, StandardCopyOption.REPLACE_EXISTING);
             assertBusy(() -> assertEquals(4, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size()));
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
         }
     }

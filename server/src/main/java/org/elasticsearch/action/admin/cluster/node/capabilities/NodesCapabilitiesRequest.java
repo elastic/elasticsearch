@@ -20,7 +20,7 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
     private RestRequest.Method method = RestRequest.Method.GET;
     private String path = "/";
     private Set<String> parameters = Set.of();
-    private Set<String> features = Set.of();
+    private Set<String> capabilities = Set.of();
     private RestApiVersion restApiVersion = RestApiVersion.current();
 
     public NodesCapabilitiesRequest() {
@@ -55,13 +55,13 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
         return parameters;
     }
 
-    public NodesCapabilitiesRequest features(String... features) {
-        this.features = Set.of(features);
+    public NodesCapabilitiesRequest capabilities(String... capabilities) {
+        this.capabilities = Set.of(capabilities);
         return this;
     }
 
-    public Set<String> features() {
-        return features;
+    public Set<String> capabilities() {
+        return capabilities;
     }
 
     public NodesCapabilitiesRequest restApiVersion(RestApiVersion restApiVersion) {

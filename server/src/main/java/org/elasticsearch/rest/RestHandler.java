@@ -96,9 +96,9 @@ public interface RestHandler {
     }
 
     /**
-     * The set of arbitrary features this rest handler supports.
+     * The set of capabilities this rest handler supports.
      */
-    default Set<String> supportedFeatures() {
+    default Set<String> supportedCapabilities() {
         return Set.of();
     }
 

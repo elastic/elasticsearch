@@ -73,7 +73,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             request.method(),
             request.path(),
             request.parameters(),
-            request.features(),
+            request.capabilities(),
             request.restApiVersion()
         );
     }
@@ -89,7 +89,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             request.method,
             request.path,
             request.parameters,
-            request.features,
+            request.capabilities,
             request.restApiVersion
         );
         return new NodeCapability(supported, transportService.getLocalNode());
@@ -99,7 +99,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
         private final RestRequest.Method method;
         private final String path;
         private final Set<String> parameters;
-        private final Set<String> features;
+        private final Set<String> capabilities;
         private final RestApiVersion restApiVersion;
 
         public NodeCapabilitiesRequest(StreamInput in) throws IOException {
@@ -108,7 +108,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             method = in.readEnum(RestRequest.Method.class);
             path = in.readString();
             parameters = in.readCollectionAsImmutableSet(StreamInput::readString);
-            features = in.readCollectionAsImmutableSet(StreamInput::readString);
+            capabilities = in.readCollectionAsImmutableSet(StreamInput::readString);
             restApiVersion = RestApiVersion.forMajor(in.readVInt());
         }
 
@@ -116,13 +116,13 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             RestRequest.Method method,
             String path,
             Set<String> parameters,
-            Set<String> features,
+            Set<String> capabilities,
             RestApiVersion restApiVersion
         ) {
             this.method = method;
             this.path = path;
             this.parameters = Set.copyOf(parameters);
-            this.features = Set.copyOf(features);
+            this.capabilities = Set.copyOf(capabilities);
             this.restApiVersion = restApiVersion;
         }
 
@@ -133,7 +133,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeEnum(method);
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
-            out.writeCollection(features, StreamOutput::writeString);
+            out.writeCollection(capabilities, StreamOutput::writeString);
             out.writeVInt(restApiVersion.major);
         }
     }

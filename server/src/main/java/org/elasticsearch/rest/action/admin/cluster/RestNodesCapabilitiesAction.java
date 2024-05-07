@@ -33,7 +33,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("timeout", "method", "path", "parameters", "features");
+        return Set.of("timeout", "method", "path", "parameters", "capabilities");
     }
 
     @Override
@@ -47,7 +47,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))
-            .features(request.paramAsStringArray("features", Strings.EMPTY_ARRAY))
+            .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY))
             .restApiVersion(request.getRestApiVersion());
 
         return channel -> client.admin().cluster().nodesCapabilities(r, new NodesResponseRestListener<>(channel));

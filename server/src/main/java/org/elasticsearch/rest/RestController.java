@@ -369,7 +369,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestRequest.Method method,
         String path,
         Set<String> parameters,
-        Set<String> features,
+        Set<String> capabilities,
         RestApiVersion restApiVersion
     ) {
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
@@ -385,7 +385,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (handler != null) {
                 var supportedParams = handler.supportedQueryParameters();
                 return (supportedParams == null || supportedParams.containsAll(parameters))
-                    && handler.supportedFeatures().containsAll(features);
+                    && handler.supportedCapabilities().containsAll(capabilities);
             }
         }
         return false;

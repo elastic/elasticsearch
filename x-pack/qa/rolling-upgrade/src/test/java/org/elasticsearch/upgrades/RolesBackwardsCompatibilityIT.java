@@ -111,7 +111,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                         assertThat(
                             e.getMessage(),
                             containsString(
-                                "all nodes must have transport version ["
+                                "all nodes must have version ["
                                     + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                     + "] or higher to support specifying role description"
                             )
@@ -125,7 +125,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                         assertThat(
                             e.getMessage(),
                             containsString(
-                                "all nodes must have transport version ["
+                                "all nodes must have version ["
                                     + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                     + "] or higher to support specifying role description"
                             )

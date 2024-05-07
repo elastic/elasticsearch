@@ -280,7 +280,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
                         listener.onFailure(
                             new IllegalStateException(
-                                "all nodes must have transport version ["
+                                "all nodes must have version ["
                                     + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                     + "] or higher to support specifying role description"
                             )

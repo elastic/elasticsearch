@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -221,10 +222,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
                 SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
                 if (queryBuilder.getQueryVectors() == null) {
-                    QueryBuilder rewritten = rewriteAndFetch(queryBuilder, context);
-                    assertTrue(rewritten instanceof SparseVectorQueryBuilder);
-                    SparseVectorQueryBuilder rewrittenSparseQueryBuilder = (SparseVectorQueryBuilder) rewritten;
-                    testDoToQuery(rewrittenSparseQueryBuilder, context);
+                    QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, context);
+                    assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
+                    // TODO testDoToQuery((SparseVectorQueryBuilder) rewrittenQueryBuilder, context);
                 } else {
                     testDoToQuery(queryBuilder, context);
                 }
@@ -328,8 +328,8 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(TokenPruningConfig);
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-        assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
-        assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
-        assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
+        assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
+        assertEquals(queryBuilder.shouldPruneTokens(), ((WeightedTokensQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
+        assertNotNull(((WeightedTokensQueryBuilder) rewrittenQueryBuilder).getTokens());
     }
 }

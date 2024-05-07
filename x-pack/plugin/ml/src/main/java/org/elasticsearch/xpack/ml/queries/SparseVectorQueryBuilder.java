@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.ml.queries;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
@@ -41,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
+import org.elasticsearch.xpack.core.ml.search.WeightedTokensUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -190,54 +186,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         builder.endObject();
     }
 
-    /**
-     * We calculate the maximum number of unique tokens for any shard of data. The maximum is used to compute
-     * average token frequency since we don't have a unique inter-segment token count.
-     * Once we have the maximum number of unique tokens, we use the total count of tokens in the index to calculate
-     * the average frequency ratio.
-     *
-     * @param reader
-     * @param fieldDocCount
-     * @return float
-     * @throws IOException
-     */
-    private float getAverageTokenFreqRatio(IndexReader reader, int fieldDocCount) throws IOException {
-        int numUniqueTokens = 0;
-        for (var leaf : reader.getContext().leaves()) {
-            var terms = leaf.reader().terms(fieldName);
-            if (terms != null) {
-                numUniqueTokens = (int) Math.max(terms.size(), numUniqueTokens);
-            }
-        }
-        if (numUniqueTokens == 0) {
-            return 0;
-        }
-        return (float) reader.getSumDocFreq(fieldName) / fieldDocCount / numUniqueTokens;
-    }
-
-    /**
-     * Returns true if the token should be queried based on the {@code tokensFreqRatioThreshold} and {@code tokensWeightThreshold}
-     * set on the query.
-     */
-    private boolean shouldKeepToken(
-        IndexReader reader,
-        WeightedToken token,
-        int fieldDocCount,
-        float averageTokenFreqRatio,
-        float bestWeight
-    ) throws IOException {
-        if (this.tokenPruningConfig == null) {
-            return true;
-        }
-        int docFreq = reader.docFreq(new Term(fieldName, token.token()));
-        if (docFreq == 0) {
-            return false;
-        }
-        float tokenFreqRatio = (float) docFreq / fieldDocCount;
-        return tokenFreqRatio < this.tokenPruningConfig.getTokensFreqRatioThreshold() * averageTokenFreqRatio
-            || token.weight() > this.tokenPruningConfig.getTokensWeightThreshold() * bestWeight;
-    }
-
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (queryVectors == null) {
@@ -257,8 +205,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         return (this.tokenPruningConfig == null)
-            ? queryBuilderWithAllTokens(queryVectors, ft, context)
-            : queryBuilderWithPrunedTokens(queryVectors, ft, context);
+            ? WeightedTokensUtils.queryBuilderWithAllTokens(queryVectors, ft, context)
+            : WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context);
     }
 
     @Override
@@ -267,20 +215,24 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         // Note: We return a WeightedTokensQueryBuilder here instead of a SparseVectorQueryBuilder, so that this
         // query will work when search.check_ccs_compatibility is set to true. This will eventually be removed
         // when it is no longer needed for compatibility.
+        TokenPruningConfig weightedTokensPruningConfig = (tokenPruningConfig != null ? tokenPruningConfig
+            : shouldPruneTokens ? new TokenPruningConfig()
+            : null);
         if (queryVectors != null) {
-            // TODO return `this`
-            return new WeightedTokensQueryBuilder(fieldName, queryVectors, tokenPruningConfig);
+            // TODO return `this` and remove call to weighted tokens builder
+            return new WeightedTokensQueryBuilder(fieldName, queryVectors, weightedTokensPruningConfig);
         } else if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
             if (textExpansionResults == null) {
-                return this;
+                return this; // No results yet
             }
 
             // TODO - Replace this with a new instance of SparseVectorQueryBuilder that uses `textExpansionResults.getWeightedTokens()`
-            // as the input query vectors
-            return new WeightedTokensQueryBuilder(fieldName, textExpansionResults.getWeightedTokens(), tokenPruningConfig);
+            // as the input query vectors and remove call to weighted tokens builder
+            return new WeightedTokensQueryBuilder(fieldName, textExpansionResults.getWeightedTokens(), weightedTokensPruningConfig);
         }
 
+        // TODO move this to xpack core and use inference APIs
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             inferenceId,
             List.of(text),
@@ -328,36 +280,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         );
 
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
-    }
-
-    private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
-        var qb = new BooleanQuery.Builder();
-
-        for (var token : tokens) {
-            qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
-        }
-        return qb.setMinimumNumberShouldMatch(1).build();
-    }
-
-    private Query queryBuilderWithPrunedTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context)
-        throws IOException {
-        var qb = new BooleanQuery.Builder();
-        int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
-        float bestWeight = tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
-        float averageTokenFreqRatio = getAverageTokenFreqRatio(context.getIndexReader(), fieldDocCount);
-        if (averageTokenFreqRatio == 0) {
-            return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
-        }
-
-        for (var token : tokens) {
-            boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight);
-            keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
-            if (keep) {
-                qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
-            }
-        }
-
-        return qb.setMinimumNumberShouldMatch(1).build();
     }
 
     @Override

@@ -11,6 +11,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -80,6 +85,29 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
                 )
             )
         );
+    }
+
+    public void testToXContent_WritesAllValues() throws IOException {
+        var serviceSettings = new HuggingFaceElserServiceSettings(ServiceUtils.createUri("url"), new RateLimitSettings(3));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"url":"url","max_input_tokens":512,"rate_limit":{"requests_per_minute":3}}"""));
+    }
+
+    public void testToXContent_WritesAllValues_Except_RateLimit() throws IOException {
+        var serviceSettings = new HuggingFaceElserServiceSettings(ServiceUtils.createUri("url"), new RateLimitSettings(3));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = serviceSettings.getFilteredXContentObject();
+        filteredXContent.toXContent(builder, null);
+        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"url":"url","max_input_tokens":512}"""));
     }
 
     @Override

@@ -39,7 +39,7 @@ image::images/esql/processing-command.svg[A processing command changing an input
 * <<esql-grok>>
 * <<esql-keep>>
 * <<esql-limit>>
-* <<esql-mv_expand>>
+* experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>
 * <<esql-sort>>
 * <<esql-stats-by>>

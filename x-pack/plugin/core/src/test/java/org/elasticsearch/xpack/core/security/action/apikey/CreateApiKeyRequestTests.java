@@ -105,6 +105,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                     Map.of("_key", "value"),
                     null,
                     null,
+                    null,
                     new RoleDescriptor.Restriction(unknownWorkflows)
                 )
             ),

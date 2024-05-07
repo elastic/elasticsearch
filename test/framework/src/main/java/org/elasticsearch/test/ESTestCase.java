@@ -886,6 +886,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return bytes;
     }
 
+    public static byte randomByteBetween(byte minInclusive, byte maxInclusive) {
+        return (byte) randomIntBetween(minInclusive, maxInclusive);
+    }
+
+    public static void randomBytesBetween(byte[] bytes, byte minInclusive, byte maxInclusive) {
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = randomByteBetween(minInclusive, maxInclusive);
+        }
+    }
+
     public static BytesReference randomBytesReference(int length) {
         final var slices = new ArrayList<BytesReference>();
         var remaining = length;

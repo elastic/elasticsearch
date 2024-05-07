@@ -78,7 +78,6 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         return Settings.builder().put("client", "repository_test_kit").put("container", container).put("base_path", basePath).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107502")
     @Override
     public void testRepositoryAnalysis() throws Exception {
         super.testRepositoryAnalysis();

@@ -82,7 +82,7 @@ Defaults to 30 seconds (`30s`).
 // tag::inference-input-text[]
 ==== {infer-cap} API Input text
 
-For certain 3rd party service integrations, when the service returns an error indicating that the request
+For certain third-party service integrations, when the service returns an error indicating that the request
 input was too large, the input will be truncated and the request is retried. These settings govern
 how the truncation is performed.
 

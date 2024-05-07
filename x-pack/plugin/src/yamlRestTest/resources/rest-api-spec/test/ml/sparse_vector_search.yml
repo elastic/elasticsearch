@@ -264,7 +264,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse_vector search with query vector and pruning config":
+"Test sparse_vector search with query vector and pruning config with only score pruned tokens":
   - do:
       search:
         index: index-with-sparse-vectors

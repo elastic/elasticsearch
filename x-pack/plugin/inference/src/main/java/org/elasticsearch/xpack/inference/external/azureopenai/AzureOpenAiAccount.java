@@ -37,4 +37,5 @@ public record AzureOpenAiAccount(
             model.getSecretSettings().entraId()
         );
     }
+
 }

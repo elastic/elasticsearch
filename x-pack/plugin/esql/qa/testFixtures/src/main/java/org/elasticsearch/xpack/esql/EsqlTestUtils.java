@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -279,7 +280,7 @@ public final class EsqlTestUtils {
 
     public static Map<String, Map<String, Column>> tables() {
         BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
-        Map<String, Map<String, Column>> tables = new HashMap<>();
+        Map<String, Map<String, Column>> tables = new TreeMap<>();
         try (
             IntBlock.Builder ints = factory.newIntBlockBuilder(10);
             LongBlock.Builder longs = factory.newLongBlockBuilder(10);
@@ -296,11 +297,11 @@ public final class EsqlTestUtils {
             BytesRefBlock namesBlock = names.build();
             tables.put(
                 "int_number_names",
-                Map.of("int", new Column(DataTypes.INTEGER, intsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                table("int", new Column(DataTypes.INTEGER, intsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
             );
             tables.put(
                 "long_number_names",
-                Map.of("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                table("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
             );
         }
         try (
@@ -313,11 +314,19 @@ public final class EsqlTestUtils {
             names.appendBytesRef(new BytesRef("two point zero eight"));
             tables.put(
                 "double_number_names",
-                Map.of("double", new Column(DataTypes.DOUBLE, doubles.build()), "name", new Column(DataTypes.KEYWORD, names.build()))
+                table("double", new Column(DataTypes.DOUBLE, doubles.build()), "name", new Column(DataTypes.KEYWORD, names.build()))
             );
         }
 
         return unmodifiableMap(tables);
+    }
+
+    private static Map<String, Column> table(Object... kv) {
+        Map<String, Column> table = new TreeMap<>();
+        for (int i = 0; i < kv.length; i += 2) {
+            table.put((String) kv[i], (Column) kv[i + 1]);
+        }
+        return table;
     }
 
     public static String numberName(int i) {

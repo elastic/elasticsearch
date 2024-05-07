@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.NO_VERSION;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.RESTORED_VERSION;
 import static org.elasticsearch.core.Strings.format;
 
@@ -51,8 +53,10 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
     static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
         return (existingMetadata == null
             || existingMetadata.errorMetadata() == null
-            || newStateVersion <= RESTORED_VERSION // Long.MIN_VALUE (no version) when we can't parse the file, 0 on snapshot restore
-            || existingMetadata.errorMetadata().version() < newStateVersion);
+            || existingMetadata.errorMetadata().version() < newStateVersion
+            || newStateVersion.equals(RESTORED_VERSION)
+            || newStateVersion.equals(EMPTY_VERSION)
+            || newStateVersion.equals(NO_VERSION));
     }
 
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {

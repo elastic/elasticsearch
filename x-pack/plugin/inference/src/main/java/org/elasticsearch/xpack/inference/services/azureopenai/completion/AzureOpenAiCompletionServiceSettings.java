@@ -69,7 +69,12 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
 
     private final RateLimitSettings rateLimitSettings;
 
-    public AzureOpenAiCompletionServiceSettings(String resourceName, String deploymentId, String apiVersion, @Nullable RateLimitSettings rateLimitSettings) {
+    public AzureOpenAiCompletionServiceSettings(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
         this.resourceName = resourceName;
         this.deploymentId = deploymentId;
         this.apiVersion = apiVersion;
@@ -169,7 +174,10 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AzureOpenAiCompletionServiceSettings that = (AzureOpenAiCompletionServiceSettings) object;
-        return Objects.equals(resourceName, that.resourceName) && Objects.equals(deploymentId, that.deploymentId) && Objects.equals(apiVersion, that.apiVersion) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(resourceName, that.resourceName)
+            && Objects.equals(deploymentId, that.deploymentId)
+            && Objects.equals(apiVersion, that.apiVersion)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override

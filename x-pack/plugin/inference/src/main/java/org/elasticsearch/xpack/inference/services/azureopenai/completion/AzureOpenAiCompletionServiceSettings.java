@@ -101,7 +101,6 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        // TODO: consolidate
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);

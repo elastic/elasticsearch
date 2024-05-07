@@ -20,7 +20,6 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
-//TODO: test
 public class AzureOpenAiCompletionAction implements ExecutableAction {
 
     private final String errorMessage;

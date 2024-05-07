@@ -174,4 +174,4 @@ Use our <<getting-started,quick start guide>> to learn the basics of {es}: how t
 
 This setup is not suitable for production use. For production deployments, we recommend using our managed service on Elastic Cloud. https://cloud.elastic.co/registration[Sign up for a free trial] (no credit card required).
 
-Otherwise, refer to our https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Install {es}] to learn about the various options for installing {es} in a self-managed production environment, including using Docker.
+Otherwise, refer to https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Install {es}] to learn about the various options for installing {es} in a self-managed production environment, including using Docker.

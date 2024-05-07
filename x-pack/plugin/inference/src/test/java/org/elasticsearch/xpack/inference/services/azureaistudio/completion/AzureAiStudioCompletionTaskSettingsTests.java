@@ -65,7 +65,7 @@ public class AzureAiStudioCompletionTaskSettingsTests extends ESTestCase {
         );
     }
 
-    public void testFromMap_MaxTokensIsInvalidValue_ThrowsStatusException() {
+    public void testFromMap_MaxNewTokensIsInvalidValue_ThrowsStatusException() {
         var taskMap = getTaskSettingsMap(null, 2.0f, true, 512);
         taskMap.put(MAX_NEW_TOKENS_FIELD, "invalid");
 
@@ -82,7 +82,7 @@ public class AzureAiStudioCompletionTaskSettingsTests extends ESTestCase {
         assertNull(taskMap.temperature());
         assertNull(taskMap.topP());
         assertNull(taskMap.doSample());
-        assertNull(taskMap.maxTokens());
+        assertNull(taskMap.maxNewTokens());
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {

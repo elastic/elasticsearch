@@ -7,39 +7,41 @@
 
 package org.elasticsearch.xpack.inference.external.request.azureaistudio;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DIMENSIONS_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.INPUT_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.USER_FIELD;
 
-public class AzureAiStudioEmbeddingsRequestEntity implements ToXContentObject {
+public record AzureAiStudioEmbeddingsRequestEntity(
+    List<String> input,
+    @Nullable String user,
+    @Nullable Integer dimensions,
+    boolean dimensionsSetByUser
+) implements ToXContentObject {
 
-    private final AzureAiStudioEmbeddingsModel model;
-    private final List<String> inputs;
-
-    public AzureAiStudioEmbeddingsRequestEntity(AzureAiStudioEmbeddingsModel model, List<String> inputs) {
-        this.model = Objects.requireNonNull(model);
-        this.inputs = Objects.requireNonNull(inputs);
+    public AzureAiStudioEmbeddingsRequestEntity {
+        Objects.requireNonNull(input);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (inputs.size() == 1) {
-            builder.field("input", inputs.get(0));
-        } else {
-            builder.array("input", inputs);
+        builder.field(INPUT_FIELD, input);
+
+        if (user != null) {
+            builder.field(USER_FIELD, user);
         }
 
-        var taskUser = this.model.getTaskSettings().user();
-        if (taskUser != null) {
-            builder.field(USER_FIELD, taskUser);
+        if (dimensionsSetByUser && dimensions != null) {
+            builder.field(DIMENSIONS_FIELD, dimensions);
         }
 
         builder.endObject();

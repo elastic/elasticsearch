@@ -69,7 +69,7 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         var temperature = requestSettings.temperature() == null ? originalSettings.temperature() : requestSettings.temperature();
         var topP = requestSettings.topP() == null ? originalSettings.topP() : requestSettings.topP();
         var doSample = requestSettings.doSample() == null ? originalSettings.doSample() : requestSettings.doSample();
-        var maxNewTokens = requestSettings.maxNewTokens() == null ? originalSettings.maxTokens() : requestSettings.maxNewTokens();
+        var maxNewTokens = requestSettings.maxNewTokens() == null ? originalSettings.maxNewTokens() : requestSettings.maxNewTokens();
 
         return new AzureAiStudioCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
@@ -78,26 +78,26 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         @Nullable Float temperature,
         @Nullable Float topP,
         @Nullable Boolean doSample,
-        @Nullable Integer maxTokens
+        @Nullable Integer maxNewTokens
     ) {
 
         this.temperature = temperature;
         this.topP = topP;
         this.doSample = doSample;
-        this.maxTokens = maxTokens;
+        this.maxNewTokens = maxNewTokens;
     }
 
     public AzureAiStudioCompletionTaskSettings(StreamInput in) throws IOException {
         this.temperature = in.readOptionalFloat();
         this.topP = in.readOptionalFloat();
         this.doSample = in.readOptionalBoolean();
-        this.maxTokens = in.readOptionalInt();
+        this.maxNewTokens = in.readOptionalInt();
     }
 
     private final Float temperature;
     private final Float topP;
     private final Boolean doSample;
-    private final Integer maxTokens;
+    private final Integer maxNewTokens;
 
     public Float temperature() {
         return temperature;
@@ -111,12 +111,12 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         return doSample;
     }
 
-    public Integer maxTokens() {
-        return maxTokens;
+    public Integer maxNewTokens() {
+        return maxNewTokens;
     }
 
     public boolean areAnyParametersAvailable() {
-        return temperature != null && topP != null && doSample != null && maxTokens != null;
+        return temperature != null && topP != null && doSample != null && maxNewTokens != null;
     }
 
     @Override
@@ -134,7 +134,7 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         out.writeOptionalFloat(temperature);
         out.writeOptionalFloat(topP);
         out.writeOptionalBoolean(doSample);
-        out.writeOptionalInt(maxTokens);
+        out.writeOptionalInt(maxNewTokens);
     }
 
     @Override
@@ -150,8 +150,8 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         if (doSample != null) {
             builder.field(DO_SAMPLE_FIELD, doSample);
         }
-        if (maxTokens != null) {
-            builder.field(MAX_TOKENS_FIELD, maxTokens);
+        if (maxNewTokens != null) {
+            builder.field(MAX_TOKENS_FIELD, maxNewTokens);
         }
 
         builder.endObject();
@@ -166,12 +166,12 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         return Objects.equals(temperature, that.temperature)
             && Objects.equals(topP, that.topP)
             && Objects.equals(doSample, that.doSample)
-            && Objects.equals(maxTokens, that.maxTokens);
+            && Objects.equals(maxNewTokens, that.maxNewTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(temperature, topP, doSample, maxTokens);
+        return Objects.hash(temperature, topP, doSample, maxNewTokens);
     }
 
 }

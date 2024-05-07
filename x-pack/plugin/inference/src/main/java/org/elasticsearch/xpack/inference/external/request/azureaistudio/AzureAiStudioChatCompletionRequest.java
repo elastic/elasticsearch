@@ -41,9 +41,7 @@ public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(this.uri);
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new AzureAiStudioChatCompletionRequestEntity(completionModel, input)).getBytes(StandardCharsets.UTF_8)
-        );
+        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(createRequestEntity()).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
@@ -62,6 +60,19 @@ public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
     public boolean[] getTruncationInfo() {
         // no truncation
         return null;
+    }
+
+    private AzureAiStudioChatCompletionRequestEntity createRequestEntity() {
+        var taskSettings = completionModel.getTaskSettings();
+        var serviceSettings = completionModel.getServiceSettings();
+        return new AzureAiStudioChatCompletionRequestEntity(
+            input,
+            serviceSettings.endpointType(),
+            taskSettings.temperature(),
+            taskSettings.topP(),
+            taskSettings.doSample(),
+            taskSettings.maxNewTokens()
+        );
     }
 
 }

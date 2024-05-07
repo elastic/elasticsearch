@@ -74,7 +74,9 @@ EXPORT int vec_caps() {
     return 0;
 }
 
-int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
+static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
+    const __m256i ones = _mm256_set1_epi16(1);
+
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
 
@@ -87,10 +89,9 @@ int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
         // Perform multiplication and create 16-bit values
         // Vertically multiply each unsigned 8-bit integer from va with the corresponding
         // 8-bit integer from vb, producing intermediate signed 16-bit integers.
-        va1 = _mm256_maddubs_epi16(va1, vb1);
-        const __m256i ones = _mm256_set1_epi16(1);
+        const __m256i vab = _mm256_maddubs_epi16(va1, vb1);
         // Horizontally add adjacent pairs of intermediate signed 16-bit integers, and pack the results.
-        acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, va1), acc1);
+        acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, vab), acc1);
     }
 
     // reduce (horizontally add all)
@@ -110,7 +111,7 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
-EXPORT int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
+static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
 
@@ -124,8 +125,8 @@ EXPORT int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
 
         const __m256i dist1 = _mm256_sub_epi8(va1, vb1);
         const __m256i abs_dist1 = _mm256_sign_epi8(dist1, dist1);
-
         const __m256i sqr1 = _mm256_maddubs_epi16(abs_dist1, abs_dist1);
+
         acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, sqr1), acc1);
     }
 
@@ -136,7 +137,7 @@ EXPORT int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
 EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (i > SQR7U_STRIDE_BYTES_LEN) {
+    if (dims > SQR7U_STRIDE_BYTES_LEN) {
         i += dims & ~(SQR7U_STRIDE_BYTES_LEN - 1);
         res = sqr7u_inner(a, b, i);
     }

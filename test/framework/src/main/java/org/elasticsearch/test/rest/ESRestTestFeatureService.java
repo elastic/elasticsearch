@@ -58,10 +58,15 @@ class ESRestTestFeatureService implements TestFeatureService {
         if (MetadataHolder.HISTORICAL_FEATURES != null) {
             specs.add(MetadataHolder.HISTORICAL_FEATURES);
         }
-        var historicalFeatures = FeatureData.createFromSpecifications(specs).getHistoricalFeatures();
-        this.knownHistoricalFeatureNames = historicalFeatures.lastEntry().getValue();
+        FeatureData featureData = FeatureData.createFromSpecifications(specs);
+        assert featureData.getNodeFeatures().isEmpty()
+            : Strings.format(
+                "Only historical features can be injected via ESRestTestCase#additionalTestOnlyHistoricalFeatures(), rejecting %s",
+                featureData.getNodeFeatures().keySet()
+            );
+        this.knownHistoricalFeatureNames = featureData.getHistoricalFeatures().lastEntry().getValue();
         this.version = nodeVersions.stream().min(Comparator.naturalOrder()).orElse(Version.CURRENT);
-        this.allSupportedFeatures = Sets.union(clusterStateFeatures, historicalFeatures.floorEntry(version).getValue());
+        this.allSupportedFeatures = Sets.union(clusterStateFeatures, featureData.getHistoricalFeatures().floorEntry(version).getValue());
     }
 
     public static boolean hasFeatureMetadata() {
@@ -88,8 +93,8 @@ class ESRestTestFeatureService implements TestFeatureService {
                 throw new IllegalArgumentException(
                     Strings.format(
                         "Synthetic version features are only available before [%s] for migration purposes! "
-                            + "Please add a cluster feature to an appropriate FeatureSpecification; features only necessary for "
-                            + "testing can be supplied via ESRestTestCase#createAdditionalFeatureSpecifications()",
+                            + "Please add a cluster feature to an appropriate FeatureSpecification; test-only historical-features  "
+                            + "can be supplied via ESRestTestCase#additionalTestOnlyHistoricalFeatures()",
                         Version.V_8_15_0
                     )
                 );
@@ -100,10 +105,9 @@ class ESRestTestFeatureService implements TestFeatureService {
         if (hasFeatureMetadata()) {
             throw new IllegalArgumentException(
                 Strings.format(
-                    "Unknown feature %s: check the feature has been added to the correct FeatureSpecification in the relevant module or, "
-                        + "if this is a legacy feature used only in tests, to a test-only FeatureSpecification such as %s.",
-                    featureId,
-                    RestTestLegacyFeatures.class.getCanonicalName()
+                    "Unknown feature %s: check the respective FeatureSpecification is provided both in module-info.java "
+                        + "as well as in META-INF/services and verify the module is loaded during tests.",
+                    featureId
                 )
             );
         }

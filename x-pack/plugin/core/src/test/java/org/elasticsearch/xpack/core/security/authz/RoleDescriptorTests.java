@@ -630,6 +630,7 @@ public class RoleDescriptorTests extends ESTestCase {
             .allowRemoteIndices(true)
             .allowRestriction(false)
             .allowDescription(false)
+            .allowRemoteClusters(false)
             .build();
 
         descriptor.writeTo(output);
@@ -705,8 +706,8 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getRunAs(),
                         descriptor.getMetadata(),
                         descriptor.getTransientMetadata(),
+                        descriptor.getRemoteIndicesPrivileges(),
                         null,
-                        descriptor.getRemoteClusterPermissions(),
                         descriptor.getRestriction(),
                         descriptor.getDescription()
                     )

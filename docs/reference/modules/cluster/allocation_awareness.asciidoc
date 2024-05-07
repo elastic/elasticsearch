@@ -64,7 +64,7 @@ a cluster's awareness attributes:
 PUT /_cluster/settings
 {
   "persistent" : {
-    "routing.allocation.awareness.attributes" : "rack_id"
+    "cluster.routing.allocation.awareness.attributes" : "rack_id"
   }
 }
 --------------------------------------------------
@@ -81,8 +81,6 @@ If you add two nodes with `node.attr.rack_id` set to `rack_two`,
 that no two copies of the same shard are in the same rack.
 
 image::images/shard-allocation/shard-allocation-awareness-two-racks.png[Primaries and replicas are allocated across four nodes in two racks with no two copies of the same shard in the same rack]
-
-[[multiple-awareness-attributes]]
 
 If `rack_two` fails and takes down both its nodes, by default {es}
 allocates the lost shard copies to nodes in `rack_one`. To prevent multiple

@@ -196,7 +196,7 @@ public class TransportVersions {
     public static final TransportVersion ROLLUP_USAGE = def(8_653_00_0);
     public static final TransportVersion SECURITY_ROLE_DESCRIPTION = def(8_654_00_0);
     public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_COMPLETIONS = def(8_655_00_0);
-
+    public static final TransportVersion ML_RERANK_DOC_OPTIONAL = def(8_656_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

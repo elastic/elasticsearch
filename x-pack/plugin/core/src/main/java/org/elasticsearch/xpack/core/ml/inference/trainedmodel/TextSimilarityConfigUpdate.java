@@ -70,6 +70,15 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
     private final TextSimilarityConfig.SpanScoreFunction spanScoreFunction;
 
     public TextSimilarityConfigUpdate(
+        String text
+    ) {
+        super((TokenizationUpdate)null);
+        this.text = ExceptionsHelper.requireNonNull(text, TEXT);
+        this.resultsField = null;
+        this.spanScoreFunction = null;
+    }
+
+    public TextSimilarityConfigUpdate(
         String text,
         @Nullable String resultsField,
         @Nullable TokenizationUpdate tokenizationUpdate,

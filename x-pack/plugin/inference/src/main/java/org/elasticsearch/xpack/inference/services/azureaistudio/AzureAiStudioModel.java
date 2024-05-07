@@ -84,8 +84,12 @@ public abstract class AzureAiStudioModel extends Model {
     }
 
     // Needed for testing only
-    public void setURI(String target) {
-        this.target = target;
+    public void setURI(String newUri) {
+        try {
+            this.uri = new URI(newUri);
+        } catch (URISyntaxException e) {
+            // swallow any error
+        }
     }
 
     @Override

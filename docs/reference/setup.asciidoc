@@ -70,6 +70,8 @@ include::setup/logging-config.asciidoc[]
 
 include::settings/ml-settings.asciidoc[]
 
+include::settings/inference-settings.asciidoc[]
+
 include::settings/monitoring-settings.asciidoc[]
 
 include::modules/node.asciidoc[]

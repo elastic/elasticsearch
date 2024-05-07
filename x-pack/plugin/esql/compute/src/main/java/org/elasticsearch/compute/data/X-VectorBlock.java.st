@@ -34,6 +34,18 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
         return vector;
     }
 
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
+    }
+$endif$
+
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {

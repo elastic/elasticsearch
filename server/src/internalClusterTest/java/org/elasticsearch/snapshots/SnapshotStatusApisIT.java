@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -689,7 +690,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107405")
     public void testInfiniteTimeout() throws Exception {
         createRepository("test-repo", "mock");
         createIndex("test-idx", 1, 0);
@@ -701,6 +701,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .execute();
         try {
             waitForBlockOnAnyDataNode("test-repo");
+            // Make sure that the create-snapshot task completes on master
+            assertFalse(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
             final List<SnapshotStatus> snapshotStatus = clusterAdmin().prepareSnapshotStatus("test-repo")
                 .setMasterNodeTimeout(TimeValue.MINUS_ONE)
                 .get()

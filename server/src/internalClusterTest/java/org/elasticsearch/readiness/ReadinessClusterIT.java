@@ -215,10 +215,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         }
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
+    private CountDownLatch setupClusterStateListenerForError(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
-        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -231,13 +230,16 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                         containsString("Missing handler definition for content key [not_cluster_settings]")
                     );
                     clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
                 }
             }
         });
 
-        return new Tuple<>(savedClusterState, metadataVersion);
+        // we need this after we setup the listener above, in case the node started and processed
+        // settings before we set our listener to cluster state changes.
+        causeClusterStateUpdate();
+
+        return savedClusterState;
     }
 
     private void writeFileSettings(String json) throws Exception {
@@ -269,20 +271,47 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
-        // we need this after we setup the listener above, in case the node started and processed
-        // settings before we set our listener to cluster state changes.
-        causeClusterStateUpdate();
-
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
         ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
         assertNull(s.boundAddress());
+    }
+
+    public void testReadyAfterRestartWithBadFileSettings() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        writeFileSettings(testJSON);
+
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        String masterNode = internalCluster().startMasterOnlyNode();
+
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        assertBusy(() -> assertTrue("master node ready", internalCluster().getInstance(ReadinessService.class, masterNode).ready()));
+        assertBusy(() -> assertTrue("data node ready", internalCluster().getInstance(ReadinessService.class, dataNode).ready()));
+
+        logger.info("--> stop master node");
+        Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
+        internalCluster().stopCurrentMasterNode();
+        expectMasterNotFound();
+
+        logger.info("--> write bad file settings before restarting master node");
+        writeFileSettings(testErrorJSON);
+
+        logger.info("--> restart master node");
+        String nextMasterNode = internalCluster().startNode(Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings));
+
+        assertMasterNode(internalCluster().nonMasterClient(), nextMasterNode);
+
+        var savedClusterState = setupClusterStateListenerForError(nextMasterNode);
+        assertTrue(savedClusterState.await(20, TimeUnit.SECONDS));
+
+        assertTrue("master node ready on restart", internalCluster().getInstance(ReadinessService.class, nextMasterNode).ready());
     }
 
     public void testReadyWhenMissingFileSettings() throws Exception {

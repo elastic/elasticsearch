@@ -81,8 +81,7 @@ setup:
 ---
 "put settings in list of indices":
   - skip:
-      version: "all"
-      reason:  list of indices not implemented yet
+      awaits_fix: list of indices not implemented yet
   - do:
       indices.put_settings:
         index: test_index1, test_index2
